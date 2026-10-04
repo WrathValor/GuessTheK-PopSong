@@ -1,0 +1,1111 @@
+{
+  "version": "2.5.0",
+  "format": 1,
+  "description": "Segments are [packedLine, sourceLine]. Use the last segment at or before the packed line, then add its line offset.",
+  "files": {
+    "src/Client/DebugHook.luau": {
+      "sourceSha256": "c382ebae369a4b32ebd93adb914e0414e481d170bf117caf24ba322e272b58d4",
+      "packedSha256": "c382ebae369a4b32ebd93adb914e0414e481d170bf117caf24ba322e272b58d4",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Client/init.luau": {
+      "sourceSha256": "36c228c49d8fe692f799e8a1077dead9d53e351cc300a1ed879676a56b8b1e11",
+      "packedSha256": "4b97a1c678d97d45a486a1fe355bd6f4de9c9f8efd11588c456828bd5403302a",
+      "segments": [
+        [
+          1,
+          1
+        ],
+        [
+          542,
+          555
+        ],
+        [
+          544,
+          565
+        ],
+        [
+          549,
+          587
+        ],
+        [
+          659,
+          717
+        ],
+        [
+          664,
+          743
+        ],
+        [
+          678,
+          767
+        ],
+        [
+          695,
+          792
+        ],
+        [
+          701,
+          807
+        ],
+        [
+          704,
+          818
+        ],
+        [
+          709,
+          832
+        ],
+        [
+          712,
+          848
+        ],
+        [
+          723,
+          868
+        ],
+        [
+          725,
+          882
+        ],
+        [
+          750,
+          917
+        ],
+        [
+          764,
+          945
+        ],
+        [
+          855,
+          1046
+        ],
+        [
+          1188,
+          1396
+        ],
+        [
+          1199,
+          1416
+        ],
+        [
+          1206,
+          1433
+        ],
+        [
+          1240,
+          1477
+        ],
+        [
+          1247,
+          1495
+        ],
+        [
+          1286,
+          1544
+        ],
+        [
+          1310,
+          1577
+        ],
+        [
+          1318,
+          1598
+        ],
+        [
+          1324,
+          1635
+        ],
+        [
+          1351,
+          1673
+        ],
+        [
+          1380,
+          1711
+        ],
+        [
+          1390,
+          1728
+        ],
+        [
+          1400,
+          1751
+        ],
+        [
+          1467,
+          1831
+        ],
+        [
+          1509,
+          1882
+        ],
+        [
+          1527,
+          1908
+        ],
+        [
+          1529,
+          1921
+        ],
+        [
+          1537,
+          1951
+        ],
+        [
+          1542,
+          1968
+        ]
+      ]
+    },
+    "src/Internal/Addons.luau": {
+      "sourceSha256": "35b63237bb0f1b1a6779b70ff67a3618afa2afe9eca058ddf7a3510044feab20",
+      "packedSha256": "35b63237bb0f1b1a6779b70ff67a3618afa2afe9eca058ddf7a3510044feab20",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Internal/Big.luau": {
+      "sourceSha256": "43327411937bc2af0fd7db8291681850939577ce8522a3f585db56cb7592da7e",
+      "packedSha256": "8ee726412bd9513da1eeea4655cec19c62e020a0c09fd263960244d7b74e6eb8",
+      "segments": [
+        [
+          1,
+          1
+        ],
+        [
+          434,
+          443
+        ],
+        [
+          439,
+          456
+        ],
+        [
+          444,
+          470
+        ],
+        [
+          449,
+          484
+        ],
+        [
+          454,
+          496
+        ],
+        [
+          461,
+          513
+        ],
+        [
+          466,
+          527
+        ],
+        [
+          558,
+          666
+        ],
+        [
+          567,
+          694
+        ],
+        [
+          572,
+          719
+        ],
+        [
+          577,
+          745
+        ],
+        [
+          582,
+          774
+        ]
+      ]
+    },
+    "src/Internal/Budget.luau": {
+      "sourceSha256": "8a0f85b03ba48e4915536039d33f29739f5e3fc47a8d9af8a7d51fc8f865aab3",
+      "packedSha256": "8a0f85b03ba48e4915536039d33f29739f5e3fc47a8d9af8a7d51fc8f865aab3",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Internal/Clock.luau": {
+      "sourceSha256": "c0f81c8042945b97b28aa67146bb75276bf781bbf7ee5f1e98c99f20de912f17",
+      "packedSha256": "c0f81c8042945b97b28aa67146bb75276bf781bbf7ee5f1e98c99f20de912f17",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Internal/Config.luau": {
+      "sourceSha256": "1e76048f1f1ab3cb477ddb194ec5689f6d0b8ac6acdb48ea992d5e810944d373",
+      "packedSha256": "1e76048f1f1ab3cb477ddb194ec5689f6d0b8ac6acdb48ea992d5e810944d373",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Internal/Conform.luau": {
+      "sourceSha256": "9ca454cda7d264b35090a91b74bbedc042a0abea334fa87f36a41c34476021ee",
+      "packedSha256": "9ca454cda7d264b35090a91b74bbedc042a0abea334fa87f36a41c34476021ee",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Internal/Datatypes.luau": {
+      "sourceSha256": "a9ede27034f814db1354421c7703727b6ffa70e8053bae08708325f6384eabf2",
+      "packedSha256": "a9ede27034f814db1354421c7703727b6ffa70e8053bae08708325f6384eabf2",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Internal/Defaults.luau": {
+      "sourceSha256": "c44cead5f97e28f708d73c37ad56426f5d7ca8390169ba7e713619fe3c9a9cf5",
+      "packedSha256": "c44cead5f97e28f708d73c37ad56426f5d7ca8390169ba7e713619fe3c9a9cf5",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Internal/Derived.luau": {
+      "sourceSha256": "4af00dd41d5a44d57c64608665493938b30f1c1838730884509acd751418ef1d",
+      "packedSha256": "4af00dd41d5a44d57c64608665493938b30f1c1838730884509acd751418ef1d",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Internal/Exchange.luau": {
+      "sourceSha256": "4f0ce1b1ff11304a5712fad7cab166722b1cec74d8ba2c6853503f159c0992b5",
+      "packedSha256": "4f0ce1b1ff11304a5712fad7cab166722b1cec74d8ba2c6853503f159c0992b5",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Internal/ExchangeLeg.luau": {
+      "sourceSha256": "03cc6c7e1cd21e7914068d657c7281a03eaa79cdb5719f4feeb07adf8f88f7e2",
+      "packedSha256": "03cc6c7e1cd21e7914068d657c7281a03eaa79cdb5719f4feeb07adf8f88f7e2",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Internal/ExchangeVerdict.luau": {
+      "sourceSha256": "c52df0781721a211224fc32dfa7a0c4774144a0305b3b488b41a9ceff9e11e49",
+      "packedSha256": "c52df0781721a211224fc32dfa7a0c4774144a0305b3b488b41a9ceff9e11e49",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Internal/Failure.luau": {
+      "sourceSha256": "e928b112de3653efa8d5b5e8f2fd2e448859440950c212ed29c64b5152019b80",
+      "packedSha256": "e928b112de3653efa8d5b5e8f2fd2e448859440950c212ed29c64b5152019b80",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Internal/Health.luau": {
+      "sourceSha256": "c908c7163650d8a408e9a09b9bd4033959a6af130d90f20417fd2757d0613326",
+      "packedSha256": "c908c7163650d8a408e9a09b9bd4033959a6af130d90f20417fd2757d0613326",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Internal/LeaderboardDiagnostics.luau": {
+      "sourceSha256": "29a41e62d48860532d53b85400f14da6102ff9c7ec976d0c3cd1c42a8b358cff",
+      "packedSha256": "29a41e62d48860532d53b85400f14da6102ff9c7ec976d0c3cd1c42a8b358cff",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Internal/Log.luau": {
+      "sourceSha256": "ee0be938e28ab83a8c2700ef493ce3967bf7a9a87b5051b4b62eee0fc4775663",
+      "packedSha256": "ee0be938e28ab83a8c2700ef493ce3967bf7a9a87b5051b4b62eee0fc4775663",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Internal/Marker.luau": {
+      "sourceSha256": "39d2608afc575a8ed91fa5637f097e5a1f48bd4a232e74113a5fda8eb8001f40",
+      "packedSha256": "39d2608afc575a8ed91fa5637f097e5a1f48bd4a232e74113a5fda8eb8001f40",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Internal/Metrics.luau": {
+      "sourceSha256": "9a392963d27a789b13ad079a30b1ffc74efadb58b7199b887063d3c36cf17092",
+      "packedSha256": "9a392963d27a789b13ad079a30b1ffc74efadb58b7199b887063d3c36cf17092",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Internal/Node.luau": {
+      "sourceSha256": "645c4327cc7cbb28e80d253db714c7e9aeb6ccfa2a7d611659253e2c1f6968b7",
+      "packedSha256": "59a9ed2cbfa651ee71b3a5a54bfba7db1d5566cca3d40be6a924d721f6a16812",
+      "segments": [
+        [
+          1,
+          1
+        ],
+        [
+          2714,
+          3326
+        ]
+      ]
+    },
+    "src/Internal/Profile.luau": {
+      "sourceSha256": "c0b84cd983b8f48d43c05600898629b45de2288b8822f6dcf363dc25bdd40f5c",
+      "packedSha256": "c0b84cd983b8f48d43c05600898629b45de2288b8822f6dcf363dc25bdd40f5c",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Internal/Rng.luau": {
+      "sourceSha256": "ae10c25f95fcc75755edc3cc39d3713f57b3bf7645805e0f63da896c2f9bfb3a",
+      "packedSha256": "ae10c25f95fcc75755edc3cc39d3713f57b3bf7645805e0f63da896c2f9bfb3a",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Internal/Sched.luau": {
+      "sourceSha256": "e4f4bbb4f86a30143c1e23012bf6fd8a0fb5f71b7ae5a1e081a205ea0f5aff20",
+      "packedSha256": "e4f4bbb4f86a30143c1e23012bf6fd8a0fb5f71b7ae5a1e081a205ea0f5aff20",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Internal/Signal.luau": {
+      "sourceSha256": "48fd6757dff3555cedb94ec6f55fe255ea3b11e937f5ab205c2f5953912e94ee",
+      "packedSha256": "40b64d336f6a2ccccb0d8abac6efa644e4d05a589a17839a711180c85476009d",
+      "segments": [
+        [
+          1,
+          1
+        ],
+        [
+          44,
+          53
+        ],
+        [
+          47,
+          73
+        ],
+        [
+          71,
+          116
+        ],
+        [
+          78,
+          142
+        ],
+        [
+          90,
+          168
+        ],
+        [
+          96,
+          187
+        ],
+        [
+          167,
+          277
+        ],
+        [
+          178,
+          302
+        ],
+        [
+          188,
+          324
+        ]
+      ]
+    },
+    "src/Internal/Store/ProfileStore.luau": {
+      "sourceSha256": "bc44c12d69c7a4a6642e5e410bf3dca7c58832f1f10371f7350e5e4c6e0560e0",
+      "packedSha256": "bc44c12d69c7a4a6642e5e410bf3dca7c58832f1f10371f7350e5e4c6e0560e0",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Internal/Store/init.luau": {
+      "sourceSha256": "5a8ede7cccef6dc4a6f1cd63a5a839e20f75f6142746727dd0c73b747dc10aaa",
+      "packedSha256": "5a8ede7cccef6dc4a6f1cd63a5a839e20f75f6142746727dd0c73b747dc10aaa",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Internal/StudioCodec.luau": {
+      "sourceSha256": "223e1864c59872f51692dc489ff2cd99f598c57f99534a7eff5c9f729c1a6d0d",
+      "packedSha256": "223e1864c59872f51692dc489ff2cd99f598c57f99534a7eff5c9f729c1a6d0d",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Internal/Template.luau": {
+      "sourceSha256": "ad04f76d304b7c5c0c7241b69740a1603fc549a48898ce2040bf56fdf5c9a56e",
+      "packedSha256": "ad04f76d304b7c5c0c7241b69740a1603fc549a48898ce2040bf56fdf5c9a56e",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Internal/Transport.luau": {
+      "sourceSha256": "a76f06205d8452295deaedfc44ee999861b1fbdaa2f89afb30c89a1a69a9f6cf",
+      "packedSha256": "a76f06205d8452295deaedfc44ee999861b1fbdaa2f89afb30c89a1a69a9f6cf",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Internal/Util.luau": {
+      "sourceSha256": "7ca3a553353e2ab4ffd41b6f0855376571590243614fe2739f1ae302ee96a80c",
+      "packedSha256": "7ca3a553353e2ab4ffd41b6f0855376571590243614fe2739f1ae302ee96a80c",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Internal/Version.luau": {
+      "sourceSha256": "94e766e5fc15fc44095641aa32bc4958814eb6e9c0a387e951939ba4aef5ac40",
+      "packedSha256": "94e766e5fc15fc44095641aa32bc4958814eb6e9c0a387e951939ba4aef5ac40",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Internal/Wire.luau": {
+      "sourceSha256": "79c28842e0a87136dabc895ec0e6582ccd2fb61d58b4c18796f10501b16802b1",
+      "packedSha256": "79c28842e0a87136dabc895ec0e6582ccd2fb61d58b4c18796f10501b16802b1",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Server/Analytics.luau": {
+      "sourceSha256": "2f7aa3a7074d992df397952ae96e12a146daed0c2babeb12dd41640a699bd252",
+      "packedSha256": "2f7aa3a7074d992df397952ae96e12a146daed0c2babeb12dd41640a699bd252",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Server/Commands.luau": {
+      "sourceSha256": "5aa0bbe7285120d6b0e3229fe33100a6f35c37de127c2f55c2c9fc11a0c751fd",
+      "packedSha256": "5aa0bbe7285120d6b0e3229fe33100a6f35c37de127c2f55c2c9fc11a0c751fd",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Server/DebugHook.luau": {
+      "sourceSha256": "f76bf2106b8b111e7f150ffa1ac65b9ee85ccaad9e4c8ff4cef35274f2ab6f52",
+      "packedSha256": "f76bf2106b8b111e7f150ffa1ac65b9ee85ccaad9e4c8ff4cef35274f2ab6f52",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Server/Exchanges.luau": {
+      "sourceSha256": "ea97536a56ad89aac9cee792f5a3b792f1f7b6d958577b9de1f120eb50fe7a38",
+      "packedSha256": "ea97536a56ad89aac9cee792f5a3b792f1f7b6d958577b9de1f120eb50fe7a38",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Server/Leaderboards.luau": {
+      "sourceSha256": "99687a7e84ab8451d09e44236a96cb0e6d05888c16a64a696fa25d61ee260c28",
+      "packedSha256": "99687a7e84ab8451d09e44236a96cb0e6d05888c16a64a696fa25d61ee260c28",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Server/Monetization.luau": {
+      "sourceSha256": "206c13dc83771896798647bcc2360d36daf30c49b021222b6aa2b663ca6c5974",
+      "packedSha256": "206c13dc83771896798647bcc2360d36daf30c49b021222b6aa2b663ca6c5974",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Server/Persistence.luau": {
+      "sourceSha256": "eeed6d743dc2487e43ab40106867a0c6ff39a70f9aa7b80360ace5774938c9be",
+      "packedSha256": "eeed6d743dc2487e43ab40106867a0c6ff39a70f9aa7b80360ace5774938c9be",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Server/Replication.luau": {
+      "sourceSha256": "d16d937d492df7205001e59ea42b64a2517fb0c38623ff84c5c03158670f6731",
+      "packedSha256": "d16d937d492df7205001e59ea42b64a2517fb0c38623ff84c5c03158670f6731",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Server/ServerStore.luau": {
+      "sourceSha256": "e7bbcb087d9b1606ab15c0e203d736cac690fe3c40a8a12f92eb2543ec42592b",
+      "packedSha256": "e7bbcb087d9b1606ab15c0e203d736cac690fe3c40a8a12f92eb2543ec42592b",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Server/Timed.luau": {
+      "sourceSha256": "4ebf9a745ee818da0882f0701d6317ac422b88e0b2b1876e7d7e29d9a7ef2463",
+      "packedSha256": "4ebf9a745ee818da0882f0701d6317ac422b88e0b2b1876e7d7e29d9a7ef2463",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/Server/init.luau": {
+      "sourceSha256": "be61ac0e14419dc2c8d8ef4771fd383a20423390d0eeb2a5f5cda3587dbc40f9",
+      "packedSha256": "c24f7b11addb67335f042677ad16279059ec655953abc62c7496a87856203cd4",
+      "segments": [
+        [
+          1,
+          1
+        ],
+        [
+          141,
+          158
+        ],
+        [
+          177,
+          235
+        ],
+        [
+          181,
+          252
+        ],
+        [
+          185,
+          265
+        ],
+        [
+          190,
+          297
+        ],
+        [
+          195,
+          328
+        ],
+        [
+          201,
+          371
+        ],
+        [
+          206,
+          387
+        ],
+        [
+          210,
+          406
+        ],
+        [
+          214,
+          476
+        ],
+        [
+          219,
+          491
+        ],
+        [
+          223,
+          505
+        ],
+        [
+          227,
+          534
+        ],
+        [
+          232,
+          564
+        ],
+        [
+          236,
+          578
+        ],
+        [
+          241,
+          623
+        ],
+        [
+          246,
+          750
+        ],
+        [
+          269,
+          788
+        ],
+        [
+          273,
+          801
+        ],
+        [
+          277,
+          816
+        ],
+        [
+          281,
+          830
+        ],
+        [
+          285,
+          845
+        ],
+        [
+          290,
+          903
+        ],
+        [
+          294,
+          925
+        ],
+        [
+          298,
+          943
+        ],
+        [
+          302,
+          955
+        ],
+        [
+          306,
+          974
+        ],
+        [
+          311,
+          1004
+        ],
+        [
+          315,
+          1022
+        ],
+        [
+          319,
+          1044
+        ],
+        [
+          323,
+          1061
+        ],
+        [
+          327,
+          1073
+        ],
+        [
+          331,
+          1085
+        ],
+        [
+          335,
+          1120
+        ],
+        [
+          339,
+          1132
+        ],
+        [
+          343,
+          1150
+        ],
+        [
+          355,
+          1189
+        ],
+        [
+          367,
+          1210
+        ],
+        [
+          373,
+          1224
+        ],
+        [
+          379,
+          1239
+        ],
+        [
+          381,
+          1251
+        ],
+        [
+          383,
+          1263
+        ],
+        [
+          385,
+          1290
+        ],
+        [
+          387,
+          1339
+        ],
+        [
+          393,
+          1354
+        ],
+        [
+          395,
+          1379
+        ],
+        [
+          398,
+          1416
+        ],
+        [
+          463,
+          1492
+        ],
+        [
+          526,
+          1563
+        ],
+        [
+          539,
+          1594
+        ],
+        [
+          574,
+          1641
+        ]
+      ]
+    },
+    "src/Types.luau": {
+      "sourceSha256": "194a37f2668366ddb84fe164eef08df2283639f63a10684f5902d11011362533",
+      "packedSha256": "194a37f2668366ddb84fe164eef08df2283639f63a10684f5902d11011362533",
+      "segments": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "src/init.luau": {
+      "sourceSha256": "2831a37cc157c51285c7ebd8897d4ba8aa43f03bd5c46d45b5f42067b820739a",
+      "packedSha256": "9538a693ff462444e1b8984375b22e60f3ce5a07bbd5d458524693536e173630",
+      "segments": [
+        [
+          1,
+          1
+        ],
+        [
+          1518,
+          1546
+        ],
+        [
+          1527,
+          2156
+        ],
+        [
+          1733,
+          2387
+        ],
+        [
+          1736,
+          2396
+        ],
+        [
+          1738,
+          2416
+        ],
+        [
+          1743,
+          2434
+        ],
+        [
+          1748,
+          2453
+        ],
+        [
+          1753,
+          2469
+        ],
+        [
+          1758,
+          2498
+        ],
+        [
+          1763,
+          2530
+        ],
+        [
+          1768,
+          2550
+        ],
+        [
+          1773,
+          2565
+        ],
+        [
+          1778,
+          2594
+        ],
+        [
+          1783,
+          2609
+        ],
+        [
+          1788,
+          2638
+        ],
+        [
+          1795,
+          2669
+        ],
+        [
+          1800,
+          2699
+        ],
+        [
+          1805,
+          2729
+        ],
+        [
+          1823,
+          2772
+        ],
+        [
+          1845,
+          2819
+        ],
+        [
+          1868,
+          2866
+        ],
+        [
+          1891,
+          2904
+        ],
+        [
+          1908,
+          2945
+        ],
+        [
+          1968,
+          3028
+        ],
+        [
+          1971,
+          3072
+        ],
+        [
+          1983,
+          3098
+        ],
+        [
+          1988,
+          3124
+        ],
+        [
+          2033,
+          3185
+        ],
+        [
+          2048,
+          3225
+        ],
+        [
+          2051,
+          3240
+        ],
+        [
+          2063,
+          3267
+        ],
+        [
+          2082,
+          3303
+        ],
+        [
+          2091,
+          3318
+        ],
+        [
+          2100,
+          3333
+        ],
+        [
+          2109,
+          3348
+        ],
+        [
+          2124,
+          3369
+        ],
+        [
+          2131,
+          3382
+        ],
+        [
+          2138,
+          3395
+        ],
+        [
+          2145,
+          3408
+        ],
+        [
+          2156,
+          3425
+        ],
+        [
+          2163,
+          3439
+        ],
+        [
+          2166,
+          3451
+        ],
+        [
+          2171,
+          3464
+        ],
+        [
+          2176,
+          3478
+        ],
+        [
+          2181,
+          3492
+        ],
+        [
+          2184,
+          3504
+        ],
+        [
+          2187,
+          3524
+        ],
+        [
+          2192,
+          3543
+        ],
+        [
+          2197,
+          3561
+        ],
+        [
+          2202,
+          3575
+        ],
+        [
+          2207,
+          3606
+        ],
+        [
+          2212,
+          3635
+        ],
+        [
+          2217,
+          3656
+        ]
+      ]
+    }
+  }
+}
