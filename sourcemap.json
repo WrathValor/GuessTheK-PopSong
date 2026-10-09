@@ -10,6 +10,189 @@
       "className": "ReplicatedStorage",
       "children": [
         {
+          "name": "Modules",
+          "className": "Folder",
+          "children": [
+            {
+              "name": "Library",
+              "className": "Folder",
+              "children": [
+                {
+                  "name": "Modes",
+                  "className": "Folder",
+                  "children": [
+                    {
+                      "name": "Song",
+                      "className": "ModuleScript",
+                      "filePaths": [
+                        "src/shared\\Modules\\Library\\Modes\\Song.luau"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Songs",
+                  "className": "ModuleScript",
+                  "filePaths": [
+                    "src/shared\\Modules\\Library\\Songs\\init.luau"
+                  ],
+                  "children": [
+                    {
+                      "name": "Easy",
+                      "className": "ModuleScript",
+                      "filePaths": [
+                        "src/shared\\Modules\\Library\\Songs\\Easy.luau"
+                      ]
+                    },
+                    {
+                      "name": "Hard",
+                      "className": "ModuleScript",
+                      "filePaths": [
+                        "src/shared\\Modules\\Library\\Songs\\Hard.luau"
+                      ]
+                    },
+                    {
+                      "name": "Medium",
+                      "className": "ModuleScript",
+                      "filePaths": [
+                        "src/shared\\Modules\\Library\\Songs\\Medium.luau"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "PlayerData",
+              "className": "ModuleScript",
+              "filePaths": [
+                "src/shared\\Modules\\PlayerData.luau"
+              ]
+            },
+            {
+              "name": "UI",
+              "className": "Folder",
+              "children": [
+                {
+                  "name": "Animations",
+                  "className": "Folder",
+                  "children": [
+                    {
+                      "name": "ButtonScale",
+                      "className": "ModuleScript",
+                      "filePaths": [
+                        "src/shared\\Modules\\UI\\Animations\\ButtonScale\\init.luau"
+                      ],
+                      "children": [
+                        {
+                          "name": "Animation",
+                          "className": "ModuleScript",
+                          "filePaths": [
+                            "src/shared\\Modules\\UI\\Animations\\ButtonScale\\Animation.luau"
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "name": "FrameTransition",
+                      "className": "ModuleScript",
+                      "filePaths": [
+                        "src/shared\\Modules\\UI\\Animations\\FrameTransition\\init.luau"
+                      ],
+                      "children": [
+                        {
+                          "name": "Animation",
+                          "className": "ModuleScript",
+                          "filePaths": [
+                            "src/shared\\Modules\\UI\\Animations\\FrameTransition\\Animation.luau"
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "name": "PopIn",
+                      "className": "ModuleScript",
+                      "filePaths": [
+                        "src/shared\\Modules\\UI\\Animations\\PopIn\\init.luau"
+                      ],
+                      "children": [
+                        {
+                          "name": "Animation",
+                          "className": "ModuleScript",
+                          "filePaths": [
+                            "src/shared\\Modules\\UI\\Animations\\PopIn\\Animation.luau"
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "name": "PopOut",
+                      "className": "ModuleScript",
+                      "filePaths": [
+                        "src/shared\\Modules\\UI\\Animations\\PopOut\\init.luau"
+                      ],
+                      "children": [
+                        {
+                          "name": "Animation",
+                          "className": "ModuleScript",
+                          "filePaths": [
+                            "src/shared\\Modules\\UI\\Animations\\PopOut\\Animation.luau"
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "name": "SlideToggle",
+                      "className": "ModuleScript",
+                      "filePaths": [
+                        "src/shared\\Modules\\UI\\Animations\\SlideToggle\\init.luau"
+                      ],
+                      "children": [
+                        {
+                          "name": "Animation",
+                          "className": "ModuleScript",
+                          "filePaths": [
+                            "src/shared\\Modules\\UI\\Animations\\SlideToggle\\Animation.luau"
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "name": "SlideUp",
+                      "className": "ModuleScript",
+                      "filePaths": [
+                        "src/shared\\Modules\\UI\\Animations\\SlideUp\\init.luau"
+                      ],
+                      "children": [
+                        {
+                          "name": "Animation",
+                          "className": "ModuleScript",
+                          "filePaths": [
+                            "src/shared\\Modules\\UI\\Animations\\SlideUp\\Animation.luau"
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Types",
+          "className": "Folder",
+          "children": [
+            {
+              "name": "UITypes",
+              "className": "ModuleScript",
+              "filePaths": [
+                "src/shared\\Types\\UITypes.luau"
+              ]
+            }
+          ]
+        },
+        {
           "name": "Packages",
           "className": "Folder",
           "children": [
@@ -211,6 +394,264 @@
                             "Packages\\_Index\\centau_vide@0.4.1\\vide\\src\\values.luau"
                           ]
                         }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "darkestdev_bridgenet2@1.0.2",
+                  "className": "Folder",
+                  "children": [
+                    {
+                      "name": "RemotePacketSizeCounter",
+                      "className": "ModuleScript",
+                      "filePaths": [
+                        "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\RemotePacketSizeCounter.lua"
+                      ]
+                    },
+                    {
+                      "name": "TableKit",
+                      "className": "ModuleScript",
+                      "filePaths": [
+                        "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\TableKit.lua"
+                      ]
+                    },
+                    {
+                      "name": "bridgenet2",
+                      "className": "ModuleScript",
+                      "filePaths": [
+                        "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\bridgenet2\\src\\init.luau",
+                        "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\bridgenet2\\default.project.json"
+                      ],
+                      "children": [
+                        {
+                          "name": "Client",
+                          "className": "ModuleScript",
+                          "filePaths": [
+                            "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\bridgenet2\\src\\Client\\init.luau"
+                          ],
+                          "children": [
+                            {
+                              "name": "ClientBridge",
+                              "className": "ModuleScript",
+                              "filePaths": [
+                                "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\bridgenet2\\src\\Client\\ClientBridge.luau"
+                              ]
+                            },
+                            {
+                              "name": "ClientConnection",
+                              "className": "ModuleScript",
+                              "filePaths": [
+                                "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\bridgenet2\\src\\Client\\ClientConnection.luau"
+                              ]
+                            },
+                            {
+                              "name": "ClientIdentifiers",
+                              "className": "ModuleScript",
+                              "filePaths": [
+                                "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\bridgenet2\\src\\Client\\ClientIdentifiers.luau"
+                              ]
+                            },
+                            {
+                              "name": "ClientProcess",
+                              "className": "ModuleScript",
+                              "filePaths": [
+                                "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\bridgenet2\\src\\Client\\ClientProcess.luau"
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "name": "Constants",
+                          "className": "ModuleScript",
+                          "filePaths": [
+                            "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\bridgenet2\\src\\Constants.luau"
+                          ]
+                        },
+                        {
+                          "name": "ExportedTypes",
+                          "className": "ModuleScript",
+                          "filePaths": [
+                            "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\bridgenet2\\src\\ExportedTypes.luau"
+                          ]
+                        },
+                        {
+                          "name": "PublicTypes",
+                          "className": "ModuleScript",
+                          "filePaths": [
+                            "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\bridgenet2\\src\\PublicTypes.luau"
+                          ]
+                        },
+                        {
+                          "name": "Server",
+                          "className": "ModuleScript",
+                          "filePaths": [
+                            "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\bridgenet2\\src\\Server\\init.luau"
+                          ],
+                          "children": [
+                            {
+                              "name": "HandleInvalidPlayer",
+                              "className": "ModuleScript",
+                              "filePaths": [
+                                "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\bridgenet2\\src\\Server\\HandleInvalidPlayer.luau"
+                              ]
+                            },
+                            {
+                              "name": "PlayerContainers",
+                              "className": "ModuleScript",
+                              "filePaths": [
+                                "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\bridgenet2\\src\\Server\\PlayerContainers\\init.luau"
+                              ],
+                              "children": [
+                                {
+                                  "name": "All",
+                                  "className": "ModuleScript",
+                                  "filePaths": [
+                                    "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\bridgenet2\\src\\Server\\PlayerContainers\\All.luau"
+                                  ]
+                                },
+                                {
+                                  "name": "Except",
+                                  "className": "ModuleScript",
+                                  "filePaths": [
+                                    "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\bridgenet2\\src\\Server\\PlayerContainers\\Except.luau"
+                                  ]
+                                },
+                                {
+                                  "name": "Players",
+                                  "className": "ModuleScript",
+                                  "filePaths": [
+                                    "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\bridgenet2\\src\\Server\\PlayerContainers\\Players.luau"
+                                  ]
+                                },
+                                {
+                                  "name": "Single",
+                                  "className": "ModuleScript",
+                                  "filePaths": [
+                                    "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\bridgenet2\\src\\Server\\PlayerContainers\\Single.luau"
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "name": "ServerBridge",
+                              "className": "ModuleScript",
+                              "filePaths": [
+                                "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\bridgenet2\\src\\Server\\ServerBridge.luau"
+                              ]
+                            },
+                            {
+                              "name": "ServerConnection",
+                              "className": "ModuleScript",
+                              "filePaths": [
+                                "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\bridgenet2\\src\\Server\\ServerConnection.luau"
+                              ]
+                            },
+                            {
+                              "name": "ServerIdentifiers",
+                              "className": "ModuleScript",
+                              "filePaths": [
+                                "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\bridgenet2\\src\\Server\\ServerIdentifiers.luau"
+                              ]
+                            },
+                            {
+                              "name": "ServerProcess",
+                              "className": "ModuleScript",
+                              "filePaths": [
+                                "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\bridgenet2\\src\\Server\\ServerProcess.luau"
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "name": "Studio",
+                          "className": "Folder",
+                          "children": [
+                            {
+                              "name": "MockBridge",
+                              "className": "ModuleScript",
+                              "filePaths": [
+                                "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\bridgenet2\\src\\Studio\\MockBridge.luau"
+                              ]
+                            },
+                            {
+                              "name": "MockConnection",
+                              "className": "ModuleScript",
+                              "filePaths": [
+                                "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\bridgenet2\\src\\Studio\\MockConnection.luau"
+                              ]
+                            },
+                            {
+                              "name": "MockIdentifiers",
+                              "className": "ModuleScript",
+                              "filePaths": [
+                                "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\bridgenet2\\src\\Studio\\MockIdentifiers.luau"
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "name": "Types",
+                          "className": "ModuleScript",
+                          "filePaths": [
+                            "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\bridgenet2\\src\\Types.luau"
+                          ]
+                        },
+                        {
+                          "name": "Utilities",
+                          "className": "Folder",
+                          "children": [
+                            {
+                              "name": "NetworkUtils",
+                              "className": "ModuleScript",
+                              "filePaths": [
+                                "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\bridgenet2\\src\\Utilities\\NetworkUtils.luau"
+                              ]
+                            },
+                            {
+                              "name": "Output",
+                              "className": "ModuleScript",
+                              "filePaths": [
+                                "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\bridgenet2\\src\\Utilities\\Output.luau"
+                              ]
+                            },
+                            {
+                              "name": "RecycledSpawn",
+                              "className": "ModuleScript",
+                              "filePaths": [
+                                "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\bridgenet2\\src\\Utilities\\RecycledSpawn.luau"
+                              ]
+                            },
+                            {
+                              "name": "isEditMode",
+                              "className": "ModuleScript",
+                              "filePaths": [
+                                "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\bridgenet2\\src\\Utilities\\isEditMode.luau"
+                              ]
+                            },
+                            {
+                              "name": "tostringData",
+                              "className": "ModuleScript",
+                              "filePaths": [
+                                "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\bridgenet2\\src\\Utilities\\tostringData.luau"
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "name": "version",
+                          "className": "ModuleScript",
+                          "filePaths": [
+                            "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\bridgenet2\\src\\version.luau"
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "name": "wallyInstanceManager",
+                      "className": "ModuleScript",
+                      "filePaths": [
+                        "Packages\\_Index\\darkestdev_bridgenet2@1.0.2\\wallyInstanceManager.lua"
                       ]
                     }
                   ]
@@ -582,6 +1023,34 @@
                   ]
                 },
                 {
+                  "name": "ffrostflame_tablekit@0.2.4",
+                  "className": "Folder",
+                  "children": [
+                    {
+                      "name": "tablekit",
+                      "className": "ModuleScript",
+                      "filePaths": [
+                        "Packages\\_Index\\ffrostflame_tablekit@0.2.4\\tablekit\\src\\init.luau",
+                        "Packages\\_Index\\ffrostflame_tablekit@0.2.4\\tablekit\\default.project.json"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "ffrostflame_wally-instance-manager@0.1.0",
+                  "className": "Folder",
+                  "children": [
+                    {
+                      "name": "wally-instance-manager",
+                      "className": "ModuleScript",
+                      "filePaths": [
+                        "Packages\\_Index\\ffrostflame_wally-instance-manager@0.1.0\\wally-instance-manager\\src\\init.luau",
+                        "Packages\\_Index\\ffrostflame_wally-instance-manager@0.1.0\\wally-instance-manager\\default.project.json"
+                      ]
+                    }
+                  ]
+                },
+                {
                   "name": "howmanysmall_janitor@1.18.3",
                   "className": "Folder",
                   "children": [
@@ -660,6 +1129,20 @@
                   ]
                 },
                 {
+                  "name": "pysephwasntavailable_remotepacketsizecounter@2.4.1",
+                  "className": "Folder",
+                  "children": [
+                    {
+                      "name": "remotepacketsizecounter",
+                      "className": "ModuleScript",
+                      "filePaths": [
+                        "Packages\\_Index\\pysephwasntavailable_remotepacketsizecounter@2.4.1\\remotepacketsizecounter\\src\\init.luau",
+                        "Packages\\_Index\\pysephwasntavailable_remotepacketsizecounter@2.4.1\\remotepacketsizecounter\\default.project.json"
+                      ]
+                    }
+                  ]
+                },
+                {
                   "name": "sleitnick_signal@2.0.3",
                   "className": "Folder",
                   "children": [
@@ -691,10 +1174,24 @@
               ]
             },
             {
+              "name": "bridgenet2",
+              "className": "ModuleScript",
+              "filePaths": [
+                "Packages\\bridgenet2.lua"
+              ]
+            },
+            {
               "name": "janitor",
               "className": "ModuleScript",
               "filePaths": [
                 "Packages\\janitor.lua"
+              ]
+            },
+            {
+              "name": "promise",
+              "className": "ModuleScript",
+              "filePaths": [
+                "Packages\\promise.lua"
               ]
             },
             {
@@ -719,25 +1216,6 @@
               ]
             }
           ]
-        },
-        {
-          "name": "Assets",
-          "className": "Folder",
-          "children": [
-            {
-              "name": "Modules",
-              "className": "Folder",
-              "children": [
-                {
-                  "name": "PlayerData",
-                  "className": "ModuleScript",
-                  "filePaths": [
-                    "src/shared\\Assets\\Modules\\PlayerData.luau"
-                  ]
-                }
-              ]
-            }
-          ]
         }
       ]
     },
@@ -758,6 +1236,35 @@
               "filePaths": [
                 "src/server\\Engine\\DataService.luau"
               ]
+            },
+            {
+              "name": "DuelService",
+              "className": "ModuleScript",
+              "filePaths": [
+                "src/server\\Engine\\DuelService\\init.luau"
+              ],
+              "children": [
+                {
+                  "name": "Duels",
+                  "className": "ModuleScript",
+                  "filePaths": [
+                    "src/server\\Engine\\DuelService\\Duels.luau"
+                  ]
+                },
+                {
+                  "name": "Modes",
+                  "className": "Folder",
+                  "children": [
+                    {
+                      "name": "Song",
+                      "className": "ModuleScript",
+                      "filePaths": [
+                        "src/server\\Engine\\DuelService\\Modes\\Song.luau"
+                      ]
+                    }
+                  ]
+                }
+              ]
             }
           ]
         }
@@ -773,9 +1280,53 @@
           "children": [
             {
               "name": "Client",
-              "className": "LocalScript",
-              "filePaths": [
-                "src/client\\init.client.luau"
+              "className": "Folder",
+              "children": [
+                {
+                  "name": "Client",
+                  "className": "LocalScript",
+                  "filePaths": [
+                    "src/client\\Client\\init.client.luau"
+                  ],
+                  "children": [
+                    {
+                      "name": "DuelController",
+                      "className": "ModuleScript",
+                      "filePaths": [
+                        "src/client\\Client\\DuelController\\init.luau"
+                      ]
+                    },
+                    {
+                      "name": "InterfaceController",
+                      "className": "ModuleScript",
+                      "filePaths": [
+                        "src/client\\Client\\InterfaceController\\init.luau"
+                      ],
+                      "children": [
+                        {
+                          "name": "Controllers",
+                          "className": "Folder",
+                          "children": [
+                            {
+                              "name": "QueueController",
+                              "className": "ModuleScript",
+                              "filePaths": [
+                                "src/client\\Client\\InterfaceController\\Controllers\\QueueController\\init.luau"
+                              ]
+                            },
+                            {
+                              "name": "TemplateController",
+                              "className": "ModuleScript",
+                              "filePaths": [
+                                "src/client\\Client\\InterfaceController\\Controllers\\TemplateController\\init.luau"
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
               ]
             }
           ]

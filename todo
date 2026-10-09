@@ -1,0 +1,10 @@
+06/10/2026:
+    - Create Round Top Bar UI (Player Names, Points)
+    - Round Results UI
+    - Queueing UI
+    - Round Logic (Choosing a random song, generating option and providing points based on answer and time)
+    - UI Replication (Starting Round, Selecting Time, Play Button, Displaying Round Results)
+    - Duel End Logic (Ending Duel, Displaying Results, Updating Player Stats)
+
+07/10/2026:
+    - 

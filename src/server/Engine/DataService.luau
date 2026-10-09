@@ -5,7 +5,7 @@ local Players = game:GetService("Players")
 
 --| Imports
 
-local PlayerData = require(ReplicatedStorage.Assets.Modules.PlayerData).Server
+local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 
 --| DataService
 

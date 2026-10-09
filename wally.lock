@@ -8,6 +8,11 @@ version = "0.4.1"
 dependencies = []
 
 [[package]]
+name = "darkestdev/bridgenet2"
+version = "1.0.2"
+dependencies = [["RemotePacketSizeCounter", "pysephwasntavailable/remotepacketsizecounter@2.4.1"], ["TableKit", "ffrostflame/tablekit@0.2.4"], ["wallyInstanceManager", "ffrostflame/wally-instance-manager@0.1.0"]]
+
+[[package]]
 name = "ericplane/scribe"
 version = "2.5.0"
 dependencies = []
@@ -15,6 +20,16 @@ dependencies = []
 [[package]]
 name = "evaera/promise"
 version = "4.0.0"
+dependencies = []
+
+[[package]]
+name = "ffrostflame/tablekit"
+version = "0.2.4"
+dependencies = []
+
+[[package]]
+name = "ffrostflame/wally-instance-manager"
+version = "0.1.0"
 dependencies = []
 
 [[package]]
@@ -30,7 +45,12 @@ dependencies = [["Promise", "evaera/promise@4.0.0"]]
 [[package]]
 name = "mujta/guessthek-popsong"
 version = "0.1.0"
-dependencies = [["janitor", "howmanysmall/janitor@1.18.3"], ["scribe", "ericplane/scribe@2.5.0"], ["signal", "sleitnick/signal@2.0.3"], ["vide", "centau/vide@0.4.1"]]
+dependencies = [["bridgenet2", "darkestdev/bridgenet2@1.0.2"], ["janitor", "howmanysmall/janitor@1.18.3"], ["promise", "evaera/promise@4.0.0"], ["scribe", "ericplane/scribe@2.5.0"], ["signal", "sleitnick/signal@2.0.3"], ["vide", "centau/vide@0.4.1"]]
+
+[[package]]
+name = "pysephwasntavailable/remotepacketsizecounter"
+version = "2.4.1"
+dependencies = []
 
 [[package]]
 name = "sleitnick/signal"
