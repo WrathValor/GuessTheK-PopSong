@@ -1216,6 +1216,19 @@
               ]
             }
           ]
+        },
+        {
+          "name": "Constants",
+          "className": "Folder",
+          "children": [
+            {
+              "name": "DuelConstants",
+              "className": "ModuleScript",
+              "filePaths": [
+                "src/shared\\Constants\\DuelConstants.luau"
+              ]
+            }
+          ]
         }
       ]
     },

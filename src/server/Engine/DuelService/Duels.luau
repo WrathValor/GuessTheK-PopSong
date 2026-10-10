@@ -2,16 +2,17 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 --| Imports
+
 local Janitor = require(ReplicatedStorage.Packages.janitor)
 local Signal = require(ReplicatedStorage.Packages.signal)
+local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 
---| Constants
-local ROUNDS = 7
-local ROUND_TIME = 15
-local INTERMISSION = 3
-local POINT_TIERS = { -- { within seconds, points }
-	{ 0.5, 10 }, { 2, 7 }, { 4, 5 }, { 8, 2 }, { 15, 1 },
-}
+local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
+local SongLibrary = require(ReplicatedStorage.Modules.Library.Songs)
+
+--| Variables
+
+local QueueRemote = Bridgenet.ReferenceBridge("QueueRemote")
 
 --| Types
 export type Result = {
@@ -24,17 +25,27 @@ export type Result = {
 local Duels = {}
 Duels.__index = Duels
 
-function Duels.new(stage, player1: Player, player2: Player)
+function Duels.new(stage, player1: Player, player2: Player, solostage: boolean?)
+	
 	local self = setmetatable({}, Duels)
 
 	self.Stage = stage
 	self.Players = { player1, player2 }
-	self.Scores = { [player1] = 0, [player2] = 0 }
+	
+
+	if player1 == nil then
+		self.Scores = {[player2] = 0 }
+	else
+		self.Scores = { [player1] = 0}
+	end
+
 	self.SelectedSong = "";
+	self.SelectedOptions = {};
 	self.ChosenSongs = {};
     self.RoundData = {};
 	self.Round = 0
 
+	self.Solo = solostage
 	self.Ended = Signal.new()
 	self._janitor = Janitor.new()
 	self._janitor:Add(self.Ended)
@@ -44,7 +55,7 @@ function Duels.new(stage, player1: Player, player2: Player)
 end
 
 function Duels.PointsFor(elapsed: number): number
-	for _, tier in POINT_TIERS do
+	for _, tier in DuelConstants.POINT_TIERS do
 		if elapsed <= tier[1] then
 			return tier[2]
 		end
@@ -56,12 +67,15 @@ function Duels:Start()
 	if self._running then return end
 	self._running = true
 
+	QueueRemote:Fire(Bridgenet.Players(self.Players), { Message = "Intermission" })
+	task.wait(DuelConstants.START_TIME)
+
 	local thread = task.spawn(function()
-		for round = 1, ROUNDS do
+		for round = 1, DuelConstants.ROUNDS do
 			self.Round = round
 			self:_playRound()
 			if not self._running then return end
-			task.wait(INTERMISSION)
+			task.wait(DuelConstants.ROUND_INTERMISSION)
 		end
 		self:_finish(nil, false)
 	end)
@@ -75,11 +89,27 @@ function Duels:Start()
 end
 
 function Duels:GetSong()
-	return Library.Songs.GetRandomSong()
+	local SelectedSong = SongLibrary.GetRandomSong()
+	if table.find(self.ChosenSongs, SelectedSong) then
+		repeat 
+			SelectedSong = SongLibrary.GetRandomSong()
+		until table.find(self.ChosenSongs, SelectedSong) == nil
+	end
+
+	for i = 1, 3 do
+		local RandomOption = SongLibrary.GetRandomSong()
+		if self.SelectedOptions[RandomOption] then
+			repeat
+				RandomOption = SongLibrary.GetRandomSong()
+			until self.SelectedOptions[RandomOption] == nil
+		end
+		self.SelectedOptions[RandomOption] = {}
+	end
 end
 
 function Duels:_playRound()
-	
+	self:GetSong();
+
 
 	-- TODO (yours):
 	--  1. pick a song from Library.Songs + 3 wrong options
@@ -87,7 +117,7 @@ function Duels:_playRound()
 	--  3. accept ONE guess per player, elapsed = os.clock() - startTime
 	--  4. correct → self.Scores[player] += Duels.PointsFor(elapsed)
 	--  5. end early once both guessed, otherwise after ROUND_TIME
-	task.wait(ROUND_TIME)
+	task.wait(DuelConstants.ROUND_TIME)
 end
 
 function Duels:Forfeit(player: Player)

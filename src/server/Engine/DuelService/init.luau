@@ -31,7 +31,7 @@ local SLOTS: { Slot } = { "A", "B" }
 
 --| Variables
 
-local DuelRemote = Bridgenet.ReferenceBridge("DuelRemote")
+local QueueRemote = Bridgenet.ReferenceBridge("QueueRemote")
 local DuelStages = workspace.Map.DuelStages
 
 --| DuelService
@@ -95,6 +95,12 @@ local function join(stage: Stage, slot: Slot, player: Player)
 		return
 	end
 
+	if stage.Solo then
+		if stage.Players.A or stage.Players.B then
+			return
+		end
+	end
+
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	if not humanoid or humanoid.Health <= 0 then
@@ -117,7 +123,7 @@ local function join(stage: Stage, slot: Slot, player: Player)
 	refreshPrompts(stage)
 	tryStart(stage)
 
-	DuelRemote:Fire(player, "Queueing")
+	QueueRemote:Fire(player, {Message = "Queueing"})
 end
 
 function leave(player: Player)
@@ -140,8 +146,14 @@ function leave(player: Player)
 		stage.Duel:Forfeit(player)
 	end
 
+	if stage.Players.A == nil and stage.Players.B == nil and stage.Solo then
+		stage.Solo = false
+	end
+
 	character.PrimaryPart.Anchored = false
-	DuelRemote:Fire(player, "LeftQueue")
+	QueueRemote:Fire(player, {
+		Message = "LeftQueue"
+	})
 	refreshPrompts(stage)
 end
 
@@ -159,20 +171,41 @@ local function onDuelEnded(stage: Stage, result)
 	task.delay(REMATCH_DELAY, tryStart, stage) -- only starts if both are still there
 end
 
-function tryStart(stage: Stage)
+function trySolo(player: Player)
+	local stage = DuelService.PlayerStage[player]
+	if not stage then
+		return
+	end
+
+	stage.Solo = true
+	QueueRemote:Fire(player, {
+		Message = "Opponent",
+		Opponent = player,
+	})
+
+	tryStart(stage, true)
+end
+
+function tryStart(stage: Stage, soloStage: boolean?)
 	local a, b = stage.Players.A, stage.Players.B
-	if not (a and b) or stage.State ~= "Waiting" then
+
+	if stage.State ~= "Waiting" then
+		return
+	end
+
+	if not soloStage and not (a and b)  then
 		return
 	end
 
 	stage.State = "InProgress"
 	refreshPrompts(stage)
 
-	local duel = Duels.new(stage, a, b)
+	local duel = Duels.new(stage, a, b, soloStage)
 	stage.Duel = duel
 	duel.Ended:Connect(function(result)
 		onDuelEnded(stage, result)
 	end)
+	task.wait(1)
 	duel:Start()
 end
 
@@ -190,6 +223,7 @@ local function createStage(model: Model): Stage?
 		Model = model,
 		State = "Waiting",
 		Spots = { A = spotA, B = spotB },
+		Solo = false,
 		Prompts = {},
 		Players = {},
 		SlotJanitors = {
@@ -228,9 +262,11 @@ function DuelService.Start()
 	end
 
 	Players.PlayerRemoving:Connect(leave)
-	DuelRemote:Connect(function(Player: Player, Request: string)
+	QueueRemote:Connect(function(Player: Player, Request: string)
 		if Request == "Leave" then
 			leave(Player)
+		elseif Request == "Solo" then
+			trySolo(Player)
 		end
 	end)
 end

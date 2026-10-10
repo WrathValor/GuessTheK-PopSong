@@ -1,6 +1,7 @@
 -- -------------------------------- Services -------------------------------- --
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
 -- --------------------------------- Imports -------------------------------- --
 
 local Janitor = require(ReplicatedStorage.Packages.janitor)
@@ -9,11 +10,12 @@ local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local FrameTransition = require(ReplicatedStorage.Modules.UI.Animations.FrameTransition)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
+local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 
 --------------------------------- Variables --------------------------------- --
 
 local LOCAL_PLAYER = Players.LocalPlayer
-local DuelRemote = Bridgenet.ReferenceBridge("DuelRemote")
+local QueueRemote = Bridgenet.ReferenceBridge("QueueRemote")
 
 -- --------------------------------- Tables --------------------------------- --
 -- Reusable subcontroller class - NOT a concrete screen. Instantiate one of these per real
@@ -45,49 +47,121 @@ end
 
 function QueueController.Initialize(self: typeof(QueueController.new({} :: UITypes.ControllerConfig)), interface: any)
 	self._interface = interface
-	self._frame = interface:ResolveFrame(self.ScreenGui, self.FrameName) :: typeof(game.StarterGui.Interface.Frames.Queue)?
+	self._frame =
+		interface:ResolveFrame(self.ScreenGui, self.FrameName) :: typeof(game.StarterGui.Interface.Frames.Queue)?
 	self._frame.Visible = false
 	ButtonScale.ApplyToDescendants(self._frame)
 
 	local panelFrame = self._frame:FindFirstChild("Panel")
+	local subtitleLabel = panelFrame:FindFirstChild("Subtitle")
+	if subtitleLabel then
+		subtitleLabel.Size = UDim2.fromScale(.818, .043)
+	end
 
-	local youAvatar = panelFrame and panelFrame:FindFirstChild("You")
-	local youNameLabel = panelFrame and panelFrame:FindFirstChild("YouName")
+	local participantsFrame: Frame = panelFrame:FindFirstChild("Participants")
+	if participantsFrame then
+		participantsFrame.Size = UDim2.fromScale(1, 1)
+		participantsFrame.Position = UDim2.fromScale(0, 0)
+	end
+	local youAvatar = participantsFrame and participantsFrame:FindFirstChild("You")
+	local youNameLabel = participantsFrame and participantsFrame:FindFirstChild("YouName")
 
-	local opponentAvatar = panelFrame and panelFrame:FindFirstChild("Opponent")
+	local opponentAvatar = participantsFrame and participantsFrame:FindFirstChild("Opponent")
 	local opponentNameLabel = opponentAvatar and opponentAvatar:FindFirstChild("OpponentName")
 
 	local invitePlayersBtn = panelFrame and panelFrame:FindFirstChild("InvitePlayers")
+	if invitePlayersBtn then
+		invitePlayersBtn.Visible = true
+	end
 	local playSoloBtn = panelFrame and panelFrame:FindFirstChild("PlaySolo")
+	if playSoloBtn then
+		playSoloBtn.Visible = true
+	end
 	local leaveBtn = panelFrame and panelFrame:FindFirstChild("Leave")
+	if leaveBtn then
+		leaveBtn.Visible = true
+	end
 
-	youAvatar.Thumbnail.Image = Players:GetUserThumbnailAsync(LOCAL_PLAYER.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+	youAvatar.Thumbnail.Image =
+		Players:GetUserThumbnailAsync(LOCAL_PLAYER.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
 	youNameLabel.Text = LOCAL_PLAYER.DisplayName
 
 	self._janitor:Add(playSoloBtn.MouseButton1Click:Connect(function()
-		--self._interface:Close(self.Name)
+		QueueRemote:Fire("Solo")
 	end))
 	self._janitor:Add(leaveBtn.MouseButton1Click:Connect(function()
-		DuelRemote:Fire("Leave")
+		QueueRemote:Fire("Leave")
 		--self._interface:Close(self.Name)
 	end))
 end
 
-function QueueController.UpdateOpponent(self: typeof(QueueController.new({} :: UITypes.ControllerConfig)), opponent: Player?)
+function QueueController:UpdateOpponent(opponent: Player?)
 	local panelFrame = self._frame:FindFirstChild("Panel")
+	local participantsFrame: Frame = panelFrame:FindFirstChild("Participants")
+	if not participantsFrame then
+		return
+	end
 
-	local opponentAvatar = panelFrame and panelFrame:FindFirstChild("Opponent")
-	local opponentNameLabel = opponentAvatar and opponentAvatar:FindFirstChild("OpponentName")
+	local opponentAvatar = participantsFrame and participantsFrame:FindFirstChild("Opponent")
+	local opponentNameLabel = participantsFrame and participantsFrame:FindFirstChild("OpponentName")
 
 	if opponent then
+		panelFrame.Title.Text = "Opponent Found!"
+		panelFrame.Subtitle.Text = "Starting soon..."
+
 		opponentAvatar.Visible = true
-		opponentNameLabel.Text = opponent.DisplayName
+		opponentAvatar.Thumbnail.Visible = true
 		opponentAvatar.Unknown.Visible = false
-		opponentAvatar.Thumbnail.Image = Players:GetUserThumbnailAsync(opponent.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+
+		opponentNameLabel.Text = opponent.DisplayName
+		opponentAvatar.Thumbnail.Image =
+			Players:GetUserThumbnailAsync(opponent.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
 	else
 		opponentAvatar.Thumbnail.Visible = false
 		opponentAvatar.Unknown.Visible = true
 		opponentNameLabel.Text = "Open Slot"
+	end
+end
+
+function QueueController:StartIntermission()
+	local panelFrame = self._frame:FindFirstChild("Panel")
+	if not panelFrame then
+		return
+	end
+	local participantsFrame: Frame = panelFrame:FindFirstChild("Participants")
+	if not participantsFrame then
+		return
+	end
+
+	local invitePlayersBtn = panelFrame and panelFrame:FindFirstChild("InvitePlayers")
+	if invitePlayersBtn then
+		invitePlayersBtn.Visible = false
+	end
+	local playSoloBtn = panelFrame and panelFrame:FindFirstChild("PlaySolo")
+	if playSoloBtn then
+		playSoloBtn.Visible = false
+	end
+	local leaveBtn = panelFrame and panelFrame:FindFirstChild("Leave")
+	if leaveBtn then
+		leaveBtn.Visible = false
+	end
+
+	local SubtitleLabel = panelFrame:FindFirstChild("Subtitle")
+	if not SubtitleLabel then
+		return
+	end
+
+	TweenService:Create(SubtitleLabel, TweenInfo.new(0.5), { Size = UDim2.fromScale(0.818, 0.07) }):Play()
+	TweenService:Create(
+		participantsFrame,
+		TweenInfo.new(0.5),
+		{ Size = UDim2.fromScale(1.267, 1.334), Position = UDim2.fromScale(-0.135, 0) }
+	):Play()
+
+	panelFrame.Title.Text = "Starting Round in..."
+	for i = DuelConstants.START_TIME, 1, -1 do
+		panelFrame.Subtitle.Text = i
+		task.wait(1)
 	end
 end
 
