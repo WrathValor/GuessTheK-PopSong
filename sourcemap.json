@@ -10,6 +10,19 @@
       "className": "ReplicatedStorage",
       "children": [
         {
+          "name": "Constants",
+          "className": "Folder",
+          "children": [
+            {
+              "name": "DuelConstants",
+              "className": "ModuleScript",
+              "filePaths": [
+                "src/shared\\Constants\\DuelConstants.luau"
+              ]
+            }
+          ]
+        },
+        {
           "name": "Modules",
           "className": "Folder",
           "children": [
@@ -1216,19 +1229,6 @@
               ]
             }
           ]
-        },
-        {
-          "name": "Constants",
-          "className": "Folder",
-          "children": [
-            {
-              "name": "DuelConstants",
-              "className": "ModuleScript",
-              "filePaths": [
-                "src/shared\\Constants\\DuelConstants.luau"
-              ]
-            }
-          ]
         }
       ]
     },
@@ -1320,6 +1320,22 @@
                           "name": "Controllers",
                           "className": "Folder",
                           "children": [
+                            {
+                              "name": "GameController",
+                              "className": "ModuleScript",
+                              "filePaths": [
+                                "src/client\\Client\\InterfaceController\\Controllers\\GameController\\init.luau"
+                              ],
+                              "children": [
+                                {
+                                  "name": "Scoreboard",
+                                  "className": "ModuleScript",
+                                  "filePaths": [
+                                    "src/client\\Client\\InterfaceController\\Controllers\\GameController\\Scoreboard.luau"
+                                  ]
+                                }
+                              ]
+                            },
                             {
                               "name": "QueueController",
                               "className": "ModuleScript",

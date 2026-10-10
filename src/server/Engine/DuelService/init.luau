@@ -123,6 +123,7 @@ local function join(stage: Stage, slot: Slot, player: Player)
 	refreshPrompts(stage)
 	tryStart(stage)
 
+	player:SetAttribute("Stage", stage.Name)
 	QueueRemote:Fire(player, {Message = "Queueing"})
 end
 

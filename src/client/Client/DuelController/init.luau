@@ -12,7 +12,10 @@ local InterfaceController = require(script.Parent.InterfaceController)
 --| Variables
 
 local LOCAL_PLAYER = Players.LocalPlayer
+
 local QueueRemote = Bridgenet.ReferenceBridge("QueueRemote")
+local DuelRemote = Bridgenet.ReferenceBridge("DuelRemote")
+
 --| DuelController
 
 local DuelController = {};
@@ -38,6 +41,12 @@ function DuelController.Start()
 			local QueueController = InterfaceController.GetController(InterfaceController, "Queue")
 			if not QueueController then return end
 			QueueController:UpdateOpponent(Packet.Opponent)
+		end
+	end)
+	DuelRemote:Connect(function(Packet: {Message: string, any: any})
+		local Message = Packet.Message
+		if Message == "Start" then
+			InterfaceController.Open(InterfaceController, "Game")
 		end
 	end)
 end

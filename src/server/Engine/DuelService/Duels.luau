@@ -13,6 +13,7 @@ local SongLibrary = require(ReplicatedStorage.Modules.Library.Songs)
 --| Variables
 
 local QueueRemote = Bridgenet.ReferenceBridge("QueueRemote")
+local DuelRemote = Bridgenet.ReferenceBridge("DuelRemote")
 
 --| Types
 export type Result = {
@@ -25,18 +26,24 @@ export type Result = {
 local Duels = {}
 Duels.__index = Duels
 
-function Duels.new(stage, player1: Player, player2: Player, solostage: boolean?)
-	
+function Duels.new(stage, playerA: Player?, playerB: Player?, solostage: boolean?)
 	local self = setmetatable({}, Duels)
 
 	self.Stage = stage
-	self.Players = { player1, player2 }
-	
+	self.Slots = { A = playerA, B = playerB }
+	self.Players = {}
+	self.Scores = {}
 
-	if player1 == nil then
-		self.Scores = {[player2] = 0 }
-	else
-		self.Scores = { [player1] = 0}
+	if playerA then
+		table.insert(self.Players, playerA)
+		self.Scores[playerA] = 0
+		stage.Model:SetAttribute(playerA.Name, 0)
+	end
+
+	if playerB then
+		table.insert(self.Players, playerB)
+		self.Scores[playerB] = 0
+		stage.Model:SetAttribute(playerB.Name, 0)
 	end
 
 	self.SelectedSong = "";
@@ -50,6 +57,8 @@ function Duels.new(stage, player1: Player, player2: Player, solostage: boolean?)
 	self._janitor = Janitor.new()
 	self._janitor:Add(self.Ended)
 	self._running = false
+	stage.Model:SetAttribute("Round", 0)
+	stage.Model:SetAttribute("Round", 0)
 
 	return self
 end
@@ -69,9 +78,11 @@ function Duels:Start()
 
 	QueueRemote:Fire(Bridgenet.Players(self.Players), { Message = "Intermission" })
 	task.wait(DuelConstants.START_TIME)
-
+	
+	DuelRemote:Fire(Bridgenet.Players(self.Players), { Message = "Start" })
 	local thread = task.spawn(function()
 		for round = 1, DuelConstants.ROUNDS do
+			self.Stage.Model:SetAttribute("Round", round)
 			self.Round = round
 			self:_playRound()
 			if not self._running then return end
@@ -96,7 +107,7 @@ function Duels:GetSong()
 		until table.find(self.ChosenSongs, SelectedSong) == nil
 	end
 
-	for i = 1, 3 do
+	for _ = 1, 3 do
 		local RandomOption = SongLibrary.GetRandomSong()
 		if self.SelectedOptions[RandomOption] then
 			repeat
@@ -122,7 +133,7 @@ end
 
 function Duels:Forfeit(player: Player)
 	if not self._running then return end
-	local winner = if self.Players[1] == player then self.Players[2] else self.Players[1]
+	local winner = if self.Slots.A == player then self.Slots.B else self.Slots.A
 	self:_finish(winner, true)
 end
 
@@ -130,8 +141,8 @@ function Duels:_finish(winner: Player?, forfeit: boolean)
 	if not self._running then return end -- only ever finish once
 	self._running = false
 
-	if not winner then
-		local p1, p2 = self.Players[1], self.Players[2]
+	if not winner and self.Slots.A and self.Slots.B then
+		local p1, p2 = self.Slots.A, self.Slots.B
 		local s1, s2 = self.Scores[p1], self.Scores[p2]
 		winner = if s1 > s2 then p1 elseif s2 > s1 then p2 else nil -- nil = draw
 	end
