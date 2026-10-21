@@ -9,6 +9,7 @@ local Promise = require(ReplicatedStorage.Packages.promise)
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local FrameTransition = require(ReplicatedStorage.Modules.UI.Animations.FrameTransition)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
+local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 
@@ -53,16 +54,8 @@ function QueueController.Initialize(self: typeof(QueueController.new({} :: UITyp
 	ButtonScale.ApplyToDescendants(self._frame)
 
 	local panelFrame = self._frame:FindFirstChild("Panel")
-	local subtitleLabel = panelFrame:FindFirstChild("Subtitle")
-	if subtitleLabel then
-		subtitleLabel.Size = UDim2.fromScale(.818, .043)
-	end
-
+	-- Layout comes from the Studio UI (Photocard design); don't resize it here.
 	local participantsFrame: Frame = panelFrame:FindFirstChild("Participants")
-	if participantsFrame then
-		participantsFrame.Size = UDim2.fromScale(1, 1)
-		participantsFrame.Position = UDim2.fromScale(0, 0)
-	end
 	local youAvatar = participantsFrame and participantsFrame:FindFirstChild("You")
 	local youNameLabel = participantsFrame and participantsFrame:FindFirstChild("YouName")
 
@@ -107,6 +100,7 @@ function QueueController:UpdateOpponent(opponent: Player?)
 
 	if opponent then
 		panelFrame.Title.Text = "Opponent Found!"
+		Sounds.Play("RivalFound")
 		panelFrame.Subtitle.Text = "Starting soon..."
 
 		opponentAvatar.Visible = true
@@ -151,16 +145,12 @@ function QueueController:StartIntermission()
 		return
 	end
 
-	TweenService:Create(SubtitleLabel, TweenInfo.new(0.5), { Size = UDim2.fromScale(0.818, 0.07) }):Play()
-	TweenService:Create(
-		participantsFrame,
-		TweenInfo.new(0.5),
-		{ Size = UDim2.fromScale(1.267, 1.334), Position = UDim2.fromScale(-0.135, 0) }
-	):Play()
-
 	panelFrame.Title.Text = "Starting Round in..."
 	for i = DuelConstants.START_TIME, 1, -1 do
 		panelFrame.Subtitle.Text = i
+		if i <= 3 then
+			Sounds.Play("Countdown")
+		end
 		task.wait(1)
 	end
 end

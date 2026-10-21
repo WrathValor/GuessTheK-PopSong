@@ -1,7 +1,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Animation = require(script.Animation)
---local SoundController = require(ReplicatedStorage.Client.Controllers.SoundController)
+local Sounds = require(ReplicatedStorage.Modules.Sounds)
 
 export type ButtonScaleConfig = Animation.ButtonScaleConfig
 
@@ -33,7 +33,7 @@ function ButtonScale.Apply(button: GuiObject, config: ButtonScaleConfig?): () ->
 	local connections = {
 		button.MouseEnter:Connect(function()
 			hovered = true
-		--	SoundController:Play("UIHover")
+			Sounds.Play("Hover")
 			refresh()
 		end),
 		button.MouseLeave:Connect(function()
@@ -44,7 +44,7 @@ function ButtonScale.Apply(button: GuiObject, config: ButtonScaleConfig?): () ->
 		button.InputBegan:Connect(function(input: InputObject)
 			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 				if not pressed then
-				--	SoundController:Play("UIClick")
+					Sounds.Play("Click")
 				end
 
 				pressed = true

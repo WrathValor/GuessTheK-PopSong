@@ -1,98 +1,111 @@
 --| Songs
+-- Every song from the Easy/Medium/Hard lists, flattened into one pool.
+-- Each song gets an `Id` ("Name - Artist", unique) and its `Difficulty`.
 
-local Songs = {};
+local Songs = {}
 
---| Require
+local All = {}
+local ById = {}
 
-for _, Song in script:GetChildren() do
-    if Song:IsA("ModuleScript") then
-        Songs[Song.Name] = require(Song)
-    end
+for _, list in script:GetChildren() do
+	if list:IsA("ModuleScript") then
+		for _, song in require(list) do
+			local entry = table.clone(song)
+			entry.Difficulty = list.Name
+			entry.Id = `{song.Name} - {song.Artist}`
+			if not ById[entry.Id] then
+				ById[entry.Id] = entry
+				table.insert(All, entry)
+			end
+		end
+	end
 end
+
+table.sort(All, function(a, b)
+	return a.Id < b.Id
+end)
+
+Songs.All = All
 
 --| Functions
 
 function Songs.GetAllSongs()
-    local AllSongs = {}
-    for _, Song in pairs(Songs) do
-        table.insert(AllSongs, Song)
-    end
-    return AllSongs
+	return All
 end
 
-function Songs.GetRandomSong()
-    local AllSongs = Songs.GetAllSongs()
-    return AllSongs[math.random(1, #AllSongs)]
+function Songs.GetById(id: string)
+	return ById[id]
 end
 
-function Songs.GetSongsByDifficulty(Difficulty: "Easy" | "Medium" | "Hard")
-    local FilteredSongs = {}
-    for _, Song in pairs(Songs) do
-        if Song.Difficulty == Difficulty then
-            table.insert(FilteredSongs, Song)
-        end
-    end
-    return FilteredSongs
+function Songs.GetRandomSong(exclude: { [string]: boolean }?)
+	local pool = {}
+	for _, song in All do
+		if not (exclude and exclude[song.Id]) then
+			table.insert(pool, song)
+		end
+	end
+	return pool[math.random(1, #pool)]
 end
 
-function Songs.GetSongsByGeneration(Generation: string)
-    local FilteredSongs = {}
-    for _, Song in pairs(Songs) do
-        if Song.Generation == Generation then
-            table.insert(FilteredSongs, Song)
-        end
-    end
-    return FilteredSongs
+local function filter(key: string, value: any)
+	local out = {}
+	for _, song in All do
+		if song[key] == value then
+			table.insert(out, song)
+		end
+	end
+	return out
 end
 
-function Songs.GetSongsByStatus(Status: "Active" | "Disbanded")
-    local FilteredSongs = {}
-    for _, Song in pairs(Songs) do
-        if Song.Status == Status then
-            table.insert(FilteredSongs, Song)
-        end
-    end
-    return FilteredSongs
+function Songs.GetSongsByDifficulty(difficulty: string)
+	return filter("Difficulty", difficulty)
+end
+function Songs.GetSongsByGeneration(generation: string)
+	return filter("Generation", generation)
+end
+function Songs.GetSongsByStatus(status: string)
+	return filter("Status", status)
+end
+function Songs.GetSongsByCompany(company: string)
+	return filter("Company", company)
+end
+function Songs.GetSongsByGroupType(groupType: string)
+	return filter("GroupType", groupType)
+end
+function Songs.GetSongsByArtist(artist: string)
+	return filter("Artist", artist)
+end
+function Songs.GetSongByName(name: string)
+	for _, song in All do
+		if song.Name == name then
+			return song
+		end
+	end
+	return nil
 end
 
-function Songs.GetSongsByCompany(Company: string)
-    local FilteredSongs = {}
-    for _, Song in pairs(Songs) do
-        if Song.Company == Company then
-            table.insert(FilteredSongs, Song)
-        end
-    end
-    return FilteredSongs
+-- `count` wrong options for `answer`. Same generation first so the options are fair,
+-- then anything else to fill up. Never the same artist+name twice.
+function Songs.GetWrongOptions(answer, count: number)
+	local picked, used = {}, { [answer.Id] = true }
+	local function take(pool)
+		local copy = table.clone(pool)
+		while #picked < count and #copy > 0 do
+			local song = table.remove(copy, math.random(1, #copy))
+			if not used[song.Id] then
+				used[song.Id] = true
+				table.insert(picked, song)
+			end
+		end
+	end
+	take(Songs.GetSongsByGeneration(answer.Generation))
+	take(All)
+	return picked
 end
 
-function Songs.GetSongsByGroupType(GroupType: "Boy" | "Girl" | "Mixed")
-    local FilteredSongs = {}
-    for _, Song in pairs(Songs) do
-        if Song.GroupType == GroupType then
-            table.insert(FilteredSongs, Song)
-        end
-    end
-    return FilteredSongs
+-- What the client needs to show an option. Never includes clip assets.
+function Songs.Public(song)
+	return { Id = song.Id, Name = song.Name, Artist = song.Artist, Generation = song.Generation }
 end
 
-function Songs.GetSongsByArtist(Artist: string)
-    local FilteredSongs = {}
-    for _, Song in pairs(Songs) do
-        if Song.Artist == Artist then
-            table.insert(FilteredSongs, Song)
-        end
-    end
-    return FilteredSongs
-end
-
-function Songs.GetSongByName(Name: string)
-    for _, Song in pairs(Songs) do
-        if Song.Name == Name then
-            return Song
-        end
-    end
-    return nil
-end
-
---| Return
 return Songs

@@ -7,6 +7,7 @@ local Players = game:GetService("Players")
 local Janitor = require(ReplicatedStorage.Packages.janitor)
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local Duels = require(script.Duels)
+local Rewards = require(script.Rewards)
 
 --| Types
 
@@ -26,12 +27,12 @@ export type Stage = {
 --| Constants
 
 local PROMPT_DISTANCE = 8
-local REMATCH_DELAY = 5
 local SLOTS: { Slot } = { "A", "B" }
 
 --| Variables
 
 local QueueRemote = Bridgenet.ReferenceBridge("QueueRemote")
+local DuelRemote = Bridgenet.ReferenceBridge("DuelRemote")
 local DuelStages = workspace.Map.DuelStages
 
 --| DuelService
@@ -142,6 +143,7 @@ function leave(player: Player)
 	local slot: Slot = if stage.Players.A == player then "A" else "B"
 	stage.Players[slot] = nil
 	stage.SlotJanitors[slot]:Cleanup()
+	stage.Rematch = {}
 
 	if stage.Duel then
 		stage.Duel:Forfeit(player)
@@ -159,17 +161,93 @@ function leave(player: Player)
 end
 
 local function onDuelEnded(stage: Stage, result)
-	if stage.Duel then
-		stage.Duel:Destroy()
+	local duel = stage.Duel
+	if duel then
+		duel:Destroy()
 		stage.Duel = nil
 	end
 
+	-- everyone who played, including someone who left mid-duel (they still lose their streak)
+	local players = table.clone(duel and duel.Players or {})
+	local earned = Rewards.Apply(result, players)
+
+	local function k(p: Player)
+		return tostring(p.UserId)
+	end
+	local scores, rewards = {}, {}
+	for p, s in result.Scores do
+		scores[k(p)] = s
+	end
+	for p, e in earned do
+		rewards[k(p)] = e
+	end
+	local rounds = {}
+	for i, round in result.Rounds do
+		local picks = {}
+		for p, pick in round.Picks do
+			picks[k(p)] = { Correct = pick.Correct, Points = pick.Points, Picked = pick.Picked ~= nil }
+		end
+		rounds[i] = { Name = round.Song.Name, Artist = round.Song.Artist, Picks = picks }
+	end
+
+	local present = {}
+	for _, slot in SLOTS do
+		local p = stage.Players[slot]
+		if p then
+			table.insert(present, p)
+		end
+	end
+	if #present > 0 then
+		DuelRemote:Fire(Bridgenet.Players(present), {
+			Message = "End",
+			Winner = result.Winner and result.Winner.UserId or nil,
+			Draw = result.Draw,
+			Forfeit = result.Forfeit,
+			Solo = result.Solo,
+			Mode = result.Mode,
+			Stake = result.Stake,
+			Scores = scores,
+			Rounds = rounds,
+			Rewards = rewards,
+		})
+	end
+
+	-- players stay on their spots; a rematch starts once everyone still here presses Rematch
+	stage.Rematch = {}
 	stage.State = "Waiting"
 	refreshPrompts(stage)
+end
 
-	-- TODO: payouts / streaks through DataService using result.Winner
+local function requestRematch(player: Player)
+	local stage = DuelService.PlayerStage[player]
+	if not stage or stage.State ~= "Waiting" or stage.Duel then
+		return
+	end
+	stage.Rematch = stage.Rematch or {}
+	stage.Rematch[player] = true
 
-	task.delay(REMATCH_DELAY, tryStart, stage) -- only starts if both are still there
+	local present, wants, all = {}, {}, true
+	for _, slot in SLOTS do
+		local p = stage.Players[slot]
+		if p then
+			table.insert(present, p)
+			if stage.Rematch[p] then
+				table.insert(wants, p.UserId)
+			else
+				all = false
+			end
+		end
+	end
+	DuelRemote:Fire(Bridgenet.Players(present), { Message = "RematchState", Wants = wants })
+
+	if all then
+		stage.Rematch = {}
+		if stage.Solo then
+			tryStart(stage, true)
+		elseif #present == 2 then
+			tryStart(stage)
+		end
+	end
 end
 
 function trySolo(player: Player)
@@ -252,6 +330,35 @@ local function createStage(model: Model): Stage?
 	return stage
 end
 
+-- Lobby "Quick Play": fill the empty spot on a stage where someone is already waiting,
+-- otherwise take the first fully empty stage.
+local function quickPlay(player: Player)
+	if DuelService.PlayerStage[player] then
+		return
+	end
+
+	local emptyStage: Stage? = nil
+	for _, stage in DuelService.Stages do
+		if stage.State ~= "Waiting" or stage.Solo then
+			continue
+		end
+
+		local a, b = stage.Players.A, stage.Players.B
+		if (a == nil) ~= (b == nil) then
+			join(stage, if a then "B" else "A", player)
+			return
+		elseif a == nil and b == nil and emptyStage == nil then
+			emptyStage = stage
+		end
+	end
+
+	if emptyStage then
+		join(emptyStage, "A", player)
+	else
+		QueueRemote:Fire(player, { Message = "NoStages" })
+	end
+end
+
 -- [[ Public ]]
 
 function DuelService.Start()
@@ -268,6 +375,35 @@ function DuelService.Start()
 			leave(Player)
 		elseif Request == "Solo" then
 			trySolo(Player)
+		elseif Request == "QuickPlay" then
+			quickPlay(Player)
+		end
+	end)
+
+	-- same entry points the client uses, for server code and tests
+	function DuelService.Request(player: Player, request: string)
+		if request == "Leave" then
+			leave(player)
+		elseif request == "Solo" then
+			trySolo(player)
+		elseif request == "QuickPlay" then
+			quickPlay(player)
+		elseif request == "Rematch" then
+			requestRematch(player)
+		end
+	end
+
+	DuelRemote:Connect(function(player: Player, packet)
+		if type(packet) ~= "table" then
+			return
+		end
+		if packet.Action == "Rematch" then
+			requestRematch(player)
+			return
+		end
+		local stage = DuelService.PlayerStage[player]
+		if stage and stage.Duel then
+			stage.Duel:Action(player, packet)
 		end
 	end)
 end

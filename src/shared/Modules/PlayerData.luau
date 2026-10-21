@@ -21,6 +21,8 @@ return Scribe({
 
         Inventory = {
             Title = Scribe.String(""),
+            -- songs guessed correctly at least once (the Index collection)
+            Index = Scribe.SetOf(Scribe.String("", { MaxLength = 80 })),
 
         };
 
@@ -29,6 +31,7 @@ return Scribe({
         Statistics = {
             PlayTime = Scribe.Int(0, { Min = 0 });
             HighestStreak = Scribe.Int(0, { Min = 0 });
+            Wins = Scribe.Int(0, { Min = 0 });
         }
     };
     ProfileStoreIndex = "PlayerData", -- required: your DataStore name

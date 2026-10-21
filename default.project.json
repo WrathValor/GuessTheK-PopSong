@@ -27,9 +27,9 @@
         "$properties": {
           "Anchored": true,
           "Color": [
-            0.38823,
-            0.37254,
-            0.38823
+            0.165,
+            0.145,
+            0.25
           ],
           "Locked": true,
           "Position": [
@@ -38,9 +38,9 @@
             0
           ],
           "Size": [
-            512,
+            2048,
             20,
-            512
+            2048
           ]
         }
       }
@@ -48,14 +48,34 @@
     "Lighting": {
       "$properties": {
         "Ambient": [
-          0,
-          0,
-          0
+          0.13,
+          0.11,
+          0.2
+        ],
+        "OutdoorAmbient": [
+          0.42,
+          0.36,
+          0.58
         ],
         "Brightness": 2,
+        "ClockTime": 22.5,
         "GlobalShadows": true,
         "Outlines": false,
-        "Technology": "Voxel"
+        "Technology": "Future",
+        "EnvironmentDiffuseScale": 0.6,
+        "EnvironmentSpecularScale": 1,
+        "ExposureCompensation": 0.25,
+        "ShadowSoftness": 0.35,
+        "ColorShift_Top": [
+          0.55,
+          0.45,
+          0.85
+        ],
+        "ColorShift_Bottom": [
+          0.25,
+          0.15,
+          0.35
+        ]
       }
     },
     "SoundService": {

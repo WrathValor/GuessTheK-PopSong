@@ -1,153 +1,86 @@
---| Services
+--| Scoreboard
+-- Top bar of the round screen: both players, round pips and the running score.
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 
---| Imports
-
-local Janitor = require(ReplicatedStorage.Packages.janitor)
-
---| Variables
-
 local LOCAL_PLAYER = Players.LocalPlayer
-local PIP_STATE = {
-	Active = {
-        UIStrokeThickness = 2.5;
-		Colour = Color3.fromRGB(0, 255, 127),
-		Size = UDim2.fromScale(0.12, 0.857),
-	},
-	Inactive = {
-		UIStrokeColour = Color3.fromRGB(230, 207, 234),
-        UIStrokeThickness = 1,
-		Colour = Color3.fromRGB(255, 255, 255),
-		Size = UDim2.fromScale(0.08, 0.571),
-	},
-}
+local C = Color3.fromHex
 
---| Scoreboard
-
-type ScoreboardData = {
-	Frame: typeof(game.StarterGui.Interface.Frames.Game.Scoreboard),
-	Opponent: Player,
-	Round: number,
-	PlayerPoints: number,
-	OpponentPoints: number,
-	_janitor: typeof(Janitor.new()),
+-- pip look (matches the Studio build)
+local PIP = {
+	Done = C("1E1B2E"),
+	Current = C("FF5A4E"),
+	Upcoming = C("FFFFFF"),
 }
 
 local Scoreboard = {}
 Scoreboard.__index = Scoreboard
 
---| Functions
+local function thumb(userId: number): string
+	local ok, img = pcall(Players.GetUserThumbnailAsync, Players, userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
+	return ok and img or ""
+end
 
--- [[ Private ]]
-
--- [[ Public ]]
-
-function Scoreboard.new(
-	Frame: typeof(game.StarterGui.Interface.Frames.Game.Scoreboard),
-	Opponent: Player
-): ScoreboardData
-	local self: ScoreboardData = setmetatable({}, Scoreboard) :: any
-
-	self.Frame = Frame
-	self.Opponent = Opponent
-
-	self.Round = 1
-	self.PlayerPoints = 0
-	self.OpponentPoints = 0
-
-	self._janitor = Janitor.new()
-
+function Scoreboard.new(frame, me, rival)
+	local self = setmetatable({}, Scoreboard)
+	self.Frame = frame
+	self.Me = me
+	self.Rival = rival
 	return self
 end
 
-function Scoreboard:Initialize()
-	local Frame = self.Frame
-	local Panel = Frame.Panel
-
-	local YouFrame = Panel.You
-	local YouAvatarFrame = YouFrame.Avatar
-	local YouLabel = YouFrame:FindFirstChild("Name")
-
-	if YouLabel then
-		YouLabel.Text = LOCAL_PLAYER.DisplayName
-	end
-
-	if YouAvatarFrame and YouAvatarFrame:FindFirstChild("Thumbnail") then
-		YouAvatarFrame.Thumbnail.Image = Players:GetUserThumbnailAsync(
-			LOCAL_PLAYER.UserId,
-			Enum.ThumbnailType.HeadShot,
-			Enum.ThumbnailSize.Size420x420
-		)
-	end
-
-	local RivalFrame = Panel.Rival
-	local RivalAvatarFrame = RivalFrame.Avatar
-	local RivalLabel = RivalFrame:FindFirstChild("Name")
-
-	if RivalLabel then
-		RivalLabel.Text = LOCAL_PLAYER.DisplayName
-	end
-
-	if RivalAvatarFrame and RivalAvatarFrame:FindFirstChild("Thumbnail") then
-		RivalAvatarFrame.Thumbnail.Image = Players:GetUserThumbnailAsync(
-			LOCAL_PLAYER.UserId,
-			Enum.ThumbnailType.HeadShot,
-			Enum.ThumbnailSize.Size420x420
-		)
-	end
-
-	local ScoreFrame = Panel.Score
-	ScoreFrame.You.Text = 0
-	ScoreFrame.Rival.Text = 0
-
-	for _, Pip in Panel.Pips:GetChildren() do
-        if not Pip:IsA("Frame") then continue end
-		Pip.BackgroundColor3 = PIP_STATE.Inactive.Colour
-		Pip.UIStroke.Color = PIP_STATE.Inactive.UIStrokeColour
-        Pip.UIStroke.Thickness = PIP_STATE.Inactive.UIStrokeThickness
-	end
-end
-
-function Scoreboard:UpdateRound(CurrentRound: number)
-	local Frame = self.Frame:typeof(game.StarterGui.Interface.Frames.Game.Scoreboard)
-	local Panel = Frame.Panel
-	local Pips = Panel.Pips
-
-	local PreviousRound = CurrentRound - 1
-	if PreviousRound ~= 0 then
-		local PreviousPip = Pips:FindFirstChild(`Pip{PreviousRound}`)
-		if not PreviousPip then
+function Scoreboard:Initialize(rounds: number)
+	local panel = self.Frame.Panel
+	local function fill(card, profile, status)
+		if not profile then
+			card.Visible = false
 			return
 		end
-		PreviousPip.Size = PIP_STATE.Inactive.Size
+		card.Visible = true
+		card:FindFirstChild("Name").Text = profile.Name
+		if card:FindFirstChild("Status") then
+			card.Status.Text = status
+		end
+		task.spawn(function()
+			card.Avatar.Thumbnail.Image = thumb(profile.UserId)
+		end)
 	end
-
-	local CurrentPip = Pips:FindFirstChild(`Pip{CurrentRound}`)
-	if not CurrentPip then
-		return
-	end
-
-	CurrentPip.BackgroundColor3 = PIP_STATE.Active.Colour
-	CurrentPip.UIStroke.Color = PIP_STATE.Active.Colour
-    CurrentPip.UIStroke.Thickness = PIP_STATE.Active.UIStrokeThickness
+	fill(panel.You, self.Me or { Name = LOCAL_PLAYER.DisplayName, UserId = LOCAL_PLAYER.UserId }, "")
+	fill(panel.Rival, self.Rival, "")
+	panel.VS.Visible = self.Rival ~= nil
+	panel.Score.Rival.Visible = self.Rival ~= nil
+	panel.Score.You.Text = "0"
+	panel.Score.Rival.Text = "0"
+	self.Rounds = rounds
+	self:UpdateRound(1)
 end
 
-function Scoreboard:UpdateScore(Opponent: boolean?, Score: string)
-	local Frame = self.Frame
-	local Panel = Frame.Panel
-    
-    local ScoreFrame = Panel.Score
-	local PlayerScore = ScoreFrame.You
-	local RivalScore = ScoreFrame.Rival
-
-	if Opponent then
-        RivalScore.Text = Score
-    else
-        PlayerScore.Text = Score
-	end 
+function Scoreboard:UpdateRound(round: number)
+	local panel = self.Frame.Panel
+	if panel:FindFirstChild("Round") then
+		panel.Round.Text = `{round}/{self.Rounds or 7}`
+	end
+	for _, pip in panel.Pips:GetChildren() do
+		local n = tonumber(pip.Name:match("%d+"))
+		if n and pip:IsA("GuiObject") then
+			pip.BackgroundColor3 = if n < round then PIP.Done elseif n == round then PIP.Current else PIP.Upcoming
+		end
+	end
 end
 
---| Return
+function Scoreboard:SetStatus(isRival: boolean, text: string)
+	local card = if isRival then self.Frame.Panel.Rival else self.Frame.Panel.You
+	if card:FindFirstChild("Status") then
+		card.Status.Text = text
+	end
+end
+
+function Scoreboard:SetScores(mine: number, rival: number?)
+	local score = self.Frame.Panel.Score
+	score.You.Text = tostring(mine)
+	if rival then
+		score.Rival.Text = tostring(rival)
+	end
+end
+
 return Scoreboard
