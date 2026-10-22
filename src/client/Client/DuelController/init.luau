@@ -4,6 +4,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 --| Imports
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local InterfaceController = require(script.Parent.InterfaceController)
+local CameraController = require(script.Parent.CameraController)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
 
 --| Variables
@@ -11,7 +12,8 @@ local QueueRemote = Bridgenet.ReferenceBridge("QueueRemote")
 local DuelRemote = Bridgenet.ReferenceBridge("DuelRemote")
 
 --| DuelController
--- Routes queue/duel packets from the server to the screen controllers.
+-- Routes queue/duel packets from the server to the screen controllers, and drives the
+-- music (lobby BGM / round selection track / quiet in Song rounds) and the duel camera.
 local DuelController = {}
 
 -- Pre-duel info (players, stake) is kept so the round and results screens can use it.
@@ -28,7 +30,15 @@ local function call(name: string, method: string, ...)
 	end
 end
 
+-- Back to the lobby feel: normal camera, main BGM.
+local function backToLobby()
+	CameraController.Reset()
+	Sounds.PlayMusic("Lobby")
+end
+
 function DuelController.Start()
+	Sounds.PlayMusic("Lobby")
+
 	QueueRemote:Connect(function(packet)
 		local message = packet.Message
 		if message == "Queueing" then
@@ -40,6 +50,7 @@ function DuelController.Start()
 				InterfaceController:Close()
 			end
 			call("SaveStreak", "Hide")
+			backToLobby()
 		elseif message == "Intermission" then
 			call("Queue", "StartIntermission")
 		elseif message == "Opponent" then
@@ -51,6 +62,7 @@ function DuelController.Start()
 		local message = packet.Message
 		if message == "PreDuel" then
 			DuelController.Info = packet
+			Sounds.PlayMusic("Select") -- round selection track
 			InterfaceController:Open("PreDuel", packet)
 		elseif message == "Votes" then
 			call("PreDuel", "UpdateVotes", packet.Votes)
@@ -58,6 +70,13 @@ function DuelController.Start()
 			call("PreDuel", "ShowMode", packet.Mode)
 		elseif message == "Start" then
 			Sounds.Play("GameStart")
+			-- Song rounds need silence to hear the snippet; dance rounds keep a quiet bed
+			if packet.Mode == "Song" then
+				Sounds.StopMusic()
+			else
+				Sounds.PlayMusic("Lobby", { Volume = 0.35 })
+			end
+			CameraController.Focus(packet.Mode, DuelController.Info)
 			InterfaceController:Open("Game", DuelController.Info, packet.Mode)
 		elseif message == "Round" then
 			call("Game", "OnRound", packet)
@@ -66,6 +85,7 @@ function DuelController.Start()
 		elseif message == "RoundEnd" then
 			call("Game", "OnRoundEnd", packet)
 		elseif message == "End" then
+			backToLobby()
 			InterfaceController:Open("Results", packet, DuelController.Info)
 		elseif message == "RematchState" then
 			call("Results", "UpdateRematch", packet.Wants)

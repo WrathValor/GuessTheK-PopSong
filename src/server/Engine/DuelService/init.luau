@@ -68,7 +68,10 @@ local function placeOnSpot(stage: Stage, slot: Slot, player: Player, humanoid: H
 	end
 
 	local spot = stage.Spots[slot]
-	local standAt = spot.Position + Vector3.new(0, spot.Size.Y / 2 + 3, 0)
+	-- stand exactly on the pad (root height = hip height + half the root), so nothing floats
+	local root = character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local rootHalf = if root then root.Size.Y / 2 else 1
+	local standAt = spot.Position + Vector3.new(0, spot.Size.Y / 2 + humanoid.HipHeight + rootHalf, 0)
 
 	-- face the middle of the stage, flattened so they don't tilt
 	local rigSpot = stage.Model:FindFirstChild("RigSpot") :: BasePart?
@@ -76,8 +79,20 @@ local function placeOnSpot(stage: Stage, slot: Slot, player: Player, humanoid: H
 		then Vector3.new(rigSpot.Position.X, standAt.Y, rigSpot.Position.Z)
 		else standAt + spot.CFrame.LookVector
 
+	-- freeze them: no walking, jumping or turning while on a spot (restored in leave)
+	if humanoid:GetAttribute("DuelWalkSpeed") == nil then
+		humanoid:SetAttribute("DuelWalkSpeed", humanoid.WalkSpeed)
+		humanoid:SetAttribute("DuelJumpPower", humanoid.JumpPower)
+		humanoid:SetAttribute("DuelJumpHeight", humanoid.JumpHeight)
+	end
+	humanoid.WalkSpeed = 0
+	humanoid.JumpPower = 0
+	humanoid.JumpHeight = 0
+	humanoid.AutoRotate = false
 	humanoid:Move(Vector3.zero)
 	character:PivotTo(CFrame.lookAt(standAt, lookAt))
+	character.PrimaryPart.AssemblyLinearVelocity = Vector3.zero
+	character.PrimaryPart.AssemblyAngularVelocity = Vector3.zero
 	character.PrimaryPart.Anchored = true
 
 	local animator = humanoid:FindFirstChildOfClass("Animator")
@@ -153,7 +168,18 @@ function leave(player: Player)
 		stage.Solo = false
 	end
 
+	player:SetAttribute("Stage", nil)
 	character.PrimaryPart.Anchored = false
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		humanoid.WalkSpeed = humanoid:GetAttribute("DuelWalkSpeed") or 16
+		humanoid.JumpPower = humanoid:GetAttribute("DuelJumpPower") or 50
+		humanoid.JumpHeight = humanoid:GetAttribute("DuelJumpHeight") or 7.2
+		humanoid.AutoRotate = true
+		humanoid:SetAttribute("DuelWalkSpeed", nil)
+		humanoid:SetAttribute("DuelJumpPower", nil)
+		humanoid:SetAttribute("DuelJumpHeight", nil)
+	end
 	QueueRemote:Fire(player, {
 		Message = "LeftQueue"
 	})

@@ -7,6 +7,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local Janitor = require(ReplicatedStorage.Packages.janitor)
 local Signal = require(ReplicatedStorage.Packages.signal)
+local Promise = require(ReplicatedStorage.Packages.promise)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 
 -- --------------------------------- Tables --------------------------------- --
@@ -27,6 +28,9 @@ Interface.ModeChanged = Signal.new() :: Signal.Signal<UITypes.UIMode>
 -- Transition guard: only one Open/Close may be in flight at a time, preventing overlapping
 -- Activate/Deactivate calls from corrupting ActiveController/Mode state.
 local Transitioning = false
+-- Promises handed in by ModeChanged listeners (e.g. the HUD's slide-out) that an
+-- exclusive frame waits on before it opens.
+local ModeBlockers = {}
 local PendingOpen: { Name: string, Args: { [number]: any, n: number } }? = nil
 local StateJanitor = Janitor.new()
 
@@ -45,6 +49,11 @@ end
 
 function Interface.GetController(self: Self, name: string): UITypes.Controller?
 	return self.Controllers[name]
+end
+
+-- Called from a ModeChanged listener to make the next exclusive frame wait for an animation.
+function Interface.BlockMode(self: Self, promise: any)
+	table.insert(ModeBlockers, promise)
 end
 
 -- Resolves a Frame from the live PlayerGui tree (cloned from StarterGui.<ScreenGui>.<Frame>).
@@ -91,11 +100,28 @@ function Interface.Open(self: Self, name: string, ...: any)
 	local previous = if controller.Exclusive then self.ActiveController else nil
 	local closePrevious = if previous then previous:Deactivate() else nil
 
+	-- switch mode first; the frame waits for anything that blocked (the HUD sliding out)
+	local blocked = nil
+	if controller.Exclusive and self.Mode ~= "Menu" then
+		table.clear(ModeBlockers)
+		self.Mode = "Menu"
+		self.ModeChanged:Fire(self.Mode)
+		if #ModeBlockers > 0 then
+			blocked = Promise.all(table.clone(ModeBlockers))
+		end
+		table.clear(ModeBlockers)
+	end
+
 	local function activateNew()
 		if previous then
 			self.ActiveController = nil
 		end
 
+		if blocked then
+			return blocked:andThen(function()
+				return controller:Activate(table.unpack(args, 1, args.n))
+			end)
+		end
 		return controller:Activate(table.unpack(args, 1, args.n))
 	end
 
@@ -105,8 +131,6 @@ function Interface.Open(self: Self, name: string, ...: any)
 		:andThen(function()
 			if controller.Exclusive then
 				self.ActiveController = controller
-				self.Mode = "Menu"
-				self.ModeChanged:Fire(self.Mode)
 			end
 
 			finishTransition(self)
@@ -130,13 +154,17 @@ function Interface.Close(self: Self, name: string?)
 
 	Transitioning = true
 
+	-- bring the HUD back while the menu closes
+	if self.ActiveController == controller then
+		self.Mode = "Gameplay"
+		self.ModeChanged:Fire(self.Mode)
+	end
+
 	controller
 		:Deactivate()
 		:andThen(function()
 			if self.ActiveController == controller then
 				self.ActiveController = nil
-				self.Mode = "Gameplay"
-				self.ModeChanged:Fire(self.Mode)
 			end
 
 			finishTransition(self)

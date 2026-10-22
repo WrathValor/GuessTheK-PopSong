@@ -5,8 +5,18 @@
 
 local Players = game:GetService("Players")
 local SoundService = game:GetService("SoundService")
+local ContentProvider = game:GetService("ContentProvider")
+local RunService = game:GetService("RunService")
 
 local LOCAL_PLAYER = Players.LocalPlayer
+
+-- Songs are uploaded slowed down and played back at `PlaybackSpeed`, so the clip runs at
+-- real speed. Tier lengths and `Start` are in real song seconds; the sound's own timeline
+-- is `PlaybackSpeed` times longer, so Start is scaled to get the TimePosition.
+local function speedOf(clip): number
+	local speed = clip.PlaybackSpeed or clip.playbackSpeed or clip.Pitch or 1
+	return if type(speed) == "number" and speed > 0 then speed else 1
+end
 
 local Snippet = {}
 Snippet.__index = Snippet
@@ -16,15 +26,18 @@ function Snippet.new(clip, mode: string, stageModel: Model?)
 	self.Clip = clip
 	self.Mode = mode
 	self.Stage = stageModel
+	self.Speed = speedOf(clip)
 	self._token = 0
 	if mode == "Song" then
 		local sound = Instance.new("Sound")
 		sound.Name = "DuelSnippet"
 		sound.SoundId = clip.MusicId or ""
 		sound.Volume = clip.Volume or 1
-		sound.PlaybackSpeed = clip.Pitch or 1
+		sound.PlaybackSpeed = self.Speed
 		sound.Parent = SoundService
 		self.Sound = sound
+		-- start downloading now so the first Play isn't spent loading
+		task.spawn(ContentProvider.PreloadAsync, ContentProvider, { sound })
 	else
 		self:_makeRig()
 	end
@@ -59,7 +72,6 @@ function Snippet:_makeRig()
 		return
 	end
 	humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-	-- stand in the middle of the stage, facing the local player
 	local spot = self.Stage and self.Stage:FindFirstChild("RigSpot")
 	local root = rig:FindFirstChild("HumanoidRootPart") :: BasePart?
 	if spot and root then
@@ -81,13 +93,95 @@ function Snippet:_makeRig()
 	end
 end
 
--- Plays the first `seconds` of the clip. Returns how long it will play for.
+-- Where the clip starts on the sound's own (slowed) timeline.
+-- Where playback begins on the sound's timeline: the song's `TimePosition` (seconds on the
+-- sound itself, same as Studio's TimePosition), else its `Start` (real song seconds),
+-- else halfway through the audio.
+function Snippet:_startPosition(): number
+	local length = self.Sound and self.Sound.TimeLength or 0
+	local tp = self.Clip.TimePosition
+	if type(tp) == "number" then
+		if length > 0 and tp >= length then
+			warn(`[Snippet] TimePosition {tp} is past the end of {self.Sound.SoundId} ({length}s); playing from halfway`)
+			return length / 2
+		end
+		return math.max(tp, 0)
+	end
+	local custom = self.Clip.Start or 0
+	if custom <= 0 then
+		return length / 2
+	end
+	local start = custom * self.Speed
+	-- a start past the end of the audio plays nothing, so fall back to the beginning
+	if length > 0 and start >= length then
+		warn(`[Snippet] Start {self.Clip.Start}s is past the end of {self.Sound.SoundId} ({length}s); playing from 0`)
+		return 0
+	end
+	return start
+end
+
+-- Waits (up to 5 s) for the audio to load. Returns false if it never did.
+function Snippet:_waitLoaded(): boolean
+	local sound = self.Sound
+	if not sound then
+		return false
+	end
+	if sound.IsLoaded then
+		return true
+	end
+	local deadline = os.clock() + 5
+	while not sound.IsLoaded and os.clock() < deadline and sound.Parent do
+		task.wait()
+	end
+	if not sound.IsLoaded then
+		warn(`[Snippet] {sound.SoundId} didn't load (missing asset or no permission for this experience)`)
+	end
+	return sound.IsLoaded
+end
+
+-- Yields until the clip can play: the audio has loaded (Song) or the dance animation
+-- has (Choreography). Gives up after `timeout` seconds so a broken asset can't lock the round.
+function Snippet:WaitReady(timeout: number?)
+	if self.Sound then
+		self:_waitLoaded()
+		return
+	end
+	local deadline = os.clock() + (timeout or 5)
+	while self.Track and self.Track.Length == 0 and os.clock() < deadline do
+		task.wait()
+	end
+end
+
+-- Plays the first `seconds` (real song time) of the clip. Returns how long it will play for.
 function Snippet:Play(seconds: number)
 	self._token += 1
 	local token = self._token
 	if self.Sound then
-		self.Sound.TimePosition = self.Clip.Start or 0
-		self.Sound:Play()
+		-- the stop timer only starts once the audio is actually playing; before, a sound
+		-- still loading was stopped before it made any noise
+		task.spawn(function()
+			if not self:_waitLoaded() or self._token ~= token then
+				return
+			end
+			local sound = self.Sound
+			local from = self:_startPosition()
+			-- stop by the audio's own clock, not a wall-clock timer: Play() takes a moment
+			-- to actually make noise, which ate the whole 0.1 s tier before
+			local to = from + seconds * self.Speed
+			sound.TimePosition = from
+			sound:Play()
+			local deadline = os.clock() + seconds + 2
+			while self._token == token and sound.Parent and os.clock() < deadline do
+				if sound.IsPlaying and sound.TimePosition >= to then
+					break
+				end
+				RunService.Heartbeat:Wait()
+			end
+			if self._token == token and sound.Parent then
+				sound:Stop()
+			end
+		end)
+		return seconds
 	elseif self.Track then
 		self.Track:Stop(0)
 		self.Track:Play(0)
@@ -106,12 +200,27 @@ function Snippet:Play(seconds: number)
 	return seconds
 end
 
--- Plays the whole clip (used during the reveal).
+-- Where the reveal plays from: the song's `ChorusPosition`, else the snippet start.
+function Snippet:_chorusPosition(): number
+	local chorus = self.Clip.ChorusPosition
+	local length = self.Sound and self.Sound.TimeLength or 0
+	if type(chorus) == "number" and (length == 0 or chorus < length) then
+		return math.max(chorus, 0)
+	end
+	return self:_startPosition()
+end
+
+-- Plays the song from its chorus (used during the reveal).
 function Snippet:PlayFull()
 	self._token += 1
+	local token = self._token
 	if self.Sound then
-		self.Sound.TimePosition = self.Clip.Start or 0
-		self.Sound:Play()
+		task.spawn(function()
+			if self:_waitLoaded() and self._token == token then
+				self.Sound.TimePosition = self:_chorusPosition()
+				self.Sound:Play()
+			end
+		end)
 	elseif self.Track then
 		self.Track:Stop(0)
 		self.Track:Play(0)

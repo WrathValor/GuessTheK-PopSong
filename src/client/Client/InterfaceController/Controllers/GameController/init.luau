@@ -16,6 +16,7 @@ local UITypes = require(ReplicatedStorage.Types.UITypes)
 
 local Scoreboard = require(script.Scoreboard)
 local Snippet = require(script.Snippet)
+local LoadingCard = require(script.LoadingCard)
 
 -- -------------------------------- Variables ------------------------------- --
 local LOCAL_PLAYER = Players.LocalPlayer
@@ -70,8 +71,10 @@ function Game:Initialize(interface)
 	self._frame.Reveal.Visible = false
 	ButtonScale.ApplyToDescendants(self._frame.Controls)
 	local controls = self._frame.Controls
+	self.Loader = LoadingCard.new(self._frame, controls.PlayButton)
 
 	self._janitor:Add(controls.PlayButton.Activated:Connect(function()
+		print{"hi"}
 		self:_play()
 	end))
 	self._janitor:Add(controls.Skip.Activated:Connect(function()
@@ -132,8 +135,17 @@ end
 
 -- [[ Rounds ]]
 
+-- The snippet outlives its round so the reveal can play the song; it's swapped here.
+function Game:_dropSnippet()
+	if self.Snippet then
+		self.Snippet:Destroy()
+		self.Snippet = nil
+	end
+end
+
 function Game:OnRound(packet)
 	self._round:Cleanup()
+	self:_dropSnippet()
 	local controls = self._frame.Controls
 	self._frame.Reveal.Visible = false
 	controls.Visible = true
@@ -145,15 +157,18 @@ function Game:OnRound(packet)
 		Options = packet.Options,
 		Tier = 1,
 		Guessed = nil :: number?,
+		Ready = false, -- nothing can be clicked until the clip has loaded
 	}
 	self.Scoreboard.Rounds = packet.Rounds
 	self.Scoreboard:UpdateRound(packet.Round)
-	self.Scoreboard:SetStatus(false, "Listening…")
+	self.Scoreboard:SetStatus(false, "Loading…")
 	self.Scoreboard:SetStatus(true, "Listening…")
 
 	local snippet = Snippet.new(packet.Clip, packet.Mode, self.StageModel)
 	self.Snippet = snippet
-	self._round:Add(snippet, "Destroy")
+	controls.Interactable = false
+	self.Loader:HideReady()
+	self.Loader:ShowLoading(packet.Round, packet.Mode)
 
 	for i = 1, 4 do
 		local answer = controls.Answers:FindFirstChild("Answer" .. i)
@@ -173,12 +188,22 @@ function Game:OnRound(packet)
 	controls.Timer.Visible = false
 	self:_paintTiers()
 
-	-- play the first snippet straight away
-	task.delay(0.4, function()
-		if self.Round and self.Round.Number == packet.Round then
-			self:_play()
+	-- wait for the clip to load, then unlock the controls and play the first snippet
+	local round = self.Round
+	self._round:Add(task.spawn(function()
+		snippet:WaitReady()
+		if self.Round ~= round then
+			return
 		end
-	end)
+		round.Ready = true
+		controls.Interactable = true
+		self.Loader:HideLoading()
+		if not round.Guessed then
+			self.Scoreboard:SetStatus(false, "Listening…")
+			-- no auto-play: nudge the player to press play themselves
+			self.Loader:ShowReady()
+		end
+	end), true)
 	-- round cap countdown (only shown when it gets close)
 	local cap = packet.Cap or 20
 	self._round:Add(task.spawn(function()
@@ -229,7 +254,7 @@ end
 
 function Game:_unlock(tier: number)
 	local r = self.Round
-	if not r or r.Guessed or tier <= r.Tier then
+	if not r or not r.Ready or r.Guessed or tier <= r.Tier then
 		return
 	end
 	r.Tier = tier
@@ -239,17 +264,19 @@ end
 
 function Game:_play()
 	local r = self.Round
-	if r and self.Snippet then
+	if r and r.Ready and self.Snippet then
+		self.Loader:HideReady()
 		self.Snippet:Play(r.Tiers[r.Tier])
 	end
 end
 
 function Game:_guess(index: number)
 	local r = self.Round
-	if not r or r.Guessed or not r.Options[index] then
+	if not r or not r.Ready or r.Guessed or not r.Options[index] then
 		return
 	end
 	r.Guessed = index
+	self.Loader:HideReady()
 	DuelRemote:Fire({ Action = "Guess", Id = r.Options[index].Id })
 	local answers = self._frame.Controls.Answers
 	for i = 1, 4 do
@@ -300,6 +327,13 @@ function Game:OnRoundEnd(packet)
 	self.Round = nil
 	local reveal = self._frame.Reveal
 	local controls = self._frame.Controls
+	controls.Interactable = true
+	self.Loader:HideAll()
+
+	-- the answer's out: play the song (or the dance) properly
+	if self.Snippet then
+		self.Snippet:PlayFull()
+	end
 
 	-- colour the answers, then swap to the reveal
 	for i = 1, 4 do
@@ -419,6 +453,9 @@ function Game:Deactivate()
 	end
 	self.State = "Deactivating"
 	self._round:Cleanup()
+	self:_dropSnippet()
+	self._frame.Controls.Interactable = true
+	self.Loader:HideAll()
 	self.Round = nil
 	return FrameTransition.Close(self._frame):andThen(function()
 		self._frame.Visible = false
@@ -428,6 +465,9 @@ function Game:Deactivate()
 end
 
 function Game:Destroy()
+	if self.Loader then
+		self.Loader:Destroy()
+	end
 	self._round:Destroy()
 	self._janitor:Destroy()
 end

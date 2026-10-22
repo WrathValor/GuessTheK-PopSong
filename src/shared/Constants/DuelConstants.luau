@@ -11,7 +11,7 @@ return table.freeze({
 	ROUNDS = 7,
 	ROUND_CAP = 20, -- a round never lasts longer than this
 	ANSWER_WINDOW = 10, -- after the first guess, everyone else has this long
-	REVEAL_TIME = 3,
+	REVEAL_TIME = 5, -- seconds the answer + song play between rounds
 	FIRST_CORRECT_BONUS = 1,
 
 	-- snippet ladders (seconds of clip unlocked per tier), one per mode

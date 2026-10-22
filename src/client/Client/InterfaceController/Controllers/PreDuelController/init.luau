@@ -108,11 +108,11 @@ function PreDuel:Setup(packet)
 	f.RivalFound.Visible = rival ~= nil
 	f.RivalFoundShadow.Visible = rival ~= nil
 
-	-- stake (hidden in solo: solo gives XP + Index only)
+	-- stake (solo: the stake is paid out as XP)
 	local solo = packet.Solo
 	f.Stake.Visible = true
 	f.StakeShadow.Visible = true
-	f.Stake.Rule.Text = if solo then "Solo practice · XP + Index only" else "Winner takes it · loser gets 10"
+	f.Stake.Rule.Text = if solo then "Solo practice · win the stake as XP" else "Winner takes it · loser gets 10"
 	local chips = f.Stake.Reel.Chips
 	local result = f.Stake.Result
 	result.Visible = false
@@ -143,10 +143,10 @@ function PreDuel:Setup(packet)
 		for i = 1, 7 do
 			local chip = chips:FindFirstChild("Chip" .. i)
 			if chip then
-				chip.Value.Text = if solo and i == 4 then "XP" else tostring(packet.Reel[i])
+				chip.Value.Text = tostring(packet.Reel[i])
 			end
 		end
-		result.Amount.Value.Text = if solo then "Practice" else `{packet.Stake} coins`
+		result.Amount.Value.Text = if solo then `{packet.Stake} XP` else `{packet.Stake} coins`
 		result.Visible = true
 		Sounds.Play("SpinLand")
 

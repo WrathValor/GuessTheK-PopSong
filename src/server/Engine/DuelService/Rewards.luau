@@ -64,7 +64,9 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 		}
 
 		if result.Solo then
+			-- solo practice pays the rolled stake as XP
 			earned.Outcome = "Solo"
+			earned.XP = result.Stake
 		elseif result.Leaver == player then
 			earned.Outcome = "Left"
 			earned.XP = 0

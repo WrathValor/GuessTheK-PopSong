@@ -3,6 +3,9 @@
 
 local Players = game:GetService("Players")
 
+-- name tag over the opponent mirrors the rival status
+local RivalTag = require(script.Parent.Parent.Parent.Parent.CameraController.RivalTag)
+
 local LOCAL_PLAYER = Players.LocalPlayer
 local C = Color3.fromHex
 
@@ -72,6 +75,9 @@ function Scoreboard:SetStatus(isRival: boolean, text: string)
 	local card = if isRival then self.Frame.Panel.Rival else self.Frame.Panel.You
 	if card:FindFirstChild("Status") then
 		card.Status.Text = text
+	end
+	if isRival then
+		RivalTag.SetStatus(text)
 	end
 end
 

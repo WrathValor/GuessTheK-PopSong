@@ -23,6 +23,16 @@ local FILL_TWEEN = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirecti
 local TITLE_PADDING = 14 -- horizontal padding inside the title chip
 local TITLE_MIN_WIDTH = 34
 
+-- Slide-out when a menu opens: each corner group leaves through its nearest edge.
+local SLIDE = {
+	TopLeft = Vector2.new(-480, 0),
+	Currency = Vector2.new(480, 0),
+	Buttons = Vector2.new(480, 0),
+	Menu = Vector2.new(0, 340),
+}
+local SLIDE_OUT = TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In)
+local SLIDE_IN = TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+
 -- Frames opened by the HUD buttons. Missing controllers are skipped with a warning, so
 -- buttons start working as soon as the matching controller is added.
 local TILE_TARGETS = {
@@ -90,7 +100,7 @@ function HUDController.Initialize(self: Self, interface: any)
 	-- Show/hide with the global UI mode.
 	self._janitor:Add(interface.ModeChanged:Connect(function(mode: UITypes.UIMode)
 		if mode == "Menu" then
-			self:Deactivate()
+			interface:BlockMode(self:Deactivate())
 		else
 			self:Activate()
 		end
@@ -258,16 +268,60 @@ end
 
 -- [[ Lifecycle ]]
 
-function HUDController.Activate(self: Self)
-	self._hud.Visible = true
-	self.State = "Active"
-	return Promise.resolve()
+-- Slides the HUD groups in or out. Resting spots come from AutoScale (HomeX/HomeY).
+function HUDController._slide(self: Self, show: boolean): any
+	local hud = self._hud
+	self._slideToken = (self._slideToken or 0) + 1
+	local token = self._slideToken
+	local last: Tween? = nil
+
+	for name, offset in SLIDE do
+		local group = hud:FindFirstChild(name) :: GuiObject?
+		if group then
+			-- groups AutoScale doesn't pin (Menu) rest where they were placed in Studio
+			if group:GetAttribute("HomeX") == nil then
+				group:SetAttribute("HomeX", group.Position.X.Offset)
+				group:SetAttribute("HomeY", group.Position.Y.Offset)
+			end
+			group:SetAttribute("Hidden", not show)
+			local home = UDim2.fromOffset(group:GetAttribute("HomeX") or 0, group:GetAttribute("HomeY") or 0)
+			local away = home + UDim2.fromOffset(offset.X, offset.Y)
+			if show and not hud.Visible then
+				group.Position = away
+			end
+			last = TweenService:Create(group, if show then SLIDE_IN else SLIDE_OUT, { Position = if show then home else away })
+			last:Play()
+		end
+	end
+
+	if show then
+		hud.Visible = true
+		return Promise.resolve()
+	elseif last then
+		local tween = last
+		return Promise.new(function(resolve)
+			tween.Completed:Once(function()
+				if self._slideToken == token then
+					hud.Visible = false
+				end
+				resolve()
+			end)
+		end)
+	else
+		hud.Visible = false
+		return Promise.resolve()
+	end
 end
 
+function HUDController.Activate(self: Self)
+	self.State = "Active"
+	return self:_slide(true)
+end
+
+-- Resolves once the HUD has finished sliding out.
 function HUDController.Deactivate(self: Self)
-	self._hud.Visible = false
 	self.State = "Inactive"
-	return Promise.resolve()
+	return self:_slide(false)
 end
 
 function HUDController.Destroy(self: Self)

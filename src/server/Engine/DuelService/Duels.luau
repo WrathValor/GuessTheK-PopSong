@@ -173,7 +173,8 @@ end
 -- [[ Pre-duel: stake roll + mode vote ]]
 
 function Duels:_preDuel()
-	self.Stake = if self.Solo then 0 else rollStake()
+	-- solo rolls a stake too; it pays out as XP instead of coins
+	self.Stake = rollStake()
 
 	local reel = {}
 	for i = 1, 7 do
@@ -273,9 +274,14 @@ function Duels:_playRound(round: number)
 		Clip = {
 			MusicId = song.MusicId,
 			AnimationId = song.AnimationId,
-			Pitch = song.Pitch or 1,
+			-- playbackSpeed is the new field; Pitch is the old name for the same thing
+			PlaybackSpeed = song.playbackSpeed or song.PlaybackSpeed or song.Pitch or 1,
 			Volume = song.Volume or 1,
 			Start = song.Start or 0,
+			-- where the snippet starts on the sound's own timeline (what Studio's TimePosition shows)
+			TimePosition = song.TimePosition,
+			-- where the reveal plays the song from (sound timeline seconds)
+			ChorusPosition = song.ChorusPosition,
 		},
 	})
 
