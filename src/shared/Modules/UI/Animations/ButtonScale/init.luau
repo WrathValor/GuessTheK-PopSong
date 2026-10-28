@@ -24,10 +24,11 @@ function ButtonScale.Apply(button: GuiObject, config: ButtonScaleConfig?): () ->
 	local hovered = false
 	local pressed = false
 
+	local current = 1
 	local function refresh()
 		local scale = pressed and cfg.PressScale or (hovered and cfg.HoverScale or 1)
-
-		Animation.TweenTo(uiScale, scale, cfg):Play()
+		Animation.TweenTo(uiScale, scale, cfg, current):Play()
+		current = scale
 	end
 
 	local connections = {

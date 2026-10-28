@@ -336,11 +336,19 @@ function LoadingCard:ShowLoading(round: number, mode: string?)
 	self._loading = true
 	self.TagLabel.Text = `ROUND {round}`
 	self.Title.Text = if mode == "Choreography" then "Loading dance…" else "Loading audio…"
+	self.Sub.Text = "Get ready — the round unlocks in a sec"
 	self.Dim.Visible = true
 	TweenService:Create(self.Dim, FADE, { BackgroundTransparency = 0.72 }):Play()
 	self.Card.Visible = true
 	self.CardScale.Scale = 0.8
 	TweenService:Create(self.CardScale, POP_IN, { Scale = 1 }):Play()
+end
+
+function LoadingCard:SetText(title: string, sub: string?)
+	self.Title.Text = title
+	if sub then
+		self.Sub.Text = sub
+	end
 end
 
 function LoadingCard:HideLoading()

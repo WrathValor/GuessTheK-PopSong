@@ -75,9 +75,17 @@ function QueueController.Initialize(self: typeof(QueueController.new({} :: UITyp
 		leaveBtn.Visible = true
 	end
 
-	youAvatar.Thumbnail.Image =
-		Players:GetUserThumbnailAsync(LOCAL_PLAYER.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
 	youNameLabel.Text = LOCAL_PLAYER.DisplayName
+	task.spawn(function()
+		local ok, img = pcall(Players.GetUserThumbnailAsync, Players, LOCAL_PLAYER.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+		if ok then
+			youAvatar.Thumbnail.Image = img
+		end
+	end)
+	local soloSub = playSoloBtn and playSoloBtn:FindFirstChild("Sub")
+	if soloSub then
+		soloSub.Text = "Practice for XP"
+	end
 
 	self._janitor:Add(playSoloBtn.MouseButton1Click:Connect(function()
 		QueueRemote:Fire("Solo")
@@ -88,33 +96,81 @@ function QueueController.Initialize(self: typeof(QueueController.new({} :: UITyp
 	end))
 end
 
+-- Shows or hides the Invite / Play Solo / Leave buttons together with their shadows.
+function QueueController:_setButtons(visible: boolean)
+	local panel = self._frame:FindFirstChild("Panel")
+	for _, name in { "InvitePlayers", "PlaySolo", "Leave" } do
+		for _, n in { name, name .. "Shadow" } do
+			local inst = panel and panel:FindFirstChild(n)
+			if inst then
+				inst.Visible = visible
+			end
+		end
+	end
+end
+
+-- Back to "waiting for a rival": called every time you join a stage, so a second match
+-- doesn't start with the last one's countdown and hidden buttons.
+function QueueController:Reset()
+	if self._countdown then
+		pcall(task.cancel, self._countdown)
+		self._countdown = nil
+	end
+	local panel = self._frame:FindFirstChild("Panel")
+	if not panel then
+		return
+	end
+	panel.Title.Text = "Waiting for a rival…"
+	panel.Subtitle.Text = "Nobody's joined the other spot yet"
+	self:_setButtons(true)
+	self:UpdateOpponent(nil)
+end
+
 function QueueController:UpdateOpponent(opponent: Player?)
 	local panelFrame = self._frame:FindFirstChild("Panel")
-	local participantsFrame: Frame = panelFrame:FindFirstChild("Participants")
+	local participantsFrame = panelFrame and panelFrame:FindFirstChild("Participants")
 	if not participantsFrame then
 		return
 	end
 
-	local opponentAvatar = participantsFrame and participantsFrame:FindFirstChild("Opponent")
-	local opponentNameLabel = participantsFrame and participantsFrame:FindFirstChild("OpponentName")
+	local opponentAvatar = participantsFrame:FindFirstChild("Opponent")
+	local opponentNameLabel = participantsFrame:FindFirstChild("OpponentName")
+	local dashes = opponentAvatar:FindFirstChild("Dashes")
 
 	if opponent then
-		panelFrame.Title.Text = "Opponent Found!"
-		Sounds.Play("RivalFound")
-		panelFrame.Subtitle.Text = "Starting soon..."
-
+		if self._opponent ~= opponent then
+			Sounds.Play("RivalFound")
+		end
+		panelFrame.Title.Text = "Opponent found!"
+		panelFrame.Subtitle.Text = "Starting soon…"
 		opponentAvatar.Visible = true
 		opponentAvatar.Thumbnail.Visible = true
 		opponentAvatar.Unknown.Visible = false
-
+		if dashes then
+			dashes.Visible = false
+		end
 		opponentNameLabel.Text = opponent.DisplayName
-		opponentAvatar.Thumbnail.Image =
-			Players:GetUserThumbnailAsync(opponent.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+		opponentAvatar.Thumbnail.Image = ""
+		task.spawn(function()
+			local ok, img = pcall(Players.GetUserThumbnailAsync, Players, opponent.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+			if ok and self._opponent == opponent then
+				opponentAvatar.Thumbnail.Image = img
+			end
+		end)
 	else
 		opponentAvatar.Thumbnail.Visible = false
 		opponentAvatar.Unknown.Visible = true
-		opponentNameLabel.Text = "Open Slot"
+		if dashes then
+			dashes.Visible = true
+		end
+		opponentNameLabel.Text = "Open spot"
+		if self._opponent then
+			-- they left before the countdown finished
+			panelFrame.Title.Text = "Waiting for a rival…"
+			panelFrame.Subtitle.Text = "Nobody's joined the other spot yet"
+		end
 	end
+	self._opponent = opponent
 end
 
 function QueueController:StartIntermission()
@@ -122,37 +178,21 @@ function QueueController:StartIntermission()
 	if not panelFrame then
 		return
 	end
-	local participantsFrame: Frame = panelFrame:FindFirstChild("Participants")
-	if not participantsFrame then
-		return
+	self:_setButtons(false)
+	panelFrame.Title.Text = "Starting round in…"
+	if self._countdown then
+		pcall(task.cancel, self._countdown)
 	end
-
-	local invitePlayersBtn = panelFrame and panelFrame:FindFirstChild("InvitePlayers")
-	if invitePlayersBtn then
-		invitePlayersBtn.Visible = false
-	end
-	local playSoloBtn = panelFrame and panelFrame:FindFirstChild("PlaySolo")
-	if playSoloBtn then
-		playSoloBtn.Visible = false
-	end
-	local leaveBtn = panelFrame and panelFrame:FindFirstChild("Leave")
-	if leaveBtn then
-		leaveBtn.Visible = false
-	end
-
-	local SubtitleLabel = panelFrame:FindFirstChild("Subtitle")
-	if not SubtitleLabel then
-		return
-	end
-
-	panelFrame.Title.Text = "Starting Round in..."
-	for i = DuelConstants.START_TIME, 1, -1 do
-		panelFrame.Subtitle.Text = i
-		if i <= 3 then
-			Sounds.Play("Countdown")
+	self._countdown = task.spawn(function()
+		for i = DuelConstants.START_TIME, 1, -1 do
+			panelFrame.Subtitle.Text = tostring(i)
+			if i <= 3 then
+				Sounds.Play("Countdown")
+			end
+			task.wait(1)
 		end
-		task.wait(1)
-	end
+		self._countdown = nil
+	end)
 end
 
 function QueueController.Activate(self: typeof(QueueController.new({} :: UITypes.ControllerConfig)), ...: any)

@@ -1,0 +1,212 @@
+--| TWICE
+-- JYP · 3rd gen girl group · active.
+-- One entry per song; see Songs/init.luau for what each field means.
+
+return {
+	Group = "TWICE",
+	GroupType = "Girl",
+	Generation = "3rd",
+	Status = "Active",
+	Songs = {
+		{
+			Name = "Feel Special",
+			Year = 2019,
+			MusicId = "rbxassetid://135973002053138",
+			AnimationId = "rbxassetid://10375124212",
+			PlaybackSpeed = 0.8,
+		},
+		 {
+            Name = "Like OOH-AHH",
+            Year = 2015,
+            MusicId = "rbxassetid://102130717033841",
+            AnimationId = "rbxassetid://10375110187",
+            PlaybackSpeed = 0.6,
+            TimePosition = 1,
+            ChorusPosition = 32.8,
+        },
+        {
+            Name = "Look At Me",
+            Year = 2015,
+            MusicId = "rbxassetid://126653698950991",
+            AnimationId = "rbxassetid://16900870884",
+            PlaybackSpeed = 0.55,
+            TimePosition = 1,
+            ChorusPosition = 32.2,
+            Draft = true, -- future update
+        },
+        {
+            Name = "Likey",
+            Year = 2017,
+            MusicId = "rbxassetid://85006340819474",
+            AnimationId = "rbxassetid://12242199038",
+            PlaybackSpeed = 0.55,
+            TimePosition = 5,
+            ChorusPosition = 12.3,
+        },
+        {
+            Name = "Candy Pop",
+            Year = 2018,
+            MusicId = "rbxassetid://115512669651754",
+            AnimationId = "rbxassetid://9158743192",
+            PlaybackSpeed = 0.55,
+            TimePosition = 1,
+            ChorusPosition = 24.1,
+            Draft = true, -- future update
+        },
+        {
+            Name = "Dance The Night Away",
+            Year = 2018,
+            MusicId = "rbxassetid://126697333119176",
+            AnimationId = "rbxassetid://10406521957",
+            PlaybackSpeed = 0.55,
+            TimePosition = 1,
+            ChorusPosition = 32.5,
+        },
+        {
+            Name = "YES or YES",
+            Year = 2018,
+            MusicId = "rbxassetid://129042167997768",
+            AnimationId = "rbxassetid://8886890062",
+            PlaybackSpeed = 0.55,
+            TimePosition = 1,
+            ChorusPosition = 42.1,
+        },
+        {
+            Name = "Breakthrough",
+            Year = 2019,
+            MusicId = "rbxassetid://128284051857034",
+            AnimationId = "rbxassetid://8389385368",
+            PlaybackSpeed = 0.55,
+            TimePosition = 5,
+            ChorusPosition = 0,
+            Draft = true, -- future update
+        },
+        {
+            Name = "Fancy",
+            Year = 2019,
+            MusicId = "rbxassetid://134163185063939",
+            AnimationId = "rbxassetid://11866717848",
+            PlaybackSpeed = 0.67,
+            TimePosition = 1,
+            ChorusPosition = 40.5,
+        },
+        {
+            Name = "Cry For Me",
+            Year = 2020,
+            MusicId = "rbxassetid://119186057784603",
+            AnimationId = "rbxassetid://8389016922",
+            PlaybackSpeed = 0.55,
+            TimePosition = 5,
+            ChorusPosition = 0,
+            Draft = true, -- future update
+        },
+        {
+            Name = "I CAN'T STOP ME",
+            Year = 2020,
+            MusicId = "rbxassetid://99957230489091",
+            AnimationId = "rbxassetid://11946961891",
+            PlaybackSpeed = 0.69,
+            TimePosition = 2,
+            ChorusPosition = 74.2,
+        },
+        {
+            Name = "Alcohol-Free",
+            Year = 2021,
+            MusicId = "rbxassetid://77983768905356",
+            AnimationId = "rbxassetid://9895581767",
+            PlaybackSpeed = 0.63,
+            TimePosition = 1,
+            ChorusPosition = 30.9,
+            Draft = true, -- future update
+        },
+        {
+            Name = "Kura Kura",
+            Year = 2021,
+            MusicId = "rbxassetid://72272452705918",
+            AnimationId = "rbxassetid://9022091235",
+            PlaybackSpeed = 0.55,
+            TimePosition = 5,
+            ChorusPosition = 0,
+            Draft = true, -- future update
+        },
+        {
+            Name = "Perfect World",
+            Year = 2021,
+            MusicId = "rbxassetid://130315782894485",
+            AnimationId = "rbxassetid://8388593978",
+            PlaybackSpeed = 0.55,
+            TimePosition = 5,
+            ChorusPosition = 0,
+            Draft = true, -- future update
+        },
+        {
+            Name = "Scientist",
+            Year = 2021,
+            MusicId = "rbxassetid://111288085917900",
+            AnimationId = "rbxassetid://8917474868",
+            PlaybackSpeed = 0.55,
+            TimePosition = 5,
+            ChorusPosition = 0,
+            Draft = true, -- future update
+        },
+        {
+            Name = "The Feels",
+            Year = 2021,
+            MusicId = "rbxassetid://124200644420084",
+            AnimationId = "rbxassetid://8887872679",
+            PlaybackSpeed = 0.55,
+            TimePosition = 5,
+            ChorusPosition = 0,
+        },
+        {
+            Name = "GO HARD",
+            Year = 2022,
+            MusicId = "rbxassetid://112585896041279",
+            AnimationId = "rbxassetid://13745934841",
+            PlaybackSpeed = 0.55,
+            TimePosition = 5,
+            ChorusPosition = 0,
+            Draft = true, -- future update
+        },
+        {
+            Name = "Talk that Talk",
+            Year = 2022,
+            MusicId = "rbxassetid://130788590075222",
+            AnimationId = "rbxassetid://10810694814",
+            PlaybackSpeed = 0.6,
+            TimePosition = 1,
+            ChorusPosition = 33.5,
+            Draft = true, -- future update
+        },
+        {
+            Name = "MOONLIGHT SUNRISE",
+            Year = 2023,
+            MusicId = "rbxassetid://78086947576320",
+            AnimationId = "rbxassetid://15943145960",
+            PlaybackSpeed = 0.55,
+            TimePosition = 1,
+            ChorusPosition = 29.6,
+            Draft = true, -- future update
+        },
+        {
+            Name = "SET ME FREE",
+            Year = 2023,
+            MusicId = "rbxassetid://120125772921122",
+            AnimationId = "rbxassetid://13141607012",
+            PlaybackSpeed = 0.55,
+            TimePosition = 2,
+            ChorusPosition = 20,
+            Draft = true, -- future update
+        },
+        {
+            Name = "ONE SPARK",
+            Year = 2024,
+            MusicId = "rbxassetid://115745537678135",
+            AnimationId = "rbxassetid://17487187860",
+            PlaybackSpeed = 0.66,
+            TimePosition = 1,
+            ChorusPosition = 112.3,
+            Draft = true, -- future update
+        },
+	},
+}

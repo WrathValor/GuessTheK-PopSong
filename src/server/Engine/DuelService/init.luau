@@ -45,7 +45,7 @@ DuelService.PlayerStage = {} :: { [Player]: Stage }
 
 -- [[ Private ]]
 
-local leave, tryStart -- forward declared, join() needs both
+local leave, tryStart, notifyOpponents -- forward declared, join() needs them
 
 local function otherSlot(slot: Slot): Slot
 	return if slot == "A" then "B" else "A"
@@ -103,6 +103,20 @@ local function placeOnSpot(stage: Stage, slot: Slot, player: Player, humanoid: H
 	end
 end
 
+-- Tells each player on the stage who's on the other spot (nil = it's empty).
+function notifyOpponents(stage: Stage)
+	if stage.Solo then
+		return
+	end
+	local a, b = stage.Players.A, stage.Players.B
+	if a then
+		QueueRemote:Fire(a, { Message = "Opponent", Opponent = b })
+	end
+	if b then
+		QueueRemote:Fire(b, { Message = "Opponent", Opponent = a })
+	end
+end
+
 local function join(stage: Stage, slot: Slot, player: Player)
 	if DuelService.PlayerStage[player] then
 		return
@@ -137,10 +151,13 @@ local function join(stage: Stage, slot: Slot, player: Player)
 
 	placeOnSpot(stage, slot, player, humanoid)
 	refreshPrompts(stage)
-	tryStart(stage)
 
+	-- open the queue screen first, then tell both players who they're up against,
+	-- and only then start (the intermission countdown needs the screen to be open)
 	player:SetAttribute("Stage", stage.Name)
 	QueueRemote:Fire(player, {Message = "Queueing"})
+	notifyOpponents(stage)
+	tryStart(stage)
 end
 
 function leave(player: Player)
@@ -184,6 +201,7 @@ function leave(player: Player)
 		Message = "LeftQueue"
 	})
 	refreshPrompts(stage)
+	notifyOpponents(stage)
 end
 
 local function onDuelEnded(stage: Stage, result)

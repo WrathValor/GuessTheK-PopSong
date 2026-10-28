@@ -67,6 +67,7 @@ local templates: { [string]: Sound } = {}
 local lastPlayed: { [string]: number } = {}
 local group: SoundGroup? = nil
 local musicGroup: SoundGroup? = nil
+local clipGroup: SoundGroup? = nil
 local currentMusic: { Name: string, Sound: Sound }? = nil
 local warnedMusic: { [string]: boolean } = {}
 
@@ -87,6 +88,7 @@ local function setup()
 	end
 	group = getGroup("SFX")
 	musicGroup = getGroup("Music")
+	clipGroup = getGroup("Clips")
 	local folder = Instance.new("Folder")
 	folder.Name = "SFXTemplates"
 	folder.Parent = SoundService
@@ -233,6 +235,24 @@ function Sounds.SetMusicVolume(volume: number)
 	setup()
 	if musicGroup then
 		musicGroup.Volume = volume
+	end
+	-- the lobby playlist (Client/BackgroundMusic) plays through SoundService.Background
+	local background = SoundService:FindFirstChild("Background")
+	if background and background:IsA("SoundGroup") then
+		background.Volume = volume
+	end
+end
+
+-- Round snippets and the reveal song play through this group (Settings → Song clips).
+function Sounds.ClipGroup(): SoundGroup?
+	setup()
+	return clipGroup
+end
+
+function Sounds.SetClipVolume(volume: number)
+	setup()
+	if clipGroup then
+		clipGroup.Volume = volume
 	end
 end
 

@@ -12,8 +12,11 @@ local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Client
 local Levels = require(ReplicatedStorage.Modules.Levels)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
+local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
 local HUDConstants = require(ReplicatedStorage.Constants.HUDConstants)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
+
+local Effects = require(script.Effects)
 
 -- -------------------------------- Variables ------------------------------- --
 local LOCAL_PLAYER = Players.LocalPlayer
@@ -96,6 +99,10 @@ function HUDController.Initialize(self: Self, interface: any)
 	self:_bindCurrency()
 	self:_bindButtons()
 	self:_applyStatic()
+	-- looping eye-catchers: rainbow Shop outline, Quick Play / New Drop sheen, Rewards badge hop
+	Effects.Start(hud, self._janitor, function(gui)
+		Juice.Pop(gui, 0.18)
+	end)
 
 	-- Show/hide with the global UI mode.
 	self._janitor:Add(interface.ModeChanged:Connect(function(mode: UITypes.UIMode)
@@ -148,11 +155,12 @@ function HUDController.SetXP(self: Self, totalXP: number)
 	local level, into, need = Levels.FromXP(totalXP)
 
 	profile.Level.Value.Text = tostring(level)
-	profile.XPLabel.Text = `{commas(into)} / {commas(need)} XP · Lv {level}`
+	local maxed = level >= Levels.MAX_LEVEL
+	profile.XPLabel.Text = if maxed then `MAX · Lv {level}` else `{commas(into)} / {commas(need)} XP · Lv {level}`
 
 	local fill = profile.XPBar.Fill
 	TweenService:Create(fill, FILL_TWEEN, {
-		Size = UDim2.new(math.clamp(into / need, 0, 1), 0, 1, 0),
+		Size = UDim2.new(if maxed then 1 else math.clamp(into / need, 0, 1), 0, 1, 0),
 	}):Play()
 end
 
@@ -180,25 +188,42 @@ end
 function HUDController._bindCurrency(self: Self)
 	local currency = self._hud.TopLeft
 
+	-- numbers roll to their new value and the card gets a punch (not on the first load)
+	local shown: { [string]: number } = {}
+	local function animateNumber(key: string, card: GuiObject, label: TextLabel, value: number)
+		local old = shown[key]
+		shown[key] = value
+		if old == nil or old == value then
+			label.Text = commas(value)
+			return
+		end
+		Juice.CountUp(label, old, value, commas)
+		Juice.Pop(card, if value > old then 0.1 else 0.05)
+	end
+
 	self._janitor:Add(PlayerData.Currencies.Won.Observe(function(coins: number)
-		currency.Coins.Amount.Text = commas(coins)
+		animateNumber("Coins", currency.Coins, currency.Coins.Amount, coins)
 	end))
 
 	self._janitor:Add(PlayerData.Statistics.Wins.Observe(function(wins: number)
-		currency.Wins.Amount.Text = commas(wins)
+		animateNumber("Wins", currency.Wins, currency.Wins.Amount, wins)
 	end))
 
 	self._janitor:Add(PlayerData.Player.Streak.Observe(function(streak: number)
+		local was = currency.Wins.Streak.Visible
 		currency.Wins.Streak.Visible = streak > 0
 		currency.Wins.Streak.Value.Text = tostring(streak)
+		if streak > 0 and (was or streak == 1) then
+			Juice.Pop(currency.Wins.Streak, 0.25)
+		end
 	end))
 end
 
 -- [[ Buttons ]]
 
-function HUDController._open(self: Self, name: string)
+function HUDController._open(self: Self, name: string, ...: any)
 	if self._interface:GetController(name) then
-		self._interface:Open(name)
+		self._interface:Open(name, ...)
 	else
 		warn(`HUD: "{name}" screen has no controller yet`)
 	end
@@ -228,7 +253,7 @@ function HUDController._bindButtons(self: Self)
 	end))
 
 	self._janitor:Add(hud.TopLeft.Coins.Buy.Activated:Connect(function()
-		self:_open("Shop")
+		self:_open("Shop", "Coins")
 	end))
 	self._janitor:Add(hud.Buttons.News.Activated:Connect(function()
 		self:_open("News")

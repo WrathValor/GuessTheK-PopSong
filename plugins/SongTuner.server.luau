@@ -1,7 +1,8 @@
 --| Song Tuner (Studio plugin)
--- Pick a song from Library/Songs (Easy, Medium or Hard), play it, adjust its start
--- (TimePosition), PlaybackSpeed and Volume while you listen, preview the tier lengths,
--- then Save writes the values back into that song's entry in the module.
+-- Pick a company tab, then a song from Library/Songs/<Company>/<Group>, play it, adjust its
+-- start (TimePosition), chorus (ChorusPosition), PlaybackSpeed and Volume while you listen,
+-- preview the tier lengths, then Save writes the values back into that song's entry in its
+-- group module.
 --
 -- Install: right-click the SongTuner script in ServerStorage → "Save as Local Plugin…".
 
@@ -12,7 +13,7 @@ local ChangeHistoryService = game:GetService("ChangeHistoryService")
 local SoundService = game:GetService("SoundService")
 local RunService = game:GetService("RunService")
 
-local FILES = { "Easy", "Medium", "Hard" } -- tabs for files that don't exist just say so
+-- tabs = the company folders under Library/Songs (read when the widget opens; ↻ re-reads)
 local TIERS = { 0.1, 0.5, 2, 8, 15 }
 
 -- --------------------------------- Theme ---------------------------------- --
@@ -116,13 +117,12 @@ new("UIPadding", {
 }, root)
 new("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, root)
 
--- file tabs
+-- company tabs (wrap onto more rows when there are many)
 local tabs = hrow(root, 1)
-local tabButtons = {}
-for i, name in FILES do
-	tabButtons[name] = textButton(tabs, name, 70, nil, i)
-end
-local refresh = textButton(tabs, "↻", 30, nil, 10)
+tabs.AutomaticSize = Enum.AutomaticSize.Y
+tabs:FindFirstChildOfClass("UIListLayout").Wraps = true
+local tabButtons: { [string]: TextButton } = {}
+local refresh = textButton(tabs, "↻", 30, nil, 1000)
 
 -- song list
 local list = new("ScrollingFrame", {
@@ -241,7 +241,7 @@ revertBtn.Size = UDim2.new(0, 70, 0, 30)
 local status = label(root, "", 12, MUTED, 16)
 
 -- --------------------------------- State ---------------------------------- --
-local currentFile = "Easy"
+local currentFile = "" -- company folder name
 local songs: { any } = {}
 local selected: number? = nil
 local values = { Start = 0, Chorus = 0, Speed = 1, Volume = 1 }
@@ -266,11 +266,15 @@ local function fmt(n: number): string
 	return s
 end
 
-local function module(): ModuleScript?
+local function songsFolder(): Instance?
 	local lib = ReplicatedStorage:FindFirstChild("Modules")
 	lib = lib and lib:FindFirstChild("Library")
-	lib = lib and lib:FindFirstChild("Songs")
-	return lib and lib:FindFirstChild(currentFile) :: ModuleScript?
+	return lib and lib:FindFirstChild("Songs")
+end
+
+local function companyFolder(): Instance?
+	local folder = songsFolder()
+	return folder and folder:FindFirstChild(currentFile)
 end
 
 local function setStatus(text: string, colour: Color3?)
@@ -380,7 +384,7 @@ local function select(index: number)
 	playHead.Visible = false
 	selected = index
 	local song = songs[index]
-	title.Text = string.format("%02d  %s - %s", index, song.Name or "?", song.Artist or "?")
+	title.Text = string.format("%s - %s", song.Artist or "?", song.Name or "?")
 	if rigFolder then
 		rigFolder:Destroy()
 	end
@@ -450,21 +454,40 @@ local function loadFile(name: string)
 	end
 	songButtons = {}
 	songs = {}
-	local mod = module()
-	if not mod then
+	local folder = companyFolder()
+	if not folder then
 		setStatus(`Couldn't find Library.Songs.{name}`, BAD)
 		return
 	end
-	local ok, result = pcall(function()
-		return require(mod:Clone()) -- clone so edits show up without a Studio restart
-	end)
-	if not ok or type(result) ~= "table" then
-		setStatus(`{name} didn't load: {result}`, BAD)
-		return
+	-- every song of every group in this company; each remembers its module + position
+	local modules = {}
+	for _, m in folder:GetChildren() do
+		if m:IsA("ModuleScript") then
+			table.insert(modules, m)
+		end
 	end
-	songs = result
+	table.sort(modules, function(a, b)
+		return a.Name:lower() < b.Name:lower()
+	end)
+	for _, m in modules do
+		local ok, group = pcall(function()
+			return require(m:Clone()) -- clone so edits show up without a Studio restart
+		end)
+		if ok and type(group) == "table" and type(group.Songs) == "table" then
+			for i, song in group.Songs do
+				local entry = table.clone(song)
+				entry.Artist = group.Group or m.Name
+				entry.Module = m
+				entry.Index = i
+				table.insert(songs, entry)
+			end
+		else
+			setStatus(`{m.Name} didn't load: {group}`, BAD)
+		end
+	end
 	for i, song in songs do
-		local b = textButton(list, string.format("%02d  %s - %s", i, song.Name or "?", song.Artist or "?"), 0, nil, i)
+		local draft = if song.Draft then "  (draft)" else ""
+		local b = textButton(list, string.format("%s - %s%s", song.Artist or "?", song.Name or "?", draft), 0, nil, i)
 		b.Size = UDim2.new(1, 0, 0, 24)
 		b.TextXAlignment = Enum.TextXAlignment.Left
 		new("UIPadding", { PaddingLeft = UDim.new(0, 8) }, b)
@@ -482,8 +505,42 @@ local function loadFile(name: string)
 	end
 end
 
+-- One tab per company folder.
+local function buildTabs()
+	for _, b in tabButtons do
+		b:Destroy()
+	end
+	tabButtons = {}
+	local folder = songsFolder()
+	local names = {}
+	for _, f in folder and folder:GetChildren() or {} do
+		if f:IsA("Folder") then
+			table.insert(names, f.Name)
+		end
+	end
+	table.sort(names)
+	for i, name in names do
+		local b = textButton(tabs, name, 0, nil, i)
+		b.AutomaticSize = Enum.AutomaticSize.X
+		new("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8) }, b)
+		b.Activated:Connect(function()
+			selected = nil
+			title.Text = "Pick a song"
+			info.Text = ""
+			loadFile(name)
+		end)
+		tabButtons[name] = b
+	end
+	if currentFile == "" or not table.find(names, currentFile) then
+		currentFile = names[1] or ""
+	end
+end
+
 -- ------------------------------ Saving to file ---------------------------- --
--- Finds the source range of the nth entry in `return { {..}, {..} }`, skipping strings.
+-- Finds the source range of the nth song in a group module
+-- (`return { Group = …, Songs = { {..}, {..} } }`: songs sit at table depth 3), skipping
+-- strings and comments.
+local SONG_DEPTH = 3
 local function entryRange(src: string, n: number): (number?, number?)
 	local depth, count, start = 0, 0, nil
 	local i, len = 1, #src
@@ -503,14 +560,14 @@ local function entryRange(src: string, n: number): (number?, number?)
 			i = e or len
 		elseif ch == "{" then
 			depth += 1
-			if depth == 2 then
+			if depth == SONG_DEPTH then
 				count += 1
 				if count == n then
 					start = i
 				end
 			end
 		elseif ch == "}" then
-			if depth == 2 and start then
+			if depth == SONG_DEPTH and start then
 				return start, i
 			end
 			depth -= 1
@@ -521,7 +578,7 @@ local function entryRange(src: string, n: number): (number?, number?)
 end
 
 local function fieldPattern(key: string): string
-	return '\n([ \t]*)%["' .. key .. '"%]%s*=%s*[^,\n]*,?[ \t]*'
+	return "\n([ \t]*)" .. key .. "%s*=%s*[^,\n]*,?[ \t]*"
 end
 
 local function setField(block: string, key: string, value: string?): string
@@ -531,45 +588,39 @@ local function setField(block: string, key: string, value: string?): string
 			return (block:gsub(pat, "", 1))
 		end
 		return (block:gsub(pat, function(indent)
-			return `\n{indent}["{key}"] = {value},`
+			return `\n{indent}{key} = {value},`
 		end, 1))
 	end
 	if value == nil then
 		return block
 	end
 	-- add it after MusicId (or at the top of the entry), matching the indentation
-	local indent = block:match('\n([ \t]*)%["MusicId"%]') or block:match("\n([ \t]*)%[") or "      "
-	local afterMusic = block:find('%["MusicId"%][^\n]*\n')
-	if afterMusic then
-		local lineEnd = block:find("\n", afterMusic, true)
-		return block:sub(1, lineEnd) .. `{indent}["{key}"] = {value},\n` .. block:sub(lineEnd + 1)
+	-- add it after AnimationId (or MusicId, or at the top), matching the indentation
+	local indent = block:match("\n([ \t]*)MusicId") or block:match("\n([ \t]*)%a") or "\t\t\t"
+	local after = block:find("AnimationId[^\n]*\n") or block:find("MusicId[^\n]*\n")
+	if after then
+		local lineEnd = block:find("\n", after, true)
+		return block:sub(1, lineEnd) .. `{indent}{key} = {value},\n` .. block:sub(lineEnd + 1)
 	end
-	return block:sub(1, 1) .. `\n{indent}["{key}"] = {value},` .. block:sub(2)
+	return block:sub(1, 1) .. `\n{indent}{key} = {value},` .. block:sub(2)
 end
 
--- Writes start/speed/volume into entry `index` of Library.Songs.<file>. Returns ok, message.
-local function writeEntry(file: string, index: number, v): (boolean, string, string?)
-	local lib = ReplicatedStorage:FindFirstChild("Modules")
-	lib = lib and lib:FindFirstChild("Library")
-	lib = lib and lib:FindFirstChild("Songs")
-	local mod = lib and lib:FindFirstChild(file) :: ModuleScript?
-	if not mod then
-		return false, `Couldn't find Library.Songs.{file}`
+-- Writes start/chorus/speed/volume into song `index` of group module `mod`. Returns ok, message.
+local function writeEntry(mod: ModuleScript, index: number, v): (boolean, string, string?)
+	if not mod or not mod.Parent then
+		return false, "That group module is gone; press ↻"
 	end
 	local src = mod.Source
 	local a, b = entryRange(src, index)
 	if not (a and b) then
-		return false, `Couldn't find song {index} in {file}`
+		return false, `Couldn't find song {index} in {mod.Name}`
 	end
 	local block = src:sub(a, b)
-	if v.Name and not block:find('%["Name"%]%s*=%s*"' .. v.Name:gsub("%p", "%%%0") .. '"') then
-		return false, `{file} #{index} isn't {v.Name} any more; not saved`
+	if v.Name and not block:find('Name%s*=%s*"' .. v.Name:gsub("%p", "%%%0") .. '"') then
+		return false, `{mod.Name} #{index} isn't {v.Name} any more; press ↻`
 	end
-	-- the speed goes in whichever field the song already uses
-	local speedKey = if block:find('%["PlaybackSpeed"%]') then "PlaybackSpeed"
-		elseif block:find('%["playbackSpeed"%]') then "playbackSpeed"
-		else "Pitch"
-	block = setField(block, speedKey, fmt(v.Speed))
+	local speedKey = "PlaybackSpeed"
+	block = setField(block, speedKey, if v.Speed ~= 1 then fmt(v.Speed) else nil)
 	block = setField(block, "TimePosition", fmt(v.Start))
 	if v.Chorus then
 		block = setField(block, "ChorusPosition", fmt(v.Chorus))
@@ -597,9 +648,9 @@ local function save()
 		return
 	end
 	local song = songs[selected]
-	local v = { File = currentFile, Index = selected, Name = song.Name, Start = values.Start, Chorus = values.Chorus, Speed = values.Speed, Volume = values.Volume }
+	local v = { Name = song.Name, Start = values.Start, Chorus = values.Chorus, Speed = values.Speed, Volume = values.Volume }
 
-	local ok, msg, speedKey = writeEntry(currentFile, selected, v)
+	local ok, msg, speedKey = writeEntry(song.Module, song.Index, v)
 	if ok then
 		snapshot(values, saved)
 		song.ChorusPosition = values.Chorus
@@ -612,15 +663,8 @@ local function save()
 end
 
 -- --------------------------------- Wiring --------------------------------- --
-for name, b in tabButtons do
-	b.Activated:Connect(function()
-		selected = nil
-		title.Text = "Pick a song"
-		info.Text = ""
-		loadFile(name)
-	end)
-end
 refresh.Activated:Connect(function()
+	buildTabs()
 	loadFile(currentFile)
 end)
 
@@ -754,6 +798,7 @@ plugin.Unloading:Connect(function()
 	end
 end)
 
+buildTabs()
 loadFile(currentFile)
 
 runHint.Visible = RunService:IsRunning()

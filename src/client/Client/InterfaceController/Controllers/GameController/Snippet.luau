@@ -7,6 +7,9 @@ local Players = game:GetService("Players")
 local SoundService = game:GetService("SoundService")
 local ContentProvider = game:GetService("ContentProvider")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+
+local Sounds = require(game:GetService("ReplicatedStorage").Modules.Sounds)
 
 local LOCAL_PLAYER = Players.LocalPlayer
 
@@ -34,6 +37,7 @@ function Snippet.new(clip, mode: string, stageModel: Model?)
 		sound.SoundId = clip.MusicId or ""
 		sound.Volume = clip.Volume or 1
 		sound.PlaybackSpeed = self.Speed
+		sound.SoundGroup = Sounds.ClipGroup() -- Settings → Song clips volume
 		sound.Parent = SoundService
 		self.Sound = sound
 		-- start downloading now so the first Play isn't spent loading
@@ -213,6 +217,10 @@ end
 -- Plays the song from its chorus (used during the reveal).
 function Snippet:PlayFull()
 	self._token += 1
+	self._fading = false
+	if self.Sound then
+		self.Sound.Volume = self.Clip.Volume or 1
+	end
 	local token = self._token
 	if self.Sound then
 		task.spawn(function()
@@ -235,6 +243,35 @@ function Snippet:Stop()
 	end
 	if self.Track then
 		self.Track:AdjustSpeed(0)
+	end
+end
+
+-- Fades the song out over `seconds`, then stops it. Safe to call more than once.
+function Snippet:FadeOut(seconds: number)
+	local sound = self.Sound
+	if not sound or not sound.Parent or self._fading then
+		return
+	end
+	self._fading = true
+	self._token += 1 -- cancels any pending stop/replay
+	local tween = TweenService:Create(sound, TweenInfo.new(seconds, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Volume = 0 })
+	tween.Completed:Once(function()
+		if sound.Parent then
+			sound:Stop()
+		end
+	end)
+	tween:Play()
+end
+
+-- Fades out (if the song is playing) and then cleans up.
+function Snippet:FadeAndDestroy(seconds: number)
+	if self.Sound and self.Sound.IsPlaying then
+		self:FadeOut(seconds)
+		task.delay(seconds + 0.05, function()
+			self:Destroy()
+		end)
+	else
+		self:Destroy()
 	end
 end
 

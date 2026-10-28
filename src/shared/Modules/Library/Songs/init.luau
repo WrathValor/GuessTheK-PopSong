@@ -1,21 +1,65 @@
 --| Songs
--- Every song from the Easy/Medium/Hard lists, flattened into one pool.
--- Each song gets an `Id` ("Name - Artist", unique) and its `Difficulty`.
+-- The song library, one module per group, in a folder per company:
+--   Songs/<Company>/<Group>.luau   e.g. Songs/HYBE/BTS.luau, Songs/YG/BLACKPINK.luau
+-- The folder name is the song's Company. A group module returns:
+--   Group       "BTS"                        shown as the artist on answers and cards
+--   GroupType   "Boy" | "Girl" | "Co-ed" | "Solo"
+--   Generation  "2nd" | "3rd" | "4th" | "5th"  wrong answers come from the same generation
+--   Status      "Active" | "Hiatus" | "Disbanded"
+--   Songs       list of songs:
+--     Name            "Dynamite"
+--     Year            2020 (release year)
+--     MusicId         audio asset (the snippet + reveal)
+--     AnimationId     dance animation (Choreography mode)
+--     PlaybackSpeed   playback speed the audio needs to sound right (default 1)
+--     TimePosition    where the snippet starts, in the audio's own seconds (default: halfway)
+--     ChorusPosition  where the reveal plays from (default: TimePosition)
+--     Volume          only when it isn't 1
+--     Draft = true    keeps a song out of the game (audio not checked yet)
+-- New group: add a module to its company folder (make the folder for a new company).
+-- Song Tuner (plugins/SongTuner) edits PlaybackSpeed/TimePosition/ChorusPosition/Volume in
+-- these modules for you.
+--
+-- Every song is flattened into one pool with the group fields copied onto it, plus
+-- Artist (= Group), Company and Id ("Name - Artist", unique; saved in player data, so
+-- don't rename songs or groups once players own them).
 
 local Songs = {}
 
 local All = {}
 local ById = {}
 
-for _, list in script:GetChildren() do
-	if list:IsA("ModuleScript") then
-		for _, song in require(list) do
+local function load(module: ModuleScript, company: string)
+	local ok, group = pcall(require, module)
+	if not ok or type(group) ~= "table" or type(group.Songs) ~= "table" then
+		warn(`[Songs] {module:GetFullName()} isn't a group module: {group}`)
+		return
+	end
+	local artist = group.Group or module.Name
+	for _, song in group.Songs do
+		if not song.Draft then
 			local entry = table.clone(song)
-			entry.Difficulty = list.Name
-			entry.Id = `{song.Name} - {song.Artist}`
-			if not ById[entry.Id] then
+			entry.Artist = artist
+			entry.Company = company
+			entry.GroupType = group.GroupType
+			entry.Generation = group.Generation
+			entry.Status = group.Status
+			entry.Id = `{song.Name} - {artist}`
+			if ById[entry.Id] then
+				warn(`[Songs] duplicate song {entry.Id} in {module:GetFullName()}`)
+			else
 				ById[entry.Id] = entry
 				table.insert(All, entry)
+			end
+		end
+	end
+end
+
+for _, folder in script:GetChildren() do
+	if folder:IsA("Folder") then
+		for _, module in folder:GetChildren() do
+			if module:IsA("ModuleScript") then
+				load(module, folder.Name)
 			end
 		end
 	end
@@ -57,9 +101,6 @@ local function filter(key: string, value: any)
 	return out
 end
 
-function Songs.GetSongsByDifficulty(difficulty: string)
-	return filter("Difficulty", difficulty)
-end
 function Songs.GetSongsByGeneration(generation: string)
 	return filter("Generation", generation)
 end
@@ -74,6 +115,9 @@ function Songs.GetSongsByGroupType(groupType: string)
 end
 function Songs.GetSongsByArtist(artist: string)
 	return filter("Artist", artist)
+end
+function Songs.GetSongsByYear(year: number)
+	return filter("Year", year)
 end
 function Songs.GetSongByName(name: string)
 	for _, song in All do
@@ -105,7 +149,7 @@ end
 
 -- What the client needs to show an option. Never includes clip assets.
 function Songs.Public(song)
-	return { Id = song.Id, Name = song.Name, Artist = song.Artist, Generation = song.Generation }
+	return { Id = song.Id, Name = song.Name, Artist = song.Artist, Generation = song.Generation, Year = song.Year }
 end
 
 return Songs

@@ -16,7 +16,11 @@ local UITypes = require(ReplicatedStorage.Types.UITypes)
 
 local Scoreboard = require(script.Scoreboard)
 local Snippet = require(script.Snippet)
+local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
+
+local REVEAL_FADE = 2 -- the reveal song fades out over the last this-many seconds
 local LoadingCard = require(script.LoadingCard)
+local PackTag = require(script.PackTag)
 
 -- -------------------------------- Variables ------------------------------- --
 local LOCAL_PLAYER = Players.LocalPlayer
@@ -138,7 +142,8 @@ end
 -- The snippet outlives its round so the reveal can play the song; it's swapped here.
 function Game:_dropSnippet()
 	if self.Snippet then
-		self.Snippet:Destroy()
+		-- never cut the song off dead: a short fade if it's still playing
+		self.Snippet:FadeAndDestroy(0.4)
 		self.Snippet = nil
 	end
 end
@@ -161,6 +166,7 @@ function Game:OnRound(packet)
 	}
 	self.Scoreboard.Rounds = packet.Rounds
 	self.Scoreboard:UpdateRound(packet.Round)
+	PackTag.Set(self._frame, packet.PackTag)
 	self.Scoreboard:SetStatus(false, "Loading…")
 	self.Scoreboard:SetStatus(true, "Listening…")
 
@@ -188,24 +194,53 @@ function Game:OnRound(packet)
 	controls.Timer.Visible = false
 	self:_paintTiers()
 
-	-- wait for the clip to load, then unlock the controls and play the first snippet
+	-- wait for the clip to load and tell the server; the round (and its clock) starts when
+	-- the server says everyone's loaded ("RoundGo")
 	local round = self.Round
 	self._round:Add(task.spawn(function()
 		snippet:WaitReady()
 		if self.Round ~= round then
 			return
 		end
-		round.Ready = true
-		controls.Interactable = true
-		self.Loader:HideLoading()
-		if not round.Guessed then
-			self.Scoreboard:SetStatus(false, "Listening…")
-			-- no auto-play: nudge the player to press play themselves
-			self.Loader:ShowReady()
+		round.Loaded = true
+		DuelRemote:Fire({ Action = "Loaded", Round = round.Number })
+		if round.Go then
+			self:_unlockRound(round)
+		elseif not self.Solo then
+			self.Loader:SetText("Waiting for your rival…", "Your clip's ready — theirs is still loading")
 		end
 	end), true)
+end
+
+-- The server's go signal: everyone has loaded (or the load timeout passed).
+function Game:OnRoundGo(packet)
+	local round = self.Round
+	if not round or round.Number ~= packet.Round then
+		return
+	end
+	round.Go = true
+	round.Cap = packet.Cap or 20
+	if round.Loaded then
+		self:_unlockRound(round)
+	end
+end
+
+-- Controls on, prompt to press play, and the round-cap countdown from now.
+function Game:_unlockRound(round)
+	if round.Ready then
+		return
+	end
+	local controls = self._frame.Controls
+	round.Ready = true
+	controls.Interactable = true
+	self.Loader:HideLoading()
+	if not round.Guessed then
+		self.Scoreboard:SetStatus(false, "Listening…")
+		-- no auto-play: nudge the player to press play themselves
+		self.Loader:ShowReady()
+	end
 	-- round cap countdown (only shown when it gets close)
-	local cap = packet.Cap or 20
+	local cap = round.Cap or 20
 	self._round:Add(task.spawn(function()
 		local start = os.clock()
 		while true do
@@ -332,7 +367,14 @@ function Game:OnRoundEnd(packet)
 
 	-- the answer's out: play the song (or the dance) properly
 	if self.Snippet then
-		self.Snippet:PlayFull()
+		local snippet = self.Snippet
+		snippet:PlayFull()
+		-- fade it out so it's gone just as the reveal ends
+		task.delay(math.max(DuelConstants.REVEAL_TIME - REVEAL_FADE, 0.5), function()
+			if self.Snippet == snippet then
+				snippet:FadeOut(REVEAL_FADE)
+			end
+		end)
 	end
 
 	-- colour the answers, then swap to the reveal
@@ -347,7 +389,7 @@ function Game:OnRoundEnd(packet)
 	end
 
 	reveal.Answer.Title.Text = packet.Answer.Name
-	reveal.Answer.Meta.Text = `{packet.Answer.Artist} · {packet.Answer.Generation or ""} Gen`
+	reveal.Answer.Meta.Text = if packet.Answer.Year then `{packet.Answer.Artist} · {packet.Answer.Year} · {packet.Answer.Generation or ""} Gen` else `{packet.Answer.Artist} · {packet.Answer.Generation or ""} Gen`
 
 	local mine = packet.Picks[ME]
 	Sounds.Play(if mine and mine.Correct then "Correct" else "Wrong")

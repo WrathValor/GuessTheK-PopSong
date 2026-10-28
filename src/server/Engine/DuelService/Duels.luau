@@ -8,6 +8,7 @@ local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 
 local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 local SongLibrary = require(ReplicatedStorage.Modules.Library.Songs)
+local Packs = require(ReplicatedStorage.Modules.Library.Packs)
 local Levels = require(ReplicatedStorage.Modules.Levels)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 
@@ -83,6 +84,30 @@ local function profileOf(player: Player)
 	}
 end
 
+-- The songs this player's duel pack would bring (owned songs in it), and the pack id.
+local function duelPackOf(player: Player): ({ any }, string?)
+	local ok, data = pcall(PlayerData.Get, player)
+	if not ok or not data then
+		return {}, nil
+	end
+	local id = data.Inventory.DuelPack.Get()
+	if id == "" or not Packs.Get(id) then
+		return {}, nil
+	end
+	return Packs.SongsFor(id, function(songId)
+		return data.Inventory.Songs.Has(songId)
+	end), id
+end
+
+local function shuffle(list: { any }): { any }
+	local copy = table.clone(list)
+	for i = #copy, 2, -1 do
+		local j = math.random(1, i)
+		copy[i], copy[j] = copy[j], copy[i]
+	end
+	return copy
+end
+
 --| Duels
 local Duels = {}
 Duels.__index = Duels
@@ -113,6 +138,11 @@ function Duels.new(stage, playerA: Player?, playerB: Player?, solo: boolean?)
 	self.Phase = "Intro" :: "Intro" | "Vote" | "Round" | "Reveal" | "Done"
 	self.Round = 0
 	self.Used = {} :: { [string]: boolean }
+	-- round -> { Song, From = player, Pack = packId } for rounds that play a pack song
+	self.Schedule = {} :: { [number]: any }
+	self.PackSongs = {} :: { [Player]: { any } }
+	self.PackIds = {} :: { [Player]: string }
+	self.SoloPool = "Mix"
 	self.Rounds = {} :: { RoundLog }
 	self.Current = nil :: any
 
@@ -134,6 +164,7 @@ function Duels:Start()
 		return
 	end
 	self._running = true
+	self:_setInDuel(true)
 
 	local thread = task.spawn(function()
 		if not self.Solo then
@@ -189,16 +220,58 @@ function Duels:_preDuel()
 		end
 	end
 
+	-- duel packs: they only mix in when every player has one on (solo: always, if on)
+	local packsInfo = { On = false, Names = {} }
+	local allOn = #self.Players > 0
+	for slot, p in self.Slots do
+		if p then
+			local songs, id = duelPackOf(p)
+			if id and #songs > 0 then
+				self.PackSongs[p] = songs
+				self.PackIds[p] = id
+				packsInfo.Names[slot] = Packs.DisplayName(id)
+			else
+				allOn = false
+			end
+		end
+	end
+	packsInfo.On = allOn
+	if self.Solo and allOn then
+		local me = self.Players[1]
+		local ok, data = pcall(PlayerData.Get, me)
+		local choice = if ok and data then data.Settings.SoloPool.Get() else "Mix"
+		local count = #self.PackSongs[me]
+		packsInfo.Solo = {
+			Count = count,
+			CanOnly = count >= DuelConstants.ROUNDS, -- "only my pack" needs a song per round
+			Choice = if choice == "Pack" and count >= DuelConstants.ROUNDS then "Pack" else "Mix",
+		}
+		self.SoloPool = packsInfo.Solo.Choice
+	end
+	self.PacksOn = allOn
+
 	self.Phase = "Vote"
 	self:_fire({
 		Message = "PreDuel",
+		Packs = packsInfo,
 		Stake = self.Stake,
 		Reel = reel,
 		Players = profiles,
 		Solo = self.Solo,
 		SpinTime = DuelConstants.STAKE_SPIN,
-		VoteTime = DuelConstants.VOTE_TIME,
+		ModeVote = DuelConstants.MODE_VOTE,
+		VoteTime = if DuelConstants.MODE_VOTE then DuelConstants.VOTE_TIME else DuelConstants.PRE_DUEL_HOLD,
 	})
+
+	if not DuelConstants.MODE_VOTE then
+		-- no vote (Choreography isn't out yet): show the stake, then straight into Song rounds.
+		-- Phase stays "Vote" meanwhile so the solo song pool picker still works.
+		task.wait(DuelConstants.STAKE_SPIN + DuelConstants.PRE_DUEL_HOLD + 0.25)
+		self.Mode = DuelConstants.DEFAULT_MODE
+		self:_schedulePacks()
+		self.Phase = "Intro"
+		return
+	end
 
 	task.wait(DuelConstants.STAKE_SPIN + DuelConstants.VOTE_TIME + 0.25)
 
@@ -215,6 +288,8 @@ function Duels:_preDuel()
 		self.Mode = DuelConstants.MODES[math.random(1, 2)]
 	end
 
+	self:_schedulePacks()
+
 	self.Phase = "Intro"
 	self:_fire({ Message = "Mode", Mode = self.Mode })
 	task.wait(DuelConstants.MODE_REVEAL)
@@ -228,11 +303,79 @@ function Duels:_broadcastVotes()
 	self:_fire({ Message = "Votes", Votes = votes })
 end
 
+-- [[ Duel packs ]]
+
+-- Decides which rounds play a pack song. Duel: up to PACK_SONGS_PER_PLAYER random songs
+-- from each player's pack, on random rounds 2..ROUNDS (a song both packs share counts once).
+-- Solo "Pack": every round from the pack.
+function Duels:_schedulePacks()
+	self.Schedule = {}
+	if not self.PacksOn then
+		return
+	end
+	local picks = {} -- { Song, From, Pack }
+	local taken = {}
+	if self.Solo and self.SoloPool == "Pack" then
+		local me = self.Players[1]
+		for i, song in shuffle(self.PackSongs[me]) do
+			if i > DuelConstants.ROUNDS then
+				break
+			end
+			self.Schedule[i] = { Song = song, From = me, Pack = self.PackIds[me] }
+		end
+		return
+	end
+	for _, p in self.Players do
+		local n = 0
+		for _, song in shuffle(self.PackSongs[p] or {}) do
+			if n >= DuelConstants.PACK_SONGS_PER_PLAYER then
+				break
+			end
+			if not taken[song.Id] then
+				taken[song.Id] = true
+				n += 1
+				table.insert(picks, { Song = song, From = p, Pack = self.PackIds[p] })
+			end
+		end
+	end
+	local rounds = {}
+	for r = 2, DuelConstants.ROUNDS do
+		table.insert(rounds, r)
+	end
+	rounds = shuffle(rounds)
+	for i, pick in picks do
+		if rounds[i] then
+			self.Schedule[rounds[i]] = pick
+		end
+	end
+end
+
 -- [[ Rounds ]]
 
 function Duels:_playRound(round: number)
-	local song = SongLibrary.GetRandomSong(self.Used)
+	self.RoundNumber = round
+	local scheduled = self.Schedule[round]
+	local song
+	if scheduled and not self.Used[scheduled.Song.Id] then
+		song = scheduled.Song
+	else
+		scheduled = nil
+		-- shared pool, never one of the songs saved for a later pack round
+		local skip = table.clone(self.Used)
+		for r, pick in self.Schedule do
+			if r > round then
+				skip[pick.Song.Id] = true
+			end
+		end
+		song = SongLibrary.GetRandomSong(skip)
+	end
 	self.Used[song.Id] = true
+	-- tag shown under the round counter: whose pack this song came from
+	local packTag = scheduled and {
+		From = scheduled.From.UserId,
+		FromName = scheduled.From.DisplayName,
+		Pack = Packs.DisplayName(scheduled.Pack),
+	} or nil
 
 	local options = { song }
 	for _, s in SongLibrary.GetWrongOptions(song, 3) do
@@ -254,12 +397,13 @@ function Duels:_playRound(round: number)
 	local state = {
 		Song = song,
 		Per = per,
+		Loaded = {} :: { [Player]: boolean },
 		Start = os.clock(),
 		FirstGuessAt = nil :: number?,
 		FirstCorrect = nil :: Player?,
 	}
 	self.Current = state
-	self.Phase = "Round"
+	self.Phase = "Loading" -- no guessing until everyone's clip has loaded
 
 	self:_fire({
 		Message = "Round",
@@ -270,6 +414,7 @@ function Duels:_playRound(round: number)
 		Points = DuelConstants.TIER_POINTS,
 		Options = publicOptions,
 		Cap = DuelConstants.ROUND_CAP,
+		PackTag = packTag,
 		-- the client has to play the clip locally, so it gets the clip assets
 		Clip = {
 			MusicId = song.MusicId,
@@ -284,6 +429,29 @@ function Duels:_playRound(round: number)
 			ChorusPosition = song.ChorusPosition,
 		},
 	})
+
+	-- the clock only starts once every player's clip has loaded (or LOAD_TIMEOUT passes),
+	-- so a slow download doesn't eat into anyone's time
+	local loadDeadline = os.clock() + DuelConstants.LOAD_TIMEOUT
+	while self._running and os.clock() < loadDeadline do
+		local all = true
+		for _, p in self.Players do
+			if p.Parent and not state.Loaded[p] then
+				all = false
+				break
+			end
+		end
+		if all then
+			break
+		end
+		task.wait(0.1)
+	end
+	if not self._running then
+		return
+	end
+	state.Start = os.clock()
+	self.Phase = "Round"
+	self:_fire({ Message = "RoundGo", Round = round, Cap = DuelConstants.ROUND_CAP })
 
 	-- wait until everyone has guessed, the answer window closes, or the cap is hit
 	while self._running do
@@ -366,10 +534,30 @@ function Duels:Action(player: Player, packet)
 	end
 	local action = packet.Action
 
-	if action == "Vote" and self.Phase == "Vote" then
+	if action == "Vote" and self.Phase == "Vote" and DuelConstants.MODE_VOTE then
 		if packet.Mode == "Song" or packet.Mode == "Choreography" then
 			self.Votes[player] = packet.Mode
 			self:_broadcastVotes()
+		end
+	elseif action == "SoloPool" and self.Phase == "Vote" and self.Solo and self.PacksOn then
+		-- solo pool picker on the pre-duel screen; remembered for next time
+		local choice = packet.Choice
+		local songs = self.PackSongs[player]
+		if choice == "Pack" and not (songs and #songs >= DuelConstants.ROUNDS) then
+			choice = "Mix"
+		end
+		if choice == "Mix" or choice == "Pack" then
+			self.SoloPool = choice
+			local ok, data = pcall(PlayerData.Get, player)
+			if ok and data then
+				data.Settings.SoloPool.Set(choice)
+			end
+			DuelRemote:Fire(player, { Message = "SoloPool", Choice = choice })
+		end
+	elseif action == "Loaded" and self.Phase == "Loading" then
+		local state = self.Current
+		if state and state.Per[player] and packet.Round == self.RoundNumber then
+			state.Loaded[player] = true
 		end
 	elseif action == "Unlock" and self.Phase == "Round" then
 		local info = self.Current and self.Current.Per[player]
@@ -413,12 +601,22 @@ function Duels:Forfeit(player: Player)
 	self:_finish(winner, true, player)
 end
 
+-- "InDuel" player attribute: lobby name tags hide while it's set.
+function Duels:_setInDuel(on: boolean)
+	for _, p in self.Players do
+		if p.Parent then
+			p:SetAttribute("InDuel", if on then true else nil)
+		end
+	end
+end
+
 function Duels:_finish(winner: Player?, forfeit: boolean, leaver: Player?)
 	if not self._running then
 		return
 	end
 	self._running = false
 	self.Phase = "Done"
+	self:_setInDuel(false)
 
 	local draw = false
 	if not winner and not self.Solo and self.Slots.A and self.Slots.B then
@@ -454,6 +652,7 @@ end
 
 function Duels:Destroy()
 	self._running = false
+	self:_setInDuel(false)
 	self._janitor:Destroy()
 end
 

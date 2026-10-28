@@ -6,6 +6,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
+local Levels = require(ReplicatedStorage.Modules.Levels)
+local DailyQuests = require(script.Parent.Parent.RewardsService) -- Engine/RewardsService
 
 local Rewards = {}
 
@@ -27,6 +29,8 @@ export type Earned = {
 	IndexNew: number,
 	Perfect: boolean,
 	Outcome: "Win" | "Lose" | "Draw" | "Solo" | "Left",
+	LevelUp: number?, -- the new level, when this match levelled the player up
+	NewTitle: string?, -- level title unlocked by that level up (Modules/Levels.TITLES)
 }
 
 function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
@@ -100,6 +104,24 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 			earned.CoinsDetail ..= " + perfect"
 		end
 
+		-- 2× Coins pass doubles everything coin-related from a match
+		if earned.Coins > 0 and data.GamePasses.Has("DoubleCoins") then
+			earned.Coins *= 2
+			earned.CoinsDetail = if earned.CoinsDetail ~= "" then `{earned.CoinsDetail} · 2× pass` else "2× pass"
+		end
+
+		-- level up? (the results screen shows it next to the XP)
+		local before = Levels.FromXP(data.Player.XP.Get())
+		local after = Levels.FromXP(data.Player.XP.Get() + earned.XP)
+		if after > before then
+			earned.LevelUp = after
+			for _, t in Levels.TITLES do
+				if t.Level > before and t.Level <= after then
+					earned.NewTitle = t.Title
+				end
+			end
+		end
+
 		-- write it all in one replication flush
 		PlayerData.Batch(player, function()
 			if earned.XP > 0 then
@@ -107,14 +129,30 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 			end
 			if earned.Coins > 0 then
 				data.Currencies.Won.Increment(earned.Coins)
+				data.Statistics.CoinsEarned.Increment(earned.Coins)
 			end
-			if not result.Solo then
+			if correct > 0 then
+				data.Statistics.CorrectAnswers.Increment(correct)
+			end
+			if earned.Perfect then
+				data.Statistics.PerfectGames.Increment(1)
+			end
+			if result.Solo then
+				data.Statistics.SoloGames.Increment(1)
+			else
+				data.Statistics.Duels.Increment(1)
 				data.Player.Streak.Set(earned.Streak)
+				-- what a Save Streak purchase would give back (cleared by a win or a draw)
+				data.Player.LostStreak.Set(earned.StreakLost)
 				if earned.Outcome == "Win" then
 					data.Statistics.Wins.Increment(1)
 					if earned.Streak > data.Statistics.HighestStreak.Get() then
 						data.Statistics.HighestStreak.Set(earned.Streak)
 					end
+				elseif earned.Outcome == "Draw" then
+					data.Statistics.Draws.Increment(1)
+				else -- "Lose" or "Left"
+					data.Statistics.Losses.Increment(1)
 				end
 			end
 			for _, id in songs do
@@ -125,10 +163,17 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 			end
 		end)
 
-		-- remembered for a Save Streak purchase (handled by the receipt processor)
-		player:SetAttribute("LostStreak", if earned.StreakLost > 0 then earned.StreakLost else nil)
-
 		out[player] = earned
+
+		-- daily quest counters (Rewards screen)
+		task.spawn(DailyQuests.Record, player, {
+			Correct = correct,
+			Win = earned.Outcome == "Win",
+			Lost = earned.Outcome == "Lose" or earned.Outcome == "Left",
+			Solo = result.Solo,
+			Perfect = earned.Perfect == true,
+			NewSongs = earned.IndexNew,
+		})
 	end
 	return out
 end
