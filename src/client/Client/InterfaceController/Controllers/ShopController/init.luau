@@ -258,7 +258,6 @@ function Shop:_setPackKind(kind: string)
 	self._packIndex = 1
 	self:_buildPacks()
 	self:_refresh()
-	self:_animatePage("Packs")
 end
 
 function Shop:_fillPacks()
@@ -550,59 +549,6 @@ function Shop:ShowTab(name: string, force: boolean?)
 		end
 	end
 	self:_refresh()
-	if changed or force then
-		self:_animatePage(name)
-	end
-end
-
--- What pops in (in order) when a page appears.
-function Shop:_animatePage(name: string)
-	local page = self._pages[name]
-	local list = {}
-	local function add(parent: Instance?, ...)
-		if not parent then
-			return
-		end
-		for _, n in { ... } do
-			local child = parent:FindFirstChild(n)
-			if child then
-				table.insert(list, child)
-			end
-		end
-	end
-	if name == "Featured" then
-		add(page, "FeaturedSetShadow", "FeaturedSet", "FeaturedNew", "VipShadow", "Vip", "TitleRow")
-		add(page:FindFirstChild("Grid"), "Card1", "Card2", "Card3", "Card4")
-	elseif name == "Sets" then
-		add(page, "TitleRow")
-		add(page:FindFirstChild("Grid"), "Card1", "Card2", "Card3", "Card4")
-		add(page, "FooterShadow", "Footer")
-	elseif name == "Items" then
-		add(page, "StageRow", "Chip")
-		add(page:FindFirstChild("StageGrid"), "Card1", "Card2", "Card3", "Card4")
-		add(page, "MicRow")
-		add(page:FindFirstChild("MicGrid"), "Card1", "Card2", "Card3", "Card4")
-		add(page, "Footnote")
-	elseif name == "Packs" then
-		for i = 1, 5 do
-			add(page.Picker, "Pack" .. i .. "Shadow", "Pack" .. i)
-		end
-		add(page, "SelectedShadow", "Selected")
-	elseif name == "Coins" then
-		add(page, "TitleRow")
-		add(page:FindFirstChild("Bundles"), "Bundle1", "Bundle2", "Bundle3")
-		add(page, "Pass1Shadow", "Pass1", "Pass2Shadow", "Pass2")
-	end
-	Juice.Stagger(list, 0.04)
-end
-
--- Song rows cascade in when you pick a pack.
-function Shop:_animateSongs()
-	local list = {}
-	for i = 1, 12 do
-		table.insert(list, self._pages.Packs.Selected.Songs["Song" .. i])
-	end
-	Juice.Stagger(list, 0.025, 0.7)
 end
 
 -- -------------------------------- Lifecycle ------------------------------- --
@@ -672,7 +618,6 @@ function Shop:Initialize(interface)
 				self._packOffset = nextOffset
 				self._packIndex = 1
 				self:_refresh()
-				self:_animatePage("Packs")
 			end
 		end))
 	end
@@ -683,7 +628,6 @@ function Shop:Initialize(interface)
 			self:_refresh()
 			if changed then
 				Juice.Pop(packs.Picker["Pack" .. i], 0.08)
-				self:_animateSongs()
 			end
 		end))
 	end

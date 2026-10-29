@@ -382,12 +382,6 @@ function Rewards:Activate()
 		return Promise.resolve()
 	end
 	self.State = "Activating"
-	local days = self._frame.Panel.Body.Content.Days
-	local list = {}
-	for i = 1, Build.DAYS do
-		table.insert(list, days["Day" .. i])
-	end
-	Juice.Stagger(list, 0.035)
 	return FrameTransition.Open(self._frame):andThen(function()
 		self.State = "Active"
 	end)

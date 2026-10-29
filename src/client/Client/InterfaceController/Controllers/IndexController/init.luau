@@ -1,8 +1,12 @@
 --| IndexController
--- The Index (Interface.Frames.Index, built by ./Build from the "Index" board): every song in the
--- game, collected or not. A song is collected once you've guessed it correctly in a duel
--- (Inventory.Index). Rail: All songs · My Pack (songs you own) · one row per company pack.
--- Missing songs show as "???" cards; songs collected this session get a NEW badge.
+-- The Index (Interface.Frames.Index, built by ./Build from the "Index · discovered + owned"
+-- board): every song in the game, in three states:
+--   • Missing    – "???" card; guess it correctly in a duel to discover it
+--   • Discovered – guessed correctly at least once (Inventory.Index): white card, DISCOVERED tag
+--   • Owned      – bought in the shop (Inventory.Songs): holographic card, ★, OWNED tag; these
+--                  are the songs that count for duel packs. Owning a song also reveals it.
+-- Header: Discovered x/y and Owned x/y bars. Rail: All songs · My Pack · one row per company.
+-- Songs discovered this session get a NEW badge. Nothing can be bought here (that's the shop).
 
 -- -------------------------------- Services -------------------------------- --
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -30,7 +34,7 @@ local GREY = C("EDE4D4")
 local LINE = C("CFC5B3")
 
 local PER_PAGE = Build.PER_PAGE
-local SHOWS = { "All", "Collected", "Missing" }
+local SHOWS = { "All", "Discovered", "Owned", "Missing" }
 local SORTS = { "A–Z", "Gen" }
 
 -- ---------------------------------- Class --------------------------------- --
@@ -89,10 +93,19 @@ function Index:_rows()
 	return rows
 end
 
-local function collectedIn(list): number
+local function owned(song): boolean
+	return has(PlayerData.Inventory.Songs, song.Id)
+end
+
+-- revealed: guessed correctly, or bought
+local function discovered(song): boolean
+	return has(PlayerData.Inventory.Index, song.Id) or owned(song)
+end
+
+local function countIn(list, test): number
 	local n = 0
 	for _, song in list do
-		if has(PlayerData.Inventory.Index, song.Id) then
+		if test(song) then
 			n += 1
 		end
 	end
@@ -115,7 +128,7 @@ function Index:_refresh()
 		if row then
 			local on = i == self._row
 			b.Label.Text = row.Label
-			b.Count.Text = if row.Kind == "Pack" then `{#row.Songs} owned` else `{collectedIn(row.Songs)}/{#row.Songs}`
+			b.Count.Text = if row.Kind == "Pack" then `{#row.Songs} owned` else `{countIn(row.Songs, discovered)} · {countIn(row.Songs, owned)}`
 			b.BackgroundColor3 = if on then INK else WHITE
 			b:FindFirstChildOfClass("UIStroke").Color = if on then INK else WHITE
 			b.Label.TextColor3 = if on then YELLOW else INK
@@ -129,8 +142,8 @@ function Index:_refresh()
 	local show = SHOWS[self._show]
 	local list = {}
 	for _, song in row.Songs do
-		local got = has(PlayerData.Inventory.Index, song.Id)
-		if show == "All" or (show == "Collected" and got) or (show == "Missing" and not got) then
+		local seen, mine = discovered(song), owned(song)
+		if show == "All" or (show == "Discovered" and seen and not mine) or (show == "Owned" and mine) or (show == "Missing" and not seen) then
 			table.insert(list, song)
 		end
 	end
@@ -146,10 +159,15 @@ function Index:_refresh()
 	end)
 
 	local content = panel.Content
-	local got, total = collectedIn(row.Songs), #row.Songs
+	local total = #row.Songs
 	content.Heading.Text = row.Label
-	content.Count.Text = `{got} / {total}`
-	content.Progress.Fill.Size = UDim2.fromScale(if total > 0 then got / total else 0, 1)
+	for name, test in { Discovered = discovered, Owned = owned } do
+		local n = countIn(row.Songs, test)
+		local bar = content[name]
+		bar.Count.Text = `{n} / {total}`
+		bar.Bar.Fill.Size = UDim2.fromScale(if total > 0 then n / total else 0, 1)
+		bar.Bar.Fill.Visible = n > 0
+	end
 	content.Show.Text = `Show: {show}`
 	content.Sort.Text = `Sort: {sort}`
 	local pages = math.max(1, math.ceil(#list / PER_PAGE))
@@ -166,18 +184,25 @@ function Index:_refresh()
 		local song = list[(self._page - 1) * PER_PAGE + i]
 		holder.Visible = song ~= nil
 		if song then
-			local collected = has(PlayerData.Inventory.Index, song.Id)
+			local mine = owned(song)
+			local seen = mine or discovered(song)
 			local face = holder.Face
-			face.BackgroundColor3 = if collected then WHITE else PAPER
-			face:FindFirstChildOfClass("UIStroke").Color = if collected then INK else DASH
-			holder.Shadow.Visible = collected
-			face.Badge.BackgroundColor3 = if collected then MINT else GREY
-			face.Badge:FindFirstChildOfClass("UIStroke").Color = if collected then INK else LINE
-			face.Badge.Mark.Text = if collected then "" else "?"
-			face.SongTitle.Text = if collected then song.Name else "???"
-			face.Artist.Text = if collected then song.Artist else "Not collected yet"
-			face.Gen.Text = if collected and song.Generation then `{string.upper(song.Generation)} GEN` else ""
-			holder.New.Visible = collected and self._new[song.Id] == true
+			face.BackgroundColor3 = if seen then WHITE else PAPER
+			face.Holo.Enabled = mine
+			face:FindFirstChildOfClass("UIStroke").Color = if seen then INK else DASH
+			holder.Shadow.Visible = seen
+			face.Badge.BackgroundColor3 = if mine then YELLOW elseif seen then MINT else GREY
+			face.Badge:FindFirstChildOfClass("UIStroke").Color = if seen then INK else LINE
+			face.Badge.Mark.Text = if mine then "★" elseif seen then "♪" else "?"
+			face.Badge.Mark.TextColor3 = if seen then INK else DASH
+			face.SongTitle.Text = if seen then song.Name else "???"
+			face.Artist.Text = if seen then song.Artist else "Not discovered yet"
+			face.Gen.Text = if seen and song.Generation then `{string.upper(song.Generation)} GEN` else ""
+			face.Tag.Visible = seen
+			face.Tag.Text = if mine then "OWNED" else "DISCOVERED"
+			face.Tag.BackgroundColor3 = if mine then INK else MINT
+			face.Tag.TextColor3 = if mine then YELLOW else INK
+			holder.New.Visible = seen and self._new[song.Id] == true
 		end
 	end
 end
@@ -186,15 +211,17 @@ end
 -- opens, glides to the new value when you pick another rail entry, and stays put on page,
 -- filter and sort changes. (No card cascade: 18 cards per page is too busy.)
 function Index:_animate(fromEmpty: boolean?)
-	local fill = self._frame.Panel.Content.Progress.Fill
-	local target = fill.Size
-	local from = if fromEmpty then 0 else self._fillShown
-	self._fillShown = target.X.Scale
-	if from == nil or from == target.X.Scale then
-		return
+	self._fillShown = self._fillShown or {}
+	for _, name in { "Discovered", "Owned" } do
+		local fill = self._frame.Panel.Content[name].Bar.Fill
+		local target = fill.Size
+		local from = if fromEmpty then 0 else self._fillShown[name]
+		self._fillShown[name] = target.X.Scale
+		if from ~= nil and from ~= target.X.Scale then
+			fill.Size = UDim2.fromScale(from, 1)
+			game:GetService("TweenService"):Create(fill, TweenInfo.new(0.6, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { Size = target }):Play()
+		end
 	end
-	fill.Size = UDim2.fromScale(from, 1)
-	game:GetService("TweenService"):Create(fill, TweenInfo.new(0.6, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { Size = target }):Play()
 end
 
 -- -------------------------------- Lifecycle ------------------------------- --

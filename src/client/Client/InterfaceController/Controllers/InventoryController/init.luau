@@ -324,17 +324,6 @@ function Inventory:ShowCategory(name: string)
 	self._category = name
 	self._page = 1
 	self:_refresh()
-	self:_animateGrid()
-end
-
--- cards pop in one after another
-function Inventory:_animateGrid()
-	local list = {}
-	local grid = self._frame.Panel.Content.Grid
-	for i = 1, PER_PAGE do
-		table.insert(list, grid["Item" .. i])
-	end
-	Juice.Stagger(list, 0.03)
 end
 
 function Inventory:_toast(message: string)
@@ -376,17 +365,14 @@ function Inventory:Initialize(interface)
 	j:Add(content.Sort.Activated:Connect(function()
 		self._sort = if self._sort == "Rarity" then "A–Z" else "Rarity"
 		self:_refresh()
-		self:_animateGrid()
 	end))
 	j:Add(content.Prev.Activated:Connect(function()
 		self._page -= 1
 		self:_refresh()
-		self:_animateGrid()
 	end))
 	j:Add(content.Next.Activated:Connect(function()
 		self._page += 1
 		self:_refresh()
-		self:_animateGrid()
 	end))
 	for i = 1, PER_PAGE do
 		local holder = content.Grid["Item" .. i]
@@ -480,7 +466,6 @@ function Inventory:Activate(category: string?)
 		self:ShowCategory(category)
 	else
 		self:_refresh()
-		self:_animateGrid()
 	end
 	if self.State == "Active" or self.State == "Activating" then
 		return Promise.resolve()

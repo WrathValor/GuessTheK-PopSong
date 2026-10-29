@@ -21,7 +21,16 @@ local CLOSE_ICON = "rbxassetid://118345756178429"
 
 local Build = {}
 
-Build.RAIL_ROWS = 7 -- All songs, My Pack, then up to 5 company packs
+Build.RAIL_ROWS = 9 -- All songs, My Pack, then up to 7 company packs
+-- owned cards (and the Owned bar) get this pastel rainbow, same as the HUD Shop tile
+Build.HOLO = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, C("FFB3C7")),
+	ColorSequenceKeypoint.new(0.2, C("FFD8A8")),
+	ColorSequenceKeypoint.new(0.4, C("FFF1A8")),
+	ColorSequenceKeypoint.new(0.6, C("B8F0C8")),
+	ColorSequenceKeypoint.new(0.8, C("B5DDFF")),
+	ColorSequenceKeypoint.new(1, C("D4C2FF")),
+})
 Build.PER_PAGE = 18
 
 local function new(className: string, props: { [string]: any }, parent: Instance?): any
@@ -129,21 +138,29 @@ function Build.Build(frames: Instance)
 	end
 	railRow(1, 1)
 	railRow(2, 2)
-	text(rail, "PacksHeading", { LayoutOrder = 3, Size = UDim2.new(1, 0, 0, 24), TextSize = 10, TextColor3 = MUTED, TextYAlignment = Enum.TextYAlignment.Bottom, Text = "   YOUR PACKS" })
+	text(rail, "PacksHeading", { LayoutOrder = 3, Size = UDim2.new(1, 0, 0, 24), TextSize = 10, TextColor3 = MUTED, TextYAlignment = Enum.TextYAlignment.Bottom, Text = "   COMPANIES" })
 	for i = 3, Build.RAIL_ROWS do
 		railRow(i, i + 1)
 	end
 
-	-- content header: title, progress bar, count, Show filter, Sort, pager
+	-- content header: title, Discovered + Owned bars, Show filter, Sort, pager
 	local content = new("Frame", { Name = "Content", Position = UDim2.fromOffset(223 + 20, 67 + 16), Size = UDim2.fromOffset(1040 - 223 - 40, 620 - 67 - 32), BackgroundTransparency = 1 }, panel)
 	local cw = content.Size.X.Offset
 	text(content, "Heading", { Size = UDim2.fromOffset(150, 36), FontFace = HEAD, TextSize = 20, Text = "All songs" })
-	local bar = new("Frame", { Name = "Progress", Position = UDim2.fromOffset(150, 11), Size = UDim2.fromOffset(110, 14), BackgroundColor3 = WHITE, ClipsDescendants = true }, content)
-	corner(bar, 7)
-	stroke(bar, 2)
-	local fill = new("Frame", { Name = "Fill", Size = UDim2.fromScale(0.46, 1), BackgroundColor3 = RED, BorderSizePixel = 0 }, bar)
-	corner(fill, 7)
-	text(content, "Count", { Position = UDim2.fromOffset(268, 0), Size = UDim2.fromOffset(70, 36), TextSize = 13, Text = "0 / 0" })
+	-- two stacked bars: label 72 · gap 10 · bar 86 · gap 8 · count
+	for i, spec in { { "Discovered", MINT }, { "Owned", WHITE } } do
+		local rowF = new("Frame", { Name = spec[1], Position = UDim2.fromOffset(150, if i == 1 then 1 else 19), Size = UDim2.fromOffset(230, 16), BackgroundTransparency = 1 }, content)
+		text(rowF, "Label", { Size = UDim2.fromOffset(72, 16), FontFace = BODY, TextSize = 11, TextColor3 = MUTED, Text = spec[1] })
+		local bar = new("Frame", { Name = "Bar", Position = UDim2.fromOffset(82, 2), Size = UDim2.fromOffset(86, 12), BackgroundColor3 = WHITE, ClipsDescendants = true }, rowF)
+		corner(bar, 6)
+		stroke(bar, 2)
+		local fill = new("Frame", { Name = "Fill", Size = UDim2.fromScale(0.4, 1), BackgroundColor3 = spec[2], BorderSizePixel = 0 }, bar)
+		corner(fill, 4)
+		if spec[1] == "Owned" then
+			new("UIGradient", { Name = "Holo", Color = Build.HOLO }, fill)
+		end
+		text(rowF, "Count", { Position = UDim2.fromOffset(176, 0), Size = UDim2.fromOffset(54, 16), TextSize = 12, Text = "0 / 0" })
+	end
 	-- right side, from the edge: Sort 120 · Show 120 · gap 10 · › 34 · page 44 · ‹ 34
 	button(content, "Prev", UDim2.new(1, -250 - 10 - 34 - 44 - 34, 0, 0), UDim2.fromOffset(34, 36), "‹")
 	text(content, "Page", { Position = UDim2.new(1, -250 - 10 - 34 - 44, 0, 0), Size = UDim2.fromOffset(44, 36), TextSize = 13, TextXAlignment = Enum.TextXAlignment.Center, Text = "1 / 1" })
@@ -164,13 +181,29 @@ function Build.Build(frames: Instance)
 		local face = new("Frame", { Name = "Face", Size = UDim2.fromScale(1, 1), BackgroundColor3 = WHITE }, holder)
 		corner(face, 12)
 		stroke(face, 3)
+		new("UIGradient", { Name = "Holo", Color = Build.HOLO, Rotation = 20, Enabled = false }, face)
 		local badge = new("Frame", { Name = "Badge", Position = UDim2.fromOffset(8, 14), Size = UDim2.fromOffset(32, 32), BackgroundColor3 = MINT }, face)
 		corner(badge, UDim.new(0.5, 0))
 		stroke(badge, 2)
 		text(badge, "Mark", { Size = UDim2.fromScale(1, 1), FontFace = HEAD, TextSize = 13, TextColor3 = C("A39A8C"), TextXAlignment = Enum.TextXAlignment.Center, Text = "" })
-		text(face, "SongTitle", { Position = UDim2.fromOffset(50, 10), Size = UDim2.new(1, -110, 0, 20), TextSize = 15, Text = "Song" })
-		text(face, "Artist", { Position = UDim2.fromOffset(50, 30), Size = UDim2.new(1, -110, 0, 16), FontFace = BODY_BOLD, TextSize = 12, TextColor3 = MUTED, Text = "Artist" })
-		text(face, "Gen", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -12, 0, 0), Size = UDim2.fromOffset(56, 60), TextSize = 10, TextColor3 = MUTED, TextXAlignment = Enum.TextXAlignment.Right, Text = "4TH GEN" })
+		text(face, "SongTitle", { Position = UDim2.fromOffset(50, 10), Size = UDim2.new(1, -140, 0, 20), TextSize = 15, Text = "Song" })
+		text(face, "Artist", { Position = UDim2.fromOffset(50, 30), Size = UDim2.new(1, -140, 0, 16), FontFace = BODY_BOLD, TextSize = 12, TextColor3 = C("4A4460"), Text = "Artist" })
+		-- right side: generation on top, DISCOVERED / OWNED tag under it
+		text(face, "Gen", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10, 0, 8), Size = UDim2.fromOffset(80, 12), TextSize = 10, TextColor3 = MUTED, TextXAlignment = Enum.TextXAlignment.Right, Text = "4TH GEN" })
+		local tag = text(face, "Tag", {
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.new(1, -10, 0, 27),
+			AutomaticSize = Enum.AutomaticSize.X,
+			Size = UDim2.fromOffset(0, 18),
+			BackgroundTransparency = 0,
+			BackgroundColor3 = MINT,
+			TextSize = 10,
+			TextTruncate = Enum.TextTruncate.None,
+			Text = "DISCOVERED",
+		})
+		corner(tag, 7)
+		stroke(tag, 2)
+		new("UIPadding", { PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6) }, tag)
 		local new_ = text(holder, "New", {
 			AnchorPoint = Vector2.new(1, 0),
 			Position = UDim2.new(1, 8, 0, -10),
