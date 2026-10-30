@@ -32,7 +32,7 @@ return {
             ChorusPosition = 32.4,
         },
         {
-            Name = "락 (樂) (LALALALA)",
+            Name = "LALALALA",
             Year = 2023,
             MusicId = "rbxassetid://107345208006343",
             AnimationId = "rbxassetid://16400592661",

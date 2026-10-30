@@ -8,6 +8,10 @@ local Janitor = require(ReplicatedStorage.Packages.janitor)
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local Duels = require(script.Duels)
 local Rewards = require(script.Rewards)
+local StageCosmetics = require(script.StageCosmetics)
+local StageStatus = require(script.StageStatus)
+local Themes = require(ReplicatedStorage.Modules.Library.Themes)
+local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 
 --| Types
 
@@ -59,6 +63,7 @@ local function refreshPrompts(stage: Stage)
 		prompt.Enabled = stage.State == "Waiting" and stage.Players[slot] == nil
 		prompt.ObjectText = if opponent then "vs " .. opponent.DisplayName else "Duel Stage"
 	end
+	StageStatus.Refresh(stage) -- the neon strip: free / waiting / live
 end
 
 local function placeOnSpot(stage: Stage, slot: Slot, player: Player, humanoid: Humanoid)
@@ -150,6 +155,7 @@ local function join(stage: Stage, slot: Slot, player: Player)
 	end))
 
 	placeOnSpot(stage, slot, player, humanoid)
+	StageCosmetics.Apply(stage, slot, player) -- their equipped stage + mic on this spot
 	refreshPrompts(stage)
 
 	-- open the queue screen first, then tell both players who they're up against,
@@ -175,6 +181,7 @@ function leave(player: Player)
 	local slot: Slot = if stage.Players.A == player then "A" else "B"
 	stage.Players[slot] = nil
 	stage.SlotJanitors[slot]:Cleanup()
+	StageCosmetics.Apply(stage, slot, nil)
 	stage.Rematch = {}
 
 	if stage.Duel then
@@ -294,11 +301,30 @@ local function requestRematch(player: Player)
 	end
 end
 
-function trySolo(player: Player)
+-- Saves the theme + pack mix-in picked on the back of the queue card (Duels reads them back,
+-- and checks the theme is still open). Unknown ids are ignored.
+local function saveSoloChoice(player: Player, packet)
+	if type(packet) ~= "table" then
+		return
+	end
+	local ok, data = pcall(PlayerData.Get, player)
+	if not ok or not data then
+		return
+	end
+	if type(packet.Theme) == "string" and Themes.Get(packet.Theme) then
+		data.Settings.SoloTheme.Set(packet.Theme)
+	end
+	if type(packet.Mix) == "boolean" then
+		data.Settings.SoloPool.Set(if packet.Mix then "Mix" else "Off")
+	end
+end
+
+function trySolo(player: Player, packet: any?)
 	local stage = DuelService.PlayerStage[player]
 	if not stage then
 		return
 	end
+	saveSoloChoice(player, packet)
 
 	stage.Solo = true
 	QueueRemote:Fire(player, {
@@ -410,15 +436,22 @@ function DuelService.Start()
 		local stage = createStage(model)
 		if stage then
 			DuelService.Stages[stage.Name] = stage
+			StageStatus.Refresh(stage)
 		end
 	end
 
 	Players.PlayerRemoving:Connect(leave)
-	QueueRemote:Connect(function(Player: Player, Request: string)
+	-- Request is a string, or { Request = "Solo", Theme, Mix } from the solo theme picker
+	QueueRemote:Connect(function(Player: Player, Request: any)
+		local packet = nil
+		if type(Request) == "table" then
+			packet = Request
+			Request = Request.Request
+		end
 		if Request == "Leave" then
 			leave(Player)
 		elseif Request == "Solo" then
-			trySolo(Player)
+			trySolo(Player, packet)
 		elseif Request == "QuickPlay" then
 			quickPlay(Player)
 		end

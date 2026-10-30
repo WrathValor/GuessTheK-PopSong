@@ -166,7 +166,7 @@ function Game:OnRound(packet)
 	}
 	self.Scoreboard.Rounds = packet.Rounds
 	self.Scoreboard:UpdateRound(packet.Round)
-	PackTag.Set(self._frame, packet.PackTag)
+	PackTag.Set(self._frame, packet.PackTag, packet.Theme)
 	self.Scoreboard:SetStatus(false, "Loading…")
 	self.Scoreboard:SetStatus(true, "Listening…")
 

@@ -270,7 +270,7 @@ function HUDController._applyStatic(self: Self)
 
 	self:SetNewDrop(HUDConstants.NEW_DROP)
 	hud.Menu.Tiles.Shop.Sale.Visible = HUDConstants.SHOP_SALE
-	self:SetRewardsBadge(0)
+	self:SetRewardsBadge(self._rewardsBadge or 0)
 end
 
 -- Text under "NEW DROP"; nil hides the card.
@@ -286,6 +286,11 @@ end
 
 -- Number of unclaimed rewards on the Rewards tile; 0 hides the badge.
 function HUDController.SetRewardsBadge(self: Self, count: number)
+	-- RewardsController can call this before the HUD has initialised: keep it for then
+	self._rewardsBadge = count
+	if not self._hud then
+		return
+	end
 	local badge = self._hud.Menu.Tiles.Rewards.Badge
 	badge.Visible = count > 0
 	badge.Value.Text = if count > 9 then "9+" else tostring(count)

@@ -19,6 +19,7 @@ local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Client
 local Packs = require(ReplicatedStorage.Modules.Library.Packs)
 local ShopCatalog = require(ReplicatedStorage.Constants.ShopCatalog)
+local CosmeticView = require(ReplicatedStorage.Modules.UI.CosmeticView)
 local HUDConstants = require(ReplicatedStorage.Constants.HUDConstants)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local FrameTransition = require(ReplicatedStorage.Modules.UI.Animations.FrameTransition)
@@ -205,6 +206,12 @@ function Inventory:_fillCard(holder: Frame, item)
 		art.Covers.Card1.BackgroundColor3 = C(item.Colour)
 		art.Covers.Card2.BackgroundColor3 = C(item.Colour2)
 	end
+	-- stages + mics show their real model; packs and titles keep the drawn art
+	if item.Kind == "Stage" or item.Kind == "Mic" then
+		CosmeticView.Show(art, item.Kind, item.Item.Id)
+	else
+		CosmeticView.Clear(art)
+	end
 	-- packs: the rarity chip reads "IN DUELS" on the active one
 	if item.Kind == "Pack" and item.Equipped then
 		art.Rarity.Text = "IN DUELS"
@@ -248,6 +255,7 @@ function Inventory:_fillLoadout()
 		local slot = strip[kind .. "Slot"]
 		slot.SlotName.Text = item.Name
 		slot.Swatch.BackgroundColor3 = C(if kind == "Stage" then item.Stage else item.Mic)
+		CosmeticView.Show(slot.Swatch, kind, item.Id)
 	end
 	local slot = strip.PackSlot
 	local packId = PlayerData.Inventory.DuelPack.Get()
@@ -421,7 +429,7 @@ function Inventory:Initialize(interface)
 				end
 			end
 		end
-	end))
+	end), "Disconnect") -- BridgeNet2 connections have no Destroy
 
 	-- the newly equipped card gets a punch
 	local function popEquipped(key: string)

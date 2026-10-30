@@ -129,8 +129,9 @@ function Songs.GetSongByName(name: string)
 end
 
 -- `count` wrong options for `answer`. Same generation first so the options are fair,
--- then anything else to fill up. Never the same artist+name twice.
-function Songs.GetWrongOptions(answer, count: number)
+-- then anything else to fill up. Never the same artist+name twice. `within` (a solo theme's
+-- songs) is tried first, so a themed game's options all come from the theme.
+function Songs.GetWrongOptions(answer, count: number, within: { any }?)
 	local picked, used = {}, { [answer.Id] = true }
 	local function take(pool)
 		local copy = table.clone(pool)
@@ -141,6 +142,16 @@ function Songs.GetWrongOptions(answer, count: number)
 				table.insert(picked, song)
 			end
 		end
+	end
+	if within then
+		local sameGen = {}
+		for _, song in within do
+			if song.Generation == answer.Generation then
+				table.insert(sameGen, song)
+			end
+		end
+		take(sameGen)
+		take(within)
 	end
 	take(Songs.GetSongsByGeneration(answer.Generation))
 	take(All)

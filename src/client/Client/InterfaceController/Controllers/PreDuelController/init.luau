@@ -1,7 +1,7 @@
 -- Pre-duel screen: rival found, stake reel spin, then a 5 s mode vote (when DuelConstants.MODE_VOTE
 -- is on; while it's off the vote panel hides and the screen re-centres). A chip on the stake
--- card says whether duel packs are mixing in; in solo (with a duel pack on) it's the song
--- pool picker instead (Mix / Only my pack, remembered by the server). See ./Build.
+-- card says whether duel packs are mixing in; in solo it names the theme picked on the queue
+-- card (and the pack mixing in, if any). The old SoloPool picker stays hidden. See ./Build.
 
 -- -------------------------------- Services -------------------------------- --
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -112,11 +112,14 @@ function PreDuel:_setupPacks(packs, solo: boolean, rivalName: string?)
 		table.insert(names, name)
 	end
 	if solo then
-		if packs.On and packs.Solo and pool then
-			self._soloPool = table.clone(packs.Solo)
-			pool.Visible = true
-			poolShadow.Visible = true
-			self:SetSoloPool(packs.Solo.Choice)
+		-- the theme was picked on the queue card; just say what this game plays
+		if chip and packs.Theme then
+			chip.Visible = true
+			chip.BackgroundColor3 = MINT
+			chip.Icon.Off.Visible = false
+			chip.Label.Text = if packs.On and #names > 0
+				then `{packs.Theme} · {names[1]} mixed in`
+				else packs.Theme
 		end
 		return
 	end

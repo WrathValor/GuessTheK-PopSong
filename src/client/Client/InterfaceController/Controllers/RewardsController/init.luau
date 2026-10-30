@@ -340,7 +340,7 @@ function Rewards:Initialize(interface)
 		if self.State ~= "Inactive" then
 			self:_toast(packet.Text or "")
 		end
-	end))
+	end), "Disconnect") -- BridgeNet2 connections have no Destroy
 
 	for _, path in {
 		PlayerData.Rewards.DailyStreak,

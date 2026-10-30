@@ -278,6 +278,9 @@ end
 
 -- [[ Lifecycle ]]
 
+-- also used by the Cmdr testing commands (givesong / givepack)
+ShopService.CheckPacksComplete = checkPacksComplete
+
 function ShopService.Start()
 	ShopRemote:Connect(function(player: Player, packet)
 		if type(packet) ~= "table" or busy[player] then

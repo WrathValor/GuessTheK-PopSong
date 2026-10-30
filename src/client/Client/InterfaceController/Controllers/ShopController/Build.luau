@@ -601,7 +601,8 @@ end
 local function itemsPage(pages: Instance)
 	local page = new("Frame", { Name = "Items", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Visible = false }, pages)
 	local cw = (PAGE_W - 3 * 14) / 4
-	local gridH = 196
+	-- two header rows (26 + 8 gap each) and a gap between the sections; the cards take the rest
+	local gridH = math.floor((PAGE_H - 2 * 34 - 8) / 2)
 	local function section(kind: string, y: number, title: string, sub: string)
 		local head = new("Frame", { Name = kind .. "Row", Position = UDim2.fromOffset(0, y), Size = UDim2.new(1, 0, 0, 26), BackgroundTransparency = 1 }, page)
 		row(head, 10)
@@ -613,7 +614,8 @@ local function itemsPage(pages: Instance)
 		end
 	end
 	section("Stage", 0, "Stages", "Platform + stage skin for your spot")
-	section("Mic", 240, "Mic stands", "Stands at the front of your spot")
+	local micY = 34 + gridH + 8
+	section("Mic", micY, "Mic stands", "Stands at the front of your spot")
 	local chip = text(page, "Chip", {
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, 0, 0, 3),
@@ -628,13 +630,15 @@ local function itemsPage(pages: Instance)
 	corner(chip, 8)
 	stroke(chip, 2)
 	pad(chip, 8)
+	-- sits at the right end of the "Mic stands" row (like the restock chip on "Stages")
 	text(page, "Footnote", {
-		Position = UDim2.fromOffset(0, PAGE_H - 22),
-		Size = UDim2.new(1, 0, 0, 20),
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, 0, 0, micY + 4),
+		Size = UDim2.fromOffset(560, 18),
 		FontFace = BODY_BOLD,
 		TextSize = 12,
 		TextColor3 = MUTED,
-		TextXAlignment = Enum.TextXAlignment.Center,
+		TextXAlignment = Enum.TextXAlignment.Right,
 		Text = "Set pieces are never sold here. Buy the set to unlock them, then mix them with anything.",
 	})
 	return page

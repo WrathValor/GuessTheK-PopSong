@@ -9,6 +9,7 @@ local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 local SongLibrary = require(ReplicatedStorage.Modules.Library.Songs)
 local Packs = require(ReplicatedStorage.Modules.Library.Packs)
+local Themes = require(ReplicatedStorage.Modules.Library.Themes)
 local Levels = require(ReplicatedStorage.Modules.Levels)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 
@@ -143,6 +144,7 @@ function Duels.new(stage, playerA: Player?, playerB: Player?, solo: boolean?)
 	self.PackSongs = {} :: { [Player]: { any } }
 	self.PackIds = {} :: { [Player]: string }
 	self.SoloPool = "Mix"
+	self.Theme = Themes.DEFAULT -- solo: the theme picked on the queue card
 	self.Rounds = {} :: { RoundLog }
 	self.Current = nil :: any
 
@@ -235,19 +237,39 @@ function Duels:_preDuel()
 			end
 		end
 	end
-	packsInfo.On = allOn
-	if self.Solo and allOn then
+	-- solo: the theme from the queue card (Settings.SoloTheme), and whether the duel pack's
+	-- songs that fit it mix in (Settings.SoloPool). "Pack" plays every round from the pack.
+	if self.Solo then
 		local me = self.Players[1]
 		local ok, data = pcall(PlayerData.Get, me)
-		local choice = if ok and data then data.Settings.SoloPool.Get() else "Mix"
-		local count = #self.PackSongs[me]
-		packsInfo.Solo = {
-			Count = count,
-			CanOnly = count >= DuelConstants.ROUNDS, -- "only my pack" needs a song per round
-			Choice = if choice == "Pack" and count >= DuelConstants.ROUNDS then "Pack" else "Mix",
-		}
-		self.SoloPool = packsInfo.Solo.Choice
+		local theme = if ok and data then data.Settings.SoloTheme.Get() else Themes.DEFAULT
+		local mix = not (ok and data) or data.Settings.SoloPool.Get() ~= "Off"
+		local packSongs = self.PackSongs[me]
+		if theme == Themes.PACK then
+			if not packSongs or #packSongs < DuelConstants.ROUNDS then
+				theme = Themes.DEFAULT
+			end
+		elseif not Themes.IsOpen(theme) then
+			theme = Themes.DEFAULT
+		end
+		self.Theme = theme
+		self.SoloPool = if theme == Themes.PACK then "Pack" else "Mix"
+		if packSongs and theme ~= Themes.PACK then
+			local fit = {}
+			for _, song in packSongs do
+				if Themes.Matches(theme, song) then
+					table.insert(fit, song)
+				end
+			end
+			if not mix or #fit == 0 then
+				allOn = false
+			else
+				self.PackSongs[me] = fit
+			end
+		end
+		packsInfo.Theme = Themes.Get(theme).Name
 	end
+	packsInfo.On = allOn
 	self.PacksOn = allOn
 
 	self.Phase = "Vote"
@@ -265,7 +287,6 @@ function Duels:_preDuel()
 
 	if not DuelConstants.MODE_VOTE then
 		-- no vote (Choreography isn't out yet): show the stake, then straight into Song rounds.
-		-- Phase stays "Vote" meanwhile so the solo song pool picker still works.
 		task.wait(DuelConstants.STAKE_SPIN + DuelConstants.PRE_DUEL_HOLD + 0.25)
 		self.Mode = DuelConstants.DEFAULT_MODE
 		self:_schedulePacks()
@@ -367,7 +388,7 @@ function Duels:_playRound(round: number)
 				skip[pick.Song.Id] = true
 			end
 		end
-		song = SongLibrary.GetRandomSong(skip)
+		song = (self.Solo and Themes.RandomSong(self.Theme, skip)) or SongLibrary.GetRandomSong(skip)
 	end
 	self.Used[song.Id] = true
 	-- tag shown under the round counter: whose pack this song came from
@@ -378,7 +399,11 @@ function Duels:_playRound(round: number)
 	} or nil
 
 	local options = { song }
-	for _, s in SongLibrary.GetWrongOptions(song, 3) do
+	-- a themed solo game keeps its options in the theme ("Pack" answers use the whole library)
+	local within = if self.Solo and self.Theme ~= Themes.DEFAULT and self.Theme ~= Themes.PACK
+		then Themes.SongsFor(self.Theme)
+		else nil
+	for _, s in SongLibrary.GetWrongOptions(song, 3, within) do
 		table.insert(options, s)
 	end
 	for i = #options, 2, -1 do
@@ -415,6 +440,9 @@ function Duels:_playRound(round: number)
 		Options = publicOptions,
 		Cap = DuelConstants.ROUND_CAP,
 		PackTag = packTag,
+		Theme = if self.Solo and self.Theme ~= Themes.DEFAULT and self.Theme ~= Themes.PACK
+			then Themes.Get(self.Theme).Name
+			else nil,
 		-- the client has to play the clip locally, so it gets the clip assets
 		Clip = {
 			MusicId = song.MusicId,
@@ -538,21 +566,6 @@ function Duels:Action(player: Player, packet)
 		if packet.Mode == "Song" or packet.Mode == "Choreography" then
 			self.Votes[player] = packet.Mode
 			self:_broadcastVotes()
-		end
-	elseif action == "SoloPool" and self.Phase == "Vote" and self.Solo and self.PacksOn then
-		-- solo pool picker on the pre-duel screen; remembered for next time
-		local choice = packet.Choice
-		local songs = self.PackSongs[player]
-		if choice == "Pack" and not (songs and #songs >= DuelConstants.ROUNDS) then
-			choice = "Mix"
-		end
-		if choice == "Mix" or choice == "Pack" then
-			self.SoloPool = choice
-			local ok, data = pcall(PlayerData.Get, player)
-			if ok and data then
-				data.Settings.SoloPool.Set(choice)
-			end
-			DuelRemote:Fire(player, { Message = "SoloPool", Choice = choice })
 		end
 	elseif action == "Loaded" and self.Phase == "Loading" then
 		local state = self.Current

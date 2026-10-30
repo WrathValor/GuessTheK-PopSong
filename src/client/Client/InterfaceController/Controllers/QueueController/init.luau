@@ -12,6 +12,7 @@ local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
+local SoloPicker = require(script.SoloPicker)
 
 --------------------------------- Variables --------------------------------- --
 
@@ -82,13 +83,11 @@ function QueueController.Initialize(self: typeof(QueueController.new({} :: UITyp
 			youAvatar.Thumbnail.Image = img
 		end
 	end)
-	local soloSub = playSoloBtn and playSoloBtn:FindFirstChild("Sub")
-	if soloSub then
-		soloSub.Text = "Practice for XP"
-	end
+	-- Play Solo flips the card over to the theme picker (./SoloPicker), which starts the game
+	self._solo = SoloPicker.new(self._frame, self._janitor)
 
 	self._janitor:Add(playSoloBtn.MouseButton1Click:Connect(function()
-		QueueRemote:Fire("Solo")
+		self._solo:Open()
 	end))
 	self._janitor:Add(leaveBtn.MouseButton1Click:Connect(function()
 		QueueRemote:Fire("Leave")
@@ -122,6 +121,7 @@ function QueueController:Reset()
 	end
 	panel.Title.Text = "Waiting for a rival…"
 	panel.Subtitle.Text = "Nobody's joined the other spot yet"
+	self._solo:Close(true)
 	self:_setButtons(true)
 	self:UpdateOpponent(nil)
 end
@@ -140,6 +140,9 @@ function QueueController:UpdateOpponent(opponent: Player?)
 	if opponent then
 		if self._opponent ~= opponent then
 			Sounds.Play("RivalFound")
+		end
+		if opponent ~= LOCAL_PLAYER then
+			self._solo:Close() -- a rival joined while you were picking a theme
 		end
 		panelFrame.Title.Text = "Opponent found!"
 		panelFrame.Subtitle.Text = "Starting soon…"
@@ -179,6 +182,7 @@ function QueueController:StartIntermission()
 		return
 	end
 	self:_setButtons(false)
+	self._solo:Close(true)
 	panelFrame.Title.Text = "Starting round in…"
 	if self._countdown then
 		pcall(task.cancel, self._countdown)

@@ -17,6 +17,7 @@ local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Client
 local Packs = require(ReplicatedStorage.Modules.Library.Packs)
 local ShopCatalog = require(ReplicatedStorage.Constants.ShopCatalog)
+local CosmeticView = require(ReplicatedStorage.Modules.UI.CosmeticView)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local FrameTransition = require(ReplicatedStorage.Modules.UI.Animations.FrameTransition)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
@@ -118,6 +119,7 @@ function Shop:_fillSetCard(holder: Frame, set)
 		if art:FindFirstChild("Mic") then
 			art.Mic.BackgroundColor3 = C(set.Mic)
 		end
+		CosmeticView.Show(art, "Set", set.Id) -- the real stage + mic
 		local rarity = art:FindFirstChild("Rarity")
 		if rarity then
 			rarity.Text = set.Rarity
@@ -202,6 +204,7 @@ function Shop:_fillFeatured()
 		card.Blurb.Text = set.Blurb or `{set.Rarity} stage skin, platform + mic`
 		card.Art.Stage.BackgroundColor3 = C(set.Stage)
 		card.Art.Platform.BackgroundColor3 = C(set.Platform)
+		CosmeticView.Show(card.Art, "Set", set.Id)
 		local owned = owns(PlayerData.Inventory.Sets, set.Id)
 		local equipped = owned and setEquipped(set)
 		if equipped then
@@ -391,6 +394,7 @@ function Shop:_fillItemCard(holder: Frame, kind: string, item)
 	else
 		art.Mic.BackgroundColor3 = C(item.Mic)
 	end
+	CosmeticView.Show(art, kind, item.Id) -- the real model
 	art.Rarity.Text = item.Rarity
 	art.Rarity.BackgroundColor3 = C(ShopCatalog.RARITY_COLOURS[item.Rarity] or "FFFFFF")
 	face.ItemName.Text = item.Name
@@ -682,7 +686,7 @@ function Shop:Initialize(interface)
 				Sounds.Play("Wrong")
 			end
 		end
-	end))
+	end), "Disconnect") -- BridgeNet2 connections have no Destroy
 
 	-- live data → redraw
 	for _, path in {

@@ -113,8 +113,10 @@ return Scribe({
 			ClipVolume = Scribe.Number(1, { Min = 0, Max = 1 }), -- round snippets + the reveal song
 			DuelInvites = true, -- false = other players can't send this player duel invites
 			NewsSeen = Scribe.String("", { MaxLength = 40 }), -- Id of the newest News entry opened
-			-- solo practice with a duel pack on: "Mix" (pack songs mixed in) or "Pack" (only the pack)
+			-- solo practice with a duel pack on: "Mix" (its songs that fit the theme mix in) or "Off"
 			SoloPool = Scribe.String("Mix", { MaxLength = 8 }),
+			-- the last solo theme picked on the queue card (Modules/Library/Themes ids)
+			SoloTheme = Scribe.String("All", { MaxLength = 12 }),
 		},
 
 		GamePasses = Scribe.SetOf(Id(32)),
