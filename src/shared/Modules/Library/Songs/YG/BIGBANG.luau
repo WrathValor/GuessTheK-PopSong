@@ -1,3 +1,7 @@
+--| BIGBANG
+-- YG · 2nd gen boy group · active.
+-- One entry per song; see Songs/init.luau for what each field means.
+
 return {
     Group = "BIGBANG",
     GroupType = "Boy",

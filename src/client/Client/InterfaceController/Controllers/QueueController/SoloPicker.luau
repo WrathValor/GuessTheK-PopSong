@@ -17,6 +17,7 @@ local Themes = require(ReplicatedStorage.Modules.Library.Themes)
 local Packs = require(ReplicatedStorage.Modules.Library.Packs)
 local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
+local AnalyticsClient = require(ReplicatedStorage.Modules.AnalyticsClient)
 
 local QueueRemote = Bridgenet.ReferenceBridge("QueueRemote")
 
@@ -616,6 +617,7 @@ function SoloPicker:Open()
 		return
 	end
 	self.IsOpen = true
+	AnalyticsClient.Event("SoloPickerOpened")
 	self:Render()
 	local quick = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 	local pop = TweenInfo.new(0.26, Enum.EasingStyle.Back, Enum.EasingDirection.Out)

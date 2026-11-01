@@ -10,6 +10,7 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
 local Sounds = require(game:GetService("ReplicatedStorage").Modules.Sounds)
+local AnalyticsClient = require(game:GetService("ReplicatedStorage").Modules.AnalyticsClient)
 
 local LOCAL_PLAYER = Players.LocalPlayer
 
@@ -31,6 +32,7 @@ function Snippet.new(clip, mode: string, stageModel: Model?)
 	self.Stage = stageModel
 	self.Speed = speedOf(clip)
 	self._token = 0
+	self._createdAt = os.clock()
 	if mode == "Song" then
 		local sound = Instance.new("Sound")
 		sound.Name = "DuelSnippet"
@@ -107,6 +109,7 @@ function Snippet:_startPosition(): number
 	if type(tp) == "number" then
 		if length > 0 and tp >= length then
 			warn(`[Snippet] TimePosition {tp} is past the end of {self.Sound.SoundId} ({length}s); playing from halfway`)
+			self:_report("ClipFailed", nil, "PastEnd")
 			return length / 2
 		end
 		return math.max(tp, 0)
@@ -119,9 +122,20 @@ function Snippet:_startPosition(): number
 	-- a start past the end of the audio plays nothing, so fall back to the beginning
 	if length > 0 and start >= length then
 		warn(`[Snippet] Start {self.Clip.Start}s is past the end of {self.Sound.SoundId} ({length}s); playing from 0`)
+		self:_report("ClipFailed", nil, "PastEnd")
 		return 0
 	end
 	return start
+end
+
+-- Analytics, once per clip each: how long it took to load, or why it failed
+function Snippet:_report(name: string, value: number?, reason: string?)
+	self._reported = self._reported or {}
+	if self._reported[name] then
+		return
+	end
+	self._reported[name] = true
+	AnalyticsClient.Event(name, value, self.Clip.MusicId, reason)
 end
 
 -- Waits (up to 5 s) for the audio to load. Returns false if it never did.
@@ -139,6 +153,9 @@ function Snippet:_waitLoaded(): boolean
 	end
 	if not sound.IsLoaded then
 		warn(`[Snippet] {sound.SoundId} didn't load (missing asset or no permission for this experience)`)
+		self:_report("ClipFailed", nil, "NotLoaded")
+	else
+		self:_report("ClipLoadTime", os.clock() - self._createdAt)
 	end
 	return sound.IsLoaded
 end

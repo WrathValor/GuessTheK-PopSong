@@ -23,6 +23,7 @@ local FrameTransition = require(ReplicatedStorage.Modules.UI.Animations.FrameTra
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
+local AnalyticsClient = require(ReplicatedStorage.Modules.AnalyticsClient)
 
 -- -------------------------------- Variables ------------------------------- --
 local LOCAL_PLAYER = Players.LocalPlayer
@@ -534,6 +535,9 @@ function Shop:ShowTab(name: string, force: boolean?)
 	end
 	local changed = self._tab ~= name
 	self._tab = name
+	if changed then
+		AnalyticsClient.Event("ShopTabOpened", 1, name)
+	end
 	for _, tab in TABS do
 		local holder = self._frame.Panel.Header.Tabs[tab]
 		local on = tab == name

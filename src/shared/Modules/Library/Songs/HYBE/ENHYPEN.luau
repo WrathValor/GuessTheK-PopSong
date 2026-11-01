@@ -1,0 +1,75 @@
+--| ENHYPEN
+-- HYBE · 4th gen boy group · active.
+-- One entry per song; see Songs/init.luau for what each field means.
+
+return {
+    Group = "ENHYPEN",
+    GroupType = "Boy",
+    Generation = "4th",
+    Status = "Active",
+    Songs = {
+        {
+            Name = "Given-Taken",
+            Year = 2020,
+            MusicId = "rbxassetid://133120299016936",
+            AnimationId = "rbxassetid://13596824125",
+            PlaybackSpeed = 0.55,
+            TimePosition = 5,
+            ChorusPosition = 0,
+        },
+        {
+            Name = "Drunk-Dazed",
+            Year = 2021,
+            MusicId = "rbxassetid://139724308703966",
+            AnimationId = "rbxassetid://9694427451",
+            PlaybackSpeed = 0.55,
+            TimePosition = 5,
+            ChorusPosition = 0,
+        },
+        {
+            Name = "Fever",
+            Year = 2021,
+            MusicId = "rbxassetid://77300197927469",
+            AnimationId = "rbxassetid://8388266413",
+            PlaybackSpeed = 0.55,
+            TimePosition = 5,
+            ChorusPosition = 0,
+        },
+        {
+            Name = "Tamed-Dashed",
+            Year = 2021,
+            MusicId = "rbxassetid://138510068875300",
+            AnimationId = "",
+            PlaybackSpeed = 0.55,
+            TimePosition = 5,
+            ChorusPosition = 0,
+        },
+        {
+            Name = "Go Big Or Go Home",
+            Year = 2023,
+            MusicId = "rbxassetid://105843184639960",
+            AnimationId = "rbxassetid://15057795559",
+            PlaybackSpeed = 0.55,
+            TimePosition = 5,
+            ChorusPosition = 0,
+        },
+        {
+            Name = "Bite Me",
+            Year = 2023,
+            MusicId = "rbxassetid://79465357790643",
+            AnimationId = "",
+            PlaybackSpeed = 0.55,
+            TimePosition = 5,
+            ChorusPosition = 0,
+        },
+        {
+            Name = "XO (Only If You Say Yes)",
+            Year = 2024,
+            MusicId = "rbxassetid://94638731466714",
+            AnimationId = "rbxassetid://121238606375947",
+            PlaybackSpeed = 0.55,
+            TimePosition = 5,
+            ChorusPosition = 0,
+        },
+    },
+}

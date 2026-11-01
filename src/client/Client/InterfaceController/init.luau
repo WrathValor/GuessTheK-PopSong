@@ -9,8 +9,14 @@ local Janitor = require(ReplicatedStorage.Packages.janitor)
 local Signal = require(ReplicatedStorage.Packages.signal)
 local Promise = require(ReplicatedStorage.Packages.promise)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
+local AnalyticsClient = require(ReplicatedStorage.Modules.AnalyticsClient)
 
 -- --------------------------------- Tables --------------------------------- --
+-- screens that log "ScreenOpened" (Constants/AnalyticsEvents ScreenOpened.Allowed)
+local SCREEN_EVENTS = {}
+for _, screen in require(ReplicatedStorage.Constants.AnalyticsEvents).Custom.ScreenOpened.Allowed.Screen do
+	SCREEN_EVENTS[screen] = true
+end
 local Interface = {}
 type Self = typeof(Interface)
 
@@ -91,6 +97,9 @@ function Interface.Open(self: Self, name: string, ...: any)
 
 	if self.ActiveController == controller then
 		return
+	end
+	if SCREEN_EVENTS[name] then
+		AnalyticsClient.Event("ScreenOpened", 1, name)
 	end
 
 	Transitioning = true

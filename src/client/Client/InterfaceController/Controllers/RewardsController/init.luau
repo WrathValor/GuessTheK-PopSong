@@ -22,6 +22,7 @@ local FrameTransition = require(ReplicatedStorage.Modules.UI.Animations.FrameTra
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
+local AnalyticsClient = require(ReplicatedStorage.Modules.AnalyticsClient)
 
 local Build = require(script.Build)
 
@@ -313,6 +314,11 @@ function Rewards:Initialize(interface)
 		-- not in the group: Roblox's join prompt, then claim straight away if they joined
 		task.spawn(function()
 			local ok, status = pcall(GroupService.PromptJoinAsync, GroupService, Catalog.GROUP.GroupId)
+			AnalyticsClient.Event("GroupJoinPrompt", 1, if not ok then "Error"
+				elseif status == Enum.GroupMembershipStatus.Joined then "Joined"
+				elseif status == Enum.GroupMembershipStatus.AlreadyMember then "AlreadyMember"
+				elseif status == Enum.GroupMembershipStatus.JoinRequestPending then "Pending"
+				else "Cancelled")
 			if ok and (status == Enum.GroupMembershipStatus.Joined or status == Enum.GroupMembershipStatus.AlreadyMember) then
 				self._inGroup = true
 				self:_refresh()

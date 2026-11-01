@@ -1,3 +1,7 @@
+--| Stray Kids
+-- JYP · 4th gen boy group · active.
+-- One entry per song; see Songs/init.luau for what each field means.
+
 return {
     Group = "Stray Kids",
     GroupType = "Boy",

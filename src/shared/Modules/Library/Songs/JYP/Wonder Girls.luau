@@ -1,0 +1,92 @@
+--| Wonder Girls
+-- JYP · 2nd gen girl group · disbanded.
+-- One entry per song; see Songs/init.luau for what each field means.
+
+return {
+	Group = "Wonder Girls",
+	GroupType = "Girl",
+	Generation = "2nd",
+	Status = "Disbanded",
+	Songs = {
+		{
+			Name = "Tell Me",
+			Year = 2008,
+			MusicId = "rbxassetid://95959806288627",
+			PlaybackSpeed = 0.51,
+			TimePosition = 0,
+			ChorusPosition = 0,
+		},
+		{
+			Name = "Nobody",
+			Year = 2009,
+			MusicId = "rbxassetid://74578282000298",
+			PlaybackSpeed = 0.52,
+			TimePosition = 0,
+			ChorusPosition = 0,
+		},
+		{
+			Name = "Rewind",
+			Year = 2015,
+			MusicId = "rbxassetid://102798808054751",
+			PlaybackSpeed = 0.69,
+			TimePosition = 0,
+			ChorusPosition = 0,
+		},
+		{
+			Name = "So Hot",
+			Year = 2008,
+			MusicId = "rbxassetid://77742110536373",
+			PlaybackSpeed = 0.57,
+			TimePosition = 0,
+			ChorusPosition = 0,
+		},
+		{
+			Name = "Why So Lonely",
+			Year = 2016,
+			MusicId = "rbxassetid://113632256905594",
+			PlaybackSpeed = 0.55,
+			TimePosition = 0,
+			ChorusPosition = 0,
+		},
+		{
+			Name = "Be My Baby",
+			Year = 2011,
+			MusicId = "rbxassetid://89709104709028",
+			PlaybackSpeed = 0.53,
+			TimePosition = 0,
+			ChorusPosition = 0,
+		},
+		{
+			Name = "Like Money",
+			Year = 2012,
+			MusicId = "rbxassetid://81428442346736",
+			PlaybackSpeed = 0.59,
+			TimePosition = 0,
+			ChorusPosition = 0,
+		},
+		{
+			Name = "I Feel You",
+			Year = 2015,
+			MusicId = "rbxassetid://135113096551003",
+			PlaybackSpeed = 0.70,
+			TimePosition = 0,
+			ChorusPosition = 0,
+		},
+		{
+			Name = "Faded Love",
+			Year = 2019,
+			MusicId = "rbxassetid://125417241028434",
+			PlaybackSpeed = 0.81,
+			TimePosition = 0,
+			ChorusPosition = 0,
+		},
+		{
+			Name = "Back",
+			Year = 2015,
+			MusicId = "rbxassetid://128729869867389",
+			PlaybackSpeed = 0.97,
+			TimePosition = 0,
+			ChorusPosition = 0,
+		},
+	},
+}

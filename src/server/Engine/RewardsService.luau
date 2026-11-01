@@ -17,6 +17,7 @@ local GroupService = game:GetService("GroupService")
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 local Catalog = require(ReplicatedStorage.Constants.RewardsCatalog)
+local Analytics = require(script.Parent.Analytics)
 
 local RewardsRemote = Bridgenet.ReferenceBridge("RewardsRemote")
 
@@ -65,6 +66,9 @@ local function claimDaily(player: Player, data)
 		data.Rewards.LastDailyClaim.Set(now)
 		data.Currencies.Won.Increment(coins)
 	end)
+	Analytics.Event(player, "DailyClaimed", coins, `Day{index}`)
+	Analytics.Economy(player, "Source", "Coins", coins, data.Currencies.Won.Get(), "DailyReward", "DailyReward") -- the day is in DailyClaimed
+	Analytics.Onboarding(player, "ClaimedDaily")
 	reply(player, "ClaimDaily", true, `Day {index}: +{coins} coins`, coins)
 end
 
@@ -93,6 +97,8 @@ local function claimQuest(player: Player, data, id)
 		data.Rewards.QuestClaimed.Add(quest.Id)
 		data.Currencies.Won.Increment(quest.Reward)
 	end)
+	Analytics.Event(player, "QuestClaimed", quest.Reward, quest.Id)
+	Analytics.Economy(player, "Source", "Coins", quest.Reward, data.Currencies.Won.Get(), "Quest", "Quest") -- the quest is in QuestClaimed (SKUs are capped at 100)
 	reply(player, "ClaimQuest", true, `+{quest.Reward} coins`, quest.Reward)
 end
 
@@ -111,6 +117,8 @@ local function claimBonus(player: Player, data)
 		data.Rewards.QuestClaimed.Add("Bonus")
 		data.Currencies.Won.Increment(Catalog.BONUS)
 	end)
+	Analytics.Event(player, "QuestBonusClaimed", Catalog.BONUS)
+	Analytics.Economy(player, "Source", "Coins", Catalog.BONUS, data.Currencies.Won.Get(), "QuestBonus", "QuestBonus")
 	reply(player, "ClaimBonus", true, `Bonus: +{Catalog.BONUS} coins`, Catalog.BONUS)
 end
 
@@ -144,6 +152,8 @@ local function claimGroup(player: Player, data)
 			data.Inventory.Titles.Add(g.Title)
 		end
 	end)
+	Analytics.Event(player, "GroupRewardClaimed", g.Coins)
+	Analytics.Economy(player, "Source", "Coins", g.Coins, data.Currencies.Won.Get(), "GroupReward", "GroupReward")
 	reply(player, "ClaimGroup", true, `+{g.Coins} coins, Group Exclusive stage + {g.Title} title`, g.Coins)
 end
 

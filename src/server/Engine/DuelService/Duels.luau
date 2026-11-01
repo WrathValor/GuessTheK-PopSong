@@ -12,6 +12,7 @@ local Packs = require(ReplicatedStorage.Modules.Library.Packs)
 local Themes = require(ReplicatedStorage.Modules.Library.Themes)
 local Levels = require(ReplicatedStorage.Modules.Levels)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
+local Analytics = require(script.Parent.Parent.Analytics)
 
 --| Variables
 local QueueRemote = Bridgenet.ReferenceBridge("QueueRemote")
@@ -147,6 +148,7 @@ function Duels.new(stage, playerA: Player?, playerB: Player?, solo: boolean?)
 	self.Theme = Themes.DEFAULT -- solo: the theme picked on the queue card
 	self.Rounds = {} :: { RoundLog }
 	self.Current = nil :: any
+	self.Sessions = {} :: { [Player]: string } -- analytics funnel id per player (set by DuelService)
 
 	self.Ended = Signal.new()
 	self._janitor = Janitor.new()
@@ -180,6 +182,11 @@ function Duels:Start()
 		self:_preDuel()
 		if not self._running then
 			return
+		end
+		if self.Solo then
+			local me = self.Players[1]
+			Analytics.Event(me, "SoloStarted", 1, self.Theme, if self.PacksOn then "On" else "Off")
+			Analytics.Funnel(me, "Solo", self.Sessions[me] or Analytics.SoloSession(me), "Started")
 		end
 
 		self:_fire({ Message = "Start", Mode = self.Mode })
@@ -537,6 +544,7 @@ function Duels:_playRound(round: number)
 		}
 	end
 	table.insert(self.Rounds, { Song = song, Picks = picks })
+	self:_logRound(round, song, picks, scheduled)
 
 	local scores = {}
 	for p, s in self.Scores do
@@ -552,6 +560,28 @@ function Duels:_playRound(round: number)
 	})
 	task.wait(DuelConstants.REVEAL_TIME)
 	self.Current = nil
+end
+
+-- [[ Analytics: one RoundResult per player, plus funnel steps ]]
+
+local FUNNEL_ROUNDS = { Duel = { [1] = "Round1", [4] = "Round4", [7] = "Round7" }, Solo = { [1] = "Round1", [7] = "Round7" } }
+
+function Duels:_logRound(round: number, song, picks: { [Player]: Pick }, scheduled)
+	local funnel = if self.Solo then "Solo" else "Duel"
+	for p, pick in picks do
+		local result = if pick.Correct then "Correct" elseif pick.Picked then "Wrong" else "NoAnswer"
+		Analytics.Event(p, "RoundResult", pick.Time or 0, song.Id, result, `Tier{pick.Tier}`)
+		if pick.Picked then
+			Analytics.Onboarding(p, "AnsweredRound")
+		end
+		if scheduled then
+			Analytics.Event(p, "PackRound", 1, scheduled.Pack, if scheduled.From == p then "Mine" else "Rival")
+		end
+		local step = FUNNEL_ROUNDS[funnel][round]
+		if step and self.Sessions[p] then
+			Analytics.Funnel(p, funnel, self.Sessions[p], step)
+		end
+	end
 end
 
 -- [[ Player actions, routed from DuelService ]]
@@ -655,6 +685,8 @@ function Duels:_finish(winner: Player?, forfeit: boolean, leaver: Player?)
 		Stake = self.Stake,
 		Mode = self.Mode,
 		Solo = self.Solo,
+		Packs = self.PacksOn == true,
+		Sessions = self.Sessions,
 	}
 
 	-- deferred: the listener destroys this duel, which cancels the round thread

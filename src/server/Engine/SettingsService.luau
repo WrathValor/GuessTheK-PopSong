@@ -13,6 +13,7 @@ local Players = game:GetService("Players")
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 local News = require(ReplicatedStorage.Constants.News)
+local Analytics = require(script.Parent.Analytics)
 
 local SettingsRemote = Bridgenet.ReferenceBridge("SettingsRemote")
 
@@ -22,6 +23,23 @@ local MIN_GAP = 0.1 -- requests closer together than this are dropped (slider sp
 local SettingsService = {}
 
 local last: { [Player]: number } = {}
+
+-- analytics: a slider sends many values while dragging, so only log where it settles
+local SETTLE = 2
+local pendingLog: { [Player]: { [string]: thread } } = {}
+local function logSetting(player: Player, key: string, value: string)
+	pendingLog[player] = pendingLog[player] or {}
+	local old = pendingLog[player][key]
+	if old then
+		pcall(task.cancel, old)
+	end
+	pendingLog[player][key] = task.delay(SETTLE, function()
+		if pendingLog[player] then
+			pendingLog[player][key] = nil
+		end
+		Analytics.Event(player, "SettingChanged", 1, key, value)
+	end)
+end
 
 local function handle(player: Player, packet)
 	local data = PlayerData.Get(player)
@@ -33,11 +51,14 @@ local function handle(player: Player, packet)
 	if action == "SetVolume" then
 		local value = tonumber(packet.Value)
 		if VOLUMES[packet.Key] and value and value == value then
-			settings[packet.Key].Set(math.clamp(math.floor(value * 100 + 0.5) / 100, 0, 1))
+			local v = math.clamp(math.floor(value * 100 + 0.5) / 100, 0, 1)
+			settings[packet.Key].Set(v)
+			logSetting(player, packet.Key, `{math.floor(v * 10 + 0.5) * 10}%`) -- 10% buckets
 		end
 	elseif action == "SetInvites" then
 		if type(packet.Value) == "boolean" then
 			settings.DuelInvites.Set(packet.Value)
+			logSetting(player, "DuelInvites", if packet.Value then "On" else "Off")
 		end
 	elseif action == "Reset" then
 		PlayerData.Batch(player, function()
@@ -46,6 +67,7 @@ local function handle(player: Player, packet)
 			end
 			settings.DuelInvites.Set(true)
 		end)
+		logSetting(player, "Reset", "Reset")
 	elseif action == "SeenNews" then
 		local newest = News.Entries[1]
 		if newest and packet.Id == newest.Id then
@@ -76,6 +98,7 @@ function SettingsService.Start()
 	end)
 	Players.PlayerRemoving:Connect(function(player)
 		last[player] = nil
+		pendingLog[player] = nil
 	end)
 end
 

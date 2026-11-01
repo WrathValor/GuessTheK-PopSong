@@ -21,6 +21,7 @@ local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 local ShopCatalog = require(ReplicatedStorage.Constants.ShopCatalog)
 local Songs = require(ReplicatedStorage.Modules.Library.Songs)
 local Packs = require(ReplicatedStorage.Modules.Library.Packs)
+local Analytics = require(script.Parent.Analytics)
 
 local ShopRemote = Bridgenet.ReferenceBridge("ShopRemote")
 
@@ -71,7 +72,8 @@ local function reply(player: Player, packet, ok: boolean, text: string)
 end
 
 -- Takes `price` coins and runs `grant` in one batch. False (and nothing changes) if they can't afford it.
-local function spend(player: Player, data, price: number, grant: () -> ()): boolean
+-- transaction + sku go to the Economy dashboard (Constants/AnalyticsEvents.Transactions).
+local function spend(player: Player, data, price: number, grant: () -> (), transaction: string, sku: string): boolean
 	if data.Currencies.Won.Get() < price then
 		return false
 	end
@@ -79,6 +81,8 @@ local function spend(player: Player, data, price: number, grant: () -> ()): bool
 		data.Currencies.Won.Increment(-price)
 		grant()
 	end)
+	Analytics.Economy(player, "Sink", "Coins", price, data.Currencies.Won.Get(), transaction, sku)
+	Analytics.Onboarding(player, "BoughtSomething")
 	return true
 end
 
@@ -108,7 +112,7 @@ local function buySet(player: Player, data, packet)
 		data.Inventory.EquippedSet.Set(set.Id)
 		data.Inventory.EquippedStage.Set(stage.Id)
 		data.Inventory.EquippedMic.Set(mic.Id)
-	end)
+	end, "ShopSet", set.Id)
 	reply(player, packet, ok, if ok then `{set.Name} unlocked!` else "Not enough coins")
 end
 
@@ -126,6 +130,7 @@ local function equipSet(player: Player, data, packet)
 		data.Inventory.EquippedStage.Set(stage.Id)
 		data.Inventory.EquippedMic.Set(mic.Id)
 	end
+	Analytics.Event(player, "Equip", 1, "Set", id)
 	reply(player, packet, true, "Equipped")
 end
 
@@ -154,7 +159,7 @@ local function buyItem(player: Player, data, packet)
 	local ok = spend(player, data, item.Price, function()
 		data.Inventory[paths.Owned].Add(item.Id)
 		data.Inventory[paths.Equipped].Set(item.Id)
-	end)
+	end, `Shop{packet.Kind}`, `{packet.Kind}:{item.Id}`)
 	reply(player, packet, ok, if ok then `{item.Name} unlocked!` else "Not enough coins")
 end
 
@@ -168,6 +173,7 @@ local function equipItem(player: Player, data, packet)
 		return reply(player, packet, false, "You don't own that")
 	end
 	data.Inventory[paths.Equipped].Set(id)
+	Analytics.Event(player, "Equip", 1, packet.Kind, id)
 	reply(player, packet, true, "Equipped")
 end
 
@@ -177,6 +183,7 @@ local function equipTitle(player: Player, data, packet)
 		return reply(player, packet, false, "You haven't unlocked that title")
 	end
 	data.Inventory.Title.Set(title)
+	Analytics.Event(player, "Equip", 1, "Title", if title == "" then "Default" else title)
 	reply(player, packet, true, "Title equipped")
 end
 
@@ -194,7 +201,7 @@ local function buySong(player: Player, data, packet)
 	local ok = spend(player, data, ShopCatalog.SONG_PRICE, function()
 		data.Inventory.Songs.Add(song.Id)
 		checkPacksComplete(data, { song })
-	end)
+	end, "ShopSong", "Song")
 	reply(player, packet, ok, if ok then `{song.Name} added to My Pack` else "Not enough coins")
 end
 
@@ -221,7 +228,7 @@ local function buyPack(player: Player, data, packet)
 			data.Inventory.Songs.Add(song.Id)
 		end
 		checkPacksComplete(data, missing)
-	end)
+	end, "ShopPack", pack.Id)
 	reply(player, packet, ok, if ok then `{Packs.DisplayName(pack.Id)} complete!` else "Not enough coins")
 end
 
@@ -230,6 +237,7 @@ local function setDuelPack(player: Player, data, packet)
 	local id = packet.Id
 	if id == "" then
 		data.Inventory.DuelPack.Set("")
+		Analytics.Event(player, "DuelPackSet", 1, "Off")
 		return reply(player, packet, true, "Duel pack off")
 	end
 	if type(id) ~= "string" or not Packs.Get(id) then
@@ -242,6 +250,7 @@ local function setDuelPack(player: Player, data, packet)
 		return reply(player, packet, false, "Buy a song from it first")
 	end
 	data.Inventory.DuelPack.Set(Packs.Get(id).Id)
+	Analytics.Event(player, "DuelPackSet", 1, Packs.Get(id).Id)
 	reply(player, packet, true, `{Packs.DisplayName(id)} will mix into duels`)
 end
 

@@ -8,6 +8,8 @@ local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 local Levels = require(ReplicatedStorage.Modules.Levels)
 local DailyQuests = require(script.Parent.Parent.RewardsService) -- Engine/RewardsService
+local Analytics = require(script.Parent.Parent.Analytics) -- Engine/Analytics
+local AnalyticsEvents = require(ReplicatedStorage.Constants.AnalyticsEvents)
 
 local Rewards = {}
 
@@ -32,6 +34,43 @@ export type Earned = {
 	LevelUp: number?, -- the new level, when this match levelled the player up
 	NewTitle: string?, -- level title unlocked by that level up (Modules/Levels.TITLES)
 }
+
+-- Analytics for one player's finished game (after the data is written)
+local TX = AnalyticsEvents.Transactions
+local OUTCOME_TX = { Win = TX.DuelWin, Lose = TX.DuelLoss, Left = TX.DuelLoss, Draw = TX.DuelDraw, Solo = TX.Solo }
+
+function Rewards._log(player: Player, data, result, earned: Earned, correct: number)
+	local mode = if result.Solo then "Solo" else result.Mode
+	local tx = OUTCOME_TX[earned.Outcome] or TX.Solo
+	Analytics.Event(player, "GameFinished", correct, earned.Outcome, mode, if result.Packs then "On" else "Off")
+	Analytics.Onboarding(player, "FinishedGame")
+	local session = result.Sessions and result.Sessions[player]
+	if session then
+		Analytics.Funnel(player, if result.Solo then "Solo" else "Duel", session, "Results")
+	end
+	if earned.Coins > 0 then
+		local sku = if earned.Perfect then TX.Perfect else tx
+		Analytics.Economy(player, "Source", "Coins", earned.Coins, data.Currencies.Won.Get(), tx, sku)
+	end
+	if earned.XP > 0 then
+		Analytics.Economy(player, "Source", "XP", earned.XP, data.Player.XP.Get(), tx, mode)
+	end
+	if earned.Perfect then
+		Analytics.Event(player, "PerfectGame", 1, mode)
+	end
+	if earned.Outcome == "Win" and earned.Streak >= 2 then
+		Analytics.Event(player, "StreakReached", earned.Streak, if earned.Streak >= 10 then "10+" else tostring(earned.Streak))
+	end
+	if earned.StreakLost >= 2 then
+		Analytics.Event(player, "StreakLost", earned.StreakLost, if earned.StreakLost >= 10 then "10+" else tostring(earned.StreakLost))
+	end
+	if earned.LevelUp then
+		Analytics.Event(player, "LevelUp", earned.LevelUp, earned.NewTitle or "None")
+	end
+	if earned.IndexNew > 0 then
+		Analytics.Event(player, "SongsDiscovered", earned.IndexNew, mode)
+	end
+end
 
 function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 	local out = {}
@@ -164,6 +203,7 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 		end)
 
 		out[player] = earned
+		Rewards._log(player, data, result, earned, correct)
 
 		-- daily quest counters (Rewards screen)
 		task.spawn(DailyQuests.Record, player, {

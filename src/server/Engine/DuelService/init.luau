@@ -10,6 +10,7 @@ local Duels = require(script.Duels)
 local Rewards = require(script.Rewards)
 local StageCosmetics = require(script.StageCosmetics)
 local StageStatus = require(script.StageStatus)
+local Analytics = require(script.Parent.Analytics)
 local Themes = require(ReplicatedStorage.Modules.Library.Themes)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 
@@ -38,6 +39,18 @@ local SLOTS: { Slot } = { "A", "B" }
 local QueueRemote = Bridgenet.ReferenceBridge("QueueRemote")
 local DuelRemote = Bridgenet.ReferenceBridge("DuelRemote")
 local DuelStages = workspace.Map.DuelStages
+
+-- analytics: when each player stepped on, their Duel funnel id, and whether they've finished a game here
+local queuedAt: { [Player]: number } = {}
+local sessions: { [Player]: string } = {}
+local played: { [Player]: boolean } = {}
+
+local function newSession(player: Player): string
+	local id = `{player.UserId}-{os.time()}-{math.random(1000, 9999)}`
+	sessions[player] = id
+	Analytics.Funnel(player, "Duel", id, "Queued")
+	return id
+end
 
 --| DuelService
 
@@ -122,7 +135,7 @@ function notifyOpponents(stage: Stage)
 	end
 end
 
-local function join(stage: Stage, slot: Slot, player: Player)
+local function join(stage: Stage, slot: Slot, player: Player, how: string?)
 	if DuelService.PlayerStage[player] then
 		return
 	end -- already on a stage
@@ -162,6 +175,11 @@ local function join(stage: Stage, slot: Slot, player: Player)
 	-- and only then start (the intermission countdown needs the screen to be open)
 	player:SetAttribute("Stage", stage.Name)
 	QueueRemote:Fire(player, {Message = "Queueing"})
+	queuedAt[player] = os.clock()
+	played[player] = nil
+	Analytics.Event(player, "QueueJoined", 1, stage.Name, how or "Prompt")
+	Analytics.Onboarding(player, "SteppedOnStage")
+	newSession(player)
 	notifyOpponents(stage)
 	tryStart(stage)
 end
@@ -177,6 +195,9 @@ function leave(player: Player)
 		return
 	end -- makes double calls harmless
 	DuelService.PlayerStage[player] = nil
+	local when = if stage.Duel then "MidDuel" elseif played[player] then "AfterGame" else "Waiting"
+	Analytics.Event(player, "QueueLeft", os.clock() - (queuedAt[player] or os.clock()), stage.Name, when)
+	queuedAt[player], sessions[player], played[player] = nil, nil, nil
 
 	local slot: Slot = if stage.Players.A == player then "A" else "B"
 	stage.Players[slot] = nil
@@ -246,6 +267,7 @@ local function onDuelEnded(stage: Stage, result)
 		local p = stage.Players[slot]
 		if p then
 			table.insert(present, p)
+			played[p] = true
 		end
 	end
 	if #present > 0 then
@@ -275,6 +297,9 @@ local function requestRematch(player: Player)
 		return
 	end
 	stage.Rematch = stage.Rematch or {}
+	if not stage.Rematch[player] then
+		Analytics.Event(player, "RematchRequested", 1, if stage.Solo then "Solo" else "Duel")
+	end
 	stage.Rematch[player] = true
 
 	local present, wants, all = {}, {}, true
@@ -293,10 +318,25 @@ local function requestRematch(player: Player)
 
 	if all then
 		stage.Rematch = {}
+		if stage.Solo or #present == 2 then
+			-- close the last run's funnel, then open a new one for the rematch
+			for _, p in present do
+				Analytics.Event(p, "RematchStarted", 1, if stage.Solo then "Solo" else "Duel")
+				if stage.Solo then
+					Analytics.Funnel(p, "Solo", Analytics.SoloSession(p), "PlayedAgain")
+					Analytics.SoloSession(p, true)
+				else
+					if sessions[p] then
+						Analytics.Funnel(p, "Duel", sessions[p], "Rematch")
+					end
+					newSession(p)
+				end
+			end
+		end
 		if stage.Solo then
-			tryStart(stage, true)
+			tryStart(stage, true, true)
 		elseif #present == 2 then
-			tryStart(stage)
+			tryStart(stage, nil, true)
 		end
 	end
 end
@@ -335,7 +375,7 @@ function trySolo(player: Player, packet: any?)
 	tryStart(stage, true)
 end
 
-function tryStart(stage: Stage, soloStage: boolean?)
+function tryStart(stage: Stage, soloStage: boolean?, rematch: boolean?)
 	local a, b = stage.Players.A, stage.Players.B
 
 	if stage.State ~= "Waiting" then
@@ -351,6 +391,17 @@ function tryStart(stage: Stage, soloStage: boolean?)
 
 	local duel = Duels.new(stage, a, b, soloStage)
 	stage.Duel = duel
+	for _, p in duel.Players do
+		if soloStage then
+			duel.Sessions[p] = Analytics.SoloSession(p)
+		else
+			duel.Sessions[p] = sessions[p] or newSession(p)
+			Analytics.Funnel(p, "Duel", duel.Sessions[p], "Matched")
+			if not rematch then
+				Analytics.Event(p, "MatchFound", os.clock() - (queuedAt[p] or os.clock()), stage.Name)
+			end
+		end
+	end
 	duel.Ended:Connect(function(result)
 		onDuelEnded(stage, result)
 	end)
@@ -415,7 +466,7 @@ local function quickPlay(player: Player)
 
 		local a, b = stage.Players.A, stage.Players.B
 		if (a == nil) ~= (b == nil) then
-			join(stage, if a then "B" else "A", player)
+			join(stage, if a then "B" else "A", player, "QuickPlay")
 			return
 		elseif a == nil and b == nil and emptyStage == nil then
 			emptyStage = stage
@@ -423,7 +474,7 @@ local function quickPlay(player: Player)
 	end
 
 	if emptyStage then
-		join(emptyStage, "A", player)
+		join(emptyStage, "A", player, "QuickPlay")
 	else
 		QueueRemote:Fire(player, { Message = "NoStages" })
 	end
