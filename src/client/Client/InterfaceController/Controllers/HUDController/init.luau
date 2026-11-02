@@ -2,7 +2,6 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local SocialService = game:GetService("SocialService")
-local TextService = game:GetService("TextService")
 local TweenService = game:GetService("TweenService")
 
 -- --------------------------------- Imports -------------------------------- --
@@ -14,6 +13,8 @@ local Levels = require(ReplicatedStorage.Modules.Levels)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
 local HUDConstants = require(ReplicatedStorage.Constants.HUDConstants)
+local TitleChip = require(ReplicatedStorage.Modules.UI.TitleChip)
+local Packs = require(ReplicatedStorage.Modules.Library.Packs)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 
 local Effects = require(script.Effects)
@@ -23,8 +24,6 @@ local LOCAL_PLAYER = Players.LocalPlayer
 local QueueRemote = Bridgenet.ReferenceBridge("QueueRemote")
 
 local FILL_TWEEN = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-local TITLE_PADDING = 14 -- horizontal padding inside the title chip
-local TITLE_MIN_WIDTH = 34
 
 -- Slide-out when a menu opens: each corner group leaves through its nearest edge.
 local SLIDE = {
@@ -148,6 +147,10 @@ function HUDController._bindProfile(self: Self)
 	self._janitor:Add(PlayerData.Inventory.Title.Observe(function(title: string)
 		self:SetTitle(if title ~= "" then title else HUDConstants.DEFAULT_TITLE)
 	end))
+	self._janitor:Add(PlayerData.Inventory.DuelPack.Observe(function(id: string)
+		self._bias = id
+		self:SetTitle(self._title or HUDConstants.DEFAULT_TITLE)
+	end))
 end
 
 function HUDController.SetXP(self: Self, totalXP: number)
@@ -158,29 +161,34 @@ function HUDController.SetXP(self: Self, totalXP: number)
 	local maxed = level >= Levels.MAX_LEVEL
 	profile.XPLabel.Text = if maxed then `MAX · Lv {level}` else `{commas(into)} / {commas(need)} XP · Lv {level}`
 
-	local fill = profile.XPBar.Fill
+	-- Fill sits in a rounded CanvasGroup ("Clip") so it can't poke past the bar's outline
+	local clip = profile.XPBar:FindFirstChild("Clip")
+	local fill = if clip then clip.Fill else profile.XPBar.Fill
 	TweenService:Create(fill, FILL_TWEEN, {
 		Size = UDim2.new(if maxed then 1 else math.clamp(into / need, 0, 1), 0, 1, 0),
 	}):Play()
 end
 
 function HUDController.SetTitle(self: Self, title: string)
-	local chip = self._hud.Currency.Profile.Title
-	local label = chip.Label
-	label.Text = title
-	label.Size = UDim2.fromScale(1, 1)
-
-	task.spawn(function()
-		local params = Instance.new("GetTextBoundsParams")
-		params.Text = title
-		params.Font = label.FontFace
-		params.Size = label.TextSize
-		params.Width = math.huge
-		local ok, bounds = pcall(TextService.GetTextBoundsAsync, TextService, params)
-		if ok and label.Text == title then
-			chip.Size = UDim2.fromOffset(math.max(TITLE_MIN_WIDTH, math.ceil(bounds.X) + TITLE_PADDING), chip.Size.Y.Offset)
-		end
-	end)
+	self._title = title
+	-- the Studio chip is replaced by the shared title + bias chip ("Fan | ♥ CARAT")
+	local profile = self._hud.Currency.Profile
+	local chip = profile:FindFirstChild("TitleChip")
+	if not chip then
+		local old = profile.Title
+		old.Visible = false
+		chip = TitleChip.new(profile, {
+			Name = "TitleChip",
+			Height = old.Size.Y.Offset,
+			TextSize = old.Label.TextSize,
+			Font = old.Label.FontFace,
+			ZIndex = old.ZIndex,
+			AnchorPoint = old.AnchorPoint,
+			Position = old.Position,
+		})
+	end
+	local bias, colour = Packs.Badge(self._bias or "")
+	TitleChip.Set(chip, title, bias, colour)
 end
 
 -- [[ Coins / wins ]]

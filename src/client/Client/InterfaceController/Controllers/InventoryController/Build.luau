@@ -1,7 +1,7 @@
 --| Inventory UI builder
 -- Builds Interface.Frames.Inventory from the "Inventory · loadout" design board: orange
 -- header, a category rail on the left (no colour swatches), the loadout strip (stage, mic,
--- duel pack + on/off toggle) and a 4×2 grid of item cards with a pager instead of scrolling. Run once in Studio (the old frame is kept as
+-- bias pack + on/off toggle) and a 4×2 grid of item cards with a pager instead of scrolling. Run once in Studio (the old frame is kept as
 -- ServerStorage.Inventory_Legacy); InventoryController finds everything by name.
 
 local C = Color3.fromHex
@@ -170,7 +170,7 @@ function Build.Build(frames: Instance)
 		corner(sw, 8)
 		stroke(sw, 2)
 		local right = if slot == "Pack" then 64 else 10
-		text(b, "SlotLabel", { Position = UDim2.fromOffset(60, 12), Size = UDim2.new(1, -60 - right, 0, 14), TextSize = 10, TextColor3 = LILAC_TEXT, Text = if slot == "Pack" then "DUEL PACK" else string.upper(slot) })
+		text(b, "SlotLabel", { Position = UDim2.fromOffset(60, 12), Size = UDim2.new(1, -60 - right, 0, 14), TextSize = 10, TextColor3 = LILAC_TEXT, Text = if slot == "Pack" then "BIAS PACK" else string.upper(slot) })
 		text(b, "SlotName", { Position = UDim2.fromOffset(60, 27), Size = UDim2.new(1, -60 - right, 0, 20), TextSize = 14, TextColor3 = WHITE, Text = "Classic" })
 		if slot == "Pack" then
 			local t = new("TextButton", { Name = "Toggle", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(1, -33, 0.5, 0), Size = UDim2.fromOffset(46, 24), BackgroundColor3 = MINT, Text = "", AutoButtonColor = false }, b)

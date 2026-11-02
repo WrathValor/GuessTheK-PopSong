@@ -9,6 +9,7 @@ local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 local HUDConstants = require(ReplicatedStorage.Constants.HUDConstants)
 local ShopCatalog = require(ReplicatedStorage.Constants.ShopCatalog)
 local Levels = require(ReplicatedStorage.Modules.Levels)
+local Packs = require(ReplicatedStorage.Modules.Library.Packs)
 
 --| DataService
 
@@ -59,8 +60,26 @@ local function onPlayerAdded(Player: Player)
             end
         end
     end)
+    -- fandom names added later: swap an old "<Group> Stan" title for the fandom one
+    for _, pack in Packs.Groups() do
+        local old = `{pack.Name} Stan`
+        if pack.Title and pack.Title ~= old and data.Inventory.Titles.Has(old) then
+            data.Inventory.Titles.Remove(old)
+            if not data.Inventory.Titles.Has(pack.Title) then
+                data.Inventory.Titles.Add(pack.Title)
+            end
+            if data.Inventory.Title.Get() == old then
+                data.Inventory.Title.Set(pack.Title)
+            end
+        end
+    end
     data.Inventory.Title.Observe(function(title: string)
         Player:SetAttribute("Title", if title ~= "" then title else HUDConstants.DEFAULT_TITLE)
+    end)
+    -- bias pack chip on name tags ("♥ CARAT|9ED8F5"; nil = none)
+    data.Inventory.DuelPack.Observe(function(id: string)
+        local text, colour = Packs.Badge(id)
+        Player:SetAttribute("Bias", if text then `{text}|{colour}` else nil)
     end)
 end
 

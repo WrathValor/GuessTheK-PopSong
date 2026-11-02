@@ -19,9 +19,9 @@ local LIBRARY = {
 	-- buttons
 	Hover = { Id = 139800881181209, Volume = 0.25 },
 	Click = { Id = 88442833509532, Volume = 0.5 },
-	Open = { Id = 90131163815841, Volume = 0.35 },
+	Open = { Id = 120401943587131, Volume = 0.5 }, -- every frame that opens (Interface:Open)
 	Notify = { Id = 17208361335, Volume = 0.5 }, -- a tip popping up (tutorial)
-	Welcome = { Id = 113194405128446, Volume = 0.5 }, -- the tutorial's Welcome card
+	Success = { Id = 85349663780737, Volume = 0.5 }, -- claims, buys, any action that worked
 
 	-- queue / pre-duel
 	RivalFound = { Id = 113645757352689, Volume = 0.6 },
@@ -38,7 +38,7 @@ local LIBRARY = {
 	Correct = { Id = 123903547626734, Volume = 0.6 },
 	-- gentle "nope": quieter, slightly lower, highs rolled off and cut short.
 	-- Swap the Id here for a softer sample once one is picked.
-	Wrong = { Id = 94135799095134, Volume = 0.22, Pitch = 0.9, Length = 0.5, Soft = true },
+	Wrong = { Id = 110348286467545, Volume = 0.5 },
 
 	-- results
 	Win = { Id = 102844356541414, Volume = 0.55 },

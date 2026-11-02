@@ -11,6 +11,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
+local TitleChip = require(ReplicatedStorage.Modules.UI.TitleChip)
 
 local LOCAL_PLAYER = Players.LocalPlayer
 
@@ -19,7 +20,7 @@ local INK = C("1E1B2E")
 local WHITE = C("FFFFFF")
 local YELLOW = C("FFE07A")
 local ORANGE = C("FF9A5C") -- hot streak (10+)
-local LILAC = C("B9A6FF") -- title chip (same as the HUD profile's)
+-- (the title chip is shared/Modules/UI/TitleChip)
 local HOT_STREAK = 10
 local MULT_FONT = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.Heavy)
 local FONT = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.ExtraBold)
@@ -112,10 +113,10 @@ local function refresh(player: Player)
 	end
 	bb.Enabled = not player:GetAttribute("InDuel")
 	local title = player:GetAttribute("Title")
-	local titleChip = bb.Plate.Face:FindFirstChild("Title") :: TextLabel?
+	local titleChip = bb.Plate.Face:FindFirstChild("Title")
 	if titleChip then
-		titleChip.Text = if type(title) == "string" then title else ""
-		titleChip.Visible = type(title) == "string" and title ~= ""
+		local bias, colour = TitleChip.FromAttribute(player:GetAttribute("Bias"))
+		TitleChip.Set(titleChip, if type(title) == "string" then title else nil, bias, colour)
 	end
 	local streak = player:GetAttribute("Streak") or 0
 	local chip = bb:FindFirstChild("Streak") :: Frame
@@ -163,22 +164,9 @@ local function build(player: Player, character: Model)
 		SortOrder = Enum.SortOrder.LayoutOrder,
 	}, plateFace)
 	plateFace:FindFirstChildOfClass("UIPadding").PaddingLeft = UDim.new(0, 8)
-	local titleChip = new("TextLabel", {
-		Name = "Title",
-		LayoutOrder = 1,
-		AutomaticSize = Enum.AutomaticSize.X,
-		Size = UDim2.fromOffset(0, 18),
-		BackgroundColor3 = LILAC,
-		FontFace = MULT_FONT,
-		TextSize = 11,
-		TextColor3 = INK,
-		Text = "",
-		ZIndex = 3,
-		Visible = false,
-	}, plateFace)
-	round(titleChip, 6)
-	outline(titleChip, 2)
-	new("UIPadding", { PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6) }, titleChip)
+	-- title + bias pack in one chip ("Fan | ♥ CARAT", shared/Modules/UI/TitleChip)
+	local titleChip = TitleChip.new(plateFace, { Name = "Title", LayoutOrder = 1, Height = 18, TextSize = 11, Font = MULT_FONT, ZIndex = 3 })
+	titleChip.Visible = false
 	local nameLabel = label(plateFace, player.DisplayName, 17, PLATE_H)
 	nameLabel.LayoutOrder = 2
 	local chip, chipFace = card(bb, "Streak", PLATE_H - 1, CHIP_H, 8, 2.5, 2, YELLOW)
@@ -226,6 +214,9 @@ local function track(player: Player)
 		refresh(player)
 	end)
 	player:GetAttributeChangedSignal("Title"):Connect(function()
+		refresh(player)
+	end)
+	player:GetAttributeChangedSignal("Bias"):Connect(function()
 		refresh(player)
 	end)
 	player.CharacterAdded:Connect(function(character)

@@ -82,12 +82,15 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 		end
 
 		-- per-player round stats
-		local correct, fastCorrect = 0, 0
+		local correct, fastCorrect, biasHits = 0, 0, 0
 		local songs = {}
 		for _, round in result.Rounds do
 			local pick = round.Picks[player]
 			if pick and pick.Correct then
 				correct += 1
+				if round.BiasFrom == player then
+					biasHits += 1
+				end
 				if pick.Tier <= DuelConstants.PERFECT_MAX_TIER then
 					fastCorrect += 1
 				end
@@ -141,6 +144,11 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 			earned.CoinsDetail = "Loser's share"
 			earned.StreakLost = earned.Streak
 			earned.Streak = 0
+		end
+
+		-- bias pack bonus: guessed a song from your own bias pack
+		if biasHits > 0 and not result.Solo and earned.Outcome ~= "Left" then
+			earned.XP += biasHits * DuelConstants.BIAS_XP
 		end
 
 		if perfect and not result.Solo and earned.Outcome ~= "Left" then

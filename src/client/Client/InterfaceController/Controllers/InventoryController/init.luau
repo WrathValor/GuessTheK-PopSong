@@ -5,8 +5,8 @@
 --                            mix and match freely
 --   • Titles              – the default title + unlocked titles; shown under your name
 --   • Song packs          – My Pack + every company/group pack you own a song of; one can be
---                            your duel pack ("Use in duels"); "Get more" opens the shop
--- The loadout strip shows what's equipped; its toggle turns the duel pack on/off.
+--                            your bias pack ("Make bias"); "Get more" opens the shop
+-- The loadout strip shows what's equipped; its toggle turns the bias pack on/off.
 -- Equipping is a request to the server (ShopService); the cards redraw from PlayerData.
 
 -- -------------------------------- Services -------------------------------- --
@@ -212,9 +212,9 @@ function Inventory:_fillCard(holder: Frame, item)
 	else
 		CosmeticView.Clear(art)
 	end
-	-- packs: the rarity chip reads "IN DUELS" on the active one
+	-- packs: the rarity chip reads "BIAS" on the bias pack
 	if item.Kind == "Pack" and item.Equipped then
-		art.Rarity.Text = "IN DUELS"
+		art.Rarity.Text = "BIAS"
 		art.Rarity.BackgroundColor3 = YELLOW
 	else
 		art.Rarity.Text = item.Rarity
@@ -231,9 +231,9 @@ function Inventory:_fillCard(holder: Frame, item)
 		action.Active = true
 		holder.Shadow.BackgroundColor3 = INK
 	elseif item.Kind == "Pack" then
-		action.Text = if item.Equipped then "In duels" else "Use in duels"
+		action.Text = if item.Equipped then "Your bias ✓" else "Make bias"
 		action.BackgroundColor3 = if item.Equipped then GREY else MINT
-		action.Active = true -- pressing "In duels" turns it off
+		action.Active = true -- pressing "Your bias" turns it off
 		holder.Shadow.BackgroundColor3 = if item.Equipped then RED else INK
 	else
 		action.Text = if item.Equipped then "Equipped" else "Equip"
@@ -243,7 +243,7 @@ function Inventory:_fillCard(holder: Frame, item)
 	end
 end
 
--- The strip on top: equipped stage, mic and duel pack (with its on/off toggle).
+-- The strip on top: equipped stage, mic and bias pack (with its on/off toggle).
 function Inventory:_fillLoadout()
 	local strip = self._frame.Panel.Content:FindFirstChild("Loadout")
 	if not strip then
@@ -285,7 +285,7 @@ function Inventory:_togglePack()
 		end
 	end
 	self:ShowCategory("Song packs")
-	self:_toast("Buy a song first to make a duel pack")
+	self:_toast("Buy a song first to make a bias pack")
 	Sounds.Play("Wrong")
 end
 
@@ -403,7 +403,7 @@ function Inventory:Initialize(interface)
 		end))
 	end
 
-	-- loadout strip: slots jump to their category, the toggle turns the duel pack on/off
+	-- loadout strip: slots jump to their category, the toggle turns the bias pack on/off
 	local strip = content.Loadout
 	j:Add(strip.StageSlot.Activated:Connect(function()
 		self:ShowCategory("Stages")

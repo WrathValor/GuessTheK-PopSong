@@ -350,7 +350,7 @@ function InvitePicker.new(queueFrame: Instance, janitor, solo)
 		elseif packet.Message == "Result" then
 			self:_onResult(packet.Result, packet.Name)
 		end
-	end))
+	end), "Disconnect") -- BridgeNet2 connections have no Destroy
 
 	-- the list refreshes while it's open (people come and go, duels end)
 	local loop = task.spawn(function()

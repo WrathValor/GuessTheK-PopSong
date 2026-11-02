@@ -1,6 +1,6 @@
 --| TutorialController
 -- The first-join tutorial (design boards "Tutorial 1–4"). A player who hasn't finished or
--- skipped it (Settings.TutorialDone) gets the Welcome card a moment after joining:
+-- skipped it (Settings.TutorialDone) gets the Welcome card once the loading screen has gone:
 --   PLAY A PRACTICE ROUND → the server puts them on a free stage for a 3-round solo game on
 --   well-known songs (DuelService "Tutorial", Duels.Tutorial), with coach-mark tips (./Tips)
 --   on the clip, the answers and the reveal;
@@ -34,7 +34,7 @@ local QueueRemote = Bridgenet.ReferenceBridge("QueueRemote")
 local DuelRemote = Bridgenet.ReferenceBridge("DuelRemote")
 local SettingsRemote = Bridgenet.ReferenceBridge("SettingsRemote")
 local ME = tostring(LOCAL_PLAYER.UserId)
-local WELCOME_DELAY = 3 -- seconds after joining before the Welcome card
+local WELCOME_DELAY = 0.6 -- seconds after the loading screen goes before the Welcome card
 
 -- the coach marks, in the order they show
 local CLIP_TIPS = {
@@ -132,6 +132,11 @@ function Tutorial:Initialize(interface)
 
 	-- first join: the Welcome card, once data has loaded and nothing else is open
 	task.spawn(function()
+		-- wait for the loading screen (ReplicatedFirst/Loading) to finish
+		local loadDeadline = os.clock() + 60
+		while not LOCAL_PLAYER:GetAttribute("LoadingDone") and os.clock() < loadDeadline do
+			task.wait(0.1)
+		end
 		task.wait(WELCOME_DELAY)
 		local deadline = os.clock() + 20
 		while os.clock() < deadline do
@@ -172,7 +177,7 @@ function Tutorial:_show(view: string, packet: any?)
 		self._frame.Done:FindFirstChild("GiftShadow").Visible = coins > 0
 		done.Gift.Amount.Text = `+{coins} coins`
 		if coins > 0 then
-			Sounds.Play("Coins")
+			Sounds.Play("Success")
 			Juice.Pop(done.Gift, 0.15)
 		end
 	end
@@ -181,7 +186,10 @@ end
 function Tutorial:Activate(view: string?, packet: any?)
 	self:_show(view or "Welcome", packet)
 	-- a cheerful sting as the card pops in (the Done card's coins chime follows on its own)
-	Sounds.Play(if (view or "Welcome") == "Welcome" then "Welcome" else "Win")
+	-- the Welcome card uses the shared frame "Open" sound (Interface:Open); Done adds the win jingle
+	if view == "Done" then
+		Sounds.Play("Win")
+	end
 	if self.State == "Active" or self.State == "Activating" then
 		return Promise.resolve()
 	end

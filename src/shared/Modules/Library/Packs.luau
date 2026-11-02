@@ -43,6 +43,32 @@ Packs.FANDOMS = {
 	EXO = "EXO-L",
 	NCT = "NCTzen",
 	IU = "UAENA",
+	["i-dle"] = "Neverland", -- the group module's name (CUBE/i-dle)
+	["Girls' Generation"] = "SONE",
+	["2NE1"] = "Blackjack",
+	ATEEZ = "ATINY",
+	BABYMONSTER = "MONSTIEZ",
+	BEAST = "B2UTY",
+	BTOB = "Melody",
+	ILLIT = "GLLIT",
+	["KISS OF LIFE"] = "KISSY",
+	LOONA = "Orbit",
+	MAMAMOO = "MooMoo",
+	MOMOLAND = "Merry-Go-Round",
+	["MONSTA X"] = "MONBEBE",
+	NEXZ = "NEX2Y",
+	NMIXX = "NSWER",
+	SHINee = "Shawol",
+	STAYC = "SWITH",
+	TREASURE = "Teume",
+	TVXQ = "Cassiopeia",
+	["Wonder Girls"] = "Wonderful",
+	YENA = "Smiley",
+	ZEROBASEONE = "ZEROSE",
+	CORTIS = "COER",
+	Hearts2Hearts = "S2U",
+	BESTie = "BESTiny",
+	-- A20 Lite: no fandom name yet (shows "A20 Lite Stan")
 }
 
 export type Pack = {
@@ -197,6 +223,34 @@ function Packs.SongForSale(song, time: number?): boolean
 		end
 	end
 	return false
+end
+
+-- Bias packs: the chip joined onto the player's title ("Fan | ♥ CARAT"). Group packs show
+-- the fandom (FANDOMS, else the group name), company packs the company; My Pack has none.
+-- The colour is picked from BADGE_COLOURS by name, so a group always gets the same one.
+Packs.BADGE_COLOURS = { "FF9EC4", "9ED8F5", "A7E9B8", "FFE07A", "FFB38A", "B9A6FF", "FFD2CE", "C8EFD6" }
+
+function Packs.Badge(id: string): (string?, string?)
+	local pack = Packs.Get(id)
+	if not pack or pack.Kind == "My" then
+		return nil, nil
+	end
+	local text = if pack.Kind == "Group" then (Packs.FANDOMS[pack.Name] or pack.Name) else pack.Name
+	local hash = 0
+	for i = 1, #pack.Name do
+		hash = (hash * 31 + string.byte(pack.Name, i)) % 1000003
+	end
+	return `♥ {text}`, Packs.BADGE_COLOURS[hash % #Packs.BADGE_COLOURS + 1]
+end
+
+-- The songs a bias round draws its 3 wrong answers from: the whole group / company, so all
+-- 4 answers are by the same artist. nil (whole library) for My Pack or a pack under 4 songs.
+function Packs.AnswerPool(id: string): { any }?
+	local pack = Packs.Get(id)
+	if not pack or pack.Kind == "My" or #pack.Songs < 4 then
+		return nil
+	end
+	return pack.Songs
 end
 
 function Packs.DisplayName(id: string): string

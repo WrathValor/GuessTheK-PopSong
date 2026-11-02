@@ -45,7 +45,8 @@ return table.freeze({
 
 	-- duel packs: with both players' packs on, up to this many songs from each mix in
 	-- (never round 1). Solo "only my pack" needs a pack of at least ROUNDS songs.
-	PACK_SONGS_PER_PLAYER = 2,
+	PACK_SONGS_PER_PLAYER = 1, -- bias pack rounds per player (one player having a pack is enough)
+	BIAS_XP = 2, -- bonus XP for guessing a song from your own bias pack
 
 	-- Save Streak developer product. 0 = not set up yet (button is disabled).
 	SAVE_STREAK_PRODUCT_ID = 3726066704,

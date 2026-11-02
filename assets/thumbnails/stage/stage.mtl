@@ -1,0 +1,150 @@
+newmtl Stagefloor1Mtl
+Material Color
+Ka 0.88318 0.74453 0.573159
+Kd 0.88318 0.74453 0.573159
+Ks 0.0658056 0.0554748 0.042706 
+
+d 1
+
+Ns 0
+
+map_Ka Stagefloor1_diff.png
+map_Kd Stagefloor1_diff.png
+map_d Stagefloor1_diff.png
+
+map_Bump Stagefloor1_nmap.png
+
+map_Ns Stagefloor1_spec.png
+
+newmtl Spotplatformb1Mtl
+Material Color
+Ka 0.932277 0.88318 0.812241
+Kd 0.932277 0.88318 0.812241
+Ks 0.369255 0.349808 0.321711 
+
+d 1
+
+Ns 0
+
+map_Ka Spotplatformb1_diff.png
+map_Kd Spotplatformb1_diff.png
+map_d Spotplatformb1_diff.png
+
+map_Bump Spotplatformb1_nmap.png
+
+newmtl Stagebase1Mtl
+Material Color
+Ka 0.0199178 0.0126637 0.0581872
+Kd 0.0199178 0.0126637 0.0581872
+Ks 0.00788903 0.00501583 0.0230467 
+
+d 1
+
+Ns 0
+
+map_Ka Spotplatformb1_diff.png
+map_Kd Spotplatformb1_diff.png
+map_d Spotplatformb1_diff.png
+
+map_Bump Spotplatformb1_nmap.png
+
+newmtl Stageneon1Mtl
+Material Color
+Ka 0.907547 0.875138 0.95737
+Kd 0.907547 0.875138 0.95737
+Ks 0.0818572 0.078934 0.086351 
+
+d 1
+
+Ns 0
+
+newmtl Spotplatformbring1Mtl
+Material Color
+Ka 0.819964 0.774227 0.891262
+Kd 0.819964 0.774227 0.891262
+Ks 0.0739575 0.0698323 0.0803883 
+
+d 0.552941
+
+Ns 0
+
+newmtl Micstandb1Mtl
+Material Color
+Ka 0.907547 0.891262 0.940601
+Kd 0.907547 0.891262 0.940601
+Ks 0.35946 0.35301 0.372552 
+
+d 1
+
+Ns 0
+
+map_Ka Spotplatformb1_diff.png
+map_Kd Spotplatformb1_diff.png
+map_d Spotplatformb1_diff.png
+
+map_Bump Spotplatformb1_nmap.png
+
+newmtl Micgrilleb1Mtl
+Material Color
+Ka 0.701169 0.673049 0.774227
+Kd 0.701169 0.673049 0.774227
+Ks 0.137484 0.13197 0.151809 
+
+d 1
+
+Ns 255
+
+map_Bump Micgrilleb1_nmap.png
+
+map_Ns Micgrilleb1_spec.png
+
+newmtl Micb1Mtl
+Material Color
+Ka 0.907547 0.88318 0.940601
+Kd 0.907547 0.88318 0.940601
+Ks 0.35946 0.349808 0.372552 
+
+d 1
+
+Ns 0
+
+map_Ka Spotplatformb1_diff.png
+map_Kd Spotplatformb1_diff.png
+map_d Spotplatformb1_diff.png
+
+map_Bump Spotplatformb1_nmap.png
+
+newmtl Stagelip1Mtl
+Material Color
+Ka 0.00902149 0.00715504 0.0231036
+Kd 0.00902149 0.00715504 0.0231036
+Ks 0.00357322 0.00283396 0.00915082 
+
+d 1
+
+Ns 0
+
+map_Ka Spotplatformb1_diff.png
+map_Kd Spotplatformb1_diff.png
+map_d Spotplatformb1_diff.png
+
+map_Bump Spotplatformb1_nmap.png
+
+newmtl Stagesteps1Mtl
+Material Color
+Ka 0.781751 0.632043 0.453456
+Kd 0.781751 0.632043 0.453456
+Ks 0.0582481 0.0470934 0.033787 
+
+d 1
+
+Ns 0
+
+map_Ka Stagefloor1_diff.png
+map_Kd Stagefloor1_diff.png
+map_d Stagefloor1_diff.png
+
+map_Bump Stagefloor1_nmap.png
+
+map_Ns Stagefloor1_spec.png
+

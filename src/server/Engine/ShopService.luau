@@ -238,7 +238,7 @@ local function setDuelPack(player: Player, data, packet)
 	if id == "" then
 		data.Inventory.DuelPack.Set("")
 		Analytics.Event(player, "DuelPackSet", 1, "Off")
-		return reply(player, packet, true, "Duel pack off")
+		return reply(player, packet, true, "Bias pack off")
 	end
 	if type(id) ~= "string" or not Packs.Get(id) then
 		return reply(player, packet, false, "That pack doesn't exist")
@@ -251,7 +251,7 @@ local function setDuelPack(player: Player, data, packet)
 	end
 	data.Inventory.DuelPack.Set(Packs.Get(id).Id)
 	Analytics.Event(player, "DuelPackSet", 1, Packs.Get(id).Id)
-	reply(player, packet, true, `{Packs.DisplayName(id)} will mix into duels`)
+	reply(player, packet, true, `{Packs.DisplayName(id)} is your bias pack`)
 end
 
 local ACTIONS = {

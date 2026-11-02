@@ -15,6 +15,9 @@
     "ServerScriptService": {
       "$path": "src/server"
     },
+    "ReplicatedFirst": {
+      "$path": "src/first"
+    },
     "StarterPlayer": {
       "StarterPlayerScripts": {
         "Client": {

@@ -16,6 +16,8 @@ local FrameTransition = require(ReplicatedStorage.Modules.UI.Animations.FrameTra
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
+local TitleChip = require(ReplicatedStorage.Modules.UI.TitleChip)
+local HUDConstants = require(ReplicatedStorage.Constants.HUDConstants)
 local StakeReel = require(script.StakeReel)
 
 -- -------------------------------- Variables ------------------------------- --
@@ -130,8 +132,14 @@ function PreDuel:_setupPacks(packs, solo: boolean, rivalName: string?)
 	chip.BackgroundColor3 = if packs.On then MINT else GREY
 	chip.Icon.Off.Visible = not packs.On
 	if packs.On then
-		table.sort(names)
-		chip.Label.Text = `Packs ON · {table.concat(names, " + ")}`
+		-- bias packs: each one brings a round ("♪ 1 bias round · your SEVENTEEN Pack")
+		local parts = {}
+		for slot, name in packs.Names do
+			local mine = self._slots and self._slots[slot] == Players.LocalPlayer.UserId
+			table.insert(parts, if mine then `your {name}` else `{rivalName or "rival"}'s {name}`)
+		end
+		table.sort(parts)
+		chip.Label.Text = `♪ {#parts} bias round{if #parts > 1 then "s" else ""} · {table.concat(parts, " + ")}`
 	else
 		-- only one side has a pack on: say who's missing one
 		local mine = false
@@ -196,6 +204,12 @@ function PreDuel:_fillPlayer(card, profile)
 	end
 	card:FindFirstChild("Name").Text = profile.Name
 	card.Sub.Text = if profile.Streak > 0 then `Lv {profile.Level} · {profile.Streak} streak` else `Lv {profile.Level}`
+	-- title + bias pack chip under the level ("Fan | ♥ CARAT")
+	local chip = card:FindFirstChild("TitleChip")
+	if not chip then
+		chip = TitleChip.new(card, { Name = "TitleChip", Height = 15, TextSize = 10, Pad = 5, ZIndex = card.ZIndex + 1, Position = UDim2.fromOffset(card.Sub.Position.X.Offset, 56) })
+	end
+	TitleChip.Set(chip, profile.Title or HUDConstants.DEFAULT_TITLE, profile.Bias, profile.BiasColour)
 	task.spawn(function()
 		card.Avatar.Thumbnail.Image = thumb(profile.UserId)
 	end)
@@ -380,7 +394,9 @@ function PreDuel:Activate(packet)
 		return Promise.resolve()
 	end
 	self.State = "Activating"
-	Sounds.Play(if packet and packet.Solo then "Open" else "RivalFound")
+	if not (packet and packet.Solo) then
+		Sounds.Play("RivalFound") -- (solo: the frame's "Open" sound is enough)
+	end
 	self._frame.Visible = true
 	return FrameTransition.Open(self._frame):andThen(function()
 		self.State = "Active"

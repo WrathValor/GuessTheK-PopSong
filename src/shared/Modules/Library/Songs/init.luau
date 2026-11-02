@@ -91,6 +91,35 @@ function Songs.GetRandomSong(exclude: { [string]: boolean }?)
 	return pool[math.random(1, #pool)]
 end
 
+-- A random song of one generation ("2nd".."5th"), else from the whole library.
+function Songs.GetRandomSongOfGeneration(generation: string?, exclude: { [string]: boolean }?)
+	if generation then
+		local pool = {}
+		for _, song in All do
+			if song.Generation == generation and not (exclude and exclude[song.Id]) then
+				table.insert(pool, song)
+			end
+		end
+		if #pool > 0 then
+			return pool[math.random(1, #pool)]
+		end
+	end
+	return Songs.GetRandomSong(exclude)
+end
+
+-- Every generation in the library, sorted ("2nd", "3rd", "4th", "5th").
+function Songs.Generations(): { string }
+	local seen, out = {}, {}
+	for _, song in All do
+		if song.Generation and not seen[song.Generation] then
+			seen[song.Generation] = true
+			table.insert(out, song.Generation)
+		end
+	end
+	table.sort(out)
+	return out
+end
+
 local function filter(key: string, value: any)
 	local out = {}
 	for _, song in All do

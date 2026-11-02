@@ -10,6 +10,7 @@ local Signal = require(ReplicatedStorage.Packages.signal)
 local Promise = require(ReplicatedStorage.Packages.promise)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 local AnalyticsClient = require(ReplicatedStorage.Modules.AnalyticsClient)
+local Sounds = require(ReplicatedStorage.Modules.Sounds)
 
 -- --------------------------------- Tables --------------------------------- --
 -- screens that log "ScreenOpened" (Constants/AnalyticsEvents ScreenOpened.Allowed)
@@ -17,6 +18,8 @@ local SCREEN_EVENTS = {}
 for _, screen in require(ReplicatedStorage.Constants.AnalyticsEvents).Custom.ScreenOpened.Allowed.Screen do
 	SCREEN_EVENTS[screen] = true
 end
+-- frames that open without the "Open" sound (the HUD, and the round screen, which has its own)
+local SILENT_OPEN = { HUD = true, Game = true }
 local Interface = {}
 type Self = typeof(Interface)
 
@@ -100,6 +103,9 @@ function Interface.Open(self: Self, name: string, ...: any)
 	end
 	if SCREEN_EVENTS[name] then
 		AnalyticsClient.Event("ScreenOpened", 1, name)
+	end
+	if not SILENT_OPEN[name] then
+		Sounds.Play("Open")
 	end
 
 	Transitioning = true
@@ -201,6 +207,9 @@ function Interface.Start(self: Self)
 	for _, controller in pairs(self.Controllers) do
 		controller:Initialize(self)
 	end
+
+	-- the loading screen (ReplicatedFirst/Loading) waits for this before it fades out
+	Players.LocalPlayer:SetAttribute("UIReady", true)
 
 	-- HUD is the default non-exclusive gameplay overlay, so it opens as soon as it's registered.
 	--self:Open("HUD")

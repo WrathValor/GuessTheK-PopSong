@@ -341,7 +341,7 @@ function Rewards:Initialize(interface)
 			return
 		end
 		if packet.Ok then
-			Sounds.Play("Coins")
+			Sounds.Play("Success")
 			if self._pending then
 				Juice.Pop(self._pending, 0.12)
 			end

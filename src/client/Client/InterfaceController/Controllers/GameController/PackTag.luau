@@ -1,9 +1,13 @@
 --| PackTag
 -- The tag under the round scoreboard on pack rounds (from the "Pack rounds" board):
--- lilac "From your pack · My Pack" or pink "From WrathValor's pack · HYBE Pack".
+-- lilac "From your pack · My Pack" or pink "From WrathValor's pack · HYBE Pack"; in a duel,
+-- "♥ BIAS PACK ROUND · your SEVENTEEN Pack · +2 XP if you get it".
 -- Shared-pool rounds hide it, unless a themed solo game shows its theme ("GEN 4"). Build(gameFrame) runs once in Studio; Set() fills it.
 
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 
 local C = Color3.fromHex
 local INK = C("1E1B2E")
@@ -68,6 +72,12 @@ function PackTag.Set(gameFrame: Instance, info, theme: string?)
 	local mine = info.From == Players.LocalPlayer.UserId
 	tag.BackgroundColor3 = if mine then LILAC else PINK
 	local text = if mine then `From your pack · {info.Pack}` else `From {info.FromName}'s pack · {info.Pack}`
+	if info.Bias then
+		-- a duel's bias pack round (design board "Bias pack 2")
+		text = if mine
+			then `♥ BIAS PACK ROUND · your {info.Pack} · +{DuelConstants.BIAS_XP} XP if you get it`
+			else `♥ BIAS PACK ROUND · {info.FromName}'s {info.Pack}`
+	end
 	tag.Text = if theme then `{string.upper(theme)} · {text}` else text
 end
 

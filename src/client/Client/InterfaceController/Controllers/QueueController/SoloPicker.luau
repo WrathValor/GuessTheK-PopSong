@@ -274,7 +274,7 @@ function SoloPicker.Build(queueFrame: Instance)
 	local knob = new("Frame", { Name = "Knob", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(1, -10, 0.5, 0), Size = UDim2.fromOffset(14, 14), BackgroundColor3 = WHITE }, toggle)
 	corner(knob, UDim.new(0.5, 0))
 	stroke(knob, 2)
-	text(mix, "Label", { Position = UDim2.fromOffset(50, 0), Size = UDim2.new(1, -50, 1, 0), TextSize = 13, RichText = true, Text = 'Mix in my duel pack <font color="#5C566B">· My Pack, Gen 4 songs only</font>' })
+	text(mix, "Label", { Position = UDim2.fromOffset(50, 0), Size = UDim2.new(1, -50, 1, 0), TextSize = 13, RichText = true, Text = 'Mix in my bias pack <font color="#5C566B">· My Pack, Gen 4 songs only</font>' })
 
 	-- Back + Start
 	local by = 386
@@ -338,7 +338,7 @@ end
 local function describe(theme, pack)
 	if theme.Id == Themes.PACK then
 		if not pack then
-			return { Count = "No pack", Groups = "Put a duel pack on in Inventory", Open = false, Songs = 0 }
+			return { Count = "No pack", Groups = "Pick a bias pack in Inventory", Open = false, Songs = 0 }
 		end
 		local n = #pack.Songs
 		local open = n >= DuelConstants.ROUNDS
@@ -601,7 +601,7 @@ function SoloPicker:Render()
 			then "none of its songs fit this theme"
 			elseif playing.Id == Themes.DEFAULT then `{pack.Name}`
 			else `{pack.Name}, {playing.Name} songs only`
-		mix.Label.Text = `Mix in my duel pack <font color="#5C566B">· {detail}</font>`
+		mix.Label.Text = `Mix in my bias pack <font color="#5C566B">· {detail}</font>`
 	end
 
 	self:_renderStart()

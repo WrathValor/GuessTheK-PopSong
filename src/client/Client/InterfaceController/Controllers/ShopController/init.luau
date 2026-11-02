@@ -708,7 +708,7 @@ function Shop:Initialize(interface)
 		if type(packet) == "table" and packet.Message == "Result" then
 			self:_toast(packet.Text or "")
 			if packet.Ok and packet.Action ~= "EquipSet" and packet.Action ~= "EquipItem" then
-				Sounds.Play("Coins")
+				Sounds.Play("Success")
 			elseif not packet.Ok then
 				Sounds.Play("Wrong")
 			end

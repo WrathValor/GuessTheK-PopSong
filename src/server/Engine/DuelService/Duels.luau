@@ -71,12 +71,17 @@ end
 
 local function profileOf(player: Player)
 	local ok, data = pcall(PlayerData.Get, player)
-	local xp, streak = 0, 0
+	local xp, streak, bias, biasColour, title = 0, 0, nil, nil, nil
 	if ok and data then
 		xp = data.Player.XP.Get()
 		streak = data.Player.Streak.Get()
+		bias, biasColour = Packs.Badge(data.Inventory.DuelPack.Get())
+		title = data.Inventory.Title.Get()
 	end
 	return {
+		Title = if title and title ~= "" then title else nil,
+		Bias = bias,
+		BiasColour = biasColour,
 		UserId = player.UserId,
 		Name = player.DisplayName,
 		Level = (Levels.FromXP(xp)),
@@ -251,9 +256,11 @@ function Duels:_preDuel()
 		end
 	end
 
-	-- duel packs: they only mix in when every player has one on (solo: always, if on)
+	-- bias packs: in a duel one player having one is enough (each brings 1 round); solo uses
+	-- it if it's on and fits the theme
 	local packsInfo = { On = false, Names = {} }
 	local allOn = #self.Players > 0
+	local anyOn = false
 	for slot, p in self.Slots do
 		if p then
 			local songs, id = duelPackOf(p)
@@ -261,6 +268,7 @@ function Duels:_preDuel()
 				self.PackSongs[p] = songs
 				self.PackIds[p] = id
 				packsInfo.Names[slot] = Packs.DisplayName(id)
+				anyOn = true
 			else
 				allOn = false
 			end
@@ -298,8 +306,9 @@ function Duels:_preDuel()
 		end
 		packsInfo.Theme = Themes.Get(theme).Name
 	end
-	packsInfo.On = allOn
-	self.PacksOn = allOn
+	local on = if self.Solo then allOn else anyOn
+	packsInfo.On = on
+	self.PacksOn = on
 
 	self.Phase = "Vote"
 	self:_fire({
@@ -428,6 +437,14 @@ function Duels:_playRound(round: number)
 			end
 			song = if #pool > 0 then pool[math.random(1, #pool)] else nil
 		end
+		if not song and not self.Solo then
+			-- duels spread across the generations: each round takes the next generation from
+			-- a shuffled bag (refilled when empty), so 7 rounds cover every gen at least once
+			if not self.GenBag or #self.GenBag == 0 then
+				self.GenBag = shuffle(SongLibrary.Generations())
+			end
+			song = SongLibrary.GetRandomSongOfGeneration(table.remove(self.GenBag), skip)
+		end
 		song = song or (self.Solo and Themes.RandomSong(self.Theme, skip)) or SongLibrary.GetRandomSong(skip)
 	end
 	self.Used[song.Id] = true
@@ -436,6 +453,7 @@ function Duels:_playRound(round: number)
 		From = scheduled.From.UserId,
 		FromName = scheduled.From.DisplayName,
 		Pack = Packs.DisplayName(scheduled.Pack),
+		Bias = not self.Solo or nil, -- a duel's "BIAS PACK ROUND"
 	} or nil
 
 	local options = { song }
@@ -443,6 +461,10 @@ function Duels:_playRound(round: number)
 	local within = if self.Solo and self.Theme ~= Themes.DEFAULT and self.Theme ~= Themes.PACK
 		then Themes.SongsFor(self.Theme)
 		else nil
+	-- a duel's bias round: all 4 answers by the same group / company
+	if scheduled and not self.Solo then
+		within = Packs.AnswerPool(scheduled.Pack) or within
+	end
 	for _, s in SongLibrary.GetWrongOptions(song, 3, within) do
 		table.insert(options, s)
 	end
@@ -577,7 +599,7 @@ function Duels:_playRound(round: number)
 			First = state.FirstCorrect == p,
 		}
 	end
-	table.insert(self.Rounds, { Song = song, Picks = picks })
+	table.insert(self.Rounds, { Song = song, Picks = picks, BiasFrom = if scheduled and not self.Solo then scheduled.From else nil })
 	self:_logRound(round, song, picks, scheduled)
 
 	local scores = {}

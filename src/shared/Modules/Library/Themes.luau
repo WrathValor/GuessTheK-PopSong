@@ -27,7 +27,7 @@ local LIST = {
 	{ Id = "Gen3", Tab = "Gen", Name = "Gen 3", Numeral = "III", Colour = "9ED8F5", Generation = "3rd" },
 	{ Id = "Gen4", Tab = "Gen", Name = "Gen 4", Numeral = "IV", Colour = "B9A6FF", Generation = "4th" },
 	{ Id = "Gen5", Tab = "Gen", Name = "Gen 5", Numeral = "V", Colour = "A7E9B8", Generation = "5th" },
-	{ Id = "Pack", Tab = "Pack", Name = "My duel pack", Numeral = "♪", Colour = "FFB38A" },
+	{ Id = "Pack", Tab = "Pack", Name = "My bias pack", Numeral = "♪", Colour = "FFB38A" },
 }
 local BY_ID = {}
 for _, theme in LIST do
