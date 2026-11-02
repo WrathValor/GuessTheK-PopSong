@@ -30,6 +30,8 @@ AnalyticsEvents.Custom = {
 	QueueLeft = { Fields = { "Stage", "When" } }, -- value: seconds waited
 	RematchRequested = { Fields = { "Mode" } },
 	RematchStarted = { Fields = { "Mode" } },
+	InviteSent = { Fields = { "Stage" } },
+	InviteResult = { Fields = { "Result", "Stage" } }, -- Accepted / Declined / Expired / Cancelled / Failed
 
 	-- [[ Shop / inventory / rewards ]]
 	Equip = { Fields = { "Kind", "Item" } },
@@ -42,10 +44,10 @@ AnalyticsEvents.Custom = {
 
 	-- [[ From the client ]]
 	ScreenOpened = { Fields = { "Screen" }, Client = true, Allowed = {
-		Screen = { "Shop", "Inventory", "Index", "Rewards", "News", "Settings", "Queue", "Results", "SaveStreak" },
+		Screen = { "Shop", "Inventory", "Index", "Rewards", "News", "Settings", "Queue", "Results", "SaveStreak", "Tutorial" },
 	} },
 	ShopTabOpened = { Fields = { "Tab" }, Client = true, Allowed = {
-		Tab = { "Featured", "Sets", "Items", "Packs", "Coins" },
+		Tab = { "Featured", "Sets", "Items", "Packs", "UGC", "Coins" },
 	} },
 	SoloPickerOpened = { Client = true },
 	GroupJoinPrompt = { Fields = { "Result" }, Client = true, Allowed = {
@@ -55,6 +57,12 @@ AnalyticsEvents.Custom = {
 		Reason = { "NotLoaded", "PastEnd" },
 	} }, -- Song is checked against the library on the server
 	ClipLoadTime = { Fields = { "Song" }, Client = true }, -- value: seconds until the clip was ready
+	UGCPrompt = { Fields = { "Item", "Where" }, Client = true, Allowed = {
+		Where = { "Shop", "Reveal", "Results" },
+	} }, -- value: Robux price; Item is checked against the group's catalog on the server
+
+	-- [[ Group UGC (Robux, Engine/UGCService) ]]
+	UGCBought = { Fields = { "Item", "Kind" } }, -- value: Robux price
 }
 
 -- Coins + XP are the "currencies" in the Economy dashboard (TransactionType + Sku below).

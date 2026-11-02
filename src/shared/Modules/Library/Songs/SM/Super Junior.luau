@@ -17,5 +17,12 @@ return {
 			TimePosition = 7,
 			ChorusPosition = 108.3,
 		},
+		{
+			Name = "U",
+			Year = 2006,
+			MusicId = "rbxassetid://107291480040753",
+			TimePosition = 30,
+			ChorusPosition = 138.2,
+		},
 	},
 }

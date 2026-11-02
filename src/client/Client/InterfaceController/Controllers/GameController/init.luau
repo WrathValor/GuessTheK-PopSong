@@ -20,6 +20,7 @@ local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 
 local REVEAL_FADE = 2 -- the reveal song fades out over the last this-many seconds
 local LoadingCard = require(script.LoadingCard)
+local DanceCard = require(script.DanceCard)
 local PackTag = require(script.PackTag)
 
 -- -------------------------------- Variables ------------------------------- --
@@ -74,6 +75,10 @@ function Game:Initialize(interface)
 	self._frame.Visible = false
 	self._frame.Reveal.Visible = false
 	ButtonScale.ApplyToDescendants(self._frame.Controls)
+	if self._frame.Reveal:FindFirstChild("Dance") then
+		ButtonScale.ApplyToDescendants(self._frame.Reveal.Dance)
+	end
+	DanceCard.Connect(self._frame.Reveal, self._janitor) -- "Get this dance" (group UGC)
 	local controls = self._frame.Controls
 	self.Loader = LoadingCard.new(self._frame, controls.PlayButton)
 
@@ -389,6 +394,7 @@ function Game:OnRoundEnd(packet)
 	end
 
 	reveal.Answer.Title.Text = packet.Answer.Name
+	DanceCard.Show(reveal, packet.Answer.Id)
 	reveal.Answer.Meta.Text = if packet.Answer.Year then `{packet.Answer.Artist} · {packet.Answer.Year} · {packet.Answer.Generation or ""} Gen` else `{packet.Answer.Artist} · {packet.Answer.Generation or ""} Gen`
 
 	local mine = packet.Picks[ME]

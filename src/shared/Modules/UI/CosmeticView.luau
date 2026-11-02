@@ -8,7 +8,12 @@
 -- stage towards the mic, mic towards the player). Without a model the drawn shapes stay.
 --   CosmeticView.Show(art, "Stage" | "Mic", id)
 --   CosmeticView.Show(art, "Set", setId)   – its stage, the avatar on it, its mic in front
+--   CosmeticView.Show(art, "Dance" | "Accessory", assetId)
+--                                         – a group UGC item (Engine/UGCService loads them into
+--                                           Assets.UGC): the avatar doing the dance / wearing it
 --   CosmeticView.Clear(art)               – back to the drawn art (packs, titles…)
+--   CosmeticView.EnableSpin(art)          – drag on the art's "Spin" button to turn around
+--                                           the model (once per art; resets on a new model)
 --   CosmeticView.SetAvatar(model?)        – who stands on the pads (the client tracks the
 --                                           local player's character by itself)
 
@@ -24,10 +29,19 @@ local CARD = Color3.fromHex("FFFFFF") -- tinted by the gradient below
 local NIGHT = ColorSequence.new(Color3.fromHex("4A3F78"), Color3.fromHex("1E1B2E"))
 local SHADOW = Color3.fromHex("1E1B2E")
 -- what stays visible in the Art frame; everything else is the old drawn art
-local KEEP = { Rarity = true, Model3D = true }
+local KEEP = { Rarity = true, Model3D = true, Kind = true, InGame = true, Hint = true, Select = true, Spin = true }
 
 local avatarTemplate: Model? = nil
+-- art -> where its camera orbits: { Centre, Dir, Dist, Yaw } (EnableSpin turns Yaw)
+local orbits = setmetatable({}, { __mode = "k" }) :: { [GuiObject]: any }
 local shown = setmetatable({}, { __mode = "k" }) :: { [GuiObject]: { string } } -- art -> { kind, id }
+
+-- a group item's preview: the Animation (dance) or Accessory, loaded by Engine/UGCService
+local function ugcAsset(id: string): Instance?
+	local assets = ReplicatedStorage:FindFirstChild("Assets")
+	local ugc = assets and assets:FindFirstChild("UGC")
+	return ugc and ugc:FindFirstChild(id)
+end
 
 local function template(kind: string, id: string): Model?
 	local assets = ReplicatedStorage:FindFirstChild("Assets")
@@ -57,10 +71,12 @@ local function viewport(art: GuiObject): (ViewportFrame, WorldModel)
 		vf.LightColor = Color3.fromRGB(255, 250, 245)
 		vf.LightDirection = Vector3.new(-0.6, -1, -0.8)
 		vf.Parent = art
-		-- keep the rarity chip above the model
-		local rarity = art:FindFirstChild("Rarity")
-		if rarity and rarity:IsA("GuiObject") then
-			rarity.ZIndex = math.max(rarity.ZIndex, vf.ZIndex + 1)
+		-- keep the chips (rarity, kind…) and click catchers above the model
+		for name in KEEP do
+			local chip = art:FindFirstChild(name)
+			if name ~= "Model3D" and chip and chip:IsA("GuiObject") then
+				chip.ZIndex = math.max(chip.ZIndex, vf.ZIndex + 1)
+			end
 		end
 	end
 	local world = vf:FindFirstChildOfClass("WorldModel")
@@ -119,7 +135,7 @@ end
 
 -- a copy of the avatar that can sit in a ViewportFrame: no scripts, frozen while it's posed
 -- (standOn unfreezes the limbs so the idle can play)
-local function avatarCopy(): Model?
+local function avatarCopy(extra: Instance?): Model?
 	if not avatarTemplate then
 		return nil
 	end
@@ -214,6 +230,37 @@ local function avatarCopy(): Model?
 			end
 		end
 	end
+	-- a group item to try on: wear the accessory (welded, so it moves with the idle) or
+	-- dance the dance instead of idling
+	if extra and extra:IsA("Accessory") then
+		local accessory = extra:Clone()
+		local handle = accessory:FindFirstChild("Handle")
+		if handle and handle:IsA("BasePart") then
+			handle.Anchored = true
+			handle.CanCollide = false
+			for _, w in handle:GetChildren() do
+				if w:IsA("JointInstance") or w:IsA("WeldConstraint") then
+					w:Destroy()
+				end
+			end
+			for _, a in handle:GetChildren() do
+				local body = a:IsA("Attachment") and bodyAttachments[a.Name]
+				if body then
+					handle.CFrame = body.WorldCFrame * a.CFrame:Inverse()
+					local weld = Instance.new("Weld")
+					weld.Part0 = body.Parent
+					weld.Part1 = handle
+					weld.C0 = body.CFrame
+					weld.C1 = a.CFrame
+					weld.Parent = handle
+					break
+				end
+			end
+			accessory.Parent = copy
+		end
+	elseif extra and extra:IsA("Animation") then
+		idle = extra.AnimationId
+	end
 	local humanoid = copy:FindFirstChildOfClass("Humanoid")
 	if humanoid then
 		humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
@@ -269,10 +316,10 @@ local function playIdle(avatar: Model)
 end
 
 -- stands the avatar on whatever is under `at` (the pad's top), facing `face`
-local function standOn(world: WorldModel, at: Vector3, face: Vector3)
-	local avatar = avatarCopy()
+local function standOn(world: WorldModel, at: Vector3, face: Vector3, extra: Instance?): boolean
+	local avatar = avatarCopy(extra)
 	if not avatar then
-		return
+		return false
 	end
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
@@ -299,6 +346,7 @@ local function standOn(world: WorldModel, at: Vector3, face: Vector3)
 	end
 	avatar.Parent = world
 	playIdle(avatar)
+	return true
 end
 
 -- a soft dark disc under the model so it sits on something
@@ -329,6 +377,14 @@ end
 
 -- the scene for this kind + id, built around the origin; returns the camera direction
 local function build(world: WorldModel, kind: string, id: string): Vector3?
+	if kind == "Dance" or kind == "Accessory" then
+		local asset = ugcAsset(id)
+		if not asset or not standOn(world, Vector3.zero, Vector3.new(0, 0, -10), asset) then
+			return nil
+		end
+		shadow(world, 1.6)
+		return if kind == "Dance" then Vector3.new(0.3, 0.12, -1).Unit else Vector3.new(0.55, 0.1, -1).Unit
+	end
 	if kind == "Set" then
 		local stage, mic = template("Stage", id .. "Stage"), template("Mic", id .. "Mic")
 		if not (stage and mic) then
@@ -362,7 +418,7 @@ local function build(world: WorldModel, kind: string, id: string): Vector3?
 	return Vector3.new(0.85, 0.12, -0.75).Unit -- mic: three-quarter view of the head
 end
 
-local function frameCamera(vf: ViewportFrame, world: WorldModel, dir: Vector3)
+local function frameCamera(vf: ViewportFrame, world: WorldModel, dir: Vector3, margin: number?)
 	-- fit the scene's box to the card: project its corners onto the camera's view plane
 	local cf, size = world:GetBoundingBox()
 	local centre = cf.Position
@@ -382,12 +438,13 @@ local function frameCamera(vf: ViewportFrame, world: WorldModel, dir: Vector3)
 	local aspect = if abs.Y > 0 then abs.X / abs.Y else 1.8
 	local t = math.tan(math.rad(FOV / 2))
 	-- distance that fits the box's outline, plus a bit of its depth (the near side is bigger)
-	local dist = math.max(halfH / t, halfW / (t * aspect)) * MARGIN + halfD * 0.3
+	local dist = math.max(halfH / t, halfW / (t * aspect)) * (margin or MARGIN) + halfD * 0.3
 	local cam = vf.CurrentCamera or Instance.new("Camera")
 	cam.FieldOfView = FOV
 	cam.CFrame = CFrame.lookAt(centre + dir * dist, centre)
 	cam.Parent = vf
 	vf.CurrentCamera = cam
+	return centre, dist
 end
 
 -- the night-ink card behind a model (white base, so the gradient shows its true colours)
@@ -412,7 +469,9 @@ local function render(art: GuiObject, kind: string, id: string): boolean
 		vf.Visible = false
 		return false
 	end
-	frameCamera(vf, world, dir)
+	-- a dance swings the arms well outside the standing pose: leave room around it
+	local centre, dist = frameCamera(vf, world, dir, if kind == "Dance" then 1.45 elseif kind == "Accessory" then 1.1 else nil)
+	orbits[art] = { Centre = centre, Dir = dir, Dist = dist, Yaw = 0 }
 	paintCard(art)
 	vf.Visible = true
 	hideDrawnArt(art)
@@ -453,6 +512,46 @@ function CosmeticView.Clear(art: GuiObject?)
 	if gradient then
 		gradient.Enabled = false -- the caller's own background colour shows again
 	end
+end
+
+-- Drag on art.Spin (a transparent button over the model) to turn the camera around it.
+function CosmeticView.EnableSpin(art: GuiObject?)
+	local catcher = art and art:FindFirstChild("Spin") :: GuiButton?
+	if not catcher or catcher:GetAttribute("SpinOn") then
+		return
+	end
+	catcher:SetAttribute("SpinOn", true)
+	local UserInputService = game:GetService("UserInputService")
+	local dragging: InputObject? = nil
+	local lastX = 0
+	catcher.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = input
+			lastX = input.Position.X
+		end
+	end)
+	UserInputService.InputChanged:Connect(function(input)
+		if not dragging then
+			return
+		end
+		local moved = input.UserInputType == Enum.UserInputType.MouseMovement
+			or (input.UserInputType == Enum.UserInputType.Touch and input == dragging)
+		local orbit = orbits[art :: GuiObject]
+		local vf = (art :: GuiObject):FindFirstChild("Model3D") :: ViewportFrame?
+		local cam = vf and vf.CurrentCamera
+		if not (moved and orbit and cam) then
+			return
+		end
+		orbit.Yaw -= (input.Position.X - lastX) * 0.012
+		lastX = input.Position.X
+		local dir = CFrame.Angles(0, orbit.Yaw, 0):VectorToWorldSpace(orbit.Dir)
+		cam.CFrame = CFrame.lookAt(orbit.Centre + dir * orbit.Dist, orbit.Centre)
+	end)
+	UserInputService.InputEnded:Connect(function(input)
+		if input == dragging or input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = nil
+		end
+	end)
 end
 
 -- Who stands on the pads. Redraws every card already showing a stage or set.

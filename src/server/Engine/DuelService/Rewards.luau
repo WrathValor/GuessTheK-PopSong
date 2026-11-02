@@ -31,6 +31,7 @@ export type Earned = {
 	IndexNew: number,
 	Perfect: boolean,
 	Outcome: "Win" | "Lose" | "Draw" | "Solo" | "Left",
+	Tutorial: boolean?, -- the tutorial's welcome gift was paid this time
 	LevelUp: number?, -- the new level, when this match levelled the player up
 	NewTitle: string?, -- level title unlocked by that level up (Modules/Levels.TITLES)
 }
@@ -110,6 +111,12 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 			-- solo practice pays the rolled stake as XP
 			earned.Outcome = "Solo"
 			earned.XP = result.Stake
+			-- the first-join tutorial: a one-time welcome gift
+			if result.Tutorial and not data.Rewards.Claimed.Has("Tutorial") then
+				earned.Coins = DuelConstants.TUTORIAL_COINS
+				earned.CoinsDetail = "Welcome gift"
+				earned.Tutorial = true
+			end
 		elseif result.Leaver == player then
 			earned.Outcome = "Left"
 			earned.XP = 0
@@ -144,7 +151,7 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 		end
 
 		-- 2× Coins pass doubles everything coin-related from a match
-		if earned.Coins > 0 and data.GamePasses.Has("DoubleCoins") then
+		if earned.Coins > 0 and not earned.Tutorial and data.GamePasses.Has("DoubleCoins") then
 			earned.Coins *= 2
 			earned.CoinsDetail = if earned.CoinsDetail ~= "" then `{earned.CoinsDetail} · 2× pass` else "2× pass"
 		end
@@ -165,6 +172,10 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 		PlayerData.Batch(player, function()
 			if earned.XP > 0 then
 				data.Player.XP.Increment(earned.XP)
+			end
+			if earned.Tutorial then
+				data.Rewards.Claimed.Add("Tutorial")
+				data.Settings.TutorialDone.Set(true)
 			end
 			if earned.Coins > 0 then
 				data.Currencies.Won.Increment(earned.Coins)

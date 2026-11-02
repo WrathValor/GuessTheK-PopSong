@@ -20,6 +20,8 @@ local LIBRARY = {
 	Hover = { Id = 139800881181209, Volume = 0.25 },
 	Click = { Id = 88442833509532, Volume = 0.5 },
 	Open = { Id = 90131163815841, Volume = 0.35 },
+	Notify = { Id = 17208361335, Volume = 0.5 }, -- a tip popping up (tutorial)
+	Welcome = { Id = 113194405128446, Volume = 0.5 }, -- the tutorial's Welcome card
 
 	-- queue / pre-duel
 	RivalFound = { Id = 113645757352689, Volume = 0.6 },

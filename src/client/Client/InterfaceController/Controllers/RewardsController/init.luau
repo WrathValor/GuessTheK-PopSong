@@ -23,6 +23,7 @@ local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 local AnalyticsClient = require(ReplicatedStorage.Modules.AnalyticsClient)
+local CosmeticView = require(ReplicatedStorage.Modules.UI.CosmeticView)
 
 local Build = require(script.Build)
 
@@ -227,7 +228,12 @@ end
 function Rewards:_fillGroup()
 	local group = self._frame.Panel.Body.Content.Group
 	local g = Catalog.GROUP
-	group.GroupTitle.Text = `{g.Coins} coins + Group Exclusive stage + "{g.Title}" title`
+	if group:FindFirstChild("CoinsTile") then
+		group.CoinsTile.Amount.Text = tostring(g.Coins)
+		group.TitleTile.Tag.Text = g.Title
+		group.Sub.Text = `{g.Coins} coins, the Group Exclusive stage and the {g.Title} title. Join our Roblox group, then claim. One time only.`
+		CosmeticView.Show(group.StageTile.Art, "Stage", g.Stage) -- the real stage + your avatar
+	end
 	if has(PlayerData.Rewards.Claimed, g.ClaimedKey) then
 		styleButton(group.Claim, "Done", "Claimed")
 	elseif self._inGroup then

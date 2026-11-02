@@ -277,6 +277,7 @@ local function onDuelEnded(stage: Stage, result)
 			Draw = result.Draw,
 			Forfeit = result.Forfeit,
 			Solo = result.Solo,
+			Tutorial = result.Tutorial or nil,
 			Mode = result.Mode,
 			Stake = result.Stake,
 			Scores = scores,
@@ -391,6 +392,8 @@ function tryStart(stage: Stage, soloStage: boolean?, rematch: boolean?)
 
 	local duel = Duels.new(stage, a, b, soloStage)
 	stage.Duel = duel
+	duel.Tutorial = soloStage == true and stage.Tutorial == true
+	stage.Tutorial = nil -- a rematch after the tutorial is ordinary solo practice
 	for _, p in duel.Players do
 		if soloStage then
 			duel.Sessions[p] = Analytics.SoloSession(p)
@@ -480,7 +483,45 @@ local function quickPlay(player: Player)
 	end
 end
 
+-- The first-join tutorial: put the player on a free stage and start a short practice game.
+local function startTutorial(player: Player)
+	if DuelService.PlayerStage[player] then
+		local stage = DuelService.PlayerStage[player]
+		if stage.State == "Waiting" and not stage.Duel and not (stage.Players.A and stage.Players.B) then
+			stage.Tutorial = true
+			trySolo(player)
+		end
+		return
+	end
+	for _, stage in DuelService.Stages do
+		if stage.State == "Waiting" and not stage.Players.A and not stage.Players.B then
+			join(stage, "A", player, "Tutorial")
+			if DuelService.PlayerStage[player] == stage then
+				stage.Tutorial = true
+				trySolo(player)
+			end
+			return
+		end
+	end
+	QueueRemote:Fire(player, { Message = "NoStages" })
+end
+
 -- [[ Public ]]
+
+-- Puts a player on the free spot of a stage someone is already waiting on (an accepted
+-- duel invite). Returns whether they got on.
+function DuelService.JoinStage(player: Player, stageName: string): boolean
+	local stage = DuelService.Stages[stageName]
+	if not stage or stage.Solo or stage.Duel or stage.State ~= "Waiting" then
+		return false
+	end
+	local a, b = stage.Players.A, stage.Players.B
+	if (a and b) or not (a or b) then
+		return false -- full, or the inviter already left
+	end
+	join(stage, if a then "B" else "A", player, "Invite")
+	return DuelService.PlayerStage[player] == stage
+end
 
 function DuelService.Start()
 	for _, model in DuelStages:GetChildren() do
@@ -505,6 +546,8 @@ function DuelService.Start()
 			trySolo(Player, packet)
 		elseif Request == "QuickPlay" then
 			quickPlay(Player)
+		elseif Request == "Tutorial" then
+			startTutorial(Player)
 		end
 	end)
 

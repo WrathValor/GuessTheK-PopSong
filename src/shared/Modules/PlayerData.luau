@@ -117,6 +117,7 @@ return Scribe({
 			SoloPool = Scribe.String("Mix", { MaxLength = 8 }),
 			-- the last solo theme picked on the queue card (Modules/Library/Themes ids)
 			SoloTheme = Scribe.String("All", { MaxLength = 12 }),
+			TutorialDone = false, -- finished or skipped the first-join tutorial
 		},
 
 		GamePasses = Scribe.SetOf(Id(32)),
@@ -136,6 +137,13 @@ return Scribe({
 		},
 	},
 	Products = if next(Products) then Products else nil,
+	-- The map signs (client/Client/Leaderboards). Scribe writes, reads and replicates them;
+	-- the client reads PlayerData.Client.GetLeaderboard(name) / OnLeaderboard.
+	Leaderboards = {
+		WeeklyWins = { Stat = "Statistics.Wins", Period = "Weekly", Mode = "Gain", Replicate = true, Limit = 10 },
+		TopStreaks = { Stat = "Statistics.HighestStreak", Replicate = true, Limit = 10 },
+	},
+	PeriodReset = { UtcOffset = 0, WeekStart = "Monday" }, -- weekly boards reset Monday 00:00 UTC
 	ProfileStoreIndex = "PlayerData", -- required: your DataStore name
 	ProfileKeyPrefix = "PLAYER_",
 	Mode = "Live",

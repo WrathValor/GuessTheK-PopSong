@@ -110,15 +110,17 @@ function ShopCatalog.PackPrice(missing: number): number
 end
 
 -- [[ Robux: coin bundles (developer products) and passes (game passes) ]]
+-- No prices here: the shop reads each one live from Roblox (Modules/Prices), so regional /
+-- managed pricing and price changes in Creator Hub show up by themselves.
 ShopCatalog.CoinBundles = {
-	{ Id = "Coins500", Amount = 500, Robux = 25, ProductId = 0, Sub = "A little top-up", Bg = "FFF6D6", Coins = 1 },
-	{ Id = "Coins2500", Amount = 2500, Robux = 99, ProductId = 0, Sub = "Most popular", Bg = "FFE4EF", Coins = 3, Best = true },
-	{ Id = "Coins12000", Amount = 12000, Robux = 399, ProductId = 0, Sub = "Mega bag", Bg = "E8FBEE", Coins = 6 },
+	{ Id = "Coins500", Amount = 500, ProductId = 3726064237, Sub = "A little top-up", Bg = "FFF6D6", Coins = 1 },
+	{ Id = "Coins2500", Amount = 2500, ProductId = 3726065843, Sub = "Most popular", Bg = "FFE4EF", Coins = 3, Best = true },
+	{ Id = "Coins12000", Amount = 12000, ProductId = 3726066331, Sub = "Mega bag", Bg = "E8FBEE", Coins = 6 },
 }
 
 ShopCatalog.Passes = {
-	{ Id = "DoubleCoins", Name = "2× Coins", Sub = "Double coins from every match, forever", Robux = 149, GamePassId = 0, Bg = "9ED8F5", Icon = "2×" },
-	{ Id = "VIP", Name = "VIP Pass", Sub = "VIP name tag · gold platform · early restocks", Robux = 199, GamePassId = 0, Bg = "FFE07A", Icon = "Crown",
+	{ Id = "DoubleCoins", Name = "2× Coins", Sub = "Double coins from every match, forever", GamePassId = 2063766272, Bg = "9ED8F5", Icon = "2×" },
+	{ Id = "VIP", Name = "VIP Pass", Sub = "VIP name tag · gold platform · early restocks", GamePassId = 2063596588, Bg = "FFE07A", Icon = "Crown",
 		Perks = { "VIP name tag", "Gold platform", "Early restocks" } },
 }
 

@@ -742,6 +742,186 @@ function Build.AddItemsAndGroups(shop: Instance)
 	end
 end
 
+-- [[ UGC tab: the group's own avatar items, for Robux (ShopController/Emotes fills it) ]]
+
+-- small chip label: [DANCE]
+local function chip(parent: Instance, name: string, pos: UDim2, colour: Color3, label: string)
+	local c = text(parent, name, {
+		Position = pos,
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, 16),
+		BackgroundTransparency = 0,
+		BackgroundColor3 = colour,
+		TextSize = 10,
+		TextTruncate = Enum.TextTruncate.None,
+		Text = label,
+		ZIndex = 6,
+	})
+	corner(c, 6)
+	stroke(c, 2)
+	pad(c, 5)
+	return c
+end
+
+local function ugcArt(parent: Instance, pos: UDim2, size: UDim2)
+	local art = new("Frame", { Name = "Art", Position = pos, Size = size, BackgroundColor3 = C("4A3F78"), ClipsDescendants = true }, parent)
+	corner(art, 8)
+	stroke(art, 2)
+	chip(art, "Kind", UDim2.fromOffset(6, 6), YELLOW, "DANCE")
+	return art
+end
+
+-- one grid card: art (click to preview), name, artist, Robux button
+local function ugcCard(parent: Instance, name: string, pos: UDim2, size: UDim2)
+	local holder = new("Frame", { Name = name, Position = pos, Size = size, BackgroundTransparency = 1 }, parent)
+	local face = card(holder, "Face", UDim2.new(), UDim2.fromScale(1, 1), WHITE, 14, 4, 3)
+	local art = ugcArt(face, UDim2.fromOffset(8, 8), UDim2.new(1, -16, 1, -8 - 6 - 18 - 14 - 6 - 30 - 8))
+	new("TextButton", { Name = "Select", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Text = "", ZIndex = 7 }, art)
+	text(face, "ItemName", { Position = UDim2.new(0, 8, 1, -8 - 30 - 6 - 14 - 18), Size = UDim2.new(1, -16, 0, 18), Text = "Item" })
+	text(face, "Sub", { Position = UDim2.new(0, 8, 1, -8 - 30 - 6 - 14), Size = UDim2.new(1, -16, 0, 14), FontFace = BODY_BOLD, TextSize = 11, TextColor3 = MUTED, Text = "Artist" })
+	local action = priceButton(face, "Action", UDim2.new(0, 8, 1, -8 - 30), UDim2.new(1, -16, 0, 30), ICONS.Robux, 13)
+	action:FindFirstChildOfClass("UICorner").CornerRadius = UDim.new(0, 9)
+	return holder
+end
+
+local EMOTE_FILTERS = { "All", "Dances", "Accessories" }
+
+local function emotesPage(pages: Instance)
+	local page = new("Frame", { Name = "UGC", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Visible = false }, pages)
+
+	-- left: the selected item, big, on your own avatar
+	local pw = 296
+	local preview = card(page, "Preview", UDim2.new(), UDim2.fromOffset(pw, PAGE_H - 5), WHITE, 16, 5, 3)
+	local bottom = 10 + 52 + 12 + 16 + 4 + 28 + 8
+	local art = ugcArt(preview, UDim2.fromOffset(10, 10), UDim2.new(1, -20, 1, -10 - bottom))
+	art.Kind.Position = UDim2.fromOffset(8, 8)
+	-- drag catcher: CosmeticView.EnableSpin turns the model when you drag here
+	new("TextButton", { Name = "Spin", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Text = "", ZIndex = 7 }, art)
+	local hint = text(art, "Hint", {
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -10),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, 20),
+		BackgroundTransparency = 0.08,
+		BackgroundColor3 = WHITE,
+		TextSize = 11,
+		TextTruncate = Enum.TextTruncate.None,
+		Text = "Drag to spin",
+		ZIndex = 6,
+	})
+	corner(hint, 8)
+	stroke(hint, 2)
+	pad(hint, 10)
+	text(preview, "ItemName", { Position = UDim2.new(0, 14, 1, -bottom + 8), Size = UDim2.new(1, -28, 0, 28), FontFace = HEAD, TextSize = 22, Text = "Item" })
+	text(preview, "Sub", { Position = UDim2.new(0, 14, 1, -bottom + 8 + 28 + 4), Size = UDim2.new(1, -28, 0, 16), FontFace = BODY_BOLD, TextSize = 13, TextColor3 = MUTED, Text = "Item - by Group" })
+	priceButton(preview, "Action", UDim2.new(0, 10, 1, -10 - 52), UDim2.new(1, -24, 0, 50), ICONS.Robux, 18, MINT, 3, 4)
+
+	-- right: filters, 3×2 grid, pager
+	local rx = pw + 22
+	local rw = PAGE_W - rx
+	local filters = new("Frame", { Name = "Filters", Position = UDim2.fromOffset(rx, 0), Size = UDim2.fromOffset(rw, 32), BackgroundTransparency = 1 }, page)
+	row(filters, 8)
+	for i, label in EMOTE_FILTERS do
+		local b = new("TextButton", {
+			Name = label,
+			LayoutOrder = i,
+			AutomaticSize = Enum.AutomaticSize.X,
+			Size = UDim2.fromOffset(0, 32),
+			BackgroundColor3 = if i == 1 then INK else WHITE,
+			FontFace = BODY,
+			TextSize = 13,
+			TextColor3 = if i == 1 then YELLOW else INK,
+			Text = label,
+			AutoButtonColor = false,
+		}, filters)
+		corner(b, 16)
+		stroke(b, 2)
+		pad(b, 14)
+	end
+	text(page, "Source", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, 0, 0, 7),
+		Size = UDim2.fromOffset(220, 18),
+		FontFace = BODY_BOLD,
+		TextSize = 12,
+		TextColor3 = MUTED,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Text = "From our group · Robux",
+	})
+
+	local gridY, pagerH = 44, 36
+	local gridH = PAGE_H - gridY - pagerH - 12
+	local grid = new("Frame", { Name = "Grid", Position = UDim2.fromOffset(rx, gridY), Size = UDim2.fromOffset(rw, gridH), BackgroundTransparency = 1 }, page)
+	local cw = (rw - 2 * 14) / 3
+	local ch = (gridH - 14) / 2
+	for i = 1, 6 do
+		local col, r = (i - 1) % 3, math.floor((i - 1) / 3)
+		ugcCard(grid, "Card" .. i, UDim2.fromOffset(col * (cw + 14), r * (ch + 14)), UDim2.fromOffset(cw - 4, ch - 4))
+	end
+	text(grid, "Empty", {
+		Size = UDim2.fromScale(1, 1),
+		FontFace = BODY_BOLD,
+		TextSize = 15,
+		TextColor3 = MUTED,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Text = "Loading the group's items…",
+		Visible = false,
+	})
+
+	local pager = new("Frame", { Name = "Pager", Position = UDim2.fromOffset(rx, PAGE_H - pagerH), Size = UDim2.fromOffset(rw, pagerH), BackgroundTransparency = 1 }, page)
+	row(pager, 14, Enum.HorizontalAlignment.Center)
+	for i, n in { "Prev", "PageLabel", "Next" } do
+		if n == "PageLabel" then
+			text(pager, n, { LayoutOrder = i, Size = UDim2.fromOffset(70, 24), FontFace = HEAD, TextSize = 15, TextXAlignment = Enum.TextXAlignment.Center, Text = "1 / 1" })
+		else
+			local b = new("TextButton", {
+				Name = n,
+				LayoutOrder = i,
+				Size = UDim2.fromOffset(40, 34),
+				BackgroundColor3 = if n == "Next" then YELLOW else WHITE,
+				FontFace = BODY,
+				TextSize = 22,
+				TextColor3 = INK,
+				Text = if n == "Prev" then "‹" else "›",
+				AutoButtonColor = false,
+			}, pager)
+			corner(b, 10)
+			stroke(b, 3)
+		end
+	end
+	return page
+end
+
+-- Adds the UGC tab (between Packs and Coins) + page to an existing Shop frame, keeping hand
+-- edits to the rest. Safe to run twice.
+function Build.AddUGC(shop: Instance)
+	local panel = shop.Panel
+	local tabs = panel.Header.Tabs
+	if not tabs:FindFirstChild("UGC") then
+		local emotes = tabs.Packs:Clone()
+		emotes.Name = "UGC"
+		emotes.Button.Label.Text = "UGC"
+		emotes.Button.Dot.BackgroundColor3 = MINT
+		emotes.Button:SetAttribute("BaseY", nil)
+		emotes.Size = UDim2.fromOffset(78, 43)
+		emotes.Button.Size = UDim2.fromOffset(75, 40)
+		emotes.Button.Position = UDim2.fromOffset(37, 20)
+		emotes.Parent = tabs
+		local order = { Featured = 1, Sets = 2, Items = 3, Packs = 4, UGC = 5, Coins = 6 }
+		for name, n in order do
+			if tabs:FindFirstChild(name) then
+				tabs[name].LayoutOrder = n
+			end
+		end
+		tabs.Size = UDim2.fromOffset(740, 68)
+	end
+	local pages = panel.Pages
+	if not pages:FindFirstChild("UGC") then
+		local page = emotesPage(pages)
+		require(game:GetService("ReplicatedStorage").Modules.UI.CenterButtons).Apply(page)
+	end
+end
+
 local function coinsPage(pages: Instance)
 	local page = new("Frame", { Name = "Coins", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Visible = false }, pages)
 	titleRow(page, 0, "Coins")
@@ -834,9 +1014,9 @@ function Build.Build(frames: Instance)
 	local header = new("Frame", { Name = "Header", Size = UDim2.new(1, 0, 0, 68), BackgroundColor3 = MINT, BorderSizePixel = 0 }, panel)
 	new("Frame", { Name = "Rule", Position = UDim2.fromOffset(0, 68), Size = UDim2.new(1, 0, 0, 3), BackgroundColor3 = INK, BorderSizePixel = 0 }, panel)
 	text(header, "Title", { Position = UDim2.fromOffset(20, 0), Size = UDim2.fromOffset(90, 68), FontFace = HEAD, TextSize = 26, Text = "SHOP" })
-	local tabs = new("Frame", { Name = "Tabs", Position = UDim2.fromOffset(112, 0), Size = UDim2.fromOffset(640, 68), BackgroundTransparency = 1 }, header)
+	local tabs = new("Frame", { Name = "Tabs", Position = UDim2.fromOffset(112, 0), Size = UDim2.fromOffset(740, 68), BackgroundTransparency = 1 }, header)
 	row(tabs, 10)
-	for i, t in { { "Featured", "FFE07A" }, { "Sets", "B9A6FF" }, { "Items", "FF9EC4" }, { "Packs", "9ED8F5" }, { "Coins", "FFD2CE" } } do
+	for i, t in { { "Featured", "FFE07A" }, { "Sets", "B9A6FF" }, { "Items", "FF9EC4" }, { "Packs", "9ED8F5" }, { "UGC", "A7E9B8" }, { "Coins", "FFD2CE" } } do
 		local holder = new("Frame", { Name = t[1], LayoutOrder = i, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 43), BackgroundTransparency = 1 }, tabs)
 		local shadow = new("Frame", { Name = "Shadow", Position = UDim2.fromOffset(3, 3), Size = UDim2.new(1, -3, 1, -3), BackgroundColor3 = INK, BorderSizePixel = 0 }, holder)
 		corner(shadow, 11)
@@ -899,6 +1079,7 @@ function Build.Build(frames: Instance)
 	itemsPage(pages)
 	packsPage(pages)
 	packsKindSwitch(pages.Packs)
+	emotesPage(pages)
 	coinsPage(pages)
 
 	-- toast for purchase results

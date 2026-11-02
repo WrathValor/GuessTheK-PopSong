@@ -10,6 +10,7 @@ local Janitor = require(ReplicatedStorage.Packages.janitor)
 local Promise = require(ReplicatedStorage.Packages.promise)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
+local Prices = require(ReplicatedStorage.Modules.Prices)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 
 local LOCAL_PLAYER = Players.LocalPlayer
@@ -35,12 +36,18 @@ function SaveStreak:Initialize(interface)
 	self._frame.ZIndex = 50
 	ButtonScale.ApplyToDescendants(self._frame)
 	local panel = self._frame.Panel
+	Prices.Get("Product", DuelConstants.SAVE_STREAK_PRODUCT_ID) -- start loading before it's needed
+	self._janitor:Add(Prices.Changed:Connect(function()
+		if self._frame.Visible then
+			self:_price()
+		end
+	end))
 	self._janitor:Add(panel.NoThanks.Activated:Connect(function()
 		self:Hide()
 	end))
 	self._janitor:Add(panel.Save.Activated:Connect(function()
 		local id = DuelConstants.SAVE_STREAK_PRODUCT_ID
-		if id and id > 0 then
+		if id and id > 0 and panel.Save.Active then
 			MarketplaceService:PromptProductPurchase(LOCAL_PLAYER, id)
 		end
 		self:Hide()
@@ -51,11 +58,21 @@ function SaveStreak:Show(streak: number)
 	local panel = self._frame.Panel
 	panel.Badge.Value.Text = tostring(streak)
 	panel.Body.Text = `Keep your <b>{streak}-win streak</b>. The match still counts as a loss.`
-	local enabled = (DuelConstants.SAVE_STREAK_PRODUCT_ID or 0) > 0
-	panel.Save.Active = enabled
-	panel.Save.AutoButtonColor = enabled
+	self:_price()
 	self._frame.Visible = true
 	self.State = "Active"
+end
+
+-- the live price on the Save button (Modules/Prices); off until it's known
+function SaveStreak:_price()
+	local panel = self._frame.Panel
+	local price, forSale = Prices.Get("Product", DuelConstants.SAVE_STREAK_PRODUCT_ID)
+	local value = panel.Save:FindFirstChild("Value", true)
+	if value then
+		value.Text = if price then tostring(price) elseif forSale == nil then "…" else "—"
+	end
+	panel.Save.Active = price ~= nil
+	panel.Save.AutoButtonColor = price ~= nil
 end
 
 function SaveStreak:Hide()

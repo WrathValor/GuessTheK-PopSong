@@ -34,7 +34,6 @@ return {
             PlaybackSpeed = 0.55,
             TimePosition = 5,
             ChorusPosition = 53.2,
-            Draft = true, -- future update
         },
         {
             Name = "RUN",
@@ -80,7 +79,6 @@ return {
             PlaybackSpeed = 0.55,
             TimePosition = 0,
             ChorusPosition = 93.6,
-            Draft = true, -- future update
         },
         {
             Name = "Anpanman",
@@ -90,7 +88,6 @@ return {
             PlaybackSpeed = 0.55,
             TimePosition = 1,
             ChorusPosition = 100.4,
-            Draft = true, -- future update
         },
         {
             Name = "Airplane pt.2",
@@ -100,7 +97,6 @@ return {
             PlaybackSpeed = 0.55,
             TimePosition = 2,
             ChorusPosition = 102.4,
-            Draft = true, -- future update
         },
         {
             Name = "Black Swan",
@@ -130,5 +126,29 @@ return {
             ChorusPosition = 34.3,
             Draft = true, -- future update
         },
+		{
+			Name = "FAKE LOVE",
+			Year = 2018,
+			MusicId = "rbxassetid://132268683296519",
+			PlaybackSpeed = 0.55,
+			TimePosition = 0,
+			ChorusPosition = 0,
+		},
+		{
+			Name = "Boy With Luv",
+			Year = 2019,
+			MusicId = "rbxassetid://77653100924504",
+			PlaybackSpeed = 0.57,
+			TimePosition = 0,
+			ChorusPosition = 0,
+		},
+		{
+			Name = "Mikrokosmos",
+			Year = 2019,
+			MusicId = "rbxassetid://137900048942606",
+			PlaybackSpeed = 0.52,
+			TimePosition = 0,
+			ChorusPosition = 0,
+		},
 	},
 }

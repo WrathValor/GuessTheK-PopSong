@@ -163,6 +163,18 @@ local function onClient(player: Player, packet)
 		if v and fieldName == "Song" then
 			v = songByMusicId[v]
 		end
+		-- group items come by name; only names in the group's catalog count
+		if v and fieldName == "Item" then
+			local ok, UGCService = pcall(require, script.Parent.UGCService)
+			local known = false
+			for _, item in if ok then UGCService.Items else {} do
+				if item.Name == v then
+					known = true
+					break
+				end
+			end
+			v = if known then v else nil
+		end
 		local allowed = def.Allowed and def.Allowed[fieldName]
 		if v and allowed and not table.find(allowed, v) then
 			v = nil
@@ -170,7 +182,7 @@ local function onClient(player: Player, packet)
 		values[i] = v
 	end
 	local value = tonumber(packet.Value)
-	if value and (value ~= value or value < 0 or value > 3600) then
+	if value and (value ~= value or value < 0 or value > 100000) then
 		value = nil
 	end
 	if packet.Name == "ScreenOpened" and values[1] == "Shop" then

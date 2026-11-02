@@ -1,7 +1,8 @@
 --| ShopController
 -- The shop (Interface.Frames.Shop, built by ./Build from the Shop A boards): tabs in the header,
--- five pages that never scroll (Featured, Sets, Items, Packs, Coins). Items sells stages and
--- mic stands one by one; Packs switches between company and group packs. Fills everything from
+-- six pages that never scroll (Featured, Sets, Items, Packs, UGC, Coins). Items sells stages
+-- and mic stands one by one; Packs switches between company and group packs; UGC sells the
+-- group's own avatar items for Robux (./Emotes, the UGC tab). Fills everything from
 -- ShopCatalog + the player's data; purchases are only requests, the server (ShopService)
 -- checks and applies them. Open with Interface:Open("Shop", "Coins") to land on a tab.
 
@@ -24,6 +25,8 @@ local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 local AnalyticsClient = require(ReplicatedStorage.Modules.AnalyticsClient)
+local Emotes = require(script.Emotes)
+local Prices = require(ReplicatedStorage.Modules.Prices)
 
 -- -------------------------------- Variables ------------------------------- --
 local LOCAL_PLAYER = Players.LocalPlayer
@@ -38,7 +41,7 @@ local PAPER = C("F3EBDD")
 local LINE = C("CFC5B3")
 local GREY = C("EDE4D4")
 
-local TABS = { "Featured", "Sets", "Items", "Packs", "Coins" }
+local TABS = { "Featured", "Sets", "Items", "Packs", "UGC", "Coins" }
 local PACK_SLOTS = 5
 local COIN_LAYOUTS = {
 	[1] = { { 33, 32 } },
@@ -365,8 +368,15 @@ function Shop:_fillPacks()
 		buyAll.Visible = false
 	else
 		local full = #missing * ShopCatalog.SONG_PRICE
-		sel.BuyAllTitle.Text = `Buy the {#missing} {pack.Name} songs you're missing`
-		sel.BuyAllSub.Text = `You only pay for songs you don't own · {math.floor(ShopCatalog.PACK_DISCOUNT * 100)}% off`
+		local off = math.floor(ShopCatalog.PACK_DISCOUNT * 100)
+		local ownSome = #missing < #pack.Songs
+		sel.BuyAllTitle.Text = if ownSome
+			then `Buy the {#missing} {pack.Name} songs you're missing`
+			else `Buy the whole {pack.Name} pack`
+		-- the discount is for buying them together, not for songs you already have
+		sel.BuyAllSub.Text = if ownSome
+			then `Bundle deal: {off}% off buying them one by one · songs you own aren't charged`
+			else `Bundle deal: {off}% off buying the {#missing} songs one by one`
 		buyAll.Visible = true
 		setButton(buyAll, fmt(ShopCatalog.PackPrice(#missing)), { Old = if #missing > 1 then fmt(full) else nil })
 	end
@@ -444,13 +454,23 @@ function Shop:_itemAction(kind: string, id: string?)
 	ShopRemote:Fire({ Action = "BuyItem", Kind = kind, Id = id })
 end
 
+-- a Robux button: the live price (Modules/Prices), "…" while it loads, "Soon" when off sale
+local function setRobuxButton(button: GuiButton, kind: string, id: number?)
+	local price, forSale = Prices.Get(kind, id)
+	if price then
+		setButton(button, fmt(price), {})
+	elseif forSale == nil then
+		setButton(button, "…", { Icon = false, Colour = MINT, Enabled = false })
+	else
+		setButton(button, "Soon", { Icon = false, Colour = GREY, Enabled = false })
+	end
+end
+
 function Shop:_fillPassButton(button: GuiButton, pass)
 	if owns(PlayerData.GamePasses, pass.Id) then
 		setButton(button, "Owned", { Icon = false, Colour = GREY, Enabled = false })
-	elseif (pass.GamePassId or 0) > 0 then
-		setButton(button, tostring(pass.Robux), {})
 	else
-		setButton(button, "Soon", { Icon = false, Colour = GREY, Enabled = false })
+		setRobuxButton(button, "GamePass", pass.GamePassId)
 	end
 end
 
@@ -476,11 +496,7 @@ function Shop:_fillCoins()
 				end
 			end
 			holder.Best.Visible = bundle.Best == true
-			if (bundle.ProductId or 0) > 0 then
-				setButton(face.Action, tostring(bundle.Robux), {})
-			else
-				setButton(face.Action, "Soon", { Icon = false, Colour = GREY, Enabled = false })
-			end
+			setRobuxButton(face.Action, "Product", bundle.ProductId)
 		end
 	end
 	for i = 1, 2 do
@@ -524,6 +540,8 @@ function Shop:_refresh()
 		self:_fillItems()
 	elseif self._tab == "Packs" then
 		self:_fillPacks()
+	elseif self._tab == "UGC" then
+		self._emotes:Fill()
 	elseif self._tab == "Coins" then
 		self:_fillCoins()
 	end
@@ -661,6 +679,11 @@ function Shop:Initialize(interface)
 		end
 	end))
 
+	-- the group's UGC (Robux): dancing closes the shop so you can see yourself
+	self._emotes = Emotes.new(self._pages.UGC, j, function()
+		self._interface:Close(self.Name)
+	end)
+
 	-- coins + passes (Robux)
 	local coins = self._pages.Coins
 	for i = 1, 3 do
@@ -707,6 +730,11 @@ function Shop:Initialize(interface)
 			self:_refresh()
 		end))
 	end
+
+	-- live Robux prices arrive in the background
+	j:Add(Prices.Changed:Connect(function()
+		self:_refresh()
+	end))
 
 	-- countdowns + rotation changes while open
 	j:Add(task.spawn(function()

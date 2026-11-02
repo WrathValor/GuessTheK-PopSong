@@ -141,6 +141,70 @@ local function heading(parent: Instance, name: string, y: number, title: string)
 	return h
 end
 
+-- [[ Group reward card: the three rewards as small photocards (coins, the real group stage
+-- model via CosmeticView, the title tag), then the text and the Claim button ]]
+local COIN_ICON = "rbxassetid://105055420801588"
+
+local function tile(parent: Instance, name: string, x: number, w: number, colour: Color3): Frame
+	local s = new("Frame", { Name = name .. "Shadow", Position = UDim2.fromOffset(x + 3, 12 + 3), Size = UDim2.fromOffset(w, 96), BackgroundColor3 = INK }, parent)
+	corner(s, 10)
+	local t = new("Frame", { Name = name, Position = UDim2.fromOffset(x, 12), Size = UDim2.fromOffset(w, 96), BackgroundColor3 = colour, ClipsDescendants = false }, parent)
+	corner(t, 10)
+	stroke(t, 2)
+	return t
+end
+
+-- (Re)builds the reward tiles + text on the Group card; keeps the Claim button. Safe twice.
+function Build.GroupRewards(group: Instance)
+	for _, n in { "Art", "CoinsTile", "CoinsTileShadow", "StageTile", "StageTileShadow", "TitleTile", "TitleTileShadow", "GroupTitle", "Sub" } do
+		local old = group:FindFirstChild(n)
+		if old then
+			old:Destroy()
+		end
+	end
+	local coins = tile(group, "CoinsTile", 16, 90, C("FFF6D6"))
+	new("ImageLabel", { Name = "Coin", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 10), Size = UDim2.fromOffset(48, 48), BackgroundTransparency = 1, Image = COIN_ICON, ScaleType = Enum.ScaleType.Fit }, coins)
+	text(coins, "Amount", { Position = UDim2.new(0, 0, 1, -32), Size = UDim2.new(1, 0, 0, 24), FontFace = HEAD, TextSize = 18, TextXAlignment = Enum.TextXAlignment.Center, Text = "500" })
+
+	local stage = tile(group, "StageTile", 116, 126, C("4A3F78"))
+	stage.ClipsDescendants = false
+	local art = new("Frame", { Name = "Art", Size = UDim2.fromScale(1, 1), BackgroundColor3 = C("4A3F78"), ClipsDescendants = true }, stage)
+	corner(art, 10)
+	local chip = text(stage, "Exclusive", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, 0, 0, 0),
+		Size = UDim2.fromOffset(84, 18),
+		BackgroundTransparency = 0,
+		BackgroundColor3 = YELLOW,
+		FontFace = HEAD,
+		TextSize = 10,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Text = "EXCLUSIVE",
+		ZIndex = 5,
+	})
+	corner(chip, 6)
+	stroke(chip, 2)
+
+	local title = tile(group, "TitleTile", 252, 104, C("DCD3FF"))
+	local tag = text(title, "Tag", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(88, 28),
+		BackgroundTransparency = 0,
+		BackgroundColor3 = YELLOW,
+		TextSize = 15,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Text = "Supporter",
+		Rotation = -4,
+	})
+	corner(tag, 8)
+	stroke(tag, 2)
+
+	local tx = 252 + 104 + 22
+	text(group, "GroupTitle", { Position = UDim2.fromOffset(tx, 34), Size = UDim2.new(1, -tx - 180, 0, 24), FontFace = HEAD, TextSize = 18, Text = "3 free rewards for joining" })
+	text(group, "Sub", { Position = UDim2.fromOffset(tx, 62), Size = UDim2.new(1, -tx - 180, 0, 34), FontFace = BODY_BOLD, TextSize = 13, TextWrapped = true, TextYAlignment = Enum.TextYAlignment.Top, Text = "500 coins, the Group Exclusive stage and the Supporter title. Join our Roblox group, then claim. One time only." })
+end
+
 function Build.Build(frames: Instance)
 	local old = frames:FindFirstChild("Rewards")
 	if old then
@@ -333,17 +397,7 @@ function Build.Build(frames: Instance)
 	local gy = qy + 42 + QH + 4 + 12 + 66 + 30
 	heading(content, "GroupHeading", gy, "Group reward")
 	local group = card(content, "Group", UDim2.fromOffset(0, gy + 42), UDim2.fromOffset(W - 4, 120), MINT, 16, 4, 3)
-	local art = new("Frame", { Name = "Art", Position = UDim2.fromOffset(20, 18), Size = UDim2.fromOffset(120, 84), BackgroundColor3 = C("E8FFF0") }, group)
-	corner(art, 10)
-	stroke(art, 2)
-	local st = new("Frame", { Name = "Stage", Position = UDim2.fromScale(0.18, 0.14), Size = UDim2.fromScale(0.64, 0.44), BackgroundColor3 = MINT }, art)
-	corner(st, UDim.new(0.3, 0))
-	stroke(st, 2)
-	local pl = new("Frame", { Name = "Platform", Position = UDim2.fromScale(0.26, 0.5), Size = UDim2.fromScale(0.48, 0.26), BackgroundColor3 = WHITE }, art)
-	corner(pl, UDim.new(0.5, 0))
-	stroke(pl, 2)
-	text(group, "GroupTitle", { Position = UDim2.fromOffset(160, 32), Size = UDim2.new(1, -160 - 180, 0, 24), TextSize = 18, Text = "500 coins + Group Exclusive stage + \"Supporter\" title" })
-	text(group, "Sub", { Position = UDim2.fromOffset(160, 60), Size = UDim2.new(1, -160 - 180, 0, 18), FontFace = BODY_BOLD, TextSize = 13, Text = "Join our Roblox group, then come back and claim. One time only." })
+	Build.GroupRewards(group)
 	local gs = new("Frame", { Name = "ClaimShadow", Position = UDim2.new(1, -20 - 140 + 4, 0.5, -25 + 4), Size = UDim2.fromOffset(140, 50), BackgroundColor3 = RED }, group)
 	corner(gs, 12)
 	local gb = button(group, "Claim", UDim2.new(1, -20 - 140, 0.5, -25), UDim2.fromOffset(140, 50), "CLAIM")

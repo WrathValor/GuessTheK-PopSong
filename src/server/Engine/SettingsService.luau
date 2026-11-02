@@ -68,6 +68,12 @@ local function handle(player: Player, packet)
 			settings.DuelInvites.Set(true)
 		end)
 		logSetting(player, "Reset", "Reset")
+	elseif action == "TutorialDone" then
+		-- skipped the tutorial (finishing it is marked by the duel's rewards)
+		if settings.TutorialDone.Get() ~= true then
+			settings.TutorialDone.Set(true)
+			logSetting(player, "Tutorial", "Skipped")
+		end
 	elseif action == "SeenNews" then
 		local newest = News.Entries[1]
 		if newest and packet.Id == newest.Id then

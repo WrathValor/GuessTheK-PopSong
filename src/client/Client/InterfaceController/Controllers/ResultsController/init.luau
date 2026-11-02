@@ -13,6 +13,7 @@ local FrameTransition = require(ReplicatedStorage.Modules.UI.Animations.FrameTra
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
+local DanceColumn = require(script.DanceColumn)
 
 -- -------------------------------- Variables ------------------------------- --
 local LOCAL_PLAYER = Players.LocalPlayer
@@ -59,6 +60,7 @@ function Results:Initialize(interface)
 	self._frame = interface:ResolveFrame("Interface", "Results")
 	self._frame.Visible = false
 	ButtonScale.ApplyToDescendants(self._frame)
+	DanceColumn.Connect(self._frame.Panel, self._janitor) -- buy a round's dance (group UGC)
 	local w = self._frame.Panel.Winner
 	self._janitor:Add(w.Rematch.Activated:Connect(function()
 		DuelRemote:Fire({ Action = "Rematch" })
@@ -120,6 +122,7 @@ function Results:Show(packet, info)
 			end
 		end
 	end
+	DanceColumn.Fill(panel, packet.Rounds)
 	panel.Table.Total.You.Text = tostring(packet.Scores[ME] or 0)
 	panel.Table.Total.Rival.Visible = rivalKey ~= nil
 	panel.Table.Total.Rival.Text = rivalKey and tostring(packet.Scores[rivalKey] or 0) or ""

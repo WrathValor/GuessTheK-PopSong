@@ -13,6 +13,7 @@ local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 local SoloPicker = require(script.SoloPicker)
+local InvitePicker = require(script.InvitePicker)
 
 --------------------------------- Variables --------------------------------- --
 
@@ -86,9 +87,19 @@ function QueueController.Initialize(self: typeof(QueueController.new({} :: UITyp
 	-- Play Solo flips the card over to the theme picker (./SoloPicker), which starts the game
 	self._solo = SoloPicker.new(self._frame, self._janitor)
 
+	-- Invite flips it to the player picker (./InvitePicker); while an invite is out it cancels it
+	self._invite = InvitePicker.new(self._frame, self._janitor, self._solo)
+
 	self._janitor:Add(playSoloBtn.MouseButton1Click:Connect(function()
-		self._solo:Open()
+		if not self._invite.IsOpen then
+			self._solo:Open()
+		end
 	end))
+	if invitePlayersBtn then
+		self._janitor:Add(invitePlayersBtn.MouseButton1Click:Connect(function()
+			self._invite:Pressed()
+		end))
+	end
 	self._janitor:Add(leaveBtn.MouseButton1Click:Connect(function()
 		QueueRemote:Fire("Leave")
 		--self._interface:Close(self.Name)
@@ -121,6 +132,7 @@ function QueueController:Reset()
 	end
 	panel.Title.Text = "Waiting for a rival…"
 	panel.Subtitle.Text = "Nobody's joined the other spot yet"
+	self._invite:Reset()
 	self._solo:Close(true)
 	self:_setButtons(true)
 	self:UpdateOpponent(nil)
@@ -143,6 +155,7 @@ function QueueController:UpdateOpponent(opponent: Player?)
 		end
 		if opponent ~= LOCAL_PLAYER then
 			self._solo:Close() -- a rival joined while you were picking a theme
+			self._invite:Reset() -- or while you were inviting someone
 		end
 		panelFrame.Title.Text = "Opponent found!"
 		panelFrame.Subtitle.Text = "Starting soon…"
@@ -182,6 +195,7 @@ function QueueController:StartIntermission()
 		return
 	end
 	self:_setButtons(false)
+	self._invite:Reset()
 	self._solo:Close(true)
 	panelFrame.Title.Text = "Starting round in…"
 	if self._countdown then

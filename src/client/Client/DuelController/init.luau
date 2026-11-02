@@ -62,7 +62,9 @@ function DuelController.Start()
 		local message = packet.Message
 		if message == "PreDuel" then
 			DuelController.Info = packet
-			InterfaceController:Open("PreDuel", packet)
+			if not packet.Tutorial then -- the tutorial goes straight into its rounds
+				InterfaceController:Open("PreDuel", packet)
+			end
 		elseif message == "Votes" then
 			call("PreDuel", "UpdateVotes", packet.Votes)
 		elseif message == "SoloPool" then
@@ -86,7 +88,11 @@ function DuelController.Start()
 			call("Game", "OnRoundEnd", packet)
 		elseif message == "End" then
 			backToLobby()
-			InterfaceController:Open("Results", packet, DuelController.Info)
+			if packet.Tutorial then
+				InterfaceController:Open("Tutorial", "Done", packet) -- "You're ready!" instead of results
+			else
+				InterfaceController:Open("Results", packet, DuelController.Info)
+			end
 		elseif message == "RematchState" then
 			call("Results", "UpdateRematch", packet.Wants)
 		end

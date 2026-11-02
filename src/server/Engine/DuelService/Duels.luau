@@ -114,6 +114,7 @@ end
 local Duels = {}
 Duels.__index = Duels
 Duels.StreakMultiplier = streakMultiplier
+Duels.ProfileOf = profileOf -- the invite cards show the same Level / Streak
 
 function Duels.new(stage, playerA: Player?, playerB: Player?, solo: boolean?)
 	local self = setmetatable({}, Duels)
@@ -149,6 +150,10 @@ function Duels.new(stage, playerA: Player?, playerB: Player?, solo: boolean?)
 	self.Rounds = {} :: { RoundLog }
 	self.Current = nil :: any
 	self.Sessions = {} :: { [Player]: string } -- analytics funnel id per player (set by DuelService)
+	-- the first-join tutorial: fewer rounds, easy songs, no clock pressure (set by DuelService)
+	self.Tutorial = false
+	self.RoundCount = DuelConstants.ROUNDS -- how many rounds this game plays
+	self.Cap = DuelConstants.ROUND_CAP
 
 	self.Ended = Signal.new()
 	self._janitor = Janitor.new()
@@ -179,11 +184,28 @@ function Duels:Start()
 			end
 		end
 
-		self:_preDuel()
+		if self.Tutorial then
+			-- no stake roll or vote: straight into 3 relaxed Song rounds
+			self.RoundCount = DuelConstants.TUTORIAL_ROUNDS
+			self.Cap = DuelConstants.TUTORIAL_CAP
+			self.Stake = 0
+			self.Mode = DuelConstants.DEFAULT_MODE
+			local profiles = {}
+			for slot, p in self.Slots do
+				if p then
+					profiles[slot] = profileOf(p)
+				end
+			end
+			-- the round + results screens read the players from this; the client skips the
+			-- stake-roll screen for a tutorial
+			self:_fire({ Message = "PreDuel", Tutorial = true, Solo = true, Stake = 0, Players = profiles, Packs = { On = false, Names = {} } })
+		else
+			self:_preDuel()
+		end
 		if not self._running then
 			return
 		end
-		if self.Solo then
+		if self.Solo and not self.Tutorial then
 			local me = self.Players[1]
 			Analytics.Event(me, "SoloStarted", 1, self.Theme, if self.PacksOn then "On" else "Off")
 			Analytics.Funnel(me, "Solo", self.Sessions[me] or Analytics.SoloSession(me), "Started")
@@ -192,7 +214,7 @@ function Duels:Start()
 		self:_fire({ Message = "Start", Mode = self.Mode })
 		task.wait(0.6)
 
-		for round = 1, DuelConstants.ROUNDS do
+		for round = 1, self.RoundCount do
 			self.Round = round
 			self.Stage.Model:SetAttribute("Round", round)
 			self:_playRound(round)
@@ -395,7 +417,18 @@ function Duels:_playRound(round: number)
 				skip[pick.Song.Id] = true
 			end
 		end
-		song = (self.Solo and Themes.RandomSong(self.Theme, skip)) or SongLibrary.GetRandomSong(skip)
+		if self.Tutorial then
+			-- well-known songs, in a random order
+			local pool = {}
+			for _, id in DuelConstants.TUTORIAL_SONGS do
+				local s = SongLibrary.GetById(id)
+				if s and not skip[s.Id] then
+					table.insert(pool, s)
+				end
+			end
+			song = if #pool > 0 then pool[math.random(1, #pool)] else nil
+		end
+		song = song or (self.Solo and Themes.RandomSong(self.Theme, skip)) or SongLibrary.GetRandomSong(skip)
 	end
 	self.Used[song.Id] = true
 	-- tag shown under the round counter: whose pack this song came from
@@ -440,12 +473,13 @@ function Duels:_playRound(round: number)
 	self:_fire({
 		Message = "Round",
 		Round = round,
-		Rounds = DuelConstants.ROUNDS,
+		Rounds = self.RoundCount,
+		Tutorial = self.Tutorial or nil,
 		Mode = self.Mode,
 		Tiers = DuelConstants.TIERS[self.Mode],
 		Points = DuelConstants.TIER_POINTS,
 		Options = publicOptions,
-		Cap = DuelConstants.ROUND_CAP,
+		Cap = self.Cap,
 		PackTag = packTag,
 		Theme = if self.Solo and self.Theme ~= Themes.DEFAULT and self.Theme ~= Themes.PACK
 			then Themes.Get(self.Theme).Name
@@ -486,7 +520,7 @@ function Duels:_playRound(round: number)
 	end
 	state.Start = os.clock()
 	self.Phase = "Round"
-	self:_fire({ Message = "RoundGo", Round = round, Cap = DuelConstants.ROUND_CAP })
+	self:_fire({ Message = "RoundGo", Round = round, Cap = self.Cap, Tutorial = self.Tutorial or nil })
 
 	-- wait until everyone has guessed, the answer window closes, or the cap is hit
 	while self._running do
@@ -499,7 +533,7 @@ function Duels:_playRound(round: number)
 				break
 			end
 		end
-		if allIn or now >= DuelConstants.ROUND_CAP then
+		if allIn or now >= self.Cap then
 			break
 		end
 		if state.FirstGuessAt and now >= state.FirstGuessAt + DuelConstants.ANSWER_WINDOW then
@@ -556,10 +590,15 @@ function Duels:_playRound(round: number)
 		Answer = SongLibrary.Public(song),
 		Picks = publicPicks,
 		Scores = scores,
-		Next = if round < DuelConstants.ROUNDS then DuelConstants.REVEAL_TIME else 0,
+		Next = if round < self.RoundCount then self:_revealTime(round) else 0,
+		Tutorial = self.Tutorial or nil,
 	})
-	task.wait(DuelConstants.REVEAL_TIME)
+	task.wait(self:_revealTime(round))
 	self.Current = nil
+end
+
+function Duels:_revealTime(round: number): number
+	return DuelConstants.REVEAL_TIME + (if self.Tutorial and round == 1 then DuelConstants.TUTORIAL_REVEAL_EXTRA else 0)
 end
 
 -- [[ Analytics: one RoundResult per player, plus funnel steps ]]
@@ -624,7 +663,7 @@ function Duels:Action(player: Player, packet)
 		end
 		if not state.FirstGuessAt then
 			state.FirstGuessAt = now
-			local left = math.min(DuelConstants.ANSWER_WINDOW, DuelConstants.ROUND_CAP - now)
+			local left = math.min(DuelConstants.ANSWER_WINDOW, self.Cap - now)
 			for _, other in self.Players do
 				if other ~= player then
 					DuelRemote:Fire(other, { Message = "RivalAnswered", Seconds = left })
@@ -686,6 +725,7 @@ function Duels:_finish(winner: Player?, forfeit: boolean, leaver: Player?)
 		Mode = self.Mode,
 		Solo = self.Solo,
 		Packs = self.PacksOn == true,
+		Tutorial = self.Tutorial,
 		Sessions = self.Sessions,
 	}
 

@@ -48,5 +48,23 @@ return table.freeze({
 	PACK_SONGS_PER_PLAYER = 2,
 
 	-- Save Streak developer product. 0 = not set up yet (button is disabled).
-	SAVE_STREAK_PRODUCT_ID = 0,
+	SAVE_STREAK_PRODUCT_ID = 3726066704,
+
+	-- first-join tutorial (client/Client/Tutorial): a short solo practice game on songs most
+	-- people know, no time pressure, then a one-time welcome gift
+	TUTORIAL_ROUNDS = 3,
+	TUTORIAL_CAP = 90, -- seconds a tutorial round may last (the tips need reading time)
+	TUTORIAL_REVEAL_EXTRA = 4, -- round 1's reveal stays up longer for its tip
+	TUTORIAL_COINS = 100,
+	TUTORIAL_SONGS = table.freeze({
+		"Dynamite - BTS",
+		"DDU-DU DDU-DU - BLACKPINK",
+		"Gee - Girls' Generation",
+		"Super Shy - NewJeans",
+		"Fancy - TWICE",
+		"Next Level - aespa",
+		"How You Like That - BLACKPINK",
+		"Hype Boy - NewJeans",
+		"FANTASTIC BABY - BIGBANG",
+	}),
 })

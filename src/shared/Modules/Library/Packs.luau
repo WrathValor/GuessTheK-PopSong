@@ -3,7 +3,7 @@
 -- (Inventory.Songs); a pack is just a way of grouping them, so packs overlap: a BTS song
 -- counts towards the BTS pack and the HYBE pack, and is never paid for twice.
 --   • "My"            – My Pack: every song the player has bought
---   • "Company:<name>" – every song from that company
+--   • "Company:<name>" – every song from that company (only companies with MIN_COMPANY_SONGS+)
 --   • "Group:<artist>" – every song by that group (only groups with MIN_GROUP_SONGS+)
 -- Any pack the player owns at least one song of can be their duel pack (Inventory.DuelPack).
 -- The shop sells packs in a rotation: up to PACKS_PER_ROTATION company packs and as many group
@@ -15,6 +15,9 @@ local Packs = {}
 
 Packs.MY = "My"
 Packs.MIN_GROUP_SONGS = 3 -- smaller groups don't get a pack of their own (yet)
+-- smaller companies don't get a pack (yet); their groups can still have group packs. A song in
+-- neither kind of pack is still played in rounds, it just can't be bought.
+Packs.MIN_COMPANY_SONGS = 10
 Packs.ROTATION_SECONDS = 4 * 60 * 60 -- the packs in the shop change every 4 hours
 Packs.PACKS_PER_ROTATION = 5 -- per kind (companies, groups); fewer packs than this = all of them
 
@@ -39,6 +42,7 @@ Packs.FANDOMS = {
 	["(G)I-DLE"] = "Neverland",
 	EXO = "EXO-L",
 	NCT = "NCTzen",
+	IU = "UAENA",
 }
 
 export type Pack = {
@@ -68,8 +72,8 @@ do
 		return a.Name < b.Name
 	end
 	for company, list in byCompany do
-		if company == "Other" then
-			continue -- small labels with a song or two each: group packs only
+		if company == "Other" or #list < Packs.MIN_COMPANY_SONGS then
+			continue -- small labels: group packs only
 		end
 		table.sort(list, byName)
 		local pack = { Id = `Company:{company}`, Kind = "Company", Name = company, Title = `{company} Expert`, Songs = list }
