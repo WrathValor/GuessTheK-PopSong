@@ -115,8 +115,7 @@ local function refresh(player: Player)
 	local title = player:GetAttribute("Title")
 	local titleChip = bb.Plate.Face:FindFirstChild("Title")
 	if titleChip then
-		local bias, colour = TitleChip.FromAttribute(player:GetAttribute("Bias"))
-		TitleChip.Set(titleChip, if type(title) == "string" then title else nil, bias, colour)
+		TitleChip.Set(titleChip, if type(title) == "string" then title else nil, player:GetAttribute("TitleTier"))
 	end
 	local streak = player:GetAttribute("Streak") or 0
 	local chip = bb:FindFirstChild("Streak") :: Frame
@@ -164,7 +163,7 @@ local function build(player: Player, character: Model)
 		SortOrder = Enum.SortOrder.LayoutOrder,
 	}, plateFace)
 	plateFace:FindFirstChildOfClass("UIPadding").PaddingLeft = UDim.new(0, 8)
-	-- title + bias pack in one chip ("Fan | ♥ CARAT", shared/Modules/UI/TitleChip)
+	-- the title chip (shared/Modules/UI/TitleChip)
 	local titleChip = TitleChip.new(plateFace, { Name = "Title", LayoutOrder = 1, Height = 18, TextSize = 11, Font = MULT_FONT, ZIndex = 3 })
 	titleChip.Visible = false
 	local nameLabel = label(plateFace, player.DisplayName, 17, PLATE_H)
@@ -216,7 +215,7 @@ local function track(player: Player)
 	player:GetAttributeChangedSignal("Title"):Connect(function()
 		refresh(player)
 	end)
-	player:GetAttributeChangedSignal("Bias"):Connect(function()
+	player:GetAttributeChangedSignal("TitleTier"):Connect(function()
 		refresh(player)
 	end)
 	player.CharacterAdded:Connect(function(character)

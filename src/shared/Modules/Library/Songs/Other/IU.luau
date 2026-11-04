@@ -6,6 +6,8 @@ return {
 	Group = "IU",
 	GroupType = "Solo",
 	Generation = "2nd",
+	Colour = "D7C4FF", -- card art + roll glow (pastel hex)
+	Gradient = ColorSequence.new(Color3.fromHex("D7FF5A"), Color3.fromHex("A6E22E")), -- official: Neon/Lime Green
 	Status = "Active",
 	Songs = {
 		{
@@ -74,12 +76,11 @@ return {
 		},
 		{
 			Name = "LILAC",
-			Draft = true, -- audio didn't load in game (2026-11-02): re-upload / check permissions
 			Year = 2021,
-			MusicId = "rbxassetid://87430588083186",
-			PlaybackSpeed = 0.89,
-			TimePosition = 0,
-			ChorusPosition = 0,
+			MusicId = "rbxassetid://121864471279680",
+			PlaybackSpeed = 0.67,
+			TimePosition = 2,
+			ChorusPosition = 38.3,
 		},
 		{
 			Name = "Love wins all",

@@ -43,10 +43,13 @@ return table.freeze({
 	-- win streak -> stake multiplier
 	STREAK_MULTIPLIERS = table.freeze({ { 10, 2 }, { 5, 1.5 }, { 3, 1.2 } }),
 
-	-- duel packs: with both players' packs on, up to this many songs from each mix in
-	-- (never round 1). Solo "only my pack" needs a pack of at least ROUNDS songs.
-	PACK_SONGS_PER_PLAYER = 1, -- bias pack rounds per player (one player having a pack is enough)
-	BIAS_XP = 2, -- bonus XP for guessing a song from your own bias pack
+	-- owned songs: every song a player owns (Inventory.Songs) comes up more often, nothing to
+	-- equip. Each owner adds (weight - 1) to the song's chance, by its card level, so a song
+	-- nobody owns is 1 and a Normal card both players own is 3. Once OWNED_ROUNDS_MAX rounds
+	-- have played an owned song, the rest of the game goes back to plain odds.
+	OWNED_WEIGHT = table.freeze({ Normal = 2, Gold = 3, Rainbow = 5 }),
+	OWNED_ROUNDS_MAX = 3,
+	OWNED_XP = 2, -- bonus XP for guessing a song you own (duels only)
 
 	-- Save Streak developer product. 0 = not set up yet (button is disabled).
 	SAVE_STREAK_PRODUCT_ID = 3726066704,

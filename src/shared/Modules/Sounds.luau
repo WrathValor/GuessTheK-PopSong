@@ -22,6 +22,7 @@ local LIBRARY = {
 	Open = { Id = 120401943587131, Volume = 0.5 }, -- every frame that opens (Interface:Open)
 	Notify = { Id = 17208361335, Volume = 0.5 }, -- a tip popping up (tutorial)
 	Success = { Id = 85349663780737, Volume = 0.5 }, -- claims, buys, any action that worked
+	CardReveal = { Id = 79749665932688, Volume = 0.5 }, -- "Rare_Pull1": shake build-up + the hit as the roll cards turn face up (shop Songs tab)
 
 	-- queue / pre-duel
 	RivalFound = { Id = 113645757352689, Volume = 0.6 },

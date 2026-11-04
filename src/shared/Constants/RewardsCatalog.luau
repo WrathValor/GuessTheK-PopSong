@@ -27,7 +27,7 @@ RewardsCatalog.QUEST_POOL = table.freeze({
 	{ Id = "Duels6", Stat = "Duels", Need = 6, Reward = 125, Title = "Play 6 duels" },
 	{ Id = "Solo2", Stat = "Solo", Need = 2, Reward = 50, Title = "Finish 2 solo games" },
 	{ Id = "Perfect1", Stat = "Perfect", Need = 1, Reward = 150, Title = "Win a perfect game" },
-	{ Id = "NewSongs3", Stat = "NewSongs", Need = 3, Reward = 75, Title = "Add 3 new songs to your Index" },
+	{ Id = "NewSongs3", Stat = "NewSongs", Need = 3, Reward = 75, Title = "Roll 3 new songs" },
 })
 RewardsCatalog.QUEST_STATS = table.freeze({ "Correct", "Wins", "WinRun", "BestRun", "Duels", "Solo", "Perfect", "NewSongs" })
 RewardsCatalog.QUESTS_PER_DAY = 3

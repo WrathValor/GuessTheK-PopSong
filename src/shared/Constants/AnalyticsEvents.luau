@@ -17,12 +17,11 @@ AnalyticsEvents.Custom = {
 	RoundResult = { Fields = { "Song", "Result", "Tier" } }, -- value: seconds to answer (0 = no answer)
 	GameFinished = { Fields = { "Outcome", "Mode", "Packs" } }, -- value: correct answers (0-7)
 	PerfectGame = { Fields = { "Mode" } },
-	SoloStarted = { Fields = { "Theme", "PackMix" } },
+	SoloStarted = { Fields = { "Theme", "OwnedMix" } },
 	StreakReached = { Fields = { "Streak" } }, -- value: new win streak
 	StreakLost = { Fields = { "Streak" } }, -- value: the streak that was lost
 	LevelUp = { Fields = { "Title" } }, -- value: new level
-	SongsDiscovered = { Fields = { "Mode" } }, -- value: new Index entries from one game
-	PackRound = { Fields = { "Pack", "Whose" } }, -- a round played a duel-pack song
+	OwnedRound = { Fields = { "Whose" } }, -- a round played a song someone in the game owns
 
 	-- [[ Queue ]]
 	QueueJoined = { Fields = { "Stage", "How" } },
@@ -34,8 +33,8 @@ AnalyticsEvents.Custom = {
 	InviteResult = { Fields = { "Result", "Stage" } }, -- Accepted / Declined / Expired / Cancelled / Failed
 
 	-- [[ Shop / inventory / rewards ]]
+	SongRolled = { Fields = { "Result", "Level", "Count" } }, -- Result New / Duplicate; Count "x1" / "x10"
 	Equip = { Fields = { "Kind", "Item" } },
-	DuelPackSet = { Fields = { "Pack" } },
 	DailyClaimed = { Fields = { "Day" } }, -- value: coins
 	QuestClaimed = { Fields = { "Quest" } }, -- value: coins
 	QuestBonusClaimed = {},
@@ -47,7 +46,7 @@ AnalyticsEvents.Custom = {
 		Screen = { "Shop", "Inventory", "Index", "Rewards", "News", "Settings", "Queue", "Results", "SaveStreak", "Tutorial" },
 	} },
 	ShopTabOpened = { Fields = { "Tab" }, Client = true, Allowed = {
-		Tab = { "Featured", "Sets", "Items", "Packs", "UGC", "Coins" },
+		Tab = { "Featured", "Sets", "Items", "Songs", "UGC", "Coins" },
 	} },
 	SoloPickerOpened = { Client = true },
 	GroupJoinPrompt = { Fields = { "Result" }, Client = true, Allowed = {
@@ -85,6 +84,8 @@ AnalyticsEvents.Transactions = {
 	ShopMic = "ShopMic",
 	ShopSong = "ShopSong",
 	ShopPack = "ShopPack",
+	Roll = "SongRoll",
+	RollRefund = "RollRefund", -- source: coins back for duplicates
 }
 
 -- Funnels (10 max). Onboarding uses Roblox's own onboarding funnel.

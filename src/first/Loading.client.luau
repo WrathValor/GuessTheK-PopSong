@@ -49,7 +49,7 @@ local TIPS = {
 	"Guess from the shortest clip for <b>+10</b>. Every longer clip is worth less.",
 	"Win streaks multiply the coins you win.",
 	"Lose your streak? You can save it right after the game.",
-	"Every song you hear goes into your <b>Index</b>.",
+	"Roll songs in the shop to fill your <b>Index</b>.",
 	"Practise solo on any era or generation from the queue card.",
 	"Invite a friend to a duel from the queue card.",
 }

@@ -6,6 +6,8 @@ return {
 	Group = "NewJeans",
 	GroupType = "Girl",
 	Generation = "4th",
+	Colour = "9ED8F5", -- card art + roll glow (pastel hex)
+	Gradient = ColorSequence.new(Color3.fromHex("9FD3FF"), Color3.fromHex("2D5BFF")), -- no official colour: blue from the bunny branding
 	Status = "Active",
 	Songs = {
 		{
@@ -28,7 +30,7 @@ return {
 		},
 		{
 			Name = "Ditto",
-			Year = 2026,
+			Year = 2022,
 			MusicId = "rbxassetid://121654592163956",
 			PlaybackSpeed = 0.75,
 			TimePosition = 2,
@@ -57,6 +59,38 @@ return {
 			PlaybackSpeed = 0.63,
 			TimePosition = 10,
 			ChorusPosition = 37.8,
+		},
+		{
+			Name = "OMG",
+			Year = 2023,
+			MusicId = "rbxassetid://105591185899487",
+			PlaybackSpeed = 0.58,
+			TimePosition = 1,
+			ChorusPosition = 26.5,
+		},
+		{
+			Name = "ETA",
+			Year = 2023,
+			MusicId = "rbxassetid://85461571976012",
+			PlaybackSpeed = 0.51,
+			TimePosition = 1,
+			ChorusPosition = 33.1,
+		},
+		{
+			Name = "Bubble Gum",
+			Year = 2024,
+			MusicId = "rbxassetid://96437846742449",
+			PlaybackSpeed = 0.65,
+			TimePosition = 1,
+			ChorusPosition = 43.3,
+		},
+		{
+			Name = "Cookie",
+			Year = 2022,
+			MusicId = "rbxassetid://103067786212012",
+			PlaybackSpeed = 0.52,
+			TimePosition = 1,
+			ChorusPosition = 38.4,
 		},
 	},
 }

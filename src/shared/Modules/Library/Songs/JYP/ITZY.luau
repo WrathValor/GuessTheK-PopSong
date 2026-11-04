@@ -6,6 +6,8 @@ return {
 	Group = "ITZY",
 	GroupType = "Girl",
 	Generation = "4th",
+	Colour = "FFB0A8", -- card art + roll glow (pastel hex)
+	Gradient = ColorSequence.new(Color3.fromHex("FF3FA4"), Color3.fromHex("9B3DFF")), -- official: Neon
 	Status = "Active",
 	Songs = {
 		{
@@ -83,7 +85,7 @@ return {
         },
         {
             Name = "KIDDING ME",
-            Year = 2022,
+            Year = 2021,
             MusicId = "rbxassetid://70723602860715",
             AnimationId = "rbxassetid://12444085749",
             PlaybackSpeed = 0.55,

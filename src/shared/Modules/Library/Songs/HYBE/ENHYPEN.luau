@@ -6,6 +6,8 @@ return {
     Group = "ENHYPEN",
     GroupType = "Boy",
     Generation = "4th",
+    Colour = "F6B98A", -- card art + roll glow (pastel hex)
+    Gradient = ColorSequence.new(Color3.fromHex("D9D9E3"), Color3.fromHex("B3122E")), -- no official colour: silver to crimson (vampire-era branding)
     Status = "Active",
     Songs = {
         {
@@ -46,7 +48,7 @@ return {
         },
         {
             Name = "Go Big Or Go Home",
-            Year = 2023,
+            Year = 2021,
             MusicId = "rbxassetid://105843184639960",
             AnimationId = "rbxassetid://15057795559",
             PlaybackSpeed = 0.55,
@@ -70,6 +72,22 @@ return {
             PlaybackSpeed = 0.55,
             TimePosition = 2,
             ChorusPosition = 45.4,
+        },
+        {
+            Name = "Polaroid Love",
+            Year = 2022,
+            MusicId = "rbxassetid://118001924021664",
+            PlaybackSpeed = 0.52,
+            TimePosition = 0.5,
+            ChorusPosition = 22,
+        },
+        {
+            Name = "Sweet Venom",
+            Year = 2023,
+            MusicId = "rbxassetid://86824130080720",
+            PlaybackSpeed = 0.51,
+            TimePosition = 1,
+            ChorusPosition = 17.5,
         },
     },
 }

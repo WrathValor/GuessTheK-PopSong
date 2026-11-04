@@ -6,14 +6,16 @@ return {
     Group = "LE SSERAFIM",
     GroupType = "Girl",
     Generation = "4th",
+    Colour = "A9C8F0", -- card art + roll glow (pastel hex)
+    Gradient = ColorSequence.new(Color3.fromHex("7FB2FF"), Color3.fromHex("0047BB")), -- official: Fearless Blue
     Status = "Active",
     Songs = {
         {
             Name = "ANTIFRAGILE",
             Year = 2022,
-            MusicId = "rbxassetid://84398806175745",
+            MusicId = "rbxassetid://90839018294616",
             AnimationId = "rbxassetid://11343614728",
-            PlaybackSpeed = 0.55,
+            PlaybackSpeed = 0.6,
             TimePosition = 0,
             ChorusPosition = 25.2,
         },
@@ -47,7 +49,7 @@ return {
         },
         {
             Name = "No Celestial",
-            Year = 2022,
+            Year = 2023,
             MusicId = "rbxassetid://11894415234",
             AnimationId = "rbxassetid://11886168181",
             PlaybackSpeed = 0.55,

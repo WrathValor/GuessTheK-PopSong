@@ -1,6 +1,6 @@
 --| CmdrService
 -- Cmdr admin console (F2) with the testing commands in ServerScriptService.Cmdr:
--- Types/ (shopStage, shopMic, shopSet, shopPass, song, pack, duelPack, soloTheme) and
+-- Types/ (shopStage, shopMic, shopSet, shopPass, song, pack, soloTheme) and
 -- Commands/ (one module + its <Name>Server module each). Cmdr's built-in commands are on too.
 -- Who can run them: anyone in Studio; live, members of the owning group (game.CreatorId)
 -- at MIN_RANK or above (or the owner, for a user-owned place). Checked on the server for

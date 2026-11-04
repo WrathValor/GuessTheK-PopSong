@@ -7,9 +7,6 @@
 -- ShopRemote requests: { Action = "BuySet" | "EquipSet", Id = setId }
 --                      { Action = "BuyItem" | "EquipItem", Kind = "Stage" | "Mic", Id = itemId }
 --                      { Action = "EquipTitle", Id = title ("" = default) }
---                      { Action = "BuySong", Id = songId }
---                      { Action = "BuyPack", Id = packId ("Company:HYBE" / "Group:BTS") }
---                      { Action = "SetDuelPack", Id = packId ("" = off) }
 -- Reply to the player:  { Message = "Result", Ok = bool, Text = string, Action, Id }
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -19,42 +16,19 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 local ShopCatalog = require(ReplicatedStorage.Constants.ShopCatalog)
-local Songs = require(ReplicatedStorage.Modules.Library.Songs)
-local Packs = require(ReplicatedStorage.Modules.Library.Packs)
 local Analytics = require(script.Parent.Analytics)
+local Collection = require(script.Parent.Collection)
 
 local ShopRemote = Bridgenet.ReferenceBridge("ShopRemote")
 
 local ShopService = {}
 
--- [[ Song packs (company + group, see Modules/Library/Packs) ]]
+-- [[ Song sets (company + group, see Modules/Library/Packs). Songs aren't sold here any more:
+-- they come from the song roll (Engine/RollService). ]]
 
--- After buying songs: mark every pack they belong to complete (and give its title) once all
--- its songs are owned.
+-- After buying songs: finish any set they complete and give its title (Engine/Collection).
 local function checkPacksComplete(data, songs: { any })
-	local seen = {}
-	for _, song in songs do
-		for _, pack in Packs.ForSong(song) do
-			if not seen[pack.Id] then
-				seen[pack.Id] = true
-				local complete = #pack.Songs > 0
-				for _, s in pack.Songs do
-					if not data.Inventory.Songs.Has(s.Id) then
-						complete = false
-						break
-					end
-				end
-				if complete then
-					if not data.Inventory.Packs.Has(pack.Id) then
-						data.Inventory.Packs.Add(pack.Id)
-					end
-					if pack.Title and not data.Inventory.Titles.Has(pack.Title) then
-						data.Inventory.Titles.Add(pack.Title)
-					end
-				end
-			end
-		end
-	end
+	Collection.Check(data, songs)
 end
 
 -- [[ Helpers ]]
@@ -187,82 +161,12 @@ local function equipTitle(player: Player, data, packet)
 	reply(player, packet, true, "Title equipped")
 end
 
-local function buySong(player: Player, data, packet)
-	local song = type(packet.Id) == "string" and Songs.GetById(packet.Id)
-	if not song then
-		return reply(player, packet, false, "That song doesn't exist")
-	end
-	if data.Inventory.Songs.Has(song.Id) then
-		return reply(player, packet, false, "You already own it")
-	end
-	if not Packs.SongForSale(song) then
-		return reply(player, packet, false, "That pack has left the shop")
-	end
-	local ok = spend(player, data, ShopCatalog.SONG_PRICE, function()
-		data.Inventory.Songs.Add(song.Id)
-		checkPacksComplete(data, { song })
-	end, "ShopSong", "Song")
-	reply(player, packet, ok, if ok then `{song.Name} added to My Pack` else "Not enough coins")
-end
-
-local function buyPack(player: Player, data, packet)
-	local pack = type(packet.Id) == "string" and Packs.Get(packet.Id)
-	if not pack or pack.Kind == "My" or #pack.Songs == 0 then
-		return reply(player, packet, false, "That pack doesn't exist")
-	end
-	if not Packs.IsForSale(pack.Id) then
-		return reply(player, packet, false, "That pack has left the shop")
-	end
-	local missing = {}
-	for _, song in pack.Songs do
-		if not data.Inventory.Songs.Has(song.Id) then
-			table.insert(missing, song)
-		end
-	end
-	if #missing == 0 then
-		return reply(player, packet, false, "You own every song in it")
-	end
-	local price = ShopCatalog.PackPrice(#missing)
-	local ok = spend(player, data, price, function()
-		for _, song in missing do
-			data.Inventory.Songs.Add(song.Id)
-		end
-		checkPacksComplete(data, missing)
-	end, "ShopPack", pack.Id)
-	reply(player, packet, ok, if ok then `{Packs.DisplayName(pack.Id)} complete!` else "Not enough coins")
-end
-
--- The pack mixed into duels. Any pack you own at least one song of.
-local function setDuelPack(player: Player, data, packet)
-	local id = packet.Id
-	if id == "" then
-		data.Inventory.DuelPack.Set("")
-		Analytics.Event(player, "DuelPackSet", 1, "Off")
-		return reply(player, packet, true, "Bias pack off")
-	end
-	if type(id) ~= "string" or not Packs.Get(id) then
-		return reply(player, packet, false, "That pack doesn't exist")
-	end
-	local owned = Packs.SongsFor(id, function(songId)
-		return data.Inventory.Songs.Has(songId)
-	end)
-	if #owned == 0 then
-		return reply(player, packet, false, "Buy a song from it first")
-	end
-	data.Inventory.DuelPack.Set(Packs.Get(id).Id)
-	Analytics.Event(player, "DuelPackSet", 1, Packs.Get(id).Id)
-	reply(player, packet, true, `{Packs.DisplayName(id)} is your bias pack`)
-end
-
 local ACTIONS = {
 	BuySet = buySet,
 	EquipSet = equipSet,
 	BuyItem = buyItem,
 	EquipItem = equipItem,
-	SetDuelPack = setDuelPack,
 	EquipTitle = equipTitle,
-	BuySong = buySong,
-	BuyPack = buyPack,
 }
 
 -- [[ Game passes ]]

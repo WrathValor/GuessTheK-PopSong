@@ -14,7 +14,6 @@ local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
 local HUDConstants = require(ReplicatedStorage.Constants.HUDConstants)
 local TitleChip = require(ReplicatedStorage.Modules.UI.TitleChip)
-local Packs = require(ReplicatedStorage.Modules.Library.Packs)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 
 local Effects = require(script.Effects)
@@ -147,8 +146,8 @@ function HUDController._bindProfile(self: Self)
 	self._janitor:Add(PlayerData.Inventory.Title.Observe(function(title: string)
 		self:SetTitle(if title ~= "" then title else HUDConstants.DEFAULT_TITLE)
 	end))
-	self._janitor:Add(PlayerData.Inventory.DuelPack.Observe(function(id: string)
-		self._bias = id
+	-- the title's tier (Normal / Gold / Rainbow) is set by the server (DataService)
+	self._janitor:Add(Players.LocalPlayer:GetAttributeChangedSignal("TitleTier"):Connect(function()
 		self:SetTitle(self._title or HUDConstants.DEFAULT_TITLE)
 	end))
 end
@@ -171,7 +170,7 @@ end
 
 function HUDController.SetTitle(self: Self, title: string)
 	self._title = title
-	-- the Studio chip is replaced by the shared title + bias chip ("Fan | ♥ CARAT")
+	-- the Studio chip is replaced by the shared title chip (shared/Modules/UI/TitleChip)
 	local profile = self._hud.Currency.Profile
 	local chip = profile:FindFirstChild("TitleChip")
 	if not chip then
@@ -187,8 +186,7 @@ function HUDController.SetTitle(self: Self, title: string)
 			Position = old.Position,
 		})
 	end
-	local bias, colour = Packs.Badge(self._bias or "")
-	TitleChip.Set(chip, title, bias, colour)
+	TitleChip.Set(chip, title, Players.LocalPlayer:GetAttribute("TitleTier"))
 end
 
 -- [[ Coins / wins ]]

@@ -9,7 +9,8 @@ local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 local HUDConstants = require(ReplicatedStorage.Constants.HUDConstants)
 local ShopCatalog = require(ReplicatedStorage.Constants.ShopCatalog)
 local Levels = require(ReplicatedStorage.Modules.Levels)
-local Packs = require(ReplicatedStorage.Modules.Library.Packs)
+local Collection = require(script.Parent.Collection)
+local Cards = require(ReplicatedStorage.Modules.Library.Cards)
 
 --| DataService
 
@@ -60,27 +61,23 @@ local function onPlayerAdded(Player: Player)
             end
         end
     end)
-    -- fandom names added later: swap an old "<Group> Stan" title for the fandom one
-    for _, pack in Packs.Groups() do
-        local old = `{pack.Name} Stan`
-        if pack.Title and pack.Title ~= old and data.Inventory.Titles.Has(old) then
-            data.Inventory.Titles.Remove(old)
-            if not data.Inventory.Titles.Has(pack.Title) then
-                data.Inventory.Titles.Add(pack.Title)
-            end
-            if data.Inventory.Title.Get() == old then
-                data.Inventory.Title.Set(pack.Title)
-            end
-        end
-    end
-    data.Inventory.Title.Observe(function(title: string)
+    -- song sets: own every song of a group / company and its title unlocks (Engine/Collection).
+    -- Checked on join too, so songs given any other way (or sets that shrank) still count.
+    data.Inventory.Songs.Observe(function()
+        task.defer(Collection.Check, data)
+    end)
+    data.Inventory.Copies.Observe(function()
+        task.defer(Collection.Check, data) -- copies level sets up (Gold / Rainbow titles)
+    end)
+    -- the equipped title + its tier ("Normal" / "Gold" / "Rainbow"), for name tags and the HUD
+    local function showTitle()
+        local title = data.Inventory.Title.Get()
+        local tiers = data.Inventory.TitleTiers.Get() or {}
         Player:SetAttribute("Title", if title ~= "" then title else HUDConstants.DEFAULT_TITLE)
-    end)
-    -- bias pack chip on name tags ("♥ CARAT|9ED8F5"; nil = none)
-    data.Inventory.DuelPack.Observe(function(id: string)
-        local text, colour = Packs.Badge(id)
-        Player:SetAttribute("Bias", if text then `{text}|{colour}` else nil)
-    end)
+        Player:SetAttribute("TitleTier", Cards.LEVELS[tiers[title] or 1] or "Normal")
+    end
+    data.Inventory.Title.Observe(showTitle)
+    data.Inventory.TitleTiers.Observe(showTitle)
 end
 
 -- [[ Public ]]

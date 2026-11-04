@@ -2,7 +2,7 @@
 -- The back of the queue card (the "Solo D · queue flip + photocards" board). Play Solo flips
 -- the card over to "Pick your theme": All / Era / Gen / My Pack tabs, a row of photocards
 -- (the picked one lifts and goes holo, themes without Themes.MIN_SONGS songs are SEALED), a
--- "Mix in my duel pack" switch, Back and Start. Start counts down START_DELAY seconds (the
+-- "Play my songs more often" switch, Back and Start. Start counts down START_DELAY seconds (the
 -- picks can still change, tap Start again or Back to cancel), then sends
 -- { Request = "Solo", Theme, Mix } on QueueRemote; the server saves both
 -- (Settings.SoloTheme / SoloPool) for next time.
@@ -55,7 +55,7 @@ local CARD_GAP = 22
 local MAX_CARDS = 4
 local TILT = { -4, -2, 0, 3 }
 local TAB_W = { All = 52, Era = 56, Gen = 56, Pack = 86 }
-local TAB_LABEL = { All = "All", Era = "Era", Gen = "Gen", Pack = "My Pack" }
+local TAB_LABEL = { All = "All", Era = "Era", Gen = "Gen", Pack = "My songs" }
 local START_DELAY = 3 -- seconds between pressing Start and the game starting
 
 local SoloPicker = {}
@@ -266,7 +266,7 @@ function SoloPicker.Build(queueFrame: Instance)
 		buildCard(deck, i)
 	end
 
-	-- "Mix in my duel pack"
+	-- "Play my songs more often"
 	local mix = new("Frame", { Name = "Mix", Position = UDim2.fromOffset(22, 348), Size = UDim2.fromOffset(DECK_W, 26), BackgroundTransparency = 1 }, back)
 	local toggle = new("TextButton", { Name = "Toggle", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(20, 13), Size = UDim2.fromOffset(40, 22), BackgroundColor3 = MINT, AutoButtonColor = false, Text = "" }, mix)
 	corner(toggle, UDim.new(0.5, 0))
@@ -274,7 +274,7 @@ function SoloPicker.Build(queueFrame: Instance)
 	local knob = new("Frame", { Name = "Knob", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(1, -10, 0.5, 0), Size = UDim2.fromOffset(14, 14), BackgroundColor3 = WHITE }, toggle)
 	corner(knob, UDim.new(0.5, 0))
 	stroke(knob, 2)
-	text(mix, "Label", { Position = UDim2.fromOffset(50, 0), Size = UDim2.new(1, -50, 1, 0), TextSize = 13, RichText = true, Text = 'Mix in my bias pack <font color="#5C566B">· My Pack, Gen 4 songs only</font>' })
+	text(mix, "Label", { Position = UDim2.fromOffset(50, 0), Size = UDim2.new(1, -50, 1, 0), TextSize = 13, RichText = true, Text = 'Play my songs more often <font color="#5C566B">· 12 fit Gen 4</font>' })
 
 	-- Back + Start
 	local by = 386
@@ -316,17 +316,14 @@ local function hasSong(id: string): boolean
 	return ok and has == true
 end
 
--- the player's duel pack: id, display name, owned songs in it (nil when none is on)
-local function duelPack()
-	local ok, id = pcall(PlayerData.Inventory.DuelPack.Get)
-	if not ok or id == "" or not Packs.Get(id) then
-		return nil
-	end
-	local songs = Packs.SongsFor(id, hasSong)
+-- the songs the player owns (nil when none yet): they come up more often, and the "My songs"
+-- theme plays only them
+local function mySongs()
+	local songs = Packs.SongsFor(Packs.MY, hasSong)
 	if #songs == 0 then
 		return nil
 	end
-	return { Id = id, Name = Packs.DisplayName(id), Songs = songs }
+	return { Id = Packs.MY, Name = "My songs", Songs = songs }
 end
 
 local function setting(path, fallback)
@@ -338,13 +335,13 @@ end
 local function describe(theme, pack)
 	if theme.Id == Themes.PACK then
 		if not pack then
-			return { Count = "No pack", Groups = "Pick a bias pack in Inventory", Open = false, Songs = 0 }
+			return { Count = "No songs", Groups = "Roll songs in the shop", Open = false, Songs = 0 }
 		end
 		local n = #pack.Songs
 		local open = n >= DuelConstants.ROUNDS
 		return {
 			Count = if open then `{n} songs` else `{n} / {DuelConstants.ROUNDS}`,
-			Groups = `{pack.Name} · only its songs`,
+			Groups = "Only songs you own",
 			Open = open,
 			Songs = n,
 		}
@@ -391,7 +388,7 @@ function SoloPicker.new(queueFrame: Instance, janitor)
 				self._tab = t
 				-- a tab with one theme (All, My Pack) picks it straight away
 				local list = Themes.ForTab(t)
-				if #list == 1 and describe(list[1], duelPack()).Open then
+				if #list == 1 and describe(list[1], mySongs()).Open then
 					self._theme = list[1].Id
 				end
 				self:Render()
@@ -401,7 +398,7 @@ function SoloPicker.new(queueFrame: Instance, janitor)
 	for i = 1, MAX_CARDS do
 		janitor:Add(back.Deck["Card" .. i].Activated:Connect(function()
 			local theme = self._cards and self._cards[i]
-			if theme and describe(theme, duelPack()).Open and self._theme ~= theme.Id then
+			if theme and describe(theme, mySongs()).Open and self._theme ~= theme.Id then
 				self._theme = theme.Id
 				Sounds.Play("Click")
 				self:Render()
@@ -430,7 +427,7 @@ function SoloPicker.new(queueFrame: Instance, janitor)
 	end, true)
 
 	-- keep the front's mini card in step with what's saved
-	for _, path in { PlayerData.Settings.SoloTheme, PlayerData.Inventory.DuelPack } do
+	for _, path in { PlayerData.Settings.SoloTheme, PlayerData.Inventory.Songs } do
 		local ok, conn = pcall(path.Observe, function()
 			if not self.IsOpen then
 				local saved = setting(PlayerData.Settings.SoloTheme, Themes.DEFAULT)
@@ -484,7 +481,7 @@ function SoloPicker:_renderStart()
 		return
 	end
 	local playing = Themes.Get(self:_playable())
-	local info = describe(playing, duelPack())
+	local info = describe(playing, mySongs())
 	if self._secondsLeft then
 		back.Start.BackgroundColor3 = YELLOW
 		back.Start.Title.Text = `{string.upper(playing.Name)} · STARTING IN {self._secondsLeft}`
@@ -499,7 +496,7 @@ end
 -- the theme Start would play: the pick, or All songs if it has closed since
 function SoloPicker:_playable(): string
 	local theme = Themes.Get(self._theme)
-	if theme and describe(theme, duelPack()).Open then
+	if theme and describe(theme, mySongs()).Open then
 		return theme.Id
 	end
 	return Themes.DEFAULT
@@ -527,7 +524,7 @@ function SoloPicker:Render()
 	if not back then
 		return
 	end
-	local pack = duelPack()
+	local pack = mySongs()
 
 	for _, t in Themes.TABS do
 		local b = back.Tabs[t]
@@ -578,13 +575,13 @@ function SoloPicker:Render()
 			card.Count.BackgroundColor3 = if sel then INK else WHITE
 			card.Count.TextColor3 = if sel then YELLOW else INK
 			card.Sealed.Visible = not info.Open
-			card.Sealed.Text = if theme.Id == Themes.PACK and not pack then "NO PACK" else "SEALED"
+			card.Sealed.Text = if theme.Id == Themes.PACK and not pack then "NO SONGS" else "SEALED"
 			card.Picked.Visible = sel
 			card.Active = info.Open
 		end
 	end
 
-	-- the switch: only when a duel pack is on and the theme isn't the pack itself
+	-- the switch: only when you own songs and the theme isn't "My songs" itself
 	local playing = Themes.Get(self:_playable())
 	local mix = back.Mix
 	mix.Visible = pack ~= nil and playing.Id ~= Themes.PACK
@@ -598,10 +595,10 @@ function SoloPicker:Render()
 			end
 		end
 		local detail = if fit == 0
-			then "none of its songs fit this theme"
-			elseif playing.Id == Themes.DEFAULT then `{pack.Name}`
-			else `{pack.Name}, {playing.Name} songs only`
-		mix.Label.Text = `Mix in my bias pack <font color="#5C566B">· {detail}</font>`
+			then "none fit this theme"
+			elseif playing.Id == Themes.DEFAULT then `{fit} song{if fit == 1 then "" else "s"}`
+			else `{fit} fit {playing.Name}`
+		mix.Label.Text = `Play my songs more often <font color="#5C566B">· {detail}</font>`
 	end
 
 	self:_renderStart()

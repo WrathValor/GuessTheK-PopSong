@@ -6,6 +6,8 @@ return {
 	Group = "aespa",
 	GroupType = "Girl",
 	Generation = "4th",
+	Colour = "B8C4FF", -- card art + roll glow (pastel hex)
+	Gradient = ColorSequence.new({ ColorSequenceKeypoint.new(0, Color3.fromHex("0D0D14")), ColorSequenceKeypoint.new(0.5, Color3.fromHex("2D5BFF")), ColorSequenceKeypoint.new(1, Color3.fromHex("E62AB8")) }), -- black, blue + fuchsia
 	Status = "Active",
 	Songs = {
 		{
@@ -35,7 +37,7 @@ return {
 			ChorusPosition = 25.9,
 		},
 		{
-			Name = "Lemonade",
+			Name = "LEMONADE",
 			Year = 2026,
 			MusicId = "rbxassetid://128795809970022",
 			PlaybackSpeed = 0.93,
@@ -64,6 +66,15 @@ return {
 			MusicId = "rbxassetid://93994956505609",
 			TimePosition = 1,
 			ChorusPosition = 124.2,
+		},
+		{
+			Name = "Savage",
+			Year = 2021,
+			MusicId = "rbxassetid://110877559177545",
+			PlaybackSpeed = 0.80,
+			TimePosition = 0,
+			ChorusPosition = 0,
+			Draft = true, -- audio works
 		},
 	},
 }

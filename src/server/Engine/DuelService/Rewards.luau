@@ -1,5 +1,5 @@
 --| Rewards
--- Turns a finished duel into XP, coins, wins, streaks and Index entries, and returns
+-- Turns a finished duel into XP, coins, wins and streaks, and returns
 -- what each player earned so the results screen can show it.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -28,7 +28,6 @@ export type Earned = {
 	CoinsDetail: string,
 	Streak: number,
 	StreakLost: number, -- streak the player just lost (0 if none), for the Save Streak offer
-	IndexNew: number,
 	Perfect: boolean,
 	Outcome: "Win" | "Lose" | "Draw" | "Solo" | "Left",
 	Tutorial: boolean?, -- the tutorial's welcome gift was paid this time
@@ -68,9 +67,6 @@ function Rewards._log(player: Player, data, result, earned: Earned, correct: num
 	if earned.LevelUp then
 		Analytics.Event(player, "LevelUp", earned.LevelUp, earned.NewTitle or "None")
 	end
-	if earned.IndexNew > 0 then
-		Analytics.Event(player, "SongsDiscovered", earned.IndexNew, mode)
-	end
 end
 
 function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
@@ -82,19 +78,17 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 		end
 
 		-- per-player round stats
-		local correct, fastCorrect, biasHits = 0, 0, 0
-		local songs = {}
+		local correct, fastCorrect, ownedHits = 0, 0, 0
 		for _, round in result.Rounds do
 			local pick = round.Picks[player]
 			if pick and pick.Correct then
 				correct += 1
-				if round.BiasFrom == player then
-					biasHits += 1
+				if round.Owners and round.Owners[player] then
+					ownedHits += 1
 				end
 				if pick.Tier <= DuelConstants.PERFECT_MAX_TIER then
 					fastCorrect += 1
 				end
-				table.insert(songs, round.Song.Id)
 			end
 		end
 		local perfect = correct == DuelConstants.ROUNDS and fastCorrect == DuelConstants.ROUNDS
@@ -105,7 +99,6 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 			CoinsDetail = "",
 			Streak = data.Player.Streak.Get(),
 			StreakLost = 0,
-			IndexNew = 0,
 			Perfect = false,
 			Outcome = "Solo",
 		}
@@ -146,9 +139,9 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 			earned.Streak = 0
 		end
 
-		-- bias pack bonus: guessed a song from your own bias pack
-		if biasHits > 0 and not result.Solo and earned.Outcome ~= "Left" then
-			earned.XP += biasHits * DuelConstants.BIAS_XP
+		-- owned-song bonus: guessed a song you own
+		if ownedHits > 0 and not result.Solo and earned.Outcome ~= "Left" then
+			earned.XP += ownedHits * DuelConstants.OWNED_XP
 		end
 
 		if perfect and not result.Solo and earned.Outcome ~= "Left" then
@@ -213,12 +206,6 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 					data.Statistics.Losses.Increment(1)
 				end
 			end
-			for _, id in songs do
-				if not data.Inventory.Index.Has(id) then
-					data.Inventory.Index.Add(id)
-					earned.IndexNew += 1
-				end
-			end
 		end)
 
 		out[player] = earned
@@ -231,7 +218,6 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 			Lost = earned.Outcome == "Lose" or earned.Outcome == "Left",
 			Solo = result.Solo,
 			Perfect = earned.Perfect == true,
-			NewSongs = earned.IndexNew,
 		})
 	end
 	return out

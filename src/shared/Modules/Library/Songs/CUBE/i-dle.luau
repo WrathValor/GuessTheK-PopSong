@@ -6,6 +6,8 @@ return {
 	Group = "i-dle",
 	GroupType = "Girl",
 	Generation = "4th",
+	Colour = "F7A8C8", -- card art + roll glow (pastel hex)
+	Gradient = ColorSequence.new(Color3.fromHex("E4002B"), Color3.fromHex("5C068C")), -- official: Neon Red + Chic Violet
 	Status = "Active",
 	Songs = {
 		{
@@ -21,7 +23,7 @@ return {
 			Year = 2026,
 			MusicId = "rbxassetid://120067012177777",
 			PlaybackSpeed = 0.7,
-			TimePosition = 2,
+			TimePosition = 3,
 			ChorusPosition = 29.7,
 		},
 		{
@@ -57,6 +59,14 @@ return {
 			TimePosition = 0,
 			ChorusPosition = 0,
             Draft = true;
+		},
+		{
+			Name = "Fate",
+			Year = 2024,
+			MusicId = "rbxassetid://132297337117250",
+			PlaybackSpeed = 0.83,
+			TimePosition = 4,
+			ChorusPosition = 32.9,
 		},
 	},
 }

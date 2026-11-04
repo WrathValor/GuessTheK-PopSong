@@ -2,7 +2,6 @@
 -- Cmdr argument types for the testing commands (autocomplete on the client):
 --   shopStage / shopMic / shopSet / shopPass – ShopCatalog ids ("all" for every one)
 --   song / pack                              – CmdrKeys ("all" for every song / pack)
---   duelPack                                 – a pack key, "My", or "off"
 --   soloTheme                                – Themes ids (All, 2010s, Gen4, Pack…)
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -25,6 +24,5 @@ return function(registry)
 	registry:RegisterType("shopPass", Util.MakeEnumType("Pass", CmdrKeys.PassIds()))
 	registry:RegisterType("song", Util.MakeEnumType("Song", with(CmdrKeys.SongKeys(), "all")))
 	registry:RegisterType("pack", Util.MakeEnumType("Pack", with(CmdrKeys.PackKeys(), "all")))
-	registry:RegisterType("duelPack", Util.MakeEnumType("DuelPack", with(CmdrKeys.PackKeys(), "off", "My")))
 	registry:RegisterType("soloTheme", Util.MakeEnumType("SoloTheme", CmdrKeys.ThemeIds()))
 end

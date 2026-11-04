@@ -1,8 +1,8 @@
 --| ShopController
 -- The shop (Interface.Frames.Shop, built by ./Build from the Shop A boards): tabs in the header,
--- six pages that never scroll (Featured, Sets, Items, Packs, UGC, Coins). Items sells stages
--- and mic stands one by one; Packs switches between company and group packs; UGC sells the
--- group's own avatar items for Robux (./Emotes, the UGC tab). Fills everything from
+-- six pages that never scroll (Featured, Sets, Items, Songs, UGC, Coins). Items sells stages
+-- and mic stands one by one; Songs is the song roll (./Roll, on Pages.Roll), the only way to
+-- get songs (it replaced buying packs); UGC sells the group's own avatar items for Robux (./Emotes). Fills everything from
 -- ShopCatalog + the player's data; purchases are only requests, the server (ShopService)
 -- checks and applies them. Open with Interface:Open("Shop", "Coins") to land on a tab.
 
@@ -16,7 +16,6 @@ local Janitor = require(ReplicatedStorage.Packages.janitor)
 local Promise = require(ReplicatedStorage.Packages.promise)
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Client
-local Packs = require(ReplicatedStorage.Modules.Library.Packs)
 local ShopCatalog = require(ReplicatedStorage.Constants.ShopCatalog)
 local CosmeticView = require(ReplicatedStorage.Modules.UI.CosmeticView)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
@@ -26,6 +25,7 @@ local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 local AnalyticsClient = require(ReplicatedStorage.Modules.AnalyticsClient)
 local Emotes = require(script.Emotes)
+local Roll = require(script.Roll)
 local Prices = require(ReplicatedStorage.Modules.Prices)
 
 -- -------------------------------- Variables ------------------------------- --
@@ -33,16 +33,13 @@ local LOCAL_PLAYER = Players.LocalPlayer
 local ShopRemote = Bridgenet.ReferenceBridge("ShopRemote")
 
 local C = Color3.fromHex
-local INK = C("1E1B2E")
 local WHITE = C("FFFFFF")
 local MINT = C("A7E9B8")
-local YELLOW = C("FFE07A")
-local PAPER = C("F3EBDD")
-local LINE = C("CFC5B3")
 local GREY = C("EDE4D4")
 
-local TABS = { "Featured", "Sets", "Items", "Packs", "UGC", "Coins" }
-local PACK_SLOTS = 5
+local TABS = { "Featured", "Sets", "Items", "Songs", "UGC", "Coins" }
+local TAB_ALIASES = { Packs = "Songs", Roll = "Songs" } -- old tab names other screens may still open
+local PAGE_OF = { Songs = "Roll" } -- tabs whose page has another name (Songs → Pages.Roll)
 local COIN_LAYOUTS = {
 	[1] = { { 33, 32 } },
 	[3] = { { 33, 20 }, { 18, 44 }, { 48, 44 } },
@@ -63,10 +60,6 @@ function Shop.new()
 	self._frame = nil :: any
 	self._janitor = Janitor.new()
 	self._tab = "Featured"
-	self._packIndex = 1 -- which of the visible pack slots is selected
-	self._packKind = "Company" :: "Company" | "Group"
-	self._packOffset = 0 -- paging through more than PACK_SLOTS packs
-	self._packs = {} :: { any }
 	return (self :: any) :: UITypes.Controller
 end
 
@@ -249,142 +242,6 @@ function Shop:_fillSets()
 	end
 end
 
--- Packs: company or group packs (Modules/Library/Packs), depending on the switch.
-function Shop:_buildPacks()
-	self._packs = Packs.Rotation(self._packKind)
-	self._packWindow = Packs.RotationWindow()
-	self._packOffset = math.clamp(self._packOffset, 0, math.max(0, #self._packs - PACK_SLOTS))
-end
-
-function Shop:_setPackKind(kind: string)
-	if kind == self._packKind then
-		return
-	end
-	self._packKind = kind
-	self._packOffset = 0
-	self._packIndex = 1
-	self:_buildPacks()
-	self:_refresh()
-end
-
-function Shop:_fillPacks()
-	local page = self._pages.Packs
-	local picker = page.Picker
-	local visible = math.min(PACK_SLOTS, #self._packs - self._packOffset)
-	self._packIndex = math.clamp(self._packIndex, 1, math.max(visible, 1))
-
-	-- switch + pager
-	local switch = page.Header:FindFirstChild("Kind")
-	if switch then
-		for _, kind in { "Company", "Group" } do
-			local b = switch:FindFirstChild(if kind == "Company" then "Companies" else "Groups")
-			local on = kind == self._packKind
-			b.BackgroundColor3 = if on then INK else WHITE
-			b.TextColor3 = if on then YELLOW else C("5C566B")
-		end
-	end
-	local paged = #self._packs > PACK_SLOTS
-	for _, n in { "PickerPrev", "PickerNext" } do
-		local b = page:FindFirstChild(n)
-		if b then
-			b.Visible = paged
-		end
-	end
-	local chip = page.Header:FindFirstChild("Chip")
-	if chip then
-		local _, ends = Packs.RotationWindow()
-		chip.Text = `Restocks in {ShopCatalog.Countdown(ends - os.time())}`
-	end
-	if page:FindFirstChild("Note") then
-		page.Note.Text = if self._packKind == "Group" then "Group songs also count toward their company pack." else "Songs you own go into My Pack."
-	end
-
-	for i = 1, PACK_SLOTS do
-		local b = picker:FindFirstChild("Pack" .. i)
-		local sh = picker:FindFirstChild("Pack" .. i .. "Shadow")
-		local pack = self._packs[self._packOffset + i]
-		b.Visible = pack ~= nil
-		sh.Visible = pack ~= nil
-		if pack then
-			local have = 0
-			for _, song in pack.Songs do
-				if owns(PlayerData.Inventory.Songs, song.Id) then
-					have += 1
-				end
-			end
-			local done = have == #pack.Songs
-			local selected = i == self._packIndex
-			b.PackName.Text = pack.Name
-			b.Sub.Text = if done then `All {#pack.Songs} owned` else `{have} / {#pack.Songs} owned`
-			b.Chip.Visible = done
-			b.BackgroundColor3 = if selected then INK else WHITE
-			b.PackName.TextColor3 = if selected then YELLOW else INK
-			b.Sub.TextColor3 = if selected then YELLOW else INK
-			b.Cover.BackgroundColor3 = C(ShopCatalog.PACK_COLOURS[(self._packOffset + i - 1) % #ShopCatalog.PACK_COLOURS + 1])
-			b.Cover:FindFirstChildOfClass("UIStroke").Color = if selected then YELLOW else INK
-		end
-	end
-
-	local sel = page.Selected
-	local pack = self._packs[self._packOffset + self._packIndex]
-	sel.Visible = pack ~= nil
-	if not pack then
-		return
-	end
-	local missing = {}
-	for _, song in pack.Songs do
-		if not owns(PlayerData.Inventory.Songs, song.Id) then
-			table.insert(missing, song)
-		end
-	end
-	local count = #pack.Songs
-	sel.Top.PackName.Text = pack.Name
-	local company = if pack.Kind == "Group" and pack.Songs[1] then ` · {pack.Songs[1].Company}` else ""
-	sel.Top.Count.Text = `{count} songs · you own {count - #missing}{company}`
-	sel.Reward.Text = if #missing == 0 then `Title unlocked: {pack.Title}` else `Own all {count} → title: {pack.Title}`
-
-	for i = 1, 12 do
-		local row = sel.Songs:FindFirstChild("Song" .. i)
-		local song = pack.Songs[i]
-		row.Visible = song ~= nil
-		if song then
-			local owned = owns(PlayerData.Inventory.Songs, song.Id)
-			row:SetAttribute("SongId", song.Id)
-			row.SongTitle.Text = song.Name
-			row.Artist.Text = song.Artist
-			row.BackgroundColor3 = if owned then PAPER else WHITE
-			row:FindFirstChildOfClass("UIStroke").Color = if owned then LINE else INK
-			row.Owned.Visible = owned
-			row.Buy.Visible = not owned
-			setButton(row.Buy, fmt(ShopCatalog.SONG_PRICE), { Colour = YELLOW })
-		end
-	end
-
-	local buyAll = sel.BuyAll
-	local shadow = sel:FindFirstChild("BuyAllShadow")
-	if #missing == 0 then
-		sel.BuyAllTitle.Text = `You own the whole {pack.Name} pack`
-		sel.BuyAllSub.Text = "Every song in it is in My Pack."
-		buyAll.Visible = false
-	else
-		local full = #missing * ShopCatalog.SONG_PRICE
-		local off = math.floor(ShopCatalog.PACK_DISCOUNT * 100)
-		local ownSome = #missing < #pack.Songs
-		sel.BuyAllTitle.Text = if ownSome
-			then `Buy the {#missing} {pack.Name} songs you're missing`
-			else `Buy the whole {pack.Name} pack`
-		-- the discount is for buying them together, not for songs you already have
-		sel.BuyAllSub.Text = if ownSome
-			then `Bundle deal: {off}% off buying them one by one · songs you own aren't charged`
-			else `Bundle deal: {off}% off buying the {#missing} songs one by one`
-		buyAll.Visible = true
-		setButton(buyAll, fmt(ShopCatalog.PackPrice(#missing)), { Old = if #missing > 1 then fmt(full) else nil })
-	end
-	if shadow then
-		shadow.Visible = buyAll.Visible
-	end
-end
-
 -- [[ Items: stages + mic stands ]]
 
 local ITEM_OWNED = { Stage = "Stages", Mic = "Mics" }
@@ -538,8 +395,8 @@ function Shop:_refresh()
 		self:_fillSets()
 	elseif self._tab == "Items" then
 		self:_fillItems()
-	elseif self._tab == "Packs" then
-		self:_fillPacks()
+	elseif self._tab == "Songs" then
+		self._roll:Fill()
 	elseif self._tab == "UGC" then
 		self._emotes:Fill()
 	elseif self._tab == "Coins" then
@@ -548,6 +405,7 @@ function Shop:_refresh()
 end
 
 function Shop:ShowTab(name: string, force: boolean?)
+	name = TAB_ALIASES[name] or name
 	if not table.find(TABS, name) then
 		name = "Featured"
 	end
@@ -569,7 +427,7 @@ function Shop:ShowTab(name: string, force: boolean?)
 		local p = holder.Button.Position
 		holder.Button.Position = UDim2.new(p.X.Scale, p.X.Offset, p.Y.Scale, base - (if on then 1 else 0))
 		holder.Shadow.Visible = on
-		self._pages[tab].Visible = on
+		self._pages[PAGE_OF[tab] or tab].Visible = on
 		if on and changed then
 			Juice.Pop(holder.Button, 0.12)
 		end
@@ -585,7 +443,6 @@ function Shop:Initialize(interface)
 	self._frame.Visible = false
 	local panel = self._frame.Panel
 	self._pages = panel.Pages
-	self:_buildPacks()
 	ButtonScale.ApplyToDescendants(panel)
 
 	local j = self._janitor
@@ -628,56 +485,10 @@ function Shop:Initialize(interface)
 		end
 	end
 
-	-- packs
-	local packs = self._pages.Packs
-	j:Add(packs.Header.Kind.Companies.Activated:Connect(function()
-		self:_setPackKind("Company")
-	end))
-	j:Add(packs.Header.Kind.Groups.Activated:Connect(function()
-		self:_setPackKind("Group")
-	end))
-	for step, n in { [-1] = "PickerPrev", [1] = "PickerNext" } do
-		j:Add(packs[n].Activated:Connect(function()
-			local max = math.max(0, #self._packs - PACK_SLOTS)
-			local nextOffset = math.clamp(self._packOffset + step * PACK_SLOTS, 0, max)
-			if nextOffset ~= self._packOffset then
-				self._packOffset = nextOffset
-				self._packIndex = 1
-				self:_refresh()
-			end
-		end))
-	end
-	for i = 1, 5 do
-		j:Add(packs.Picker["Pack" .. i].Activated:Connect(function()
-			local changed = self._packIndex ~= i
-			self._packIndex = i
-			self:_refresh()
-			if changed then
-				Juice.Pop(packs.Picker["Pack" .. i], 0.08)
-			end
-		end))
-	end
-	for i = 1, 12 do
-		local row = packs.Selected.Songs["Song" .. i]
-		j:Add(row.Buy.Activated:Connect(function()
-			local id = row:GetAttribute("SongId")
-			if not id then
-				return
-			end
-			if PlayerData.Currencies.Won.Get() < ShopCatalog.SONG_PRICE then
-				self:_toast("Not enough coins")
-				Sounds.Play("Wrong")
-				return
-			end
-			ShopRemote:Fire({ Action = "BuySong", Id = id })
-		end))
-	end
-	j:Add(packs.Selected.BuyAll.Activated:Connect(function()
-		local pack = self._packs[self._packOffset + self._packIndex]
-		if pack then
-			ShopRemote:Fire({ Action = "BuyPack", Id = pack.Id })
-		end
-	end))
+	-- the song roll (./Roll): replaced buying packs
+	self._roll = Roll.new(self._pages, self._frame, j, function(message)
+		self:_toast(message)
+	end)
 
 	-- the group's UGC (Robux): dancing closes the shop so you can see yourself
 	self._emotes = Emotes.new(self._pages.UGC, j, function()
@@ -745,9 +556,6 @@ function Shop:Initialize(interface)
 				if window ~= self._window then
 					self._window = window
 				end
-				if Packs.RotationWindow() ~= self._packWindow then
-					self:_buildPacks() -- new packs in the shop
-				end
 				self:_refresh()
 			end
 		end
@@ -771,6 +579,7 @@ function Shop:Deactivate()
 		return Promise.resolve()
 	end
 	self.State = "Deactivating"
+	self._roll:Hide()
 	return FrameTransition.Close(self._frame):andThen(function()
 		self._frame.Visible = false
 		self.State = "Inactive"

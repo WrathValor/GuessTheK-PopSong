@@ -6,6 +6,8 @@ return {
 	Group = "SEVENTEEN",
 	GroupType = "Boy",
 	Generation = "3rd",
+	Colour = "F5C4D0", -- card art + roll glow (pastel hex)
+	Gradient = ColorSequence.new(Color3.fromHex("F7CAC9"), Color3.fromHex("92A8D1")), -- official: Rose Quartz + Serenity
 	Status = "Active",
 	Songs = {
 		{
@@ -63,6 +65,30 @@ return {
 			PlaybackSpeed = 0.75,
 			TimePosition = 1,
 			ChorusPosition = 35.3,
+		},
+		{
+			Name = "HOT",
+			Year = 2022,
+			MusicId = "rbxassetid://106611486295154",
+			PlaybackSpeed = 0.55,
+			TimePosition = 1,
+			ChorusPosition = 31.4,
+		},
+		{
+			Name = "God of Music",
+			Year = 2023,
+			MusicId = "rbxassetid://140402892309272",
+			PlaybackSpeed = 0.83,
+			TimePosition = 1,
+			ChorusPosition = 54.8,
+		},
+		{
+			Name = "MAESTRO",
+			Year = 2024,
+			MusicId = "rbxassetid://125735375204297",
+			PlaybackSpeed = 0.76,
+			TimePosition = 1,
+			ChorusPosition = 49.3,
 		},
 	},
 }

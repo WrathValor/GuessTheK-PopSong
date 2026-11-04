@@ -6,6 +6,8 @@ return {
 	Group = "YENA",
 	GroupType = "Solo",
 	Generation = "4th",
+	Colour = "FFE07A", -- card art + roll glow (pastel hex)
+	Gradient = ColorSequence.new(Color3.fromHex("FFE46B"), Color3.fromHex("FFC21A")), -- official: Yen-low
 	Status = "Active",
 	Songs = {
 		{

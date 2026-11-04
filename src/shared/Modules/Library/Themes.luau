@@ -3,7 +3,7 @@
 --   • "All"                     – the whole library
 --   • "2000s" / "2010s" / "2020s" – by each song's Year
 --   • "Gen2" … "Gen5"           – by the group's Generation
---   • "Pack"                    – only songs from the player's duel pack (needs ROUNDS songs)
+--   • "Pack"                    – "My songs": only songs the player owns (needs ROUNDS songs)
 -- Every clip and every wrong answer comes from the theme, so you can't rule an option out by
 -- era. A theme only opens once it has MIN_SONGS playable songs (Draft songs never count);
 -- until then the picker shows it as SEALED. The last pick is saved in Settings.SoloTheme.
@@ -27,7 +27,7 @@ local LIST = {
 	{ Id = "Gen3", Tab = "Gen", Name = "Gen 3", Numeral = "III", Colour = "9ED8F5", Generation = "3rd" },
 	{ Id = "Gen4", Tab = "Gen", Name = "Gen 4", Numeral = "IV", Colour = "B9A6FF", Generation = "4th" },
 	{ Id = "Gen5", Tab = "Gen", Name = "Gen 5", Numeral = "V", Colour = "A7E9B8", Generation = "5th" },
-	{ Id = "Pack", Tab = "Pack", Name = "My bias pack", Numeral = "♪", Colour = "FFB38A" },
+	{ Id = "Pack", Tab = "Pack", Name = "My songs", Numeral = "♪", Colour = "FFB38A" },
 }
 local BY_ID = {}
 for _, theme in LIST do
@@ -50,7 +50,7 @@ function Themes.ForTab(tab: string)
 	return out
 end
 
--- Does this song fit the theme? ("Pack" is decided by the player's pack, not here.)
+-- Does this song fit the theme? ("Pack" is decided by the songs the player owns, not here.)
 function Themes.Matches(id: string, song): boolean
 	local theme = BY_ID[id]
 	if not theme or theme.Id == "All" then
@@ -88,7 +88,7 @@ function Themes.Count(id: string): number
 	return #Themes.SongsFor(id)
 end
 
--- Can this theme be played yet? ("Pack" depends on the player's pack: see the callers.)
+-- Can this theme be played yet? ("Pack" depends on the player's songs: see the callers.)
 function Themes.IsOpen(id: string): boolean
 	if id == "All" then
 		return true
@@ -96,18 +96,16 @@ function Themes.IsOpen(id: string): boolean
 	return BY_ID[id] ~= nil and id ~= Themes.PACK and Themes.Count(id) >= Themes.MIN_SONGS
 end
 
--- A random song in the theme that isn't excluded, or nil if none are left.
-function Themes.RandomSong(id: string, exclude: { [string]: boolean }?)
+-- A random song in the theme that isn't excluded, or nil if none are left. `weight` as in
+-- Songs.Pick (owned songs come up more often).
+function Themes.RandomSong(id: string, exclude: { [string]: boolean }?, weight: ((any) -> number)?)
 	local pool = {}
 	for _, song in Themes.SongsFor(id) do
 		if not (exclude and exclude[song.Id]) then
 			table.insert(pool, song)
 		end
 	end
-	if #pool == 0 then
-		return nil
-	end
-	return pool[math.random(1, #pool)]
+	return Songs.Pick(pool, weight)
 end
 
 -- "BTS, TWICE, BLACKPINK": the groups with the most songs in the theme, for the card

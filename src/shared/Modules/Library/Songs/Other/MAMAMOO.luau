@@ -6,6 +6,8 @@ return {
 	Group = "MAMAMOO",
 	GroupType = "Girl",
 	Generation = "3rd",
+	Colour = "A8E0C9", -- card art + roll glow (pastel hex)
+	Gradient = ColorSequence.new(Color3.fromHex("A8E0C9"), Color3.fromHex("3FA97A")), -- no official colour: green
 	Status = "Active",
 	Songs = {
 		{

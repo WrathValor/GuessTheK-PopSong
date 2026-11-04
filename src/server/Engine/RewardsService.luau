@@ -8,7 +8,7 @@
 -- Reply to the player:     { Message = "Result", Ok = bool, Text = string, Action, Coins = number? }
 --
 -- RewardsService.Record(player, facts) is called by DuelService after each match to move the
--- daily quest counters (facts: Correct, Win, Lost, Solo, Perfect, NewSongs).
+-- daily quest counters (facts: Correct, Win, Lost, Solo, Perfect; new songs from RecordNewSongs).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
@@ -168,8 +168,21 @@ local ACTIONS = {
 
 -- [[ Quest progress ]]
 
--- facts = { Correct = n, Win = bool, Lost = bool, Solo = bool, Perfect = bool, NewSongs = n }
+-- facts = { Correct = n, Win = bool, Lost = bool, Solo = bool, Perfect = bool }
 -- Call it outside any other Batch; it batches its own writes.
+-- New songs pulled from the song roll (Engine/RollService) count toward the "new songs" quest.
+-- Call it outside any other Batch.
+function RewardsService.RecordNewSongs(player: Player, count: number)
+	local data = PlayerData.Get(player)
+	if not data or count <= 0 then
+		return
+	end
+	PlayerData.Batch(player, function()
+		rollQuestDay(data, os.time())
+		data.Rewards.Quest.NewSongs.Increment(count)
+	end)
+end
+
 function RewardsService.Record(player: Player, facts)
 	local data = PlayerData.Get(player)
 	if not data then
@@ -180,9 +193,6 @@ function RewardsService.Record(player: Player, facts)
 		rollQuestDay(data, os.time())
 		if (facts.Correct or 0) > 0 then
 			q.Correct.Increment(facts.Correct)
-		end
-		if (facts.NewSongs or 0) > 0 then
-			q.NewSongs.Increment(facts.NewSongs)
 		end
 		if facts.Solo then
 			q.Solo.Increment(1)

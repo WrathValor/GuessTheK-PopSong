@@ -231,8 +231,9 @@ function Snippet:_chorusPosition(): number
 	return self:_startPosition()
 end
 
--- Plays the song from its chorus (used during the reveal).
-function Snippet:PlayFull()
+-- Plays the song from its chorus (used during the reveal). fromStart = true plays from the
+-- snippet's start (TimePosition) instead (the shop's roll reveal).
+function Snippet:PlayFull(fromStart: boolean?)
 	self._token += 1
 	self._fading = false
 	if self.Sound then
@@ -242,7 +243,7 @@ function Snippet:PlayFull()
 	if self.Sound then
 		task.spawn(function()
 			if self:_waitLoaded() and self._token == token then
-				self.Sound.TimePosition = self:_chorusPosition()
+				self.Sound.TimePosition = if fromStart then self:_startPosition() else self:_chorusPosition()
 				self.Sound:Play()
 			end
 		end)

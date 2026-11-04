@@ -6,6 +6,8 @@ return {
     Group = "BIGBANG",
     GroupType = "Boy",
     Generation = "2nd",
+    Colour = "FFE07A", -- card art + roll glow (pastel hex)
+    Gradient = ColorSequence.new(Color3.fromHex("FFE14D"), Color3.fromHex("FFB300")), -- yellow crown (fan colour, not official)
     Status = "Active",
     Songs = {
         {
@@ -19,13 +21,13 @@ return {
         },
         {
             Name = "HARU HARU",
-            Draft = true, -- audio didn't load in game (2026-11-01): re-upload / check permissions
             Year = 2008,
-            MusicId = "rbxassetid://70954585634010",
+            MusicId = "rbxassetid://86398785394306",
             AnimationId = "rbxassetid://9905748137",
-            PlaybackSpeed = 0.55,
-            TimePosition = 5,
-            ChorusPosition = 0,
+            PlaybackSpeed = 0.53,
+            TimePosition = 0.5,
+            ChorusPosition = 41.1,
+            Draft = true, -- Music moderated
         },
         {
             Name = "TONIGHT",
@@ -38,12 +40,11 @@ return {
         },
         {
             Name = "BAD BOY",
-            Draft = true, -- audio didn't load in game (2026-11-01): re-upload / check permissions
             Year = 2012,
-            MusicId = "rbxassetid://128481345153698",
+            MusicId = "rbxassetid://103714812249862",
             AnimationId = "",
-            PlaybackSpeed = 0.81,
-            TimePosition = 5,
+            PlaybackSpeed = 0.73,
+            TimePosition = 0,
             ChorusPosition = 0,
         },
         {
@@ -81,6 +82,22 @@ return {
             PlaybackSpeed = 0.62,
             TimePosition = 5,
             ChorusPosition = 58.8,
+        },
+        {
+            Name = "LAST FAREWELL",
+            Year = 2007,
+            MusicId = "rbxassetid://88279349506138",
+            PlaybackSpeed = 0.81,
+            TimePosition = 1,
+            ChorusPosition = 70,
+        },
+        {
+            Name = "BLUE",
+            Year = 2012,
+            MusicId = "rbxassetid://118201191739413",
+            PlaybackSpeed = 0.53,
+            TimePosition = 1,
+            ChorusPosition = 52.5,
         },
     },
 }

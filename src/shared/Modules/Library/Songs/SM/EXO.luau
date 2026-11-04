@@ -6,6 +6,8 @@ return {
 	Group = "EXO",
 	GroupType = "Boy",
 	Generation = "3rd",
+	Colour = "CFD5E6", -- card art + roll glow (pastel hex)
+	Gradient = ColorSequence.new(Color3.fromHex("FFF8E7"), Color3.fromHex("E8D6AE")), -- official: Cosmic Latte
 	Status = "Active",
 	Songs = {
 		{
@@ -72,6 +74,22 @@ return {
 			PlaybackSpeed = 0.67,
 			TimePosition = 1,
 			ChorusPosition = 106.1,
+		},
+		{
+			Name = "Lotto",
+			Year = 2016,
+			MusicId = "rbxassetid://135222801004238",
+			PlaybackSpeed = 0.98,
+			TimePosition = 1,
+			ChorusPosition = 46.2,
+		},
+		{
+			Name = "Power",
+			Year = 2017,
+			MusicId = "rbxassetid://129111839213517",
+			PlaybackSpeed = 0.72,
+			TimePosition = 0.5,
+			ChorusPosition = 37.8,
 		},
 	},
 }

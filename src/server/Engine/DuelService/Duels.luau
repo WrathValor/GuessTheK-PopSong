@@ -10,6 +10,7 @@ local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 local SongLibrary = require(ReplicatedStorage.Modules.Library.Songs)
 local Packs = require(ReplicatedStorage.Modules.Library.Packs)
 local Themes = require(ReplicatedStorage.Modules.Library.Themes)
+local Cards = require(ReplicatedStorage.Modules.Library.Cards)
 local Levels = require(ReplicatedStorage.Modules.Levels)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 local Analytics = require(script.Parent.Parent.Analytics)
@@ -71,17 +72,16 @@ end
 
 local function profileOf(player: Player)
 	local ok, data = pcall(PlayerData.Get, player)
-	local xp, streak, bias, biasColour, title = 0, 0, nil, nil, nil
+	local xp, streak, title, tier = 0, 0, nil, nil
 	if ok and data then
 		xp = data.Player.XP.Get()
 		streak = data.Player.Streak.Get()
-		bias, biasColour = Packs.Badge(data.Inventory.DuelPack.Get())
 		title = data.Inventory.Title.Get()
+		tier = Cards.LEVELS[(data.Inventory.TitleTiers.Get() or {})[title] or 1]
 	end
 	return {
 		Title = if title and title ~= "" then title else nil,
-		Bias = bias,
-		BiasColour = biasColour,
+		TitleTier = tier, -- "Normal" / "Gold" / "Rainbow"
 		UserId = player.UserId,
 		Name = player.DisplayName,
 		Level = (Levels.FromXP(xp)),
@@ -91,19 +91,22 @@ local function profileOf(player: Player)
 	}
 end
 
--- The songs this player's duel pack would bring (owned songs in it), and the pack id.
-local function duelPackOf(player: Player): ({ any }, string?)
+-- Every song this player owns (Inventory.Songs), as a list, and a lookup of id → card level
+-- ("Normal" / "Gold" / "Rainbow", Modules/Library/Cards).
+local function ownedOf(player: Player): ({ any }, { [string]: string })
 	local ok, data = pcall(PlayerData.Get, player)
 	if not ok or not data then
-		return {}, nil
+		return {}, {}
 	end
-	local id = data.Inventory.DuelPack.Get()
-	if id == "" or not Packs.Get(id) then
-		return {}, nil
-	end
-	return Packs.SongsFor(id, function(songId)
+	local list = Packs.SongsFor(Packs.MY, function(songId)
 		return data.Inventory.Songs.Has(songId)
-	end), id
+	end)
+	local copies = data.Inventory.Copies.Get()
+	local levels = {}
+	for _, song in list do
+		levels[song.Id] = Cards.Level(Cards.Copies(copies, true, song.Id)) or "Normal"
+	end
+	return list, levels
 end
 
 local function shuffle(list: { any }): { any }
@@ -146,11 +149,12 @@ function Duels.new(stage, playerA: Player?, playerB: Player?, solo: boolean?)
 	self.Phase = "Intro" :: "Intro" | "Vote" | "Round" | "Reveal" | "Done"
 	self.Round = 0
 	self.Used = {} :: { [string]: boolean }
-	-- round -> { Song, From = player, Pack = packId } for rounds that play a pack song
-	self.Schedule = {} :: { [number]: any }
-	self.PackSongs = {} :: { [Player]: { any } }
-	self.PackIds = {} :: { [Player]: string }
-	self.SoloPool = "Mix"
+	-- owned songs (see DuelConstants.OWNED_WEIGHT): each player's list + lookup, whether this
+	-- game boosts them, and how many rounds have played one so far
+	self.OwnedSongs = {} :: { [Player]: { any } }
+	self.Owned = {} :: { [Player]: { [string]: string } } -- song id → card level
+	self.Boost = false
+	self.OwnedRounds = 0
 	self.Theme = Themes.DEFAULT -- solo: the theme picked on the queue card
 	self.Rounds = {} :: { RoundLog }
 	self.Current = nil :: any
@@ -212,7 +216,7 @@ function Duels:Start()
 		end
 		if self.Solo and not self.Tutorial then
 			local me = self.Players[1]
-			Analytics.Event(me, "SoloStarted", 1, self.Theme, if self.PacksOn then "On" else "Off")
+			Analytics.Event(me, "SoloStarted", 1, self.Theme, if self.Boost then "On" else "Off")
 			Analytics.Funnel(me, "Solo", self.Sessions[me] or Analytics.SoloSession(me), "Started")
 		end
 
@@ -256,59 +260,40 @@ function Duels:_preDuel()
 		end
 	end
 
-	-- bias packs: in a duel one player having one is enough (each brings 1 round); solo uses
-	-- it if it's on and fits the theme
-	local packsInfo = { On = false, Names = {} }
-	local allOn = #self.Players > 0
-	local anyOn = false
+	-- owned songs: whatever a player owns comes up more often, nothing to equip. Solo can turn
+	-- that off (Settings.SoloPool) or play only owned songs (the "My songs" theme).
+	local packsInfo = { On = false, Owned = {} }
 	for slot, p in self.Slots do
 		if p then
-			local songs, id = duelPackOf(p)
-			if id and #songs > 0 then
-				self.PackSongs[p] = songs
-				self.PackIds[p] = id
-				packsInfo.Names[slot] = Packs.DisplayName(id)
-				anyOn = true
-			else
-				allOn = false
+			local list, set = ownedOf(p)
+			self.OwnedSongs[p] = list
+			self.Owned[p] = set
+			if #list > 0 then
+				packsInfo.Owned[slot] = #list
+				packsInfo.On = true
 			end
 		end
 	end
-	-- solo: the theme from the queue card (Settings.SoloTheme), and whether the duel pack's
-	-- songs that fit it mix in (Settings.SoloPool). "Pack" plays every round from the pack.
+	-- solo: the theme from the queue card (Settings.SoloTheme)
 	if self.Solo then
 		local me = self.Players[1]
 		local ok, data = pcall(PlayerData.Get, me)
 		local theme = if ok and data then data.Settings.SoloTheme.Get() else Themes.DEFAULT
 		local mix = not (ok and data) or data.Settings.SoloPool.Get() ~= "Off"
-		local packSongs = self.PackSongs[me]
 		if theme == Themes.PACK then
-			if not packSongs or #packSongs < DuelConstants.ROUNDS then
+			if #(self.OwnedSongs[me] or {}) < DuelConstants.ROUNDS then
 				theme = Themes.DEFAULT
 			end
 		elseif not Themes.IsOpen(theme) then
 			theme = Themes.DEFAULT
 		end
 		self.Theme = theme
-		self.SoloPool = if theme == Themes.PACK then "Pack" else "Mix"
-		if packSongs and theme ~= Themes.PACK then
-			local fit = {}
-			for _, song in packSongs do
-				if Themes.Matches(theme, song) then
-					table.insert(fit, song)
-				end
-			end
-			if not mix or #fit == 0 then
-				allOn = false
-			else
-				self.PackSongs[me] = fit
-			end
+		if not mix or theme == Themes.PACK then
+			packsInfo.On = false -- "My songs" is every round already
 		end
 		packsInfo.Theme = Themes.Get(theme).Name
 	end
-	local on = if self.Solo then allOn else anyOn
-	packsInfo.On = on
-	self.PacksOn = on
+	self.Boost = packsInfo.On
 
 	self.Phase = "Vote"
 	self:_fire({
@@ -327,7 +312,6 @@ function Duels:_preDuel()
 		-- no vote (Choreography isn't out yet): show the stake, then straight into Song rounds.
 		task.wait(DuelConstants.STAKE_SPIN + DuelConstants.PRE_DUEL_HOLD + 0.25)
 		self.Mode = DuelConstants.DEFAULT_MODE
-		self:_schedulePacks()
 		self.Phase = "Intro"
 		return
 	end
@@ -347,8 +331,6 @@ function Duels:_preDuel()
 		self.Mode = DuelConstants.MODES[math.random(1, 2)]
 	end
 
-	self:_schedulePacks()
-
 	self.Phase = "Intro"
 	self:_fire({ Message = "Mode", Mode = self.Mode })
 	task.wait(DuelConstants.MODE_REVEAL)
@@ -362,109 +344,86 @@ function Duels:_broadcastVotes()
 	self:_fire({ Message = "Votes", Votes = votes })
 end
 
--- [[ Duel packs ]]
+-- [[ Owned songs ]]
 
--- Decides which rounds play a pack song. Duel: up to PACK_SONGS_PER_PLAYER random songs
--- from each player's pack, on random rounds 2..ROUNDS (a song both packs share counts once).
--- Solo "Pack": every round from the pack.
-function Duels:_schedulePacks()
-	self.Schedule = {}
-	if not self.PacksOn then
-		return
-	end
-	local picks = {} -- { Song, From, Pack }
-	local taken = {}
-	if self.Solo and self.SoloPool == "Pack" then
-		local me = self.Players[1]
-		for i, song in shuffle(self.PackSongs[me]) do
-			if i > DuelConstants.ROUNDS then
-				break
-			end
-			self.Schedule[i] = { Song = song, From = me, Pack = self.PackIds[me] }
-		end
-		return
-	end
+-- How likely `song` is this round: 1, plus (OWNED_WEIGHT[level] - 1) for each player who owns it.
+function Duels:_weightOf(song): number
+	local w = 1
 	for _, p in self.Players do
-		local n = 0
-		for _, song in shuffle(self.PackSongs[p] or {}) do
-			if n >= DuelConstants.PACK_SONGS_PER_PLAYER then
-				break
-			end
-			if not taken[song.Id] then
-				taken[song.Id] = true
-				n += 1
-				table.insert(picks, { Song = song, From = p, Pack = self.PackIds[p] })
-			end
+		local level = self.Owned[p] and self.Owned[p][song.Id]
+		if level then
+			w += (DuelConstants.OWNED_WEIGHT[level] or 1) - 1
 		end
 	end
-	local rounds = {}
-	for r = 2, DuelConstants.ROUNDS do
-		table.insert(rounds, r)
-	end
-	rounds = shuffle(rounds)
-	for i, pick in picks do
-		if rounds[i] then
-			self.Schedule[rounds[i]] = pick
-		end
-	end
+	return w
 end
 
 -- [[ Rounds ]]
 
 function Duels:_playRound(round: number)
 	self.RoundNumber = round
-	local scheduled = self.Schedule[round]
 	local song
-	if scheduled and not self.Used[scheduled.Song.Id] then
-		song = scheduled.Song
-	else
-		scheduled = nil
-		-- shared pool, never one of the songs saved for a later pack round
-		local skip = table.clone(self.Used)
-		for r, pick in self.Schedule do
-			if r > round then
-				skip[pick.Song.Id] = true
+	if self.Tutorial then
+		-- well-known songs, in a random order
+		local pool = {}
+		for _, id in DuelConstants.TUTORIAL_SONGS do
+			local s = SongLibrary.GetById(id)
+			if s and not self.Used[s.Id] then
+				table.insert(pool, s)
 			end
 		end
-		if self.Tutorial then
-			-- well-known songs, in a random order
-			local pool = {}
-			for _, id in DuelConstants.TUTORIAL_SONGS do
-				local s = SongLibrary.GetById(id)
-				if s and not skip[s.Id] then
-					table.insert(pool, s)
-				end
-			end
-			song = if #pool > 0 then pool[math.random(1, #pool)] else nil
-		end
-		if not song and not self.Solo then
-			-- duels spread across the generations: each round takes the next generation from
-			-- a shuffled bag (refilled when empty), so 7 rounds cover every gen at least once
-			if not self.GenBag or #self.GenBag == 0 then
-				self.GenBag = shuffle(SongLibrary.Generations())
-			end
-			song = SongLibrary.GetRandomSongOfGeneration(table.remove(self.GenBag), skip)
-		end
-		song = song or (self.Solo and Themes.RandomSong(self.Theme, skip)) or SongLibrary.GetRandomSong(skip)
+		song = SongLibrary.Pick(pool)
 	end
+	-- owned songs are likelier until OWNED_ROUNDS_MAX rounds have played one
+	local weight = if self.Boost and not self.Tutorial and self.OwnedRounds < DuelConstants.OWNED_ROUNDS_MAX
+		then function(s)
+			return self:_weightOf(s)
+		end
+		else nil
+	local onlyMine = self.Solo and self.Theme == Themes.PACK
+	if not song and onlyMine then
+		-- "My songs": every round from what the player owns
+		local pool = {}
+		for _, s in self.OwnedSongs[self.Players[1]] or {} do
+			if not self.Used[s.Id] then
+				table.insert(pool, s)
+			end
+		end
+		song = SongLibrary.Pick(pool)
+	end
+	if not song and not self.Solo then
+		-- duels spread across the generations: each round takes the next generation from
+		-- a shuffled bag (refilled when empty), so 7 rounds cover every gen at least once
+		if not self.GenBag or #self.GenBag == 0 then
+			self.GenBag = shuffle(SongLibrary.Generations())
+		end
+		song = SongLibrary.GetRandomSongOfGeneration(table.remove(self.GenBag), self.Used, weight)
+	end
+	song = song or (self.Solo and Themes.RandomSong(self.Theme, self.Used, weight)) or SongLibrary.GetRandomSong(self.Used, weight)
 	self.Used[song.Id] = true
-	-- tag shown under the round counter: whose pack this song came from
-	local packTag = scheduled and {
-		From = scheduled.From.UserId,
-		FromName = scheduled.From.DisplayName,
-		Pack = Packs.DisplayName(scheduled.Pack),
-		Bias = not self.Solo or nil, -- a duel's "BIAS PACK ROUND"
-	} or nil
+
+	-- who owns it: they get the "♪ YOUR SONG" tag, and +OWNED_XP for guessing it in a duel
+	local owners = {} :: { [Player]: boolean }
+	local ownedTag = nil
+	if not self.Tutorial and not onlyMine then
+		local list = {}
+		for _, p in self.Players do
+			if self.Owned[p] and self.Owned[p][song.Id] then
+				owners[p] = true
+				table.insert(list, { UserId = p.UserId, Name = p.DisplayName, Tier = self.Owned[p][song.Id] })
+			end
+		end
+		if #list > 0 then
+			self.OwnedRounds += 1
+			ownedTag = { Owners = list, XP = if self.Solo then nil else DuelConstants.OWNED_XP }
+		end
+	end
 
 	local options = { song }
 	-- a themed solo game keeps its options in the theme ("Pack" answers use the whole library)
 	local within = if self.Solo and self.Theme ~= Themes.DEFAULT and self.Theme ~= Themes.PACK
 		then Themes.SongsFor(self.Theme)
 		else nil
-	-- a duel's bias round: all 4 answers by the same group / company
-	if scheduled and not self.Solo then
-		within = Packs.AnswerPool(scheduled.Pack) or within
-	end
 	for _, s in SongLibrary.GetWrongOptions(song, 3, within) do
 		table.insert(options, s)
 	end
@@ -502,7 +461,7 @@ function Duels:_playRound(round: number)
 		Points = DuelConstants.TIER_POINTS,
 		Options = publicOptions,
 		Cap = self.Cap,
-		PackTag = packTag,
+		OwnedTag = ownedTag,
 		Theme = if self.Solo and self.Theme ~= Themes.DEFAULT and self.Theme ~= Themes.PACK
 			then Themes.Get(self.Theme).Name
 			else nil,
@@ -599,8 +558,8 @@ function Duels:_playRound(round: number)
 			First = state.FirstCorrect == p,
 		}
 	end
-	table.insert(self.Rounds, { Song = song, Picks = picks, BiasFrom = if scheduled and not self.Solo then scheduled.From else nil })
-	self:_logRound(round, song, picks, scheduled)
+	table.insert(self.Rounds, { Song = song, Picks = picks, Owners = owners })
+	self:_logRound(round, song, picks, owners)
 
 	local scores = {}
 	for p, s in self.Scores do
@@ -627,7 +586,7 @@ end
 
 local FUNNEL_ROUNDS = { Duel = { [1] = "Round1", [4] = "Round4", [7] = "Round7" }, Solo = { [1] = "Round1", [7] = "Round7" } }
 
-function Duels:_logRound(round: number, song, picks: { [Player]: Pick }, scheduled)
+function Duels:_logRound(round: number, song, picks: { [Player]: Pick }, owners: { [Player]: boolean })
 	local funnel = if self.Solo then "Solo" else "Duel"
 	for p, pick in picks do
 		local result = if pick.Correct then "Correct" elseif pick.Picked then "Wrong" else "NoAnswer"
@@ -635,8 +594,8 @@ function Duels:_logRound(round: number, song, picks: { [Player]: Pick }, schedul
 		if pick.Picked then
 			Analytics.Onboarding(p, "AnsweredRound")
 		end
-		if scheduled then
-			Analytics.Event(p, "PackRound", 1, scheduled.Pack, if scheduled.From == p then "Mine" else "Rival")
+		if next(owners) then
+			Analytics.Event(p, "OwnedRound", 1, if owners[p] then "Mine" else "Rival")
 		end
 		local step = FUNNEL_ROUNDS[funnel][round]
 		if step and self.Sessions[p] then
@@ -746,7 +705,7 @@ function Duels:_finish(winner: Player?, forfeit: boolean, leaver: Player?)
 		Stake = self.Stake,
 		Mode = self.Mode,
 		Solo = self.Solo,
-		Packs = self.PacksOn == true,
+		Packs = self.Boost == true,
 		Tutorial = self.Tutorial,
 		Sessions = self.Sessions,
 	}

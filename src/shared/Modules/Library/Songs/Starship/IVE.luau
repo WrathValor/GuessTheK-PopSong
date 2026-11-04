@@ -6,6 +6,8 @@ return {
 	Group = "IVE",
 	GroupType = "Girl",
 	Generation = "4th",
+	Colour = "C6B3FF", -- card art + roll glow (pastel hex)
+	Gradient = ColorSequence.new(Color3.fromHex("FF8FAB"), Color3.fromHex("E63946")), -- no official colour: rose to red
 	Status = "Active",
 	Songs = {
 		{
@@ -30,8 +32,8 @@ return {
 			Year = 2025,
 			MusicId = "rbxassetid://75579081452937",
 			PlaybackSpeed = 0.94,
-			TimePosition = 0,
-			ChorusPosition = 0,
+			TimePosition = 1,
+			ChorusPosition = 46.5,
 		},
 		{
 			Name = "Mirror Mirror",
@@ -79,9 +81,9 @@ return {
 			Draft = true, -- audio didn't load in game (2026-11-01): re-upload / check permissions
 			Year = 2023,
 			MusicId = "rbxassetid://84672455920399",
-			PlaybackSpeed = 0.56,
-			TimePosition = 0,
-			ChorusPosition = 0,
+			PlaybackSpeed = 0.61,
+			TimePosition = 1,
+			ChorusPosition = 31.9,
 		},
 	},
 }

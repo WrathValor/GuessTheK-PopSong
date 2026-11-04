@@ -1,19 +1,16 @@
 --| PackTag
--- The tag under the round scoreboard on pack rounds (from the "Pack rounds" board):
--- lilac "From your pack · My Pack" or pink "From WrathValor's pack · HYBE Pack"; in a duel,
--- "♥ BIAS PACK ROUND · your SEVENTEEN Pack · +2 XP if you get it".
--- Shared-pool rounds hide it, unless a themed solo game shows its theme ("GEN 4"). Build(gameFrame) runs once in Studio; Set() fills it.
+-- The tag under the round scoreboard: a themed solo game's theme ("GEN 4"). It can still show
+-- who owns the song (lilac "♪ YOUR SONG", pink "♪ WrathValor's SONG"), but the game passes no
+-- owners any more: ownership shows on the round reveal instead (./RevealOwner). Build(gameFrame) runs once in Studio; Set() fills it.
 
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 
 local C = Color3.fromHex
 local INK = C("1E1B2E")
 local LILAC = C("B9A6FF")
 local PINK = C("FF9EC4")
 local YELLOW = C("FFE07A")
+local GOLD = C("F2C94C")
 local BODY = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.ExtraBold)
 
 local PackTag = {}
@@ -34,7 +31,7 @@ function PackTag.Build(gameFrame: Instance)
 	tag.FontFace = BODY
 	tag.TextSize = 13
 	tag.TextColor3 = INK
-	tag.Text = "From your pack · My Pack"
+	tag.Text = "♪ YOUR SONG · Normal"
 	tag.Visible = false
 	tag.ZIndex = 3
 	local corner = Instance.new("UICorner")
@@ -53,9 +50,9 @@ function PackTag.Build(gameFrame: Instance)
 	return tag
 end
 
--- info = packet.PackTag ({ From = userId, FromName, Pack }) or nil
--- theme = packet.Theme ("Gen 4") on a themed solo game: shown in front of the pack text,
--- or on its own in yellow on shared-pool rounds
+-- info = packet.OwnedTag ({ Owners = { { UserId, Name, Tier } }, XP = bonus? }) or nil
+-- theme = packet.Theme ("Gen 4") on a themed solo game: shown in front of the song text,
+-- or on its own in yellow on rounds nobody owns
 function PackTag.Set(gameFrame: Instance, info, theme: string?)
 	local tag = gameFrame:FindFirstChild("PackTag")
 	if not tag then
@@ -69,15 +66,27 @@ function PackTag.Set(gameFrame: Instance, info, theme: string?)
 		end
 		return
 	end
-	local mine = info.From == Players.LocalPlayer.UserId
-	tag.BackgroundColor3 = if mine then LILAC else PINK
-	local text = if mine then `From your pack · {info.Pack}` else `From {info.FromName}'s pack · {info.Pack}`
-	if info.Bias then
-		-- a duel's bias pack round (design board "Bias pack 2")
-		text = if mine
-			then `♥ BIAS PACK ROUND · your {info.Pack} · +{DuelConstants.BIAS_XP} XP if you get it`
-			else `♥ BIAS PACK ROUND · {info.FromName}'s {info.Pack}`
+	local mine, other
+	for _, owner in info.Owners or {} do
+		if owner.UserId == Players.LocalPlayer.UserId then
+			mine = owner
+		else
+			other = owner
+		end
 	end
+	local text
+	if mine and other then
+		text = "♪ YOU BOTH OWN THIS"
+	elseif mine then
+		text = `♪ YOUR SONG · {mine.Tier or "Normal"}`
+	else
+		text = `♪ {if other then other.Name else "Rival"}'s SONG`
+	end
+	if mine and info.XP then
+		text ..= ` · +{info.XP} XP if you get it`
+	end
+	local tier = mine and mine.Tier
+	tag.BackgroundColor3 = if tier == "Gold" or tier == "Rainbow" then GOLD elseif mine then LILAC else PINK
 	tag.Text = if theme then `{string.upper(theme)} · {text}` else text
 end
 

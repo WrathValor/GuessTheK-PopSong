@@ -6,6 +6,8 @@ return {
 	Group = "Red Velvet",
 	GroupType = "Girl",
 	Generation = "3rd",
+	Colour = "F7A1A1", -- card art + roll glow (pastel hex)
+	Gradient = ColorSequence.new(Color3.fromHex("FFB8A3"), Color3.fromHex("F4846C")), -- official: Pastel Coral
 	Status = "Active",
 	Songs = {
 		{
@@ -26,12 +28,11 @@ return {
 		},
 		{
 			Name = "Surfin' Boy",
-			Draft = true, -- audio didn't load in game (2026-11-01): re-upload / check permissions
 			Year = 2026,
-			MusicId = "rbxassetid://128588276126191",
-			PlaybackSpeed = 0.73,
-			TimePosition = 0,
-			ChorusPosition = 0,
+			MusicId = "rbxassetid://123129279059156",
+			PlaybackSpeed = 0.66,
+			TimePosition = 2,
+			ChorusPosition = 26.1,
 		},
 		{
 			Name = "Peek-A-Boo",
@@ -58,12 +59,11 @@ return {
 		},
 		{
 			Name = "Dumb Dumb",
-			Draft = true, -- audio didn't load in game (2026-11-01): re-upload / check permissions
 			Year = 2015,
-			MusicId = "rbxassetid://109466976792570",
-			PlaybackSpeed = 0.77,
-			TimePosition = 0,
-			ChorusPosition = 0,
+			MusicId = "rbxassetid://88405456466891",
+			PlaybackSpeed = 0.56,
+			TimePosition = 0.5,
+			ChorusPosition = 22.9,
 		},
 		{
 			Name = "Day 1",
@@ -80,6 +80,14 @@ return {
 			AnimationId = "rbxassetid://81487273177125",
 			TimePosition = 3,
 			ChorusPosition = 125.3,
+		},
+		{
+			Name = "Chill Kill",
+			Year = 2023,
+			MusicId = "rbxassetid://136165598574697",
+			PlaybackSpeed = 0.65,
+			TimePosition = 1,
+			ChorusPosition = 42,
 		},
 	},
 }

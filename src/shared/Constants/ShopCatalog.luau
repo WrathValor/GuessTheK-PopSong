@@ -98,16 +98,9 @@ for _, set in ShopCatalog.Sets do
 	table.insert(ShopCatalog.Mics, mic)
 end
 
--- [[ Song packs: one per company and one per group (Modules/Library/Packs); songs are bought
--- one by one or all missing at once ]]
-ShopCatalog.SONG_PRICE = 150
-ShopCatalog.PACK_DISCOUNT = 0.25 -- "buy all missing" costs 25% less
+-- [[ Song sets: colours for the pack cards in the Inventory. Songs come from the song roll
+-- (Constants/RollConstants), not the shop. ]]
 ShopCatalog.PACK_COLOURS = { "B9A6FF", "A7E9B8", "FFD2CE", "9ED8F5", "FFE07A" }
-
--- Price of buying `missing` songs of a pack at once.
-function ShopCatalog.PackPrice(missing: number): number
-	return math.floor(missing * ShopCatalog.SONG_PRICE * (1 - ShopCatalog.PACK_DISCOUNT) / 10 + 0.5) * 10
-end
 
 -- [[ Robux: coin bundles (developer products) and passes (game passes) ]]
 -- No prices here: the shop reads each one live from Roblox (Modules/Prices), so regional /

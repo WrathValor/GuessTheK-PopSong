@@ -74,8 +74,10 @@ return Scribe({
 		Inventory = {
 			Title = Scribe.String(""), -- equipped title shown on the HUD ("" = default)
 			Titles = Scribe.SetOf(Id(40)), -- titles unlocked
-			-- songs guessed correctly at least once (the Index collection), by Song Id
-			Index = Scribe.SetOf(Id(80)),
+			-- set titles' tier, by title: 2 = Gold, 3 = Rainbow (no entry = Normal). Only goes up
+			-- (Engine/Collection, Modules/Library/Cards.SetLevel)
+			TitleTiers = Scribe.MapOf("string", Count(), { MaxKeys = 200, MaxKeyLength = 40 }),
+			Index = Scribe.SetOf(Id(80)), -- legacy: songs guessed correctly (the Index is owned songs now)
 			Sets = Scribe.SetOf(Id(40)), -- stage sets owned (each also unlocks its stage + mic piece)
 			EquippedSet = Scribe.String("Default", { MaxLength = 40 }), -- legacy: last set equipped as a whole
 			Stages = Scribe.SetOf(Id(40)), -- stages owned (bought in Items, or a set's piece), by ShopCatalog id
@@ -83,9 +85,12 @@ return Scribe({
 			EquippedStage = Scribe.String("Default", { MaxLength = 40 }),
 			EquippedMic = Scribe.String("Default", { MaxLength = 40 }),
 			Packs = Scribe.SetOf(Id(80)), -- song packs completed (pack ids, see Modules/Library/Packs)
-			Songs = Scribe.SetOf(Id(80)), -- songs bought in the shop, by Song Id (My Pack)
-			-- pack mixed into duels ("" = off): "My", "Company:HYBE", "Group:BTS"…
-			DuelPack = Scribe.String("", { MaxLength = 80 }),
+			Songs = Scribe.SetOf(Id(80)), -- songs owned (bought in the shop or pulled from a roll), by Song Id
+			-- copies pulled from the song roll, by Song Id (card level: Modules/Library/Cards).
+			-- A bought song with no entry counts as 1 copy.
+			Copies = Scribe.MapOf("string", Count(), { MaxKeys = 4000, MaxKeyLength = 80 }),
+			DupesInRow = Count(), -- song roll: duplicates since the last new song (RollConstants.PITY)
+			DuelPack = Scribe.String("", { MaxLength = 80 }), -- legacy: bias packs are gone (owned songs just count)
 		},
 
 		Rewards = {
@@ -146,5 +151,5 @@ return Scribe({
 	PeriodReset = { UtcOffset = 0, WeekStart = "Monday" }, -- weekly boards reset Monday 00:00 UTC
 	ProfileStoreIndex = "PlayerData", -- required: your DataStore name
 	ProfileKeyPrefix = "PLAYER_",
-	Mode = "Live",
+	Mode = "Mock",
 })

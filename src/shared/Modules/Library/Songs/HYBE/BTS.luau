@@ -6,6 +6,8 @@ return {
 	Group = "BTS",
 	GroupType = "Boy",
 	Generation = "3rd",
+	Colour = "B9A6FF", -- card art + roll glow (pastel hex)
+	Gradient = ColorSequence.new(Color3.fromHex("A66CFF"), Color3.fromHex("6A2FD6")), -- purple (fan colour, not official)
 	Status = "Active",
 	Songs = {
 		{
@@ -67,8 +69,9 @@ return {
             Year = 2017,
 			MusicId = "rbxassetid://91705710962375",
             AnimationId = "rbxassetid://8389411179",
-            PlaybackSpeed = 0.55,
-            TimePosition = 0,
+			Volume = 0.75,
+            PlaybackSpeed = 0.6,
+            TimePosition = 1,
             ChorusPosition = 115.7,
         },
         {
@@ -77,7 +80,7 @@ return {
             MusicId = "rbxassetid://94609331636982",
             AnimationId = "rbxassetid://8389039413",
             PlaybackSpeed = 0.55,
-            TimePosition = 0,
+            TimePosition = 1,
             ChorusPosition = 93.6,
         },
         {
@@ -131,24 +134,24 @@ return {
 			Year = 2018,
 			MusicId = "rbxassetid://132268683296519",
 			PlaybackSpeed = 0.55,
-			TimePosition = 0,
-			ChorusPosition = 0,
+			TimePosition = 1,
+			ChorusPosition = 13.9,
 		},
 		{
 			Name = "Boy With Luv",
 			Year = 2019,
 			MusicId = "rbxassetid://77653100924504",
 			PlaybackSpeed = 0.57,
-			TimePosition = 0,
-			ChorusPosition = 0,
+			TimePosition = 0.5,
+			ChorusPosition = 36.3,
 		},
 		{
 			Name = "Mikrokosmos",
 			Year = 2019,
 			MusicId = "rbxassetid://137900048942606",
 			PlaybackSpeed = 0.52,
-			TimePosition = 0,
-			ChorusPosition = 0,
+			TimePosition = 1,
+			ChorusPosition = 96,
 		},
 	},
 }

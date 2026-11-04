@@ -22,6 +22,7 @@ local REVEAL_FADE = 2 -- the reveal song fades out over the last this-many secon
 local LoadingCard = require(script.LoadingCard)
 local DanceCard = require(script.DanceCard)
 local PackTag = require(script.PackTag)
+local RevealOwner = require(script.RevealOwner)
 
 -- -------------------------------- Variables ------------------------------- --
 local LOCAL_PLAYER = Players.LocalPlayer
@@ -168,10 +169,11 @@ function Game:OnRound(packet)
 		Tier = 1,
 		Guessed = nil :: number?,
 		Ready = false, -- nothing can be clicked until the clip has loaded
+		OwnedTag = packet.OwnedTag, -- who owns the song: shown on the reveal (./RevealOwner)
 	}
 	self.Scoreboard.Rounds = packet.Rounds
 	self.Scoreboard:UpdateRound(packet.Round)
-	PackTag.Set(self._frame, packet.PackTag, packet.Theme)
+	PackTag.Set(self._frame, nil, packet.Theme) -- ownership shows on the reveal now, not during the round
 	self.Scoreboard:SetStatus(false, "Loading…")
 	self.Scoreboard:SetStatus(true, "Listening…")
 
@@ -394,6 +396,7 @@ function Game:OnRoundEnd(packet)
 	end
 
 	reveal.Answer.Title.Text = packet.Answer.Name
+	RevealOwner.Set(reveal, r and r.OwnedTag) -- the owner's tier finish + "Owned by …"
 	DanceCard.Show(reveal, packet.Answer.Id)
 	reveal.Answer.Meta.Text = if packet.Answer.Year then `{packet.Answer.Artist} · {packet.Answer.Year} · {packet.Answer.Generation or ""} Gen` else `{packet.Answer.Artist} · {packet.Answer.Generation or ""} Gen`
 

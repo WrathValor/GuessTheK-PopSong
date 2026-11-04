@@ -1,7 +1,7 @@
 -- Pre-duel screen: rival found, stake reel spin, then a 5 s mode vote (when DuelConstants.MODE_VOTE
 -- is on; while it's off the vote panel hides and the screen re-centres). A chip on the stake
--- card says whether duel packs are mixing in; in solo it names the theme picked on the queue
--- card (and the pack mixing in, if any). The old SoloPool picker stays hidden. See ./Build.
+-- card says whose owned songs are in play (they come up more often); in solo it names the theme
+-- picked on the queue card. The old SoloPool picker stays hidden. See ./Build.
 
 -- -------------------------------- Services -------------------------------- --
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -86,14 +86,14 @@ function PreDuel:Initialize(interface)
 	end
 end
 
--- [[ Duel packs ]]
+-- [[ Owned songs ]]
 
 local MINT = Color3.fromHex("A7E9B8")
-local GREY = Color3.fromHex("EDE4D4")
 local LILAC = Color3.fromHex("B9A6FF")
 local WHITE = Color3.fromHex("FFFFFF")
 
--- packs = packet.Packs: { On, Names = { [slot] = name }, Solo = { Count, CanOnly, Choice }? }
+-- packs = packet.Packs: { On, Owned = { [slot] = song count }, Theme? (solo) }
+-- Owned songs come up more often; nothing is equipped, so this only says what's in play.
 function PreDuel:_setupPacks(packs, solo: boolean, rivalName: string?)
 	local f = self._frame
 	local chip, pool = f:FindFirstChild("Packs"), f:FindFirstChild("SoloPool")
@@ -106,50 +106,41 @@ function PreDuel:_setupPacks(packs, solo: boolean, rivalName: string?)
 		poolShadow.Visible = false
 	end
 	self._soloPool = nil
-	if type(packs) ~= "table" then
+	if type(packs) ~= "table" or not chip then
 		return
-	end
-	local names = {}
-	for _, name in packs.Names or {} do
-		table.insert(names, name)
 	end
 	if solo then
 		-- the theme was picked on the queue card; just say what this game plays
-		if chip and packs.Theme then
+		if packs.Theme then
 			chip.Visible = true
 			chip.BackgroundColor3 = MINT
 			chip.Icon.Off.Visible = false
-			chip.Label.Text = if packs.On and #names > 0
-				then `{packs.Theme} · {names[1]} mixed in`
-				else packs.Theme
+			chip.Label.Text = if packs.On then `{packs.Theme} · your songs come up more` else packs.Theme
 		end
 		return
 	end
-	if not chip or #names == 0 then
-		return -- nobody has a pack on: nothing to say
+	if not packs.On then
+		return -- nobody owns a song yet: nothing to say
+	end
+	local mine, theirs = 0, 0
+	for slot, count in packs.Owned or {} do
+		if self._slots and self._slots[slot] == Players.LocalPlayer.UserId then
+			mine = count
+		else
+			theirs = count
+		end
+	end
+	local parts = {}
+	if mine > 0 then
+		table.insert(parts, `your {mine}`)
+	end
+	if theirs > 0 then
+		table.insert(parts, `{rivalName or "rival"}'s {theirs}`)
 	end
 	chip.Visible = true
-	chip.BackgroundColor3 = if packs.On then MINT else GREY
-	chip.Icon.Off.Visible = not packs.On
-	if packs.On then
-		-- bias packs: each one brings a round ("♪ 1 bias round · your SEVENTEEN Pack")
-		local parts = {}
-		for slot, name in packs.Names do
-			local mine = self._slots and self._slots[slot] == Players.LocalPlayer.UserId
-			table.insert(parts, if mine then `your {name}` else `{rivalName or "rival"}'s {name}`)
-		end
-		table.sort(parts)
-		chip.Label.Text = `♪ {#parts} bias round{if #parts > 1 then "s" else ""} · {table.concat(parts, " + ")}`
-	else
-		-- only one side has a pack on: say who's missing one
-		local mine = false
-		for slot in packs.Names do
-			if self._slots and self._slots[slot] == Players.LocalPlayer.UserId then
-				mine = true
-			end
-		end
-		chip.Label.Text = if mine then `Packs off · {rivalName or "Your rival"} has none on` else "Packs off · you have none on"
-	end
+	chip.BackgroundColor3 = MINT
+	chip.Icon.Off.Visible = false
+	chip.Label.Text = `♪ Owned songs come up more · {table.concat(parts, " + ")}`
 end
 
 -- With the vote panel hidden, everything else moves down so the screen stays centred.
@@ -204,12 +195,12 @@ function PreDuel:_fillPlayer(card, profile)
 	end
 	card:FindFirstChild("Name").Text = profile.Name
 	card.Sub.Text = if profile.Streak > 0 then `Lv {profile.Level} · {profile.Streak} streak` else `Lv {profile.Level}`
-	-- title + bias pack chip under the level ("Fan | ♥ CARAT")
+	-- title chip under the level
 	local chip = card:FindFirstChild("TitleChip")
 	if not chip then
 		chip = TitleChip.new(card, { Name = "TitleChip", Height = 15, TextSize = 10, Pad = 5, ZIndex = card.ZIndex + 1, Position = UDim2.fromOffset(card.Sub.Position.X.Offset, 56) })
 	end
-	TitleChip.Set(chip, profile.Title or HUDConstants.DEFAULT_TITLE, profile.Bias, profile.BiasColour)
+	TitleChip.Set(chip, profile.Title or HUDConstants.DEFAULT_TITLE, profile.TitleTier)
 	task.spawn(function()
 		card.Avatar.Thumbnail.Image = thumb(profile.UserId)
 	end)

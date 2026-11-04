@@ -6,6 +6,9 @@
 --   GroupType   "Boy" | "Girl" | "Co-ed" | "Solo"
 --   Generation  "2nd" | "3rd" | "4th" | "5th"  wrong answers come from the same generation
 --   Status      "Active" | "Hiatus" | "Disbanded"
+--   Colour      "FF9EC4"  pastel hex: the group's card art + glow on the roll reveal
+--   Gradient    ColorSequence of the group's real colours (official where they have one);
+--               use it on a UIGradient. Optional: groups without one just have Colour
 --   Songs       list of songs:
 --     Name            "Dynamite"
 --     Year            2020 (release year)
@@ -44,6 +47,8 @@ local function load(module: ModuleScript, company: string)
 			entry.GroupType = group.GroupType
 			entry.Generation = group.Generation
 			entry.Status = group.Status
+			entry.Colour = group.Colour
+			entry.Gradient = group.Gradient
 			entry.Id = `{song.Name} - {artist}`
 			if ById[entry.Id] then
 				warn(`[Songs] duplicate song {entry.Id} in {module:GetFullName()}`)
@@ -81,18 +86,43 @@ function Songs.GetById(id: string)
 	return ById[id]
 end
 
-function Songs.GetRandomSong(exclude: { [string]: boolean }?)
+-- A random song from `pool`. `weight(song)` (optional) makes some songs likelier: a song
+-- with weight 3 is three times as likely as one with weight 1 (duels use it for owned songs).
+function Songs.Pick(pool: { any }, weight: ((any) -> number)?)
+	if #pool == 0 then
+		return nil
+	end
+	if not weight then
+		return pool[math.random(1, #pool)]
+	end
+	local total = 0
+	local weights = table.create(#pool)
+	for i, song in pool do
+		weights[i] = math.max(0, weight(song))
+		total += weights[i]
+	end
+	local roll = math.random() * total
+	for i, w in weights do
+		roll -= w
+		if roll < 0 then
+			return pool[i]
+		end
+	end
+	return pool[#pool]
+end
+
+function Songs.GetRandomSong(exclude: { [string]: boolean }?, weight: ((any) -> number)?)
 	local pool = {}
 	for _, song in All do
 		if not (exclude and exclude[song.Id]) then
 			table.insert(pool, song)
 		end
 	end
-	return pool[math.random(1, #pool)]
+	return Songs.Pick(pool, weight)
 end
 
 -- A random song of one generation ("2nd".."5th"), else from the whole library.
-function Songs.GetRandomSongOfGeneration(generation: string?, exclude: { [string]: boolean }?)
+function Songs.GetRandomSongOfGeneration(generation: string?, exclude: { [string]: boolean }?, weight: ((any) -> number)?)
 	if generation then
 		local pool = {}
 		for _, song in All do
@@ -101,10 +131,10 @@ function Songs.GetRandomSongOfGeneration(generation: string?, exclude: { [string
 			end
 		end
 		if #pool > 0 then
-			return pool[math.random(1, #pool)]
+			return Songs.Pick(pool, weight)
 		end
 	end
-	return Songs.GetRandomSong(exclude)
+	return Songs.GetRandomSong(exclude, weight)
 end
 
 -- Every generation in the library, sorted ("2nd", "3rd", "4th", "5th").
@@ -189,7 +219,7 @@ end
 
 -- What the client needs to show an option. Never includes clip assets.
 function Songs.Public(song)
-	return { Id = song.Id, Name = song.Name, Artist = song.Artist, Generation = song.Generation, Year = song.Year }
+	return { Id = song.Id, Name = song.Name, Artist = song.Artist, Generation = song.Generation, Year = song.Year, Colour = song.Colour }
 end
 
 return Songs

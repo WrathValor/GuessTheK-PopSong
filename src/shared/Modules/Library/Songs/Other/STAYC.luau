@@ -6,6 +6,8 @@ return {
 	Group = "STAYC",
 	GroupType = "Girl",
 	Generation = "4th",
+	Colour = "FFB8D9", -- card art + roll glow (pastel hex)
+	Gradient = ColorSequence.new(Color3.fromHex("FFB8D9"), Color3.fromHex("FF5FA2")), -- no official colour: pink
 	Status = "Active",
 	Songs = {
 		{

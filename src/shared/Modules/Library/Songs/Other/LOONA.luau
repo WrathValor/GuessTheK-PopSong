@@ -6,6 +6,8 @@ return {
 	Group = "LOONA",
 	GroupType = "Girl",
 	Generation = "4th",
+	Colour = "C9B8F0", -- card art + roll glow (pastel hex)
+	Gradient = ColorSequence.new(Color3.fromHex("C9B8F0"), Color3.fromHex("F2C94C")), -- no official colour: moon lilac to gold
 	Status = "Disbanded",
 	Songs = {
 		{

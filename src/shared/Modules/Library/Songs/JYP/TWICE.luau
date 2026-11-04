@@ -6,6 +6,8 @@ return {
 	Group = "TWICE",
 	GroupType = "Girl",
 	Generation = "3rd",
+	Colour = "FFC9A8", -- card art + roll glow (pastel hex)
+	Gradient = ColorSequence.new(Color3.fromHex("FCC89B"), Color3.fromHex("FF5FA2")), -- official: Apricot + Neon Magenta
 	Status = "Active",
 	Songs = {
 		{
@@ -14,6 +16,7 @@ return {
 			MusicId = "rbxassetid://135973002053138",
 			AnimationId = "rbxassetid://10375124212",
 			PlaybackSpeed = 0.8,
+            Draft = true, -- future update
 		},
 		 {
             Name = "Like OOH-AHH",
@@ -26,7 +29,7 @@ return {
         },
         {
             Name = "Look At Me",
-            Year = 2015,
+            Year = 2017,
             MusicId = "rbxassetid://126653698950991",
             AnimationId = "rbxassetid://16900870884",
             PlaybackSpeed = 0.55,
@@ -176,7 +179,6 @@ return {
             PlaybackSpeed = 0.6,
             TimePosition = 1,
             ChorusPosition = 33.5,
-            Draft = true, -- future update
         },
         {
             Name = "MOONLIGHT SUNRISE",
@@ -186,7 +188,6 @@ return {
             PlaybackSpeed = 0.55,
             TimePosition = 1,
             ChorusPosition = 29.6,
-            Draft = true, -- future update
         },
         {
             Name = "SET ME FREE",
@@ -205,8 +206,8 @@ return {
             AnimationId = "rbxassetid://17487187860",
             PlaybackSpeed = 0.66,
             TimePosition = 1,
-            ChorusPosition = 112.3,
-            Draft = true, -- future update
+            ChorusPosition = 105,
+            Draft = false, -- future update
         },
 	},
 }

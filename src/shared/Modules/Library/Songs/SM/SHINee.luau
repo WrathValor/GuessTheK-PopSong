@@ -6,6 +6,8 @@ return {
 	Group = "SHINee",
 	GroupType = "Boy",
 	Generation = "2nd",
+	Colour = "9EE6D8", -- card art + roll glow (pastel hex)
+	Gradient = ColorSequence.new(Color3.fromHex("A8EBDD"), Color3.fromHex("5FCDB8")), -- official: Pearl Aqua Green
 	Status = "Active",
 	Songs = {
 		{
@@ -25,15 +27,6 @@ return {
 			ChorusPosition = 133,
 		},
 		{
-			Name = "Y Si Fuera Ella",
-			Draft = true, -- audio didn't load in game (2026-11-01): re-upload / check permissions
-			Year = 2015,
-			MusicId = "rbxassetid://97693635105597",
-			PlaybackSpeed = 0.50,
-			TimePosition = 0,
-			ChorusPosition = 0,
-		},
-		{
 			Name = "Everybody",
 			Year = 2013,
 			MusicId = "rbxassetid://102418401220396",
@@ -50,13 +43,12 @@ return {
 			ChorusPosition = 122.8,
 		},
 		{
-			Name = "Poet | Artist",
-			Draft = true, -- audio didn't load in game (2026-11-02): re-upload / check permissions
-			Year = 2025,
-			MusicId = "rbxassetid://119273003526884",
-			PlaybackSpeed = 0.62,
-			TimePosition = 0,
-			ChorusPosition = 0,
+			Name = "1 of 1",
+			Year = 2016,
+			MusicId = "rbxassetid://115141097160366",
+			PlaybackSpeed = 0.74,
+			TimePosition = 1,
+			ChorusPosition = 30.3,
 		},
 	},
 }

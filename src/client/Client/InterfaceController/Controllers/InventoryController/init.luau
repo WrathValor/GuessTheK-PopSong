@@ -1,16 +1,17 @@
 --| InventoryController
--- The inventory (Interface.Frames.Inventory, built by ./Build from the "Inventory" board):
--- category rail on the left, the loadout strip on top, 8 item cards per page with a pager.
+-- The inventory (Interface.Frames.Inventory, built by ./Build from the "Inventory redesign"):
+-- category rail on the left, a heading + description with Sort ⌄ and the pager, 8 cards a page.
 --   • Stages / Mic stands – Classic (always yours) + owned pieces (bought, or from a set);
---                            mix and match freely
---   • Titles              – the default title + unlocked titles; shown under your name
---   • Song packs          – My Pack + every company/group pack you own a song of; one can be
---                            your bias pack ("Make bias"); "Get more" opens the shop
--- The loadout strip shows what's equipped; its toggle turns the bias pack on/off.
+--                            Equip (green "✓ Equipped" on the worn one)
+--   • Titles              – the default title + titles you own (never ones you don't): your
+--                            name with the chip in its tier colour (Gold shines, Rainbow scrolls)
+--   • Song packs          – My Pack ("Roll for more") + every company/group pack you own a song
+--                            of, with a progress bar or "Complete ✓". Nothing to equip.
 -- Equipping is a request to the server (ShopService); the cards redraw from PlayerData.
 
 -- -------------------------------- Services -------------------------------- --
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
 
 -- --------------------------------- Imports -------------------------------- --
 local Janitor = require(ReplicatedStorage.Packages.janitor)
@@ -18,6 +19,9 @@ local Promise = require(ReplicatedStorage.Packages.promise)
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Client
 local Packs = require(ReplicatedStorage.Modules.Library.Packs)
+local Cards = require(ReplicatedStorage.Modules.Library.Cards)
+local TierShine = require(ReplicatedStorage.Modules.UI.TierShine)
+local GroupArt = require(ReplicatedStorage.Modules.UI.GroupArt)
 local ShopCatalog = require(ReplicatedStorage.Constants.ShopCatalog)
 local CosmeticView = require(ReplicatedStorage.Modules.UI.CosmeticView)
 local HUDConstants = require(ReplicatedStorage.Constants.HUDConstants)
@@ -35,11 +39,11 @@ local ShopRemote = Bridgenet.ReferenceBridge("ShopRemote")
 local C = Color3.fromHex
 local INK = C("1E1B2E")
 local WHITE = C("FFFFFF")
-local MINT = C("A7E9B8")
 local YELLOW = C("FFE07A")
-local RED = C("FF5A4E")
-local GREY = C("EDE4D4")
-local PAPER = C("F3EBDD")
+local NIGHT = C("2B2346")
+local LINE = C("DCD3C4") -- an Equip button's outline
+local GREEN = C("6FD08C")
+local EQUIP_GREEN = C("1E8A4A")
 
 local CATEGORIES = Build.CATEGORIES
 local PER_PAGE = Build.PER_PAGE
@@ -47,12 +51,19 @@ local RARITY_ORDER = { Legendary = 1, Epic = 2, Rare = 3, Uncommon = 4, Common =
 local RARITY_COLOURS = table.clone(ShopCatalog.RARITY_COLOURS)
 RARITY_COLOURS.Common = "EDE4D4"
 RARITY_COLOURS.Title = "FFFFFF"
+RARITY_COLOURS.Yours = "FFFFFF"
+RARITY_COLOURS.Company = "FFFFFF"
+RARITY_COLOURS.Group = "FFFFFF"
+-- a set title's tier chip (same colours as the title chip)
+RARITY_COLOURS.Normal = "B9A6FF"
+RARITY_COLOURS.Gold = "F2C94C"
+RARITY_COLOURS.Rainbow = "B5DDFF"
 
 local SUBS = {
-	["Stages"] = "%d owned · platform + stage skin for your spot",
-	["Mic stands"] = "%d owned · stands at the front of your spot",
+	["Stages"] = "%d owned · the platform and stage skin for your spot",
+	["Mic stands"] = "%d owned · the stand at the front of your spot",
 	["Titles"] = "%d unlocked · shown under your name",
-	["Song packs"] = "Pick one to mix into duels · only plays if your rival has one on too",
+	["Song packs"] = "%d packs · your songs grouped by company and group",
 }
 local KIND_OF = { Stages = "Stage", ["Mic stands"] = "Mic" }
 local ITEM_OWNED = { Stage = "Stages", Mic = "Mics" }
@@ -72,6 +83,7 @@ function Inventory.new()
 	self._category = CATEGORIES[1]
 	self._page = 1
 	self._sort = "Rarity" :: "Rarity" | "A–Z"
+	self._packSort = "Company" :: "Company" | "Progress"
 	return (self :: any) :: UITypes.Controller
 end
 
@@ -81,7 +93,7 @@ local function owns(path, id: string): boolean
 end
 
 -- ----------------------------- Item lists --------------------------------- --
--- Each item: { Key, Name, Rarity, Kind = "Stage"|"Mic"|"Title"|"Pack"|"GetMore", Equipped, ... }
+-- Each item: { Key, Name, Rarity, Kind = "Stage"|"Mic"|"Title"|"Pack", Equipped, ... }
 
 function Inventory:_pieces(kind: string)
 	local equipped = PlayerData.Inventory[ITEM_EQUIPPED[kind]].Get()
@@ -95,28 +107,47 @@ function Inventory:_pieces(kind: string)
 	return list
 end
 
+local function hasSong(id: string): boolean
+	return owns(PlayerData.Inventory.Songs, id)
+end
+
 function Inventory:_titles()
 	local current = PlayerData.Inventory.Title.Get()
-	local list = { { Key = "", Kind = "Title", Name = HUDConstants.DEFAULT_TITLE, Rarity = "Title", Equipped = current == "" } }
+	local list = { { Key = "", Kind = "Title", Name = HUDConstants.DEFAULT_TITLE, Rarity = "Common", Equipped = current == "" } }
+	-- set titles level up with the set: show the tier, and how far the next one is
+	local setOf = {}
+	for _, group in { Packs.Groups(), Packs.Companies() } do
+		for _, pack in group do
+			if pack.Title then
+				setOf[pack.Title] = pack
+			end
+		end
+	end
+	local tiers = {}
+	pcall(function()
+		tiers = PlayerData.Inventory.TitleTiers.Get() or {}
+	end)
 	local ok, titles = pcall(PlayerData.Inventory.Titles.Get)
 	if ok and type(titles) == "table" then
 		for key, value in titles do
 			local title = if type(key) == "string" then key else value
 			if type(title) == "string" and title ~= "" then
-				table.insert(list, { Key = title, Kind = "Title", Name = title, Rarity = "Title", Equipped = current == title })
+				local item = { Key = title, Kind = "Title", Name = title, Rarity = "Common", Equipped = current == title }
+				local pack = setOf[title]
+				if pack then
+					local tier = Cards.LEVELS[tiers[title] or 1] or "Normal"
+					item.Tier = tier
+					item.Rarity = tier -- the chip reads Normal / Gold / Rainbow (the Index shows the next step)
+				end
+				table.insert(list, item)
 			end
 		end
 	end
 	return list
 end
 
-local function hasSong(id: string): boolean
-	return owns(PlayerData.Inventory.Songs, id)
-end
-
 -- My Pack first, then every company + group pack you own a song of, then a "Get more" card.
 function Inventory:_packs()
-	local current = PlayerData.Inventory.DuelPack.Get()
 	local list = {}
 	local function add(id: string, colour: string, colour2: string)
 		local pack = Packs.Get(id)
@@ -125,19 +156,16 @@ function Inventory:_packs()
 			return
 		end
 		local total = #pack.Songs
-		local sub = if pack.Kind == "My" then `{owned} bought song{if owned == 1 then "" else "s"}`
-			elseif owned >= total then `{total} songs · complete`
-			else `{owned} / {total} songs`
 		table.insert(list, {
 			Key = pack.Id,
 			Kind = "Pack",
 			Name = Packs.DisplayName(pack.Id),
-			Sub = sub,
+			Total = total,
 			Rarity = if pack.Kind == "My" then "Yours" else pack.Kind,
 			Colour = colour,
 			Colour2 = colour2,
 			Owned = owned,
-			Equipped = current == pack.Id,
+			Complete = pack.Kind ~= "My" and owned >= total,
 		})
 	end
 	add(Packs.MY, "B9A6FF", "FF9EC4")
@@ -148,7 +176,19 @@ function Inventory:_packs()
 	for i, pack in Packs.Groups() do
 		add(pack.Id, colours[(i + 1) % #colours + 1], "FFE07A")
 	end
-	table.insert(list, { Key = "GetMore", Kind = "GetMore", Name = "Get more", Sub = "Buy songs in the shop", Rarity = "Shop", Colour = "FBF7F0", Colour2 = "F3EBDD" })
+	if self._packSort == "Progress" then
+		-- My Pack first, then the closest to complete
+		table.sort(list, function(a, b)
+			if (a.Key == Packs.MY) ~= (b.Key == Packs.MY) then
+				return a.Key == Packs.MY
+			end
+			local pa, pb = a.Owned / math.max(a.Total, 1), b.Owned / math.max(b.Total, 1)
+			if pa ~= pb then
+				return pa > pb
+			end
+			return a.Name < b.Name
+		end)
+	end
 	return list
 end
 
@@ -175,6 +215,15 @@ end
 
 -- ------------------------------- Drawing ---------------------------------- --
 
+-- pack initials for the front photocard: "HYBE Pack" → "HY", "My Pack" → "ME", "2NE1" → "2N"
+local function packInitials(item): string
+	if item.Key == Packs.MY then
+		return "ME"
+	end
+	local name = string.gsub(item.Name, " Pack$", "")
+	return string.upper(string.sub(string.gsub(name, "[^%w]", ""), 1, 2))
+end
+
 function Inventory:_fillCard(holder: Frame, item)
 	holder.Visible = item ~= nil
 	holder:SetAttribute("Key", item and item.Key or nil)
@@ -184,109 +233,103 @@ function Inventory:_fillCard(holder: Frame, item)
 	end
 	local face = holder.Face
 	local art = face.Art
-	local isPack = item.Kind == "Pack" or item.Kind == "GetMore"
-	art.Stage.Visible = item.Kind == "Stage"
-	art.Platform.Visible = item.Kind == "Stage"
-	art.MicArt.Visible = item.Kind == "Mic"
-	art.Covers.Visible = isPack
-	art.Big.Visible = item.Kind == "Title"
-	art.Icon.Visible = false
-	if item.Kind == "Stage" then
+	local kind = item.Kind
+	art.Stage.Visible = kind == "Stage"
+	art.Platform.Visible = kind == "Stage"
+	art.MicArt.Visible = kind == "Mic"
+	art.Covers.Visible = kind == "Pack"
+	art.TitleArt.Visible = kind == "Title"
+	art.Rainbow.Enabled = false
+
+	if kind == "Stage" then
 		art.BackgroundColor3 = C(item.Item.Bg)
 		art.Stage.BackgroundColor3 = C(item.Item.Stage)
 		art.Platform.BackgroundColor3 = C(item.Item.Platform)
-	elseif item.Kind == "Mic" then
+	elseif kind == "Mic" then
 		art.BackgroundColor3 = C(item.Item.Bg)
 		art.MicArt.Mic.BackgroundColor3 = C(item.Item.Mic)
-	elseif item.Kind == "Title" then
-		art.BackgroundColor3 = YELLOW
-		art.Big.Text = item.Name
+	elseif kind == "Title" then
+		-- your name with the title chip under it, on the dark panel
+		art.BackgroundColor3 = NIGHT
+		art.TitleArt.Player.Text = Players.LocalPlayer.DisplayName
+		local chip = art.TitleArt.Chip
+		chip.Text = item.Name
+		TierShine.Apply(chip, chip.Rainbow, item.Tier, YELLOW) -- Gold shines, Rainbow scrolls
 	else
-		art.BackgroundColor3 = C(if item.Kind == "GetMore" then "FBF7F0" else "EFEAFF")
-		art.Covers.Card1.BackgroundColor3 = C(item.Colour)
-		art.Covers.Card2.BackgroundColor3 = C(item.Colour2)
+		-- three stacked photocards in the pack's colours, its initials on the front one
+		art.BackgroundColor3 = C("EFEAFF")
+		local covers = art.Covers
+		-- a group's pack wears the group's colours (Songs: Gradient); company packs keep theirs
+		local group = string.match(item.Key, "^Group:(.+)$")
+		for _, name in { "Card1", "Card2", "Front" } do
+			local cover = covers[name]
+			if group then
+				GroupArt.Paint(cover, group, if name == "Front" then 135 else 45)
+			else
+				local g = cover:FindFirstChild("Group")
+				if g then
+					g.Enabled = false
+				end
+				cover.BackgroundColor3 = C(if name == "Front" then item.Colour2 else item.Colour)
+			end
+		end
+		if not group then
+			covers.Front.Initials.TextColor3 = INK
+		end
+		covers.Front.Initials.Text = packInitials(item)
 	end
 	-- stages + mics show their real model; packs and titles keep the drawn art
-	if item.Kind == "Stage" or item.Kind == "Mic" then
-		CosmeticView.Show(art, item.Kind, item.Item.Id)
+	if kind == "Stage" or kind == "Mic" then
+		CosmeticView.Show(art, kind, item.Item.Id)
 	else
 		CosmeticView.Clear(art)
 	end
-	-- packs: the rarity chip reads "BIAS" on the bias pack
-	if item.Kind == "Pack" and item.Equipped then
-		art.Rarity.Text = "BIAS"
-		art.Rarity.BackgroundColor3 = YELLOW
-	else
-		art.Rarity.Text = item.Rarity
-		art.Rarity.BackgroundColor3 = C(RARITY_COLOURS[item.Rarity] or "FFFFFF")
-	end
+	art.Rarity.Text = item.Rarity
+	-- a Gold / Rainbow tag gets the tier's own finish (Gold shines, Rainbow scrolls)
+	local tierTag = if item.Rarity == "Gold" or item.Rarity == "Rainbow" then item.Rarity else nil
+	TierShine.Apply(art.Rarity, art.Rarity:FindFirstChild("Tier"), tierTag, C(RARITY_COLOURS[item.Rarity] or "FFFFFF"))
 	face.ItemName.Text = item.Name
-	face.ItemSub.Visible = item.Sub ~= nil
-	face.ItemSub.Text = item.Sub or ""
+
+	-- the name sits just above the button and the art fills the rest;
+	-- pack cards slot their progress bar in between, so their art is shorter
+	local lift = if kind == "Pack" then 18 else 0
+	face.ItemName.Position = UDim2.new(0, 10, 1, -60 - lift)
+	art.Size = UDim2.new(1, -16, 1, -74 - lift)
+
+	-- packs: progress bar + count (or Complete ✓); My Pack also gets "Roll for more"
+	local prog = face.Progress
+	prog.Visible = kind == "Pack"
+	if kind == "Pack" then
+		local done = item.Complete
+		prog.Bar.Fill.Size = UDim2.fromScale(if item.Total > 0 then math.clamp(item.Owned / item.Total, 0, 1) else 0, 1)
+		prog.Bar.Fill.Visible = item.Owned > 0
+		prog.Bar.Fill.BackgroundColor3 = if done then EQUIP_GREEN else GREEN
+		prog.Count.Text = if item.Key == Packs.MY then `{item.Owned} songs` elseif done then "Complete ✓" else `{item.Owned} / {item.Total}`
+		prog.Count.TextColor3 = if done or item.Key == Packs.MY then EQUIP_GREEN else INK
+	end
 
 	local action = face.Action
-	if item.Kind == "GetMore" then
-		action.Text = "Open shop"
+	local line = action:FindFirstChildOfClass("UIStroke")
+	local equipped = item.Equipped == true
+	if kind == "Pack" then
+		action.Visible = item.Key == Packs.MY
+		action.Text = "Roll for more"
 		action.BackgroundColor3 = YELLOW
+		action.TextColor3 = INK
+		line.Color = INK
 		action.Active = true
-		holder.Shadow.BackgroundColor3 = INK
-	elseif item.Kind == "Pack" then
-		action.Text = if item.Equipped then "Your bias ✓" else "Make bias"
-		action.BackgroundColor3 = if item.Equipped then GREY else MINT
-		action.Active = true -- pressing "Your bias" turns it off
-		holder.Shadow.BackgroundColor3 = if item.Equipped then RED else INK
 	else
-		action.Text = if item.Equipped then "Equipped" else "Equip"
-		action.BackgroundColor3 = if item.Equipped then GREY else MINT
-		action.Active = not item.Equipped
-		holder.Shadow.BackgroundColor3 = if item.Equipped then RED else INK
+		action.Visible = true
+		action.Text = if equipped then "✓ Equipped" else "Equip"
+		action.BackgroundColor3 = if equipped then EQUIP_GREEN else WHITE
+		action.TextColor3 = if equipped then WHITE else INK
+		line.Color = if equipped then EQUIP_GREEN else LINE
+		action.Active = not equipped
 	end
-end
-
--- The strip on top: equipped stage, mic and bias pack (with its on/off toggle).
-function Inventory:_fillLoadout()
-	local strip = self._frame.Panel.Content:FindFirstChild("Loadout")
-	if not strip then
-		return
-	end
-	for _, kind in { "Stage", "Mic" } do
-		local id = PlayerData.Inventory[ITEM_EQUIPPED[kind]].Get()
-		local item = ShopCatalog.GetItem(kind, if id == "" then "Default" else id) or ShopCatalog.GetItem(kind, "Default")
-		local slot = strip[kind .. "Slot"]
-		slot.SlotName.Text = item.Name
-		slot.Swatch.BackgroundColor3 = C(if kind == "Stage" then item.Stage else item.Mic)
-		CosmeticView.Show(slot.Swatch, kind, item.Id)
-	end
-	local slot = strip.PackSlot
-	local packId = PlayerData.Inventory.DuelPack.Get()
-	local on = packId ~= "" and Packs.Get(packId) ~= nil
-	if on then
-		local count = #Packs.SongsFor(packId, hasSong)
-		slot.SlotName.Text = `{Packs.DisplayName(packId)} · {count}`
-		self._lastPack = packId
-	else
-		slot.SlotName.Text = "Off"
-	end
-	slot.Swatch.BackgroundColor3 = if on then C("B9A6FF") else GREY
-	slot.Toggle.BackgroundColor3 = if on then MINT else GREY
-	slot.Toggle.Knob.Position = if on then UDim2.new(1, -12, 0.5, 0) else UDim2.new(0, 12, 0.5, 0)
-end
-
--- Toggle: off → turn off; on → last pack used, else My Pack, else go pick one.
-function Inventory:_togglePack()
-	if PlayerData.Inventory.DuelPack.Get() ~= "" then
-		ShopRemote:Fire({ Action = "SetDuelPack", Id = "" })
-		return
-	end
-	for _, id in { self._lastPack, Packs.MY } do
-		if id and #Packs.SongsFor(id, hasSong) > 0 then
-			ShopRemote:Fire({ Action = "SetDuelPack", Id = id })
-			return
-		end
-	end
-	self:ShowCategory("Song packs")
-	self:_toast("Buy a song first to make a bias pack")
-	Sounds.Play("Wrong")
+	-- the worn card: green outline on a pale green card
+	face.BackgroundColor3 = if equipped then C("EEF8EF") else WHITE
+	face:FindFirstChildOfClass("UIStroke").Color = if equipped then EQUIP_GREEN else INK
+	holder.Shadow.BackgroundColor3 = if equipped then EQUIP_GREEN else INK
 end
 
 function Inventory:_refresh()
@@ -302,12 +345,10 @@ function Inventory:_refresh()
 		b:FindFirstChildOfClass("UIStroke").Color = if on then INK else WHITE
 		b.Label.TextColor3 = if on then YELLOW else INK
 		b.Count.TextColor3 = if on then YELLOW else INK
-		local n = #self:_items(name)
-		b.Count.Text = tostring(if name == "Song packs" then n - 1 else n) -- not counting "Get more"
+		b.Count.Text = tostring(#self:_items(name))
 	end
 
 	local content = panel.Content
-	self:_fillLoadout()
 	local items = self:_items(self._category)
 	local pages = math.max(1, math.ceil(#items / PER_PAGE))
 	self._page = math.clamp(self._page, 1, pages)
@@ -317,8 +358,7 @@ function Inventory:_refresh()
 	content.Prev.Visible = pages > 1
 	content.Next.Visible = pages > 1
 	content.Page.Visible = pages > 1
-	content.Sort.Visible = self._category ~= "Song packs"
-	content.Sort.Text = `Sort: {self._sort}`
+	content.Sort.Label.Text = `Sort: {if self._category == "Song packs" then self._packSort else self._sort}`
 	content.Empty.Visible = #items == 0
 	for i = 1, PER_PAGE do
 		self:_fillCard(content.Grid["Item" .. i], items[(self._page - 1) * PER_PAGE + i])
@@ -371,7 +411,12 @@ function Inventory:Initialize(interface)
 	end
 	local content = panel.Content
 	j:Add(content.Sort.Activated:Connect(function()
-		self._sort = if self._sort == "Rarity" then "A–Z" else "Rarity"
+		if self._category == "Song packs" then
+			self._packSort = if self._packSort == "Company" then "Progress" else "Company"
+		else
+			self._sort = if self._sort == "Rarity" then "A–Z" else "Rarity"
+		end
+		self._page = 1
 		self:_refresh()
 	end))
 	j:Add(content.Prev.Activated:Connect(function()
@@ -394,39 +439,16 @@ function Inventory:Initialize(interface)
 			elseif kind == "Title" then
 				ShopRemote:Fire({ Action = "EquipTitle", Id = key })
 			elseif kind == "Pack" then
-				local on = PlayerData.Inventory.DuelPack.Get() == key
-				ShopRemote:Fire({ Action = "SetDuelPack", Id = if on then "" else key })
-				Sounds.Play("Click")
-			elseif kind == "GetMore" then
-				self._interface:Open("Shop", "Packs")
+				self._interface:Open("Shop", "Songs") -- My Pack's "Roll for more"
 			end
 		end))
 	end
 
-	-- loadout strip: slots jump to their category, the toggle turns the bias pack on/off
-	local strip = content.Loadout
-	j:Add(strip.StageSlot.Activated:Connect(function()
-		self:ShowCategory("Stages")
-	end))
-	j:Add(strip.MicSlot.Activated:Connect(function()
-		self:ShowCategory("Mic stands")
-	end))
-	j:Add(strip.PackSlot.Activated:Connect(function()
-		self:ShowCategory("Song packs")
-	end))
-	j:Add(strip.PackSlot.Toggle.Activated:Connect(function()
-		self:_togglePack()
-	end))
-
 	j:Add(ShopRemote:Connect(function(packet)
 		if self.State == "Active" and type(packet) == "table" and packet.Message == "Result" then
-			if packet.Action == "EquipItem" or packet.Action == "EquipTitle" or packet.Action == "SetDuelPack" then
-				if not packet.Ok then
-					self:_toast(packet.Text or "")
-					Sounds.Play("Wrong")
-				elseif packet.Action == "SetDuelPack" then
-					self:_toast(packet.Text or "")
-				end
+			if (packet.Action == "EquipItem" or packet.Action == "EquipTitle") and not packet.Ok then
+				self:_toast(packet.Text or "")
+				Sounds.Play("Wrong")
 			end
 		end
 	end), "Disconnect") -- BridgeNet2 connections have no Destroy
@@ -443,7 +465,7 @@ function Inventory:Initialize(interface)
 			end
 		end
 	end
-	for _, path in { PlayerData.Inventory.EquippedStage, PlayerData.Inventory.EquippedMic, PlayerData.Inventory.DuelPack } do
+	for _, path in { PlayerData.Inventory.EquippedStage, PlayerData.Inventory.EquippedMic } do
 		j:Add(path.Observe(function(id)
 			task.defer(popEquipped, id)
 		end))
@@ -457,8 +479,9 @@ function Inventory:Initialize(interface)
 		PlayerData.Inventory.Mics,
 		PlayerData.Inventory.EquippedStage,
 		PlayerData.Inventory.EquippedMic,
-		PlayerData.Inventory.DuelPack,
 		PlayerData.Inventory.Titles,
+		PlayerData.Inventory.TitleTiers,
+		PlayerData.Inventory.Copies,
 		PlayerData.Inventory.Title,
 		PlayerData.Inventory.Songs,
 	} do

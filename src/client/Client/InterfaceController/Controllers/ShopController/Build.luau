@@ -4,6 +4,8 @@
 -- one as ServerStorage.Shop_Legacy); after that the frame lives in Studio and can be restyled
 -- by hand. ShopController only fills it in, finding everything by name.
 
+local RollPage = require(script.Parent.RollPage)
+
 local C = Color3.fromHex
 local INK = C("1E1B2E")
 local CREAM = C("FBF7F0")
@@ -13,7 +15,6 @@ local YELLOW = C("FFE07A")
 local RED = C("FF5A4E")
 local MUTED = C("5C566B")
 local LINE = C("CFC5B3")
-local PAPER = C("F3EBDD")
 
 local HEAD = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy)
 local BODY = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.ExtraBold)
@@ -442,116 +443,6 @@ local function setsPage(pages: Instance)
 	})
 end
 
-local function packsPage(pages: Instance)
-	local page = new("Frame", { Name = "Packs", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Visible = false }, pages)
-	local head = new("Frame", { Name = "Header", Size = UDim2.new(1, 0, 0, 28), BackgroundTransparency = 1 }, page)
-	row(head, 10)
-	text(head, "Title", { LayoutOrder = 1, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 26), FontFace = HEAD, TextSize = 20, TextTruncate = Enum.TextTruncate.None, Text = "Song packs" })
-	text(page, "Note", {
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, 0, 0, 4),
-		Size = UDim2.fromOffset(420, 20),
-		FontFace = BODY_BOLD,
-		TextSize = 12,
-		TextColor3 = MUTED,
-		TextXAlignment = Enum.TextXAlignment.Right,
-		Text = "Songs you own go into My Pack for solo practice.",
-	})
-
-	-- pack picker (5 slots)
-	local pw = (PAGE_W - 4 * 12) / 5
-	local picker = new("Frame", { Name = "Picker", Position = UDim2.fromOffset(0, 42), Size = UDim2.fromOffset(PAGE_W, 64), BackgroundTransparency = 1 }, page)
-	for i = 1, 5 do
-		local x = (i - 1) * (pw + 12)
-		local sh = new("Frame", { Name = "Pack" .. i .. "Shadow", Position = UDim2.fromOffset(x + 3, 3), Size = UDim2.fromOffset(pw, 64), BackgroundColor3 = INK }, picker)
-		corner(sh, 12)
-		local b = new("TextButton", { Name = "Pack" .. i, Position = UDim2.fromOffset(x, 0), Size = UDim2.fromOffset(pw, 64), BackgroundColor3 = WHITE, Text = "", AutoButtonColor = false }, picker)
-		corner(b, 12)
-		stroke(b, 3)
-		local cover = new("Frame", { Name = "Cover", Position = UDim2.fromOffset(9, 11), Size = UDim2.fromOffset(36, 42), BackgroundColor3 = C("B9A6FF"), Rotation = -4 }, b)
-		corner(cover, 7)
-		stroke(cover, 2)
-		local n = icon(cover, "Icon", ICONS.Note, 20)
-		n.AnchorPoint = Vector2.new(0.5, 0.5)
-		n.Position = UDim2.fromScale(0.5, 0.5)
-		text(b, "PackName", { Position = UDim2.fromOffset(54, 13), Size = UDim2.new(1, -60, 0, 20), FontFace = HEAD, TextSize = 15, Text = "HYBE" })
-		text(b, "Sub", { Position = UDim2.fromOffset(54, 34), Size = UDim2.new(1, -60, 0, 16), FontFace = BODY_BOLD, TextSize = 11, Text = "5 / 12 owned" })
-		local chip = text(b, "Chip", {
-			AnchorPoint = Vector2.new(1, 0),
-			Position = UDim2.new(1, -6, 0, 6),
-			AutomaticSize = Enum.AutomaticSize.X,
-			Size = UDim2.fromOffset(0, 15),
-			BackgroundTransparency = 0,
-			BackgroundColor3 = MINT,
-			TextSize = 10,
-			TextTruncate = Enum.TextTruncate.None,
-			Text = "DONE",
-			Visible = false,
-		})
-		corner(chip, 6)
-		stroke(chip, 2)
-		pad(chip, 5)
-	end
-
-	-- selected pack
-	local sel = card(page, "Selected", UDim2.fromOffset(0, 120), UDim2.fromOffset(PAGE_W - 5, PAGE_H - 120 - 5), WHITE, 16, 5, 3)
-	local top = new("Frame", { Name = "Top", Position = UDim2.fromOffset(16, 14), Size = UDim2.new(1, -32, 0, 28), BackgroundTransparency = 1 }, sel)
-	row(top, 12)
-	text(top, "PackName", { LayoutOrder = 1, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 28), FontFace = HEAD, TextSize = 22, TextTruncate = Enum.TextTruncate.None, Text = "HYBE" })
-	text(top, "Count", { LayoutOrder = 2, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 20), FontFace = BODY_BOLD, TextSize = 13, TextColor3 = MUTED, TextTruncate = Enum.TextTruncate.None, Text = "12 songs · you own 5" })
-	local reward = text(sel, "Reward", {
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -16, 0, 17),
-		AutomaticSize = Enum.AutomaticSize.X,
-		Size = UDim2.fromOffset(0, 20),
-		BackgroundTransparency = 0,
-		BackgroundColor3 = YELLOW,
-		TextSize = 12,
-		TextTruncate = Enum.TextTruncate.None,
-		Rotation = 2,
-		Text = "Own all 12 → title: HYBE Expert",
-	})
-	corner(reward, 8)
-	stroke(reward, 2)
-	pad(reward, 9)
-
-	local innerW = PAGE_W - 5 - 32
-	local sw = (innerW - 2 * 10) / 3
-	local songs = new("Frame", { Name = "Songs", Position = UDim2.fromOffset(16, 54), Size = UDim2.fromOffset(innerW, 4 * 44 + 3 * 8), BackgroundTransparency = 1 }, sel)
-	for i = 1, 12 do
-		local col, r = (i - 1) % 3, (i - 1) // 3
-		local s = new("Frame", { Name = "Song" .. i, Position = UDim2.fromOffset(col * (sw + 10), r * 52), Size = UDim2.fromOffset(sw, 44), BackgroundColor3 = WHITE }, songs)
-		corner(s, 9)
-		stroke(s, 2)
-		text(s, "SongTitle", { Position = UDim2.fromOffset(10, 5), Size = UDim2.new(1, -96, 0, 18), TextSize = 13, Text = "Song" })
-		text(s, "Artist", { Position = UDim2.fromOffset(10, 22), Size = UDim2.new(1, -96, 0, 15), FontFace = BODY_BOLD, TextSize = 11, TextColor3 = MUTED, Text = "Artist" })
-		local owned = text(s, "Owned", {
-			AnchorPoint = Vector2.new(1, 0.5),
-			Position = UDim2.new(1, -8, 0.5, 0),
-			AutomaticSize = Enum.AutomaticSize.X,
-			Size = UDim2.fromOffset(0, 16),
-			BackgroundTransparency = 0,
-			BackgroundColor3 = MINT,
-			TextSize = 10,
-			TextTruncate = Enum.TextTruncate.None,
-			Text = "OWNED",
-			Visible = false,
-		})
-		corner(owned, 6)
-		stroke(owned, 2)
-		pad(owned, 6)
-		local buy = priceButton(s, "Buy", UDim2.new(1, -78, 0.5, -14), UDim2.fromOffset(72, 28), ICONS.Coin, 12, YELLOW, 2)
-		buy:FindFirstChildOfClass("UICorner").CornerRadius = UDim.new(0, 8)
-	end
-
-	-- bottom: buy everything missing
-	local bottomY = PAGE_H - 120 - 5 - 14 - 46
-	new("Frame", { Name = "Divider", Position = UDim2.fromOffset(16, bottomY - 12), Size = UDim2.new(1, -32, 0, 2), BackgroundColor3 = LINE, BorderSizePixel = 0 }, sel)
-	text(sel, "BuyAllTitle", { Position = UDim2.fromOffset(16, bottomY + 2), Size = UDim2.new(1, -260, 0, 20), Text = "Buy the 7 HYBE songs you're missing" })
-	text(sel, "BuyAllSub", { Position = UDim2.fromOffset(16, bottomY + 23), Size = UDim2.new(1, -260, 0, 16), FontFace = BODY_BOLD, TextSize = 12, TextColor3 = MUTED, Text = "You only pay for songs you don't own · 25% off" })
-	priceButton(sel, "BuyAll", UDim2.new(1, -16 - 190 - 3, 0, bottomY), UDim2.fromOffset(190, 46), ICONS.Coin, 18, MINT, 3, 3)
-end
-
 -- [[ Item card (Items tab): art (stage + pad, or a mic stand), rarity, name, price ]]
 local function itemCard(parent: Instance, name: string, pos: UDim2, size: UDim2, kind: string)
 	local holder = new("Frame", { Name = name, Position = pos, Size = size, BackgroundTransparency = 1 }, parent)
@@ -644,64 +535,8 @@ local function itemsPage(pages: Instance)
 	return page
 end
 
--- Companies | Groups switch in the Packs header, plus ‹ › to page through more than 5 packs.
-local function packsKindSwitch(page: Instance)
-	local head = page.Header
-	local switch = new("Frame", { Name = "Kind", LayoutOrder = 2, Size = UDim2.fromOffset(196, 28), BackgroundColor3 = WHITE }, head)
-	corner(switch, 9)
-	stroke(switch, 3)
-	for i, label in { "Companies", "Groups" } do
-		local b = new("TextButton", {
-			Name = label,
-			Position = UDim2.fromOffset((i - 1) * 98, 0),
-			Size = UDim2.fromOffset(98, 28),
-			BackgroundColor3 = if i == 1 then INK else WHITE,
-			FontFace = BODY,
-			TextSize = 13,
-			TextColor3 = if i == 1 then YELLOW else MUTED,
-			Text = label,
-			AutoButtonColor = false,
-		}, switch)
-		corner(b, 7)
-	end
-	local chip = text(head, "Chip", {
-		LayoutOrder = 3,
-		AutomaticSize = Enum.AutomaticSize.X,
-		Size = UDim2.fromOffset(0, 20),
-		BackgroundTransparency = 0,
-		BackgroundColor3 = YELLOW,
-		TextSize = 12,
-		TextTruncate = Enum.TextTruncate.None,
-		Text = "Restocks in 3h 42m",
-	})
-	corner(chip, 8)
-	stroke(chip, 2)
-	pad(chip, 8)
-	local note = page:FindFirstChild("Note")
-	if note then
-		note.Position = UDim2.new(1, -80, 0, 4)
-		note.Size = UDim2.fromOffset(360, 20)
-	end
-	for i, n in { "PickerPrev", "PickerNext" } do
-		local b = new("TextButton", {
-			Name = n,
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.new(1, -52 + (i - 1) * 38, 0, 14),
-			Size = UDim2.fromOffset(32, 28),
-			BackgroundColor3 = WHITE,
-			FontFace = BODY,
-			TextSize = 20,
-			TextColor3 = INK,
-			Text = if i == 1 then "‹" else "›",
-			AutoButtonColor = false,
-		}, page)
-		corner(b, 8)
-		stroke(b, 2)
-	end
-end
-
--- Adds the Items tab + page and the packs switch to an existing Shop frame (so hand edits to
--- the rest of the shop are kept). Safe to run twice.
+-- Adds the Items tab + page to an existing Shop frame (so hand edits to the rest of the shop
+-- are kept). Safe to run twice.
 function Build.AddItemsAndGroups(shop: Instance)
 	local panel = shop.Panel
 	local tabs = panel.Header.Tabs
@@ -725,20 +560,6 @@ function Build.AddItemsAndGroups(shop: Instance)
 	if not pages:FindFirstChild("Items") then
 		local page = itemsPage(pages)
 		require(game:GetService("ReplicatedStorage").Modules.UI.CenterButtons).Apply(page)
-	end
-	local packs = pages.Packs
-	if not packs.Header:FindFirstChild("Kind") or not packs.Header:FindFirstChild("Chip") then
-		local old = packs.Header:FindFirstChild("Kind")
-		if old then
-			old:Destroy()
-		end
-		for _, n in { "PickerPrev", "PickerNext" } do
-			if packs:FindFirstChild(n) then
-				packs[n]:Destroy()
-			end
-		end
-		packsKindSwitch(packs)
-		require(game:GetService("ReplicatedStorage").Modules.UI.CenterButtons).Apply(packs)
 	end
 end
 
@@ -892,13 +713,13 @@ local function emotesPage(pages: Instance)
 	return page
 end
 
--- Adds the UGC tab (between Packs and Coins) + page to an existing Shop frame, keeping hand
+-- Adds the UGC tab (between Roll and Coins) + page to an existing Shop frame, keeping hand
 -- edits to the rest. Safe to run twice.
 function Build.AddUGC(shop: Instance)
 	local panel = shop.Panel
 	local tabs = panel.Header.Tabs
 	if not tabs:FindFirstChild("UGC") then
-		local emotes = tabs.Packs:Clone()
+		local emotes = (tabs:FindFirstChild("Roll") or tabs.Packs):Clone()
 		emotes.Name = "UGC"
 		emotes.Button.Label.Text = "UGC"
 		emotes.Button.Dot.BackgroundColor3 = MINT
@@ -907,7 +728,7 @@ function Build.AddUGC(shop: Instance)
 		emotes.Button.Size = UDim2.fromOffset(75, 40)
 		emotes.Button.Position = UDim2.fromOffset(37, 20)
 		emotes.Parent = tabs
-		local order = { Featured = 1, Sets = 2, Items = 3, Packs = 4, UGC = 5, Coins = 6 }
+		local order = { Featured = 1, Sets = 2, Items = 3, Packs = 4, Roll = 4, UGC = 5, Coins = 6 }
 		for name, n in order do
 			if tabs:FindFirstChild(name) then
 				tabs[name].LayoutOrder = n
@@ -1016,7 +837,7 @@ function Build.Build(frames: Instance)
 	text(header, "Title", { Position = UDim2.fromOffset(20, 0), Size = UDim2.fromOffset(90, 68), FontFace = HEAD, TextSize = 26, Text = "SHOP" })
 	local tabs = new("Frame", { Name = "Tabs", Position = UDim2.fromOffset(112, 0), Size = UDim2.fromOffset(740, 68), BackgroundTransparency = 1 }, header)
 	row(tabs, 10)
-	for i, t in { { "Featured", "FFE07A" }, { "Sets", "B9A6FF" }, { "Items", "FF9EC4" }, { "Packs", "9ED8F5" }, { "UGC", "A7E9B8" }, { "Coins", "FFD2CE" } } do
+	for i, t in { { "Featured", "FFE07A" }, { "Sets", "B9A6FF" }, { "Items", "FF9EC4" }, { "Roll", "FF9EC4" }, { "UGC", "A7E9B8" }, { "Coins", "FFD2CE" } } do
 		local holder = new("Frame", { Name = t[1], LayoutOrder = i, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 43), BackgroundTransparency = 1 }, tabs)
 		local shadow = new("Frame", { Name = "Shadow", Position = UDim2.fromOffset(3, 3), Size = UDim2.new(1, -3, 1, -3), BackgroundColor3 = INK, BorderSizePixel = 0 }, holder)
 		corner(shadow, 11)
@@ -1077,8 +898,7 @@ function Build.Build(frames: Instance)
 	featuredPage(pages)
 	setsPage(pages)
 	itemsPage(pages)
-	packsPage(pages)
-	packsKindSwitch(pages.Packs)
+	RollPage.Build(pages, shop) -- the song roll (./RollPage), which replaced buying packs
 	emotesPage(pages)
 	coinsPage(pages)
 

@@ -6,6 +6,8 @@ return {
 	Group = "BEAST",
 	GroupType = "Boy",
 	Generation = "2nd",
+	Colour = "C9C3D9", -- card art + roll glow (pastel hex)
+	Gradient = ColorSequence.new(Color3.fromHex("5A5A66"), Color3.fromHex("2E2E36")), -- official: Dark Grey
 	Status = "Disbanded",
 	Songs = {
 		{
@@ -26,7 +28,7 @@ return {
 		},
 		{
 			Name = "Shadow",
-			Year = 2019,
+			Year = 2012,
 			MusicId = "rbxassetid://80204307026458",
 			PlaybackSpeed = 0.61,
 			TimePosition = 1,
@@ -34,6 +36,7 @@ return {
 		},
 		{
 			Name = "12:30",
+			Draft = true, -- lesser-known song, held back for balance
 			Year = 2014,
 			MusicId = "rbxassetid://95655246779003",
 			PlaybackSpeed = 0.95,

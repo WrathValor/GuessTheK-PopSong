@@ -6,6 +6,8 @@ return {
 	Group = "MOMOLAND",
 	GroupType = "Girl",
 	Generation = "3rd",
+	Colour = "FFD58A", -- card art + roll glow (pastel hex)
+	Gradient = ColorSequence.new(Color3.fromHex("FFC09A"), Color3.fromHex("FF8FA8")), -- no official colour: peach ('momo')
 	Status = "Disbanded",
 	Songs = {
 		{

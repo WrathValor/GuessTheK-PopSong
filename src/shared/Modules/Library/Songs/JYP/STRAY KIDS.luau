@@ -6,6 +6,8 @@ return {
     Group = "Stray Kids",
     GroupType = "Boy",
     Generation = "4th",
+    Colour = "FFA3A3", -- card art + roll glow (pastel hex)
+    Gradient = ColorSequence.new(Color3.fromHex("FF4B3E"), Color3.fromHex("5A0F1E")), -- no official colour: red from their branding
     Status = "Active",
     Songs = {
         {

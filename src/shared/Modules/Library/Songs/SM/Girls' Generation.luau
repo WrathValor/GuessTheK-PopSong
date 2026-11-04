@@ -6,6 +6,8 @@ return {
 	Group = "Girls' Generation",
 	GroupType = "Girl",
 	Generation = "2nd",
+	Colour = "F9B3C8", -- card art + roll glow (pastel hex)
+	Gradient = ColorSequence.new(Color3.fromHex("FBC4D3"), Color3.fromHex("F28DAE")), -- official: Pastel Rose Pink
 	Status = "Active",
 	Songs = {
 		{
@@ -80,6 +82,14 @@ return {
 			PlaybackSpeed = 0.87,
 			TimePosition = 25,
 			ChorusPosition = 89,
+		},
+		{
+			Name = "Mr. Taxi",
+			Year = 2011,
+			MusicId = "rbxassetid://134908376911027",
+			PlaybackSpeed = 0.55,
+			TimePosition = 2,
+			ChorusPosition = 23.8,
 		},
 	},
 }

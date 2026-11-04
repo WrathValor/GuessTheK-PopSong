@@ -6,6 +6,8 @@ return {
 	Group = "BLACKPINK",
 	GroupType = "Girl",
 	Generation = "3rd",
+	Colour = "FF9EC4", -- card art + roll glow (pastel hex)
+	Gradient = ColorSequence.new(Color3.fromHex("FFA3C4"), Color3.fromHex("2B1A22")), -- black + pink (logo and merch, not announced)
 	Status = "Active",
 	Songs = {
 		{
@@ -75,6 +77,23 @@ return {
 			PlaybackSpeed = 0.56,
 			TimePosition = 0.9,
 			ChorusPosition = 36.5,
+		},
+		{
+			Name = "WHISTLE",
+			Year = 2016,
+			MusicId = "rbxassetid://137428850740476",
+			PlaybackSpeed = 0.55,
+			TimePosition = 1,
+			ChorusPosition = 42.8,
+		},
+		{
+			Name = "Shut Down",
+			Draft = true, -- audio didn't load in game (2026-11-04): re-upload / check permissions
+			Year = 2022,
+			MusicId = "rbxassetid://115932798932008",
+			PlaybackSpeed = 0.61,
+			TimePosition = 0,
+			ChorusPosition = 0,
 		},
 	},
 }

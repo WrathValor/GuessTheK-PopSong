@@ -6,6 +6,8 @@ return {
     Group = "BABYMONSTER",
     GroupType = "Girl",
     Generation = "5th",
+    Colour = "F4A6A6", -- card art + roll glow (pastel hex)
+    Gradient = ColorSequence.new(Color3.fromHex("E3001B"), Color3.fromHex("141414")), -- red + black (used on merch, not announced)
     Status = "Active",
     Songs = {
         {
@@ -79,6 +81,22 @@ return {
             PlaybackSpeed = 0.9,
             TimePosition = 2,
             ChorusPosition = 49.6,
+        },
+        {
+            Name = "CLIK CLAK",
+            Year = 2024,
+            MusicId = "rbxassetid://136921985286738",
+            PlaybackSpeed = 0.55,
+            TimePosition = 0.5,
+            ChorusPosition = 34,
+        },
+        {
+            Name = "PSYCHO",
+            Year = 2025,
+            MusicId = "rbxassetid://75142236267397",
+            PlaybackSpeed = 0.5,
+            TimePosition = 1,
+            ChorusPosition = 23,
         },
     },
 }

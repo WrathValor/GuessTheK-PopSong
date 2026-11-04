@@ -6,6 +6,8 @@ return {
 	Group = "CORTIS",
 	GroupType = "Boy",
 	Generation = "5th",
+	Colour = "FFD2A8", -- card art + roll glow (pastel hex)
+	Gradient = ColorSequence.new(Color3.fromHex("7BE495"), Color3.fromHex("22A35A")), -- no official colour: GREENGREEN era green
 	Status = "Active",
 	Songs = {
 		{
@@ -18,10 +20,10 @@ return {
 		},
 		{
 			Name = "FaSHioN",
-			Draft = true, -- audio didn't load in game (2026-11-02): re-upload / check permissions
+			Draft = true, -- audio didn't load in game (2026-11-04): re-upload / check permissions
 			Year = 2025,
-			MusicId = "rbxassetid://116410777968620",
-			PlaybackSpeed = 0.88,
+			MusicId = "rbxassetid://126392806007412",
+			PlaybackSpeed = 0.53,
 			TimePosition = 0,
 			ChorusPosition = 0,
 		},
@@ -38,32 +40,56 @@ return {
 			Year = 2026,
 			MusicId = "rbxassetid://87937517395160",
 			PlaybackSpeed = 0.75,
-			TimePosition = 0,
-			ChorusPosition = 0,
+			TimePosition = 0.5,
+			ChorusPosition = 15,
 		},
 		{
 			Name = "ACAI",
 			Year = 2026,
 			MusicId = "rbxassetid://117634531638486",
 			PlaybackSpeed = 0.7,
-			TimePosition = 0,
-			ChorusPosition = 0,
+			TimePosition = 1,
+			ChorusPosition = 36,
 		},
 		{
 			Name = "MOTION",
 			Year = 2026,
 			MusicId = "rbxassetid://89930901999335",
 			PlaybackSpeed = 0.9,
-			TimePosition = 0,
-			ChorusPosition = 0,
+			TimePosition = 1,
+			ChorusPosition = 61,
 		},
 		{
 			Name = "TNT",
 			Year = 2026,
 			MusicId = "rbxassetid://131955769099787",
 			PlaybackSpeed = 0.93,
-			TimePosition = 0,
-			ChorusPosition = 0,
+			TimePosition = 1,
+			ChorusPosition = 33,
+		},
+		{
+			Name = "JoyRide",
+			Year = 2025,
+			MusicId = "rbxassetid://115849693920627",
+			PlaybackSpeed = 0.69,
+			TimePosition = 1,
+			ChorusPosition = 43.5,
+		},
+		{
+			Name = "What You Want",
+			Year = 2025,
+			MusicId = "rbxassetid://130370764274856",
+			PlaybackSpeed = 0.91,
+			TimePosition = 0.5,
+			ChorusPosition = 41,
+		},
+		{
+			Name = "Mention Me",
+			Year = 2026,
+			MusicId = "rbxassetid://134615846672856",
+			PlaybackSpeed = 0.88,
+			TimePosition = 1,
+			ChorusPosition = 26,
 		},
 	},
 }

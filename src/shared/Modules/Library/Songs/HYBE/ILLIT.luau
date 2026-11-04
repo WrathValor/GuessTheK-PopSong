@@ -6,6 +6,8 @@ return {
 	Group = "ILLIT",
 	GroupType = "Girl",
 	Generation = "5th",
+	Colour = "FFC3DA", -- card art + roll glow (pastel hex)
+	Gradient = ColorSequence.new(Color3.fromHex("FFB8D6"), Color3.fromHex("BFA8FF")), -- no official colour: pastel pink to lilac branding
 	Status = "Active",
 	Songs = {
 		{
@@ -79,6 +81,22 @@ return {
 			PlaybackSpeed = 0.83,
 			TimePosition = 2,
 			ChorusPosition = 33.9,-- TODO
+		},
+		{
+			Name = "My World",
+			Year = 2024,
+			MusicId = "rbxassetid://86415233751512",
+			PlaybackSpeed = 0.79,
+			TimePosition = 1,
+			ChorusPosition = 29,
+		},
+		{
+			Name = "Billyeoon Goyangi (Do the Dance)",
+			Year = 2025,
+			MusicId = "rbxassetid://73804988229153",
+			PlaybackSpeed = 0.8,
+			TimePosition = 23,
+			ChorusPosition = 49,
 		},
 	},
 }

@@ -6,11 +6,13 @@ return {
 	Group = "Wonder Girls",
 	GroupType = "Girl",
 	Generation = "2nd",
+	Colour = "FFB3B3", -- card art + roll glow (pastel hex)
+	Gradient = ColorSequence.new(Color3.fromHex("B23A5E"), Color3.fromHex("7A1230")), -- official: Pearl Burgundy
 	Status = "Disbanded",
 	Songs = {
 		{
 			Name = "Tell Me",
-			Year = 2008,
+			Year = 2007,
 			MusicId = "rbxassetid://95959806288627",
 			Volume = 2,
 			PlaybackSpeed = 0.59,
@@ -19,7 +21,7 @@ return {
 		},
 		{
 			Name = "Nobody",
-			Year = 2009,
+			Year = 2008,
 			MusicId = "rbxassetid://74578282000298",
 			PlaybackSpeed = 0.57,
 			TimePosition = 80,
@@ -27,12 +29,11 @@ return {
 		},
 		{
 			Name = "Rewind",
-			Draft = true, -- audio didn't load in game (2026-11-01): re-upload / check permissions
 			Year = 2015,
-			MusicId = "rbxassetid://102798808054751",
-			PlaybackSpeed = 0.69,
-			TimePosition = 0,
-			ChorusPosition = 0,
+			MusicId = "rbxassetid://98608115695602",
+			PlaybackSpeed = 0.75,
+			TimePosition = 2,
+			ChorusPosition = 41.6,
 		},
 		{
 			Name = "So Hot",
@@ -90,7 +91,7 @@ return {
 		{
 			Name = "Faded Love",
 			Draft = true, -- audio didn't load in game (2026-11-01): re-upload / check permissions
-			Year = 2019,
+			Year = 2015,
 			MusicId = "rbxassetid://125417241028434",
 			PlaybackSpeed = 0.81,
 			TimePosition = 0,

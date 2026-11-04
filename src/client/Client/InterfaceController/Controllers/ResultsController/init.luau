@@ -165,7 +165,7 @@ function Results:Show(packet, info)
 	w.Coins.Value.Text = `+{mine.Coins or 0}`
 	w.Coins.Detail.Text = mine.CoinsDetail or ""
 	w.XP.Value.Text = `+{mine.XP or 0}`
-	-- level up: a chip in the XP row, and the title it unlocked under the Index row
+	-- level up: a chip in the XP row, and the title it unlocked under it
 	local levelChip = w.XP:FindFirstChild("LevelUp")
 	if levelChip then
 		levelChip.Visible = mine.LevelUp ~= nil
@@ -176,8 +176,6 @@ function Results:Show(packet, info)
 		titleChip.Visible = mine.NewTitle ~= nil
 		titleChip.Text = if mine.NewTitle then `New title unlocked: {mine.NewTitle}` else ""
 	end
-	w.Index.Visible = (mine.IndexNew or 0) > 0
-	w.Index.Value.Text = `+{mine.IndexNew or 0} new`
 
 	w.Rematch.Active = true
 	w.RematchNote.Visible = false

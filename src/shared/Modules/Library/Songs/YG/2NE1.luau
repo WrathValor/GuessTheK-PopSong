@@ -6,6 +6,8 @@ return {
 	Group = "2NE1",
 	GroupType = "Girl",
 	Generation = "2nd",
+	Colour = "F3A6D8", -- card art + roll glow (pastel hex)
+	Gradient = ColorSequence.new(Color3.fromHex("FF5CAD"), Color3.fromHex("FF1F8E")), -- official: Hot Pink
 	Status = "Active",
 	Songs = {
 		{
@@ -52,11 +54,29 @@ return {
 		},
 		{
 			Name = "Ugly",
+			Draft = true, -- lesser-known song, held back for balance
 			Year = 2011,
 			MusicId = "rbxassetid://121993632610268",
 			PlaybackSpeed = 0.75,
 			TimePosition = 0,
 			ChorusPosition = 57,
+		},
+		{
+			Name = "Can't Nobody",
+			Draft = true, -- lesser-known song, held back for balance
+			Year = 2010,
+			MusicId = "rbxassetid://107715212294117",
+			PlaybackSpeed = 0.98,
+			TimePosition = 0,
+			ChorusPosition = 0,
+		},
+		{
+			Name = "Go Away",
+			Year = 2010,
+			MusicId = "rbxassetid://119454225535236",
+			PlaybackSpeed = 0.62,
+			TimePosition = 1,
+			ChorusPosition = 39.4,
 		},
 	},
 }
