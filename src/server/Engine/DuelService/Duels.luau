@@ -168,6 +168,7 @@ function Duels.new(stage, playerA: Player?, playerB: Player?, solo: boolean?)
 	self._janitor = Janitor.new()
 	self._janitor:Add(self.Ended)
 	self._running = false
+	self.Started = false
 
 	stage.Model:SetAttribute("Round", 0)
 	return self
@@ -178,9 +179,10 @@ function Duels:_fire(packet)
 end
 
 function Duels:Start()
-	if self._running then
+	if self._running or self.Started then
 		return
 	end
+	self.Started = true
 	self._running = true
 	self:_setInDuel(true)
 

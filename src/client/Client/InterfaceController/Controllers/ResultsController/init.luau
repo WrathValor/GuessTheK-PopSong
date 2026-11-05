@@ -64,6 +64,7 @@ function Results:Initialize(interface)
 	local w = self._frame.Panel.Winner
 	self._janitor:Add(w.Rematch.Activated:Connect(function()
 		DuelRemote:Fire({ Action = "Rematch" })
+		self._rematchRequested = true
 		w.Rematch.Active = false
 		w.RematchNote.Visible = true
 		w.RematchNote.Text = if self._solo then "Starting…" else "Waiting for your rival…"
@@ -78,6 +79,7 @@ function Results:Show(packet, info)
 	local panel = self._frame.Panel
 	local w = panel.Winner
 	self._solo = packet.Solo
+	self._rematchRequested = false
 
 	local rivalKey
 	for k in packet.Scores do
@@ -310,6 +312,10 @@ function Results:Deactivate()
 		return Promise.resolve()
 	end
 	self.State = "Deactivating"
+	if self._rematchRequested then
+		DuelRemote:Fire({ Action = "CancelRematch" })
+		self._rematchRequested = false
+	end
 	if self._revealThread then
 		pcall(task.cancel, self._revealThread)
 		self._revealThread = nil

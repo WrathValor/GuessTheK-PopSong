@@ -26,6 +26,8 @@ export type Stage = {
 	Players: { [Slot]: Player? },
 	SlotJanitors: { [Slot]: any },
 	Duel: any?,
+	Rematch: { [Player]: boolean },
+	Solo: boolean?,
 	Janitor: any,
 }
 
@@ -186,10 +188,6 @@ end
 
 function leave(player: Player)
 	local character = player.Character
-	if not character then
-		return
-	end
-
 	local stage = DuelService.PlayerStage[player]
 	if not stage then
 		return
@@ -206,7 +204,16 @@ function leave(player: Player)
 	stage.Rematch = {}
 
 	if stage.Duel then
-		stage.Duel:Forfeit(player)
+		if stage.Duel.Started then
+			stage.Duel:Forfeit(player)
+		else
+			-- A duel is prepared one second before Start so the UI can transition. If a
+			-- player leaves during that window, cancel the prepared duel instead of
+			-- starting it with a missing participant and leaving the stage stuck live.
+			stage.Duel:Destroy()
+			stage.Duel = nil
+			stage.State = "Waiting"
+		end
 	end
 
 	if stage.Players.A == nil and stage.Players.B == nil and stage.Solo then
@@ -214,8 +221,11 @@ function leave(player: Player)
 	end
 
 	player:SetAttribute("Stage", nil)
-	character.PrimaryPart.Anchored = false
-	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local root = character and character.PrimaryPart
+	if root then
+		root.Anchored = false
+	end
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	if humanoid then
 		humanoid.WalkSpeed = humanoid:GetAttribute("DuelWalkSpeed") or 16
 		humanoid.JumpPower = humanoid:GetAttribute("DuelJumpPower") or 50
@@ -342,6 +352,26 @@ local function requestRematch(player: Player)
 	end
 end
 
+local function cancelRematch(player: Player)
+	local stage = DuelService.PlayerStage[player]
+	if not stage or stage.State ~= "Waiting" or stage.Duel or not stage.Rematch or not stage.Rematch[player] then
+		return
+	end
+	stage.Rematch[player] = nil
+
+	local present, wants = {}, {}
+	for _, slot in SLOTS do
+		local p = stage.Players[slot]
+		if p then
+			table.insert(present, p)
+			if stage.Rematch[p] then
+				table.insert(wants, p.UserId)
+			end
+		end
+	end
+	DuelRemote:Fire(Bridgenet.Players(present), { Message = "RematchState", Wants = wants })
+end
+
 -- Saves the theme + pack mix-in picked on the back of the queue card (Duels reads them back,
 -- and checks the theme is still open). Unknown ids are ignored.
 local function saveSoloChoice(player: Player, packet)
@@ -409,6 +439,9 @@ function tryStart(stage: Stage, soloStage: boolean?, rematch: boolean?)
 		onDuelEnded(stage, result)
 	end)
 	task.wait(1)
+	if stage.Duel ~= duel or stage.State ~= "InProgress" then
+		return
+	end
 	duel:Start()
 end
 
@@ -427,6 +460,7 @@ local function createStage(model: Model): Stage?
 		State = "Waiting",
 		Spots = { A = spotA, B = spotB },
 		Solo = false,
+		Rematch = {},
 		Prompts = {},
 		Players = {},
 		SlotJanitors = {
@@ -570,6 +604,9 @@ function DuelService.Start()
 		end
 		if packet.Action == "Rematch" then
 			requestRematch(player)
+			return
+		elseif packet.Action == "CancelRematch" then
+			cancelRematch(player)
 			return
 		end
 		local stage = DuelService.PlayerStage[player]
