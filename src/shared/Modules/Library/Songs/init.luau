@@ -31,6 +31,7 @@ local Songs = {}
 
 local All = {}
 local ById = {}
+local ByGeneration = {}
 
 local function load(module: ModuleScript, company: string)
 	local ok, group = pcall(require, module)
@@ -73,6 +74,18 @@ end
 table.sort(All, function(a, b)
 	return a.Id < b.Id
 end)
+
+-- The library is static after module load, so keep generation pools ready for duel answers.
+for _, song in All do
+	if song.Generation then
+		local pool = ByGeneration[song.Generation]
+		if not pool then
+			pool = {}
+			ByGeneration[song.Generation] = pool
+		end
+		table.insert(pool, song)
+	end
+end
 
 Songs.All = All
 
@@ -161,7 +174,7 @@ local function filter(key: string, value: any)
 end
 
 function Songs.GetSongsByGeneration(generation: string)
-	return filter("Generation", generation)
+	return table.clone(ByGeneration[generation] or {})
 end
 function Songs.GetSongsByStatus(status: string)
 	return filter("Status", status)
@@ -193,13 +206,28 @@ end
 function Songs.GetWrongOptions(answer, count: number, within: { any }?)
 	local picked, used = {}, { [answer.Id] = true }
 	local function take(pool)
-		local copy = table.clone(pool)
-		while #picked < count and #copy > 0 do
-			local song = table.remove(copy, math.random(1, #copy))
+		local needed = count - #picked
+		if needed <= 0 then
+			return
+		end
+		-- Reservoir sample eligible songs without cloning/shuffling the full candidate pool.
+		local sample, eligible = {}, 0
+		for _, song in pool do
 			if not used[song.Id] then
-				used[song.Id] = true
-				table.insert(picked, song)
+				eligible += 1
+				if #sample < needed then
+					table.insert(sample, song)
+				else
+					local slot = math.random(1, eligible)
+					if slot <= needed then
+						sample[slot] = song
+					end
+				end
 			end
+		end
+		for _, song in sample do
+			used[song.Id] = true
+			table.insert(picked, song)
 		end
 	end
 	if within then
@@ -212,7 +240,7 @@ function Songs.GetWrongOptions(answer, count: number, within: { any }?)
 		take(sameGen)
 		take(within)
 	end
-	take(Songs.GetSongsByGeneration(answer.Generation))
+	take(ByGeneration[answer.Generation] or {})
 	take(All)
 	return picked
 end

@@ -11,9 +11,8 @@
 -- row (as in the redesign): chips that scroll sideways (the companies on All songs, a
 -- company's groups otherwise) with a fade on the right, the All | Owned toggle and the A–Z
 -- sort, then 12 cards a page and the pager in the footer.
--- On a set (a group, or a company with no group picked) the header shows its title reward
--- (TITLE [CARAT], greyed + 🔒 until you own every song, then in its tier colour) and the
--- footer swaps the hint for the next step: own them all → all Gold → all Rainbow → done.
+-- On a set (a group, or a company with no group picked) the footer shows title reward progress:
+-- own them all → all Gold → all Rainbow → done.
 -- ♪ ROLL SONGS opens the shop's Songs tab. Nothing can be bought here.
 
 -- -------------------------------- Services -------------------------------- --
@@ -214,13 +213,12 @@ function Index:_fillShow(instant: boolean?)
 	end
 end
 
--- The set's title reward: the chip next to "collected", and the next step in the footer.
+-- The set's title reward progress in the footer.
 -- `pack` is the group / company pack in view (nil on All songs, or a set without a title).
 function Index:_fillReward(pack, copies)
 	local content = self._frame.Panel.Content
-	local reward, nextRow = content.TitleRow.Reward, content.NextStep
+	local nextRow = content.NextStep
 	local show = pack ~= nil and pack.Title ~= nil and #pack.Songs > 0
-	reward.Visible = show
 	nextRow.Visible = show
 	content.Hint.Visible = not show
 	if not show then
@@ -232,8 +230,6 @@ function Index:_fillReward(pack, copies)
 		tiers = PlayerData.Inventory.TitleTiers.Get() or {}
 	end)
 	local tier = if has(PlayerData.Inventory.Titles, title) then Cards.LEVELS[tiers[title] or 1] else nil
-	TitleChip.Paint(reward.Chip, title, tier)
-
 	local function owns(id: string): boolean
 		return has(PlayerData.Inventory.Songs, id)
 	end

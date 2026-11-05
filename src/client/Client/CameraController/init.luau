@@ -32,6 +32,10 @@ CameraController.Active = false
 
 local fovTween: Tween? = nil
 local soloDouble: Model? = nil -- solo Song: a copy of you standing on the other spot
+local cachedTargetModel: Model? = nil
+local cachedTargetHead: BasePart? = nil
+local cachedLocalCharacter: Model? = nil
+local cachedLocalHead: BasePart? = nil
 
 local function stageModel(): Model?
 	local name = LOCAL_PLAYER:GetAttribute("Stage")
@@ -59,10 +63,9 @@ end
 
 -- Solo Song has no opponent to look at, so a local copy of your character stands on the
 -- spot you're not on, facing you, playing your idle animation.
-local function makeSoloDouble(): Model?
+local function makeSoloDouble(stage: Model?): Model?
 	local char = LOCAL_PLAYER.Character
 	local myRoot = rootOf(LOCAL_PLAYER)
-	local stage = stageModel()
 	if not (char and myRoot and stage) then
 		return nil
 	end
@@ -144,7 +147,7 @@ local function tweenFov(fov: number)
 end
 
 -- Where the camera should be this frame, or nil if the shot can't be built yet.
-local function shot(mode: string, opponent: Player?): CFrame?
+local function shot(mode: string, opponent: Player?, rigSpot: BasePart?): CFrame?
 	local myRoot = rootOf(LOCAL_PLAYER)
 	if not myRoot then
 		return nil
@@ -153,9 +156,13 @@ local function shot(mode: string, opponent: Player?): CFrame?
 	-- Song: over your shoulder at the opponent (or your solo double)
 	local target: Model? = if opponent then opponent.Character elseif mode == "Song" then soloDouble else nil
 	if mode == "Song" and target then
-		local head = target:FindFirstChild("Head") :: BasePart?
+		local head = if target == cachedTargetModel then cachedTargetHead else target:FindFirstChild("Head") :: BasePart?
+		cachedTargetModel = target
+		cachedTargetHead = head
 		local myChar = LOCAL_PLAYER.Character
-		local myHead = myChar and myChar:FindFirstChild("Head") :: BasePart?
+		local myHead = if myChar == cachedLocalCharacter then cachedLocalHead else myChar and myChar:FindFirstChild("Head") :: BasePart?
+		cachedLocalCharacter = myChar
+		cachedLocalHead = myHead
 		if head then
 			local face = head.Position - Vector3.new(0, OTS_AIM_DROP, 0)
 			local me = if myHead then myHead.Position else myRoot.Position + Vector3.new(0, 1.5, 0)
@@ -171,8 +178,7 @@ local function shot(mode: string, opponent: Player?): CFrame?
 	end
 
 	-- Choreography (or no opponent): close on the rig, from the local player's side
-	local stage = stageModel()
-	local spot = stage and stage:FindFirstChild("RigSpot") :: BasePart?
+	local spot = rigSpot
 	if not spot then
 		return nil
 	end
@@ -192,13 +198,19 @@ end
 function CameraController.Focus(mode: string, info)
 	local camera = workspace.CurrentCamera
 	local opponent = opponentOf(info)
+	local stage = stageModel()
+	local rigSpot = stage and stage:FindFirstChild("RigSpot") :: BasePart?
 	CameraController.Active = true
 	CameraController.Mode = mode
 
 	clearSoloDouble()
 	if mode == "Song" and info and info.Solo then
-		soloDouble = makeSoloDouble()
+		soloDouble = makeSoloDouble(stage)
 	end
+	cachedTargetModel = nil
+	cachedTargetHead = nil
+	cachedLocalCharacter = nil
+	cachedLocalHead = nil
 
 	-- name tag over whoever you're up against (your double in solo)
 	local function levelOf(userId: number): number?
@@ -220,7 +232,7 @@ function CameraController.Focus(mode: string, info)
 	tweenFov(if mode == "Song" then SONG_FOV else ZOOM_FOV)
 
 	RunService:BindToRenderStep(RENDER_NAME, Enum.RenderPriority.Camera.Value + 1, function(dt)
-		local target = shot(mode, opponent)
+		local target = shot(mode, opponent, rigSpot)
 		if target then
 			-- frame-rate independent glide into (and along with) the shot
 			camera.CFrame = camera.CFrame:Lerp(target, 1 - math.exp(-FOLLOW_SPEED * dt))
@@ -237,6 +249,10 @@ function CameraController.Reset()
 	CameraController.Mode = nil
 	RunService:UnbindFromRenderStep(RENDER_NAME)
 	clearSoloDouble()
+	cachedTargetModel = nil
+	cachedTargetHead = nil
+	cachedLocalCharacter = nil
+	cachedLocalHead = nil
 	RivalTag.Clear()
 
 	local camera = workspace.CurrentCamera
