@@ -151,5 +151,5 @@ return Scribe({
 	PeriodReset = { UtcOffset = 0, WeekStart = "Monday" }, -- weekly boards reset Monday 00:00 UTC
 	ProfileStoreIndex = "PlayerData", -- required: your DataStore name
 	ProfileKeyPrefix = "PLAYER_",
-	Mode = "Mock",
+	Mode = "Live",
 })

@@ -535,7 +535,7 @@ function Roll:_showInfo(newPip: number?)
 	reveal.Info.Visible = true
 	Juice.SlideIn(reveal.Info, 8)
 	reveal.Pips.Visible = true
-	if newPip then
+	if newPip and newPip <= 5 then
 		local pip = reveal.Pips["Pip" .. newPip]
 		pip.BackgroundColor3 = pip:GetAttribute("On") or YELLOW
 		Juice.Pop(pip, 0.35)
@@ -599,12 +599,12 @@ function Roll:_showOne(pull, refund: number)
 	if pull.New then
 		local have = if pack then #Packs.SongsFor(pack.Id, owns) else 0
 		reveal.Info.Text = if pack
-			then `Yours now · {song.Artist} <b>{have} / {#pack.Songs}</b>{if have >= #pack.Songs then ` · <b>{pack.Title}</b> title unlocked!` else ""}`
-			else "Yours now · it comes up more in your duels"
+			then `You have <b>{have} / {#pack.Songs}</b> from {song.Artist} {if have >= #pack.Songs then ` · <b>{pack.Title}</b> title unlocked!` else ""}`
+			else "it comes up more in your duels"
 	else
 		reveal.Info.Text = if nextLevel
 			then `{copies} copies · <b>{need - copies} more</b> to {string.upper(nextLevel)}`
-			else `{copies} copies · RAINBOW, the top level`
+			else `{copies} copies · RAINBOW! · it comes up more in your duels`
 	end
 	-- pips: the new copy fills in with the result (a NEW song's only pip shows straight away)
 	for i = 1, 5 do
