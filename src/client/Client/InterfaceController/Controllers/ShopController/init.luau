@@ -443,6 +443,29 @@ function Shop:Initialize(interface)
 	self._frame.Visible = false
 	local panel = self._frame.Panel
 	self._pages = panel.Pages
+	-- Give the tabs equal widths so removing their category dots doesn't leave an uneven gap.
+	local tabs = panel.Header.Tabs
+	local tabGap = 8
+	local tabLayout = tabs:FindFirstChildOfClass("UIListLayout")
+	if tabLayout then
+		tabLayout.Padding = UDim.new(0, tabGap)
+	end
+	local tabWidth = math.floor((tabs.Size.X.Offset - tabGap * (#TABS - 1)) / #TABS) - 3
+	for _, tab in TABS do
+		local holder = tabs[tab]
+		local button = holder.Button
+		local dot = button:FindFirstChild("Dot")
+		if dot then
+			dot.Visible = false
+		end
+		local layout = button:FindFirstChildOfClass("UIListLayout")
+		if layout then
+			layout.Padding = UDim.new(0, 0)
+		end
+		button.AutomaticSize = Enum.AutomaticSize.None
+		button.Size = UDim2.fromOffset(tabWidth, button.Size.Y.Offset)
+		holder.Size = UDim2.fromOffset(tabWidth + 3, holder.Size.Y.Offset)
+	end
 	ButtonScale.ApplyToDescendants(panel)
 
 	local j = self._janitor

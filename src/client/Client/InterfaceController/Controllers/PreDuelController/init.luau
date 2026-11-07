@@ -2,6 +2,8 @@
 -- is on; while it's off the vote panel hides and the screen re-centres). A chip on the stake
 -- card says whose owned songs are in play (they come up more often); in solo it names the theme
 -- picked on the queue card. The old SoloPool picker stays hidden. See ./Build.
+-- Party Stages use the same screen for the pot roll (no vote): the reel shows amounts already
+-- times the stage's multiplier, and in a free-for-all the rival card stands for everyone else.
 
 -- -------------------------------- Services -------------------------------- --
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -140,7 +142,8 @@ function PreDuel:_setupPacks(packs, solo: boolean, rivalName: string?)
 	chip.Visible = true
 	chip.BackgroundColor3 = MINT
 	chip.Icon.Off.Visible = false
-	chip.Label.Text = `♪ Owned songs come up more · {table.concat(parts, " + ")}`
+	-- (Party Stages send no per-player counts: just the rule)
+	chip.Label.Text = if #parts > 0 then `♪ Owned songs come up more · {table.concat(parts, " + ")}` else "♪ Owned songs come up more"
 end
 
 -- With the vote panel hidden, everything else moves down so the screen stays centred.
@@ -194,7 +197,9 @@ function PreDuel:_fillPlayer(card, profile)
 		shadow.Visible = true
 	end
 	card:FindFirstChild("Name").Text = profile.Name
-	card.Sub.Text = if profile.Streak > 0 then `Lv {profile.Level} · {profile.Streak} streak` else `Lv {profile.Level}`
+	card.Sub.Text = if profile.SubText then profile.SubText
+		elseif profile.Streak > 0 then `Lv {profile.Level} · {profile.Streak} streak`
+		else `Lv {profile.Level}`
 	-- title chip under the level
 	local chip = card:FindFirstChild("TitleChip")
 	if not chip then
@@ -215,12 +220,22 @@ function PreDuel:Setup(packet)
 
 	-- players: "You" is always the local player
 	local me, rival
+	local others = {}
 	for _, profile in packet.Players do
 		if profile.UserId == LOCAL_PLAYER.UserId then
 			me = profile
 		else
 			rival = profile
+			table.insert(others, profile)
 		end
+	end
+	-- Party free-for-all: one card for the rest of the stage (first rival's photo, everyone's names)
+	if packet.Party and #others > 1 then
+		local names = {}
+		for _, o in others do
+			table.insert(names, o.Name)
+		end
+		rival = { UserId = others[1].UserId, Name = `{#others} rivals`, Level = others[1].Level, Streak = 0, SubText = table.concat(names, " · ") }
 	end
 	-- slot -> userId, so the packs chip knows whose pack is missing
 	self._slots = {}
@@ -244,12 +259,23 @@ function PreDuel:Setup(packet)
 	self._solo = solo
 	f.Stake.Visible = true
 	f.StakeShadow.Visible = true
-	f.Stake.Rule.Text = if solo then "Solo practice · win the stake as XP" else "Winner takes it · loser gets 10"
+	local party = packet.Party == true
+	f.Stake.Rule.Text = if solo then "Solo practice · win the stake as XP"
+		elseif party and packet.Kind == "Duel" then "Pot paid by place · 1st 100% · 2nd 30%"
+		elseif party then "Pot paid by place · 1st 100% · 2nd 70% · 3rd 50%"
+		else "Winner takes it · loser gets 10"
 	local result = f.Stake.Result
 	result.Visible = false
-	local mult = if solo then 1 else (me and me.Multiplier or 1)
-	result.Streak.Visible = mult > 1
-	result.Streak.Label.Text = `×{mult} your streak`
+	if party then
+		-- the stage's multiplier is already in the reel; the chip says what made it up
+		local mult = packet.Multiplier or 1
+		result.Streak.Visible = mult ~= 1
+		result.Streak.Label.Text = if packet.MultiplierText ~= "" then packet.MultiplierText else `×{mult}`
+	else
+		local mult = if solo then 1 else (me and me.Multiplier or 1)
+		result.Streak.Visible = mult > 1
+		result.Streak.Label.Text = `×{mult} your streak`
+	end
 
 	-- mode vote off (Choreography isn't out yet): no vote panel, the rest sits centred
 	local voteOn = packet.ModeVote ~= false
@@ -266,8 +292,8 @@ function PreDuel:Setup(packet)
 		-- big stakes get a sticker, shake and confetti
 		result.Amount.Value.Text = if solo then "0 XP" else "0 coins"
 		StakeReel.Spin(f.Stake, packet.Reel, spin, function(n)
-			return if solo then `{n} XP` else `{n} coins`
-		end)
+			return if solo then `{n} XP` elseif party then `{n} coin pot` else `{n} coins`
+		end, packet.Chips)
 		if not voteOn then
 			return
 		end

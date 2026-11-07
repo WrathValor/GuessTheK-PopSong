@@ -2,7 +2,7 @@
 -- and are starting points to tune from playtests.
 return table.freeze({
 	-- queue / pre-duel
-	START_TIME = 10, -- queue intermission before the pre-duel screen
+	START_TIME = 5, -- queue intermission before the pre-duel screen (either player can Cancel during it)
 	STAKE_SPIN = 2.5, -- stake reel spin on the pre-duel screen
 	-- mode vote (Song / Choreography). Off until Choreography ships: every duel is Song and
 	-- the pre-duel screen is just the stake roll (+ duel pack info), held for PRE_DUEL_HOLD.

@@ -4,6 +4,7 @@
 -- -------------------------------- Services -------------------------------- --
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
 
 -- --------------------------------- Imports -------------------------------- --
 local Janitor = require(ReplicatedStorage.Packages.janitor)
@@ -15,6 +16,8 @@ local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 
 local Scoreboard = require(script.Scoreboard)
+local FFABoard = require(script.FFABoard) -- Party Stage matches with 3–6 players
+local PickChips = require(script.PickChips) -- reveal: who picked which answer
 local Snippet = require(script.Snippet)
 local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 
@@ -42,6 +45,8 @@ local ANSWER_LOOK = {
 	Correct = C("A7E9B8"),
 	Wrong = C("FFD2CE"),
 }
+-- pick chip colours in a duel: the scoreboard avatars (Game.Scoreboard You / Rival)
+local DUEL_CHIP = { You = C("FFD2CE"), Rival = C("DCD3FF") }
 -- check / cross icons in atlas 0
 local MARK = {
 	Correct = { Bg = C("A7E9B8"), Rect = Vector2.new(300, 0) },
@@ -74,6 +79,14 @@ function Game:Initialize(interface)
 	self._frame = interface:ResolveFrame("Interface", "Game")
 	self._frame.Visible = false
 	self._frame.Reveal.Visible = false
+	if UserInputService.TouchEnabled then
+		for _, item in self._frame.Reveal.Answer:GetDescendants() do
+			if item:IsA("TextLabel") and item.Text == "THE ANSWER" then
+				item.TextScaled = false
+				item.TextSize = 14
+			end
+		end
+	end
 	ButtonScale.ApplyToDescendants(self._frame.Controls)
 	local controls = self._frame.Controls
 	self.Loader = LoadingCard.new(self._frame, controls.PlayButton)
@@ -132,8 +145,26 @@ function Game:_setupDuel(info, mode)
 	self.Me, self.Rival = me, rival
 	self.Scoreboard = Scoreboard.new(self._frame.Scoreboard, me, rival)
 	self.Scoreboard:Initialize(7)
+	-- a Party Stage free-for-all (3+ players) uses the FFA ticket instead of you-vs-rival
+	local count = 0
+	for _ in (info and info.Players or {}) do
+		count += 1
+	end
+	local board = self._frame:FindFirstChild("FFABoard")
+	self.FFA = nil
+	if info and info.Party and count > 2 and board then
+		local party = LOCAL_PLAYER:GetAttribute("PartyStage")
+		local title = if type(party) == "string" then (party:gsub("PartyStage", "Party Stage ")) else "Party Stage"
+		self.FFA = FFABoard.new(board, info.Players, `{title} · free-for-all · {count} players`)
+		self.FFA:Initialize(7)
+	end
+	self._frame.Scoreboard.Visible = self.FFA == nil
+	if board then
+		board.Visible = self.FFA ~= nil
+	end
 	local stageName = LOCAL_PLAYER:GetAttribute("Stage")
-	self.StageModel = stageName and workspace.Map.DuelStages:FindFirstChild(stageName)
+	local map = workspace:FindFirstChild("Map")
+	self.StageModel = stageName and map and ((map:FindFirstChild("DuelStages") and map.DuelStages:FindFirstChild(stageName)) or (map:FindFirstChild("PartyStages") and map.PartyStages:FindFirstChild(stageName)))
 	self._frame.Controls.Visible = true
 	self._frame.Reveal.Visible = false
 end
@@ -154,6 +185,7 @@ function Game:OnRound(packet)
 	self:_dropSnippet()
 	local controls = self._frame.Controls
 	self._frame.Reveal.Visible = false
+	self:_revealAnswers(false)
 	controls.Visible = true
 
 	self.Round = {
@@ -168,6 +200,11 @@ function Game:OnRound(packet)
 	}
 	self.Scoreboard.Rounds = packet.Rounds
 	self.Scoreboard:UpdateRound(packet.Round)
+	if self.FFA then
+		self.FFA.Rounds = packet.Rounds
+		self.FFA:UpdateRound(packet.Round)
+		self.FFA:SetAll("Listening…")
+	end
 	PackTag.Set(self._frame, nil, packet.Theme) -- ownership shows on the reveal now, not during the round
 	self.Scoreboard:SetStatus(false, "Loading…")
 	self.Scoreboard:SetStatus(true, "Listening…")
@@ -326,6 +363,9 @@ function Game:_guess(index: number)
 	if self.Solo then
 		self.Scoreboard:SetStatus(true, "Answered!")
 	end
+	if self.FFA then
+		self.FFA:SetStatus(LOCAL_PLAYER.UserId, "Answered!", "you")
+	end
 	self:_paintTiers()
 end
 
@@ -353,6 +393,13 @@ function Game:OnRivalAnswered(seconds: number)
 	self.Scoreboard:SetStatus(true, "Answered!")
 	if not self._frame.Controls.Timer.Visible then
 		self:_countdown(seconds)
+	end
+end
+
+-- Party matches: someone answered (the FFA ticket marks them)
+function Game:OnPlayerAnswered(userId: number)
+	if self.FFA and userId ~= LOCAL_PLAYER.UserId then
+		self.FFA:SetStatus(userId, "Answered!")
 	end
 end
 
@@ -405,6 +452,24 @@ function Game:OnRoundEnd(packet)
 	if self.Solo then
 		rivalKey, rivalPick = ME, mine -- you vs you
 	end
+	if self.FFA then
+		-- everyone's result is on the FFA ticket; the reveal card is just yours, centred
+		rivalKey, rivalPick = nil, nil
+		self.FFA:OnRoundEnd(packet)
+	end
+	-- who picked what: avatar chips on the answers, which stay up over the reveal (every mode;
+	-- a duel's chips take the scoreboard's avatar colours)
+	local chipOrder = if self.FFA then self.FFA.Order else {}
+	if not self.FFA then
+		if self.Me then
+			table.insert(chipOrder, { UserId = self.Me.UserId, Name = self.Me.Name, Colour = DUEL_CHIP.You })
+		end
+		if self.Rival then
+			table.insert(chipOrder, { UserId = self.Rival.UserId, Name = self.Rival.Name, Colour = DUEL_CHIP.Rival })
+		end
+	end
+	PickChips.Show(controls.Answers, r and r.Options, packet.Picks, chipOrder)
+	self:_revealLayout(self.FFA ~= nil)
 
 	local function describe(pick, tiers)
 		if not pick or not pick.Picked then
@@ -463,7 +528,10 @@ function Game:OnRoundEnd(packet)
 	self.Scoreboard:SetStatus(true, "")
 
 	task.delay(0.6, function()
-		controls.Visible = false
+		if self.Round then
+			return -- the next round already started
+		end
+		self:_revealAnswers(true)
 		reveal.Visible = true
 	end)
 	local nextIn = packet.Next or 0
@@ -476,6 +544,66 @@ function Game:OnRoundEnd(packet)
 			end
 		end), true)
 	end
+end
+
+-- Reveal: the answer row stays up over it (the rest of the controls hide) so the pick chips
+-- can show; `false` puts everything back for the next round.
+function Game:_revealAnswers(on: boolean)
+	local controls = self._frame.Controls
+	if on then
+		self._hiddenControls = {}
+		for _, child in controls:GetChildren() do
+			if child:IsA("GuiObject") and child.Name ~= "Answers" and child.Visible then
+				child.Visible = false
+				table.insert(self._hiddenControls, child)
+			end
+		end
+		controls.Visible = true
+		controls.Interactable = false -- nothing to click on a reveal
+		if controls:GetAttribute("BaseZ") == nil then
+			controls:SetAttribute("BaseZ", controls.ZIndex)
+		end
+		controls.ZIndex = self._frame.Reveal.ZIndex + 1 -- above the reveal's scrim
+		return
+	end
+	for _, child in self._hiddenControls or {} do
+		child.Visible = true
+	end
+	self._hiddenControls = nil
+	local z = controls:GetAttribute("BaseZ")
+	if z then
+		controls.ZIndex = z
+	end
+	controls.Interactable = true
+	PickChips.Clear(controls.Answers)
+end
+
+-- The reveal's own layout: the pick cards sit a little higher and "Next round in …" goes
+-- between them and the answer row (clear of the pick chips). A duel has both cards side by
+-- side; FFA centres yours. Each element remembers its Studio spot.
+local FFA_PICKS_Y, FFA_NEXT_Y = 432, 524 -- (every mode now, not just FFA)
+function Game:_revealLayout(ffa: boolean)
+	local reveal = self._frame.Reveal
+	local picks = reveal.Picks
+	local function base(inst: GuiObject): UDim2
+		local saved = inst:GetAttribute("BasePosition")
+		if saved == nil then
+			inst:SetAttribute("BasePosition", inst.Position)
+			saved = inst.Position
+		end
+		return saved
+	end
+	local pb = base(picks)
+	picks.Position = UDim2.new(pb.X.Scale, pb.X.Offset, 0, FFA_PICKS_Y)
+	local you, youShadow = picks.You, picks:FindFirstChild("YouShadow")
+	local dx = if ffa then math.floor((picks.Size.X.Offset - you.Size.X.Offset) / 2) - base(you).X.Offset else 0
+	you.Position = base(you) + UDim2.fromOffset(dx, 0)
+	if youShadow then
+		youShadow.Position = base(youShadow) + UDim2.fromOffset(dx, 0)
+	end
+	local nextRound = reveal.NextRound
+	local nb = base(nextRound)
+	nextRound.Position = UDim2.new(nb.X.Scale, nb.X.Offset, 0, FFA_NEXT_Y)
 end
 
 -- [[ Lifecycle ]]
@@ -499,6 +627,7 @@ function Game:Deactivate()
 	self.State = "Deactivating"
 	self._round:Cleanup()
 	self:_dropSnippet()
+	self:_revealAnswers(false)
 	self._frame.Controls.Interactable = true
 	self.Loader:HideAll()
 	self.Round = nil

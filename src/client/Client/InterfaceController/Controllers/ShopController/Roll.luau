@@ -604,7 +604,7 @@ function Roll:_showOne(pull, refund: number)
 	else
 		reveal.Info.Text = if nextLevel
 			then `{copies} copies · <b>{need - copies} more</b> to {string.upper(nextLevel)}`
-			else `You reached the top tier with {copies} copies · it comes up more in your duels`
+			else `You reached the top tier · it comes up more in your duels`
 	end
 	-- pips: the new copy fills in with the result (a NEW song's only pip shows straight away)
 	for i = 1, 5 do

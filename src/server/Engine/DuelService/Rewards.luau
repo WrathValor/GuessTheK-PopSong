@@ -33,6 +33,7 @@ export type Earned = {
 	Tutorial: boolean?, -- the tutorial's welcome gift was paid this time
 	LevelUp: number?, -- the new level, when this match levelled the player up
 	NewTitle: string?, -- level title unlocked by that level up (Modules/Levels.TITLES)
+	Place: number?, -- Party Stages: where they finished (1 = first)
 }
 
 -- Analytics for one player's finished game (after the data is written)
@@ -219,6 +220,103 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 			Solo = result.Solo,
 			Perfect = earned.Perfect == true,
 		})
+	end
+	return out
+end
+
+-- [[ Party Stages ]]
+
+-- A party match (Engine/PartyService): coins are the rolled pot (result.Stake, already times
+-- info.Multiplier for FFA size / custom pool) paid by placement (PAYOUT). XP is the usual per-correct XP plus
+-- a win / loss bonus. Nothing for anyone who left, and nothing at all when info.Eligible is
+-- false (a custom pool under MIN_POOL_REWARDS songs). Party matches never touch win streaks.
+-- info = { Multiplier, Eligible, Kind }
+function Rewards.ApplyParty(result, info): { [Player]: Earned }
+	local PartyConstants = require(ReplicatedStorage.Constants.PartyConstants)
+	local out = {}
+	local payout = if info.Kind == "Duel" then PartyConstants.DUEL_PAYOUT else PartyConstants.PAYOUT
+	for place, player in result.Placement or {} do
+		local ok, data = pcall(PlayerData.Get, player)
+		if not ok or not data or not player.Parent then
+			continue
+		end
+		local correct = 0
+		for _, round in result.Rounds do
+			local pick = round.Picks[player]
+			if pick and pick.Correct then
+				correct += 1
+			end
+		end
+		local left = result.Left and result.Left[player] == true
+		local earned: Earned = {
+			XP = 0,
+			Coins = 0,
+			CoinsDetail = "",
+			Streak = data.Player.Streak.Get(),
+			StreakLost = 0,
+			Perfect = false,
+			Outcome = if left then "Left" elseif place == 1 then "Win" else "Lose",
+		}
+		earned.Place = place
+		if not left and info.Eligible then
+			local share = payout[place] or payout[#payout]
+			local pot = result.Stake or 0
+			earned.Coins = math.floor(pot * share + 0.5)
+			earned.CoinsDetail = `{math.floor(share * 100 + 0.5)}% of {pot} pot`
+			earned.XP = correct * DuelConstants.XP_CORRECT + (if place == 1 then DuelConstants.XP_WIN else DuelConstants.XP_LOSE)
+			if earned.Coins > 0 and data.GamePasses.Has("DoubleCoins") then
+				earned.Coins *= 2
+				earned.CoinsDetail ..= " · 2× pass"
+			end
+		elseif not left then
+			earned.CoinsDetail = `Custom pools need {PartyConstants.MIN_POOL_REWARDS}+ songs to pay out`
+		end
+
+		local before = Levels.FromXP(data.Player.XP.Get())
+		local after = Levels.FromXP(data.Player.XP.Get() + earned.XP)
+		if after > before then
+			earned.LevelUp = after
+			for _, t in Levels.TITLES do
+				if t.Level > before and t.Level <= after then
+					earned.NewTitle = t.Title
+				end
+			end
+		end
+
+		PlayerData.Batch(player, function()
+			if earned.XP > 0 then
+				data.Player.XP.Increment(earned.XP)
+			end
+			if earned.Coins > 0 then
+				data.Currencies.Won.Increment(earned.Coins)
+				data.Statistics.CoinsEarned.Increment(earned.Coins)
+			end
+			if correct > 0 then
+				data.Statistics.CorrectAnswers.Increment(correct)
+			end
+		end)
+		out[player] = earned
+
+		local placeName = if left then "Left" else ({ "1st", "2nd", "3rd", "4th", "5th", "6th" })[place] or "6th"
+		Analytics.Event(player, "PartyFinished", correct, info.Kind, placeName)
+		if earned.Coins > 0 then
+			Analytics.Economy(player, "Source", "Coins", earned.Coins, data.Currencies.Won.Get(), TX.Party, info.Kind)
+		end
+		if earned.XP > 0 then
+			Analytics.Economy(player, "Source", "XP", earned.XP, data.Player.XP.Get(), TX.Party, info.Kind)
+		end
+		if earned.LevelUp then
+			Analytics.Event(player, "LevelUp", earned.LevelUp, earned.NewTitle or "None")
+		end
+		if not left then
+			task.spawn(DailyQuests.Record, player, {
+				Correct = correct,
+				Win = place == 1,
+				Lost = false,
+				Solo = false,
+				Perfect = false,
+			})
+		end
 	end
 	return out
 end

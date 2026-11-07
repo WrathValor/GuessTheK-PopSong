@@ -40,8 +40,18 @@ local cachedLocalHead: BasePart? = nil
 local function stageModel(): Model?
 	local name = LOCAL_PLAYER:GetAttribute("Stage")
 	local map = workspace:FindFirstChild("Map")
-	local stages = map and map:FindFirstChild("DuelStages")
-	return if name and stages then stages:FindFirstChild(name) :: Model? else nil
+	if not (name and map) then
+		return nil
+	end
+	-- a duel stage, or a Party Stage (same RigSpot in the middle)
+	for _, folder in { "DuelStages", "PartyStages" } do
+		local stages = map:FindFirstChild(folder)
+		local stage = stages and stages:FindFirstChild(name)
+		if stage then
+			return stage :: Model
+		end
+	end
+	return nil
 end
 
 local function rootOf(player: Player?): BasePart?

@@ -32,6 +32,11 @@ AnalyticsEvents.Custom = {
 	InviteSent = { Fields = { "Stage" } },
 	InviteResult = { Fields = { "Result", "Stage" } }, -- Accepted / Declined / Expired / Cancelled / Failed
 
+	-- [[ Party Stages (Engine/PartyService) ]]
+	PartyJoined = { Fields = { "Stage", "How" } }, -- How: Host / Walked / Invite / Request
+	PartyStarted = { Fields = { "Kind", "Pool" } }, -- value: players; Kind FFA / Duel; Pool All / Custom
+	PartyFinished = { Fields = { "Kind", "Place" } }, -- value: correct answers; Place 1st … / Left
+
 	-- [[ Shop / inventory / rewards ]]
 	SongRolled = { Fields = { "Result", "Level", "Count" } }, -- Result New / Duplicate; Count "x1" / "x10"
 	Equip = { Fields = { "Kind", "Item" } },
@@ -43,7 +48,7 @@ AnalyticsEvents.Custom = {
 
 	-- [[ From the client ]]
 	ScreenOpened = { Fields = { "Screen" }, Client = true, Allowed = {
-		Screen = { "Shop", "Inventory", "Index", "Rewards", "News", "Settings", "Queue", "Results", "SaveStreak", "Tutorial" },
+		Screen = { "Shop", "Inventory", "Index", "Rewards", "News", "Settings", "Queue", "Results", "SaveStreak", "Tutorial", "Party" },
 	} },
 	ShopTabOpened = { Fields = { "Tab" }, Client = true, Allowed = {
 		Tab = { "Featured", "Sets", "Items", "Songs", "UGC", "Coins" },
@@ -73,6 +78,7 @@ AnalyticsEvents.Transactions = {
 	DuelDraw = "DuelDraw",
 	Perfect = "PerfectBonus",
 	Solo = "Solo",
+	Party = "PartyMatch",
 	Daily = "DailyReward",
 	Quest = "Quest",
 	QuestBonus = "QuestBonus",

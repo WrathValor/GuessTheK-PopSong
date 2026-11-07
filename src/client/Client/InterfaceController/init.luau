@@ -194,6 +194,11 @@ end
 
 function Interface.Start(self: Self)
 	self.PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+	local interfaceGui = self.PlayerGui:FindFirstChild("Interface")
+	if interfaceGui and interfaceGui:IsA("ScreenGui") then
+		-- Keep modal headers below Roblox's mobile top bar and device safe area.
+		interfaceGui.IgnoreGuiInset = false
+	end
 
 	for _, controller in script.Controllers:GetChildren() do
 		if controller.Name == "TemplateController" then

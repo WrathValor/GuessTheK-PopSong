@@ -493,8 +493,9 @@ function CosmeticView.Show(art: GuiObject?, kind: string, id: string?)
 		art.Model3D:SetAttribute("Shown", key)
 		shown[art] = { kind, id }
 	else
-		-- no model (yet): leave the drawn art as the caller set it
-		shown[art] = nil
+		-- The local avatar may not have finished loading yet (especially on mobile).
+		-- Remember the request so SetAvatar can retry the viewport when it becomes available.
+		shown[art] = { kind, id }
 	end
 end
 

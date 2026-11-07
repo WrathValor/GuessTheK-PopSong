@@ -37,6 +37,7 @@ export type Result = {
 	Scores: { [Player]: number },
 	Rounds: { RoundLog },
 	Stake: number,
+	StakeRoll: number?,
 	Mode: string,
 	Solo: boolean,
 }
@@ -46,19 +47,22 @@ local function key(player: Player): string
 	return tostring(player.UserId)
 end
 
-local function rollStake(): number
+-- a weighted pick from `stakes` (defaults to the duel table)
+local function rollStake(stakes: { number }?, weights: { number }?): number
+	stakes = stakes or DuelConstants.STAKES
+	weights = weights or DuelConstants.STAKE_WEIGHTS
 	local total = 0
-	for _, w in DuelConstants.STAKE_WEIGHTS do
+	for _, w in weights :: { number } do
 		total += w
 	end
 	local r = math.random() * total
-	for i, w in DuelConstants.STAKE_WEIGHTS do
+	for i, w in weights :: { number } do
 		r -= w
 		if r <= 0 then
-			return DuelConstants.STAKES[i]
+			return (stakes :: { number })[i]
 		end
 	end
-	return DuelConstants.STAKES[1]
+	return (stakes :: { number })[1]
 end
 
 local function streakMultiplier(streak: number): number
@@ -124,7 +128,14 @@ Duels.__index = Duels
 Duels.StreakMultiplier = streakMultiplier
 Duels.ProfileOf = profileOf -- the invite cards show the same Level / Streak
 
-function Duels.new(stage, playerA: Player?, playerB: Player?, solo: boolean?)
+-- party = a Party Stage match (Engine/PartyService), nil for duels + solo:
+--   { Kind = "FFA" | "Duel", Players = { Player } (setlist order), Pool = { song }? (the
+--     host's custom pool, nil = every song), Boost = bool (owned songs count),
+--     Multiplier = number, MultiplierText = string, Eligible = bool (pays out at all) }
+-- A party match rolls its pot (PartyConstants.STAKES × Multiplier) but has no vote, any
+-- number of players (each their own score),
+-- and someone leaving only drops them: the rest play on while two or more are left.
+function Duels.new(stage, playerA: Player?, playerB: Player?, solo: boolean?, party: any?)
 	local self = setmetatable({}, Duels)
 
 	self.Stage = stage
@@ -133,12 +144,26 @@ function Duels.new(stage, playerA: Player?, playerB: Player?, solo: boolean?)
 	self.Scores = {} :: { [Player]: number }
 	self.CorrectTime = {} :: { [Player]: number } -- tie-break: total seconds to correct answers
 	self.Solo = solo == true
+	self.Party = party
+	self.Everyone = {} :: { Player } -- everyone who started (party: leavers stay in here)
+	self.Left = {} :: { [Player]: boolean }
+	self.Firsts = {} :: { [Player]: number } -- rounds each player answered correctly first
 
-	for _, p in { playerA, playerB } do
+	local starters = { playerA, playerB }
+	if party then
+		self.Slots = {}
+		starters = party.Players
+		for i, p in party.Players do
+			self.Slots[tostring(i)] = p
+		end
+	end
+	for _, p in starters do
 		if p and not self.Scores[p] then
 			table.insert(self.Players, p)
+			table.insert(self.Everyone, p)
 			self.Scores[p] = 0
 			self.CorrectTime[p] = 0
+			self.Firsts[p] = 0
 			stage.Model:SetAttribute(p.Name, 0)
 		end
 	end
@@ -169,13 +194,21 @@ function Duels.new(stage, playerA: Player?, playerB: Player?, solo: boolean?)
 	self._janitor:Add(self.Ended)
 	self._running = false
 	self.Started = false
+	-- true during the queue intermission countdown: leaving then cancels the match, no forfeit
+	self.Intermission = false
 
 	stage.Model:SetAttribute("Round", 0)
 	return self
 end
 
 function Duels:_fire(packet)
-	DuelRemote:Fire(Bridgenet.Players(self.Players), packet)
+	if #self.Players > 0 then
+		DuelRemote:Fire(Bridgenet.Players(self.Players), packet)
+	end
+	-- Party Stages forward round + score packets to spectators
+	if self.OnPacket then
+		task.spawn(self.OnPacket, packet)
+	end
 end
 
 function Duels:Start()
@@ -187,15 +220,21 @@ function Duels:Start()
 	self:_setInDuel(true)
 
 	local thread = task.spawn(function()
-		if not self.Solo then
+		if self.Party then
+			self:_partyIntro() -- the lobby's countdown already happened: no intermission or vote
+		elseif not self.Solo then
+			self.Intermission = true
 			QueueRemote:Fire(Bridgenet.Players(self.Players), { Message = "Intermission" })
 			task.wait(DuelConstants.START_TIME)
+			self.Intermission = false
 			if not self._running then
 				return
 			end
 		end
 
-		if self.Tutorial then
+		if self.Party then
+			-- set up in _partyIntro
+		elseif self.Tutorial then
 			-- no stake roll or vote: straight into 3 relaxed Song rounds
 			self.RoundCount = DuelConstants.TUTORIAL_ROUNDS
 			self.Cap = DuelConstants.TUTORIAL_CAP
@@ -241,6 +280,69 @@ function Duels:Start()
 			task.cancel(thread)
 		end
 	end, true)
+end
+
+-- [[ Party Stage intro ]]
+
+-- Who's playing (the round + results screens read the players from PreDuel), owned songs
+-- when the host left them on, the pot roll, then straight into Song rounds. The reel shows
+-- PartyConstants.STAKES already times the match multiplier (FFA size, custom pool), so the
+-- number it lands on is the pot. A pool too small to pay out skips the roll.
+function Duels:_partyIntro()
+	local PartyConstants = require(ReplicatedStorage.Constants.PartyConstants)
+	local party = self.Party
+	local mult = party.Multiplier or 1
+	local function pot(n: number): number
+		return math.floor(n * mult + 0.5)
+	end
+	local reel, chips = nil, nil
+	self.Stake = 0
+	self.StakeRoll = 0
+	if party.Eligible ~= false then
+		self.StakeRoll = rollStake(PartyConstants.STAKES, PartyConstants.STAKE_WEIGHTS)
+		self.Stake = pot(self.StakeRoll)
+		chips = {}
+		for i, n in PartyConstants.STAKES do
+			chips[i] = pot(n)
+		end
+		reel = {}
+		for i = 1, 7 do
+			reel[i] = chips[math.random(1, #chips)]
+		end
+		reel[4] = self.Stake -- the chip the pointer lands on
+	end
+	self.Mode = DuelConstants.DEFAULT_MODE
+	local profiles = {}
+	for slot, p in self.Slots do
+		profiles[slot] = profileOf(p)
+	end
+	self.Boost = party.Boost == true
+	if self.Boost then
+		for _, p in self.Players do
+			local list, set = ownedOf(p)
+			self.OwnedSongs[p] = list
+			self.Owned[p] = set
+		end
+	end
+	self:_fire({
+		Message = "PreDuel",
+		Party = true,
+		Kind = party.Kind,
+		Solo = false,
+		Stake = self.Stake,
+		Reel = reel, -- nil: no roll (nothing pays out), the client skips the screen
+		Chips = chips, -- every chip the reel can show, for the spinning strip
+		Multiplier = mult,
+		MultiplierText = party.MultiplierText or "",
+		Players = profiles,
+		Packs = { On = self.Boost, Owned = {} },
+		SpinTime = DuelConstants.STAKE_SPIN,
+		ModeVote = false,
+		VoteTime = DuelConstants.PRE_DUEL_HOLD,
+	})
+	if reel then
+		task.wait(DuelConstants.STAKE_SPIN + DuelConstants.PRE_DUEL_HOLD + 0.25)
+	end
 end
 
 -- [[ Pre-duel: stake roll + mode vote ]]
@@ -383,6 +485,17 @@ function Duels:_playRound(round: number)
 		end
 		else nil
 	local onlyMine = self.Solo and self.Theme == Themes.PACK
+	local partyPool = self.Party and self.Party.Pool
+	if not song and partyPool then
+		-- the host's custom pool: every round from it (the same pool for everyone)
+		local pool = {}
+		for _, s in partyPool do
+			if not self.Used[s.Id] then
+				table.insert(pool, s)
+			end
+		end
+		song = SongLibrary.Pick(pool, weight)
+	end
 	if not song and onlyMine then
 		-- "My songs": every round from what the player owns
 		local pool = {}
@@ -425,7 +538,7 @@ function Duels:_playRound(round: number)
 	-- a themed solo game keeps its options in the theme ("Pack" answers use the whole library)
 	local within = if self.Solo and self.Theme ~= Themes.DEFAULT and self.Theme ~= Themes.PACK
 		then Themes.SongsFor(self.Theme)
-		else nil
+		else partyPool
 	for _, s in SongLibrary.GetWrongOptions(song, 3, within) do
 		table.insert(options, s)
 	end
@@ -538,6 +651,7 @@ function Duels:_playRound(round: number)
 			points = DuelConstants.TIER_POINTS[info.Tier] or 0
 			if state.FirstCorrect == p then
 				points += DuelConstants.FIRST_CORRECT_BONUS
+				self.Firsts[p] = (self.Firsts[p] or 0) + 1
 			end
 			self.CorrectTime[p] += info.Time or 0
 		end
@@ -567,8 +681,16 @@ function Duels:_playRound(round: number)
 	for p, s in self.Scores do
 		scores[key(p)] = s
 	end
+	local left = nil
+	if self.Party then
+		left = {}
+		for p in self.Left do
+			table.insert(left, p.UserId)
+		end
+	end
 	self:_fire({
 		Message = "RoundEnd",
+		Left = left,
 		Round = round,
 		Answer = SongLibrary.Public(song),
 		Picks = publicPicks,
@@ -644,6 +766,10 @@ function Duels:Action(player: Player, packet)
 		if info.Correct and not state.FirstCorrect and not self.Solo then
 			state.FirstCorrect = player
 		end
+		if self.Party then
+			-- the FFA scoreboard marks each player as they answer
+			self:_fire({ Message = "PlayerAnswered", UserId = player.UserId })
+		end
 		if not state.FirstGuessAt then
 			state.FirstGuessAt = now
 			local left = math.min(DuelConstants.ANSWER_WINDOW, self.Cap - now)
@@ -662,8 +788,50 @@ function Duels:Forfeit(player: Player)
 	if not self._running then
 		return
 	end
+	if self.Party then
+		-- a party match plays on without them while 2+ are left; they score 0 from here and
+		-- are paid nothing (PartyService)
+		local i = table.find(self.Players, player)
+		if not i then
+			return
+		end
+		table.remove(self.Players, i)
+		self.Left[player] = true
+		if player.Parent then
+			player:SetAttribute("InDuel", nil)
+		end
+		if self.Current then
+			self.Current.Per[player] = nil
+			self.Current.Loaded[player] = nil
+		end
+		if #self.Players < 2 then
+			self:_finish(self.Players[1], true, player)
+		end
+		return
+	end
 	local winner = if self.Slots.A == player then self.Slots.B else self.Slots.A
 	self:_finish(winner, true, player)
+end
+
+-- Party: everyone who started, best first: players still in by points, then total seconds
+-- to their correct answers (faster wins a tie), then whoever left (last).
+function Duels:Placement(): { Player }
+	local list = table.clone(self.Everyone)
+	table.sort(list, function(a, b)
+		if (self.Left[a] == true) ~= (self.Left[b] == true) then
+			return not self.Left[a]
+		end
+		local sa, sb = self.Scores[a] or 0, self.Scores[b] or 0
+		if sa ~= sb then
+			return sa > sb
+		end
+		local ta, tb = self.CorrectTime[a] or 0, self.CorrectTime[b] or 0
+		if ta ~= tb then
+			return ta < tb
+		end
+		return a.UserId < b.UserId
+	end)
+	return list
 end
 
 -- "InDuel" player attribute: lobby name tags hide while it's set.
@@ -684,7 +852,11 @@ function Duels:_finish(winner: Player?, forfeit: boolean, leaver: Player?)
 	self:_setInDuel(false)
 
 	local draw = false
-	if not winner and not self.Solo and self.Slots.A and self.Slots.B then
+	local placement = nil
+	if self.Party then
+		placement = self:Placement()
+		winner = winner or placement[1]
+	elseif not winner and not self.Solo and self.Slots.A and self.Slots.B then
 		local a, b = self.Slots.A, self.Slots.B
 		local sa, sb = self.Scores[a], self.Scores[b]
 		if sa ~= sb then
@@ -705,11 +877,18 @@ function Duels:_finish(winner: Player?, forfeit: boolean, leaver: Player?)
 		Scores = self.Scores,
 		Rounds = self.Rounds,
 		Stake = self.Stake,
+		StakeRoll = self.StakeRoll, -- party: the rolled amount before the multiplier
 		Mode = self.Mode,
 		Solo = self.Solo,
 		Packs = self.Boost == true,
 		Tutorial = self.Tutorial,
 		Sessions = self.Sessions,
+		-- party matches: placement (best first), who left, rounds answered first
+		Party = self.Party,
+		Placement = placement,
+		Left = self.Left,
+		Firsts = self.Firsts,
+		Everyone = self.Everyone,
 	}
 
 	-- deferred: the listener destroys this duel, which cancels the round thread

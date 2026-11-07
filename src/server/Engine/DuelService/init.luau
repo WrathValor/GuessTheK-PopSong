@@ -141,6 +141,9 @@ local function join(stage: Stage, slot: Slot, player: Player, how: string?)
 	if DuelService.PlayerStage[player] then
 		return
 	end -- already on a stage
+	if player:GetAttribute("PartyStage") then
+		return -- on a Party Stage (Engine/PartyService)
+	end
 	if stage.State ~= "Waiting" or stage.Players[slot] then
 		return
 	end
@@ -204,12 +207,13 @@ function leave(player: Player)
 	stage.Rematch = {}
 
 	if stage.Duel then
-		if stage.Duel.Started then
+		if stage.Duel.Started and not stage.Duel.Intermission then
 			stage.Duel:Forfeit(player)
 		else
-			-- A duel is prepared one second before Start so the UI can transition. If a
-			-- player leaves during that window, cancel the prepared duel instead of
-			-- starting it with a missing participant and leaving the stage stuck live.
+			-- A duel is prepared one second before Start so the UI can transition, then runs
+			-- the intermission countdown (the Cancel button). If a player leaves in either
+			-- window, cancel the duel instead of forfeiting it: no stake, no streak change,
+			-- and the one left behind goes back to waiting for a rival (notifyOpponents).
 			stage.Duel:Destroy()
 			stage.Duel = nil
 			stage.State = "Waiting"

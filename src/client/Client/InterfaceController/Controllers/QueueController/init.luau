@@ -20,6 +20,11 @@ local InvitePicker = require(script.InvitePicker)
 local LOCAL_PLAYER = Players.LocalPlayer
 local QueueRemote = Bridgenet.ReferenceBridge("QueueRemote")
 
+-- the panel shrinks to fit while only the Cancel button sits under the cards
+local PANEL_HEIGHT = 383
+local PANEL_HEIGHT_COUNTDOWN = 350
+local PANEL_TWEEN = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
 -- --------------------------------- Tables --------------------------------- --
 -- Reusable subcontroller class - NOT a concrete screen. Instantiate one of these per real
 -- screen later via QueueController.new({ Name, ScreenGui, Frame }), the same dependency-
@@ -90,20 +95,66 @@ function QueueController.Initialize(self: typeof(QueueController.new({} :: UITyp
 	-- Invite flips it to the player picker (./InvitePicker); while an invite is out it cancels it
 	self._invite = InvitePicker.new(self._frame, self._janitor, self._solo)
 
-	self._janitor:Add(playSoloBtn.MouseButton1Click:Connect(function()
+	self._janitor:Add(playSoloBtn.Activated:Connect(function()
 		if not self._invite.IsOpen then
 			self._solo:Open()
 		end
 	end))
 	if invitePlayersBtn then
-		self._janitor:Add(invitePlayersBtn.MouseButton1Click:Connect(function()
+		self._janitor:Add(invitePlayersBtn.Activated:Connect(function()
 			self._invite:Pressed()
 		end))
 	end
-	self._janitor:Add(leaveBtn.MouseButton1Click:Connect(function()
+	self._janitor:Add(leaveBtn.Activated:Connect(function()
 		QueueRemote:Fire("Leave")
 		--self._interface:Close(self.Name)
 	end))
+
+	-- Cancel (intermission only): leaves the stage; the server calls the match off with no
+	-- forfeit and sends the rival back to waiting
+	local cancelBtn = panelFrame:FindFirstChild("Cancel")
+	if cancelBtn then
+		self._janitor:Add(cancelBtn.Activated:Connect(function()
+			if self._countdown then
+				self:_setCancel(false)
+				QueueRemote:Fire("Leave")
+			end
+		end))
+	end
+end
+
+-- Shows or hides the intermission Cancel button (+ shadow) and fits the panel around it.
+function QueueController:_setCancel(visible: boolean)
+	local panel = self._frame:FindFirstChild("Panel")
+	if not panel then
+		return
+	end
+	for _, n in { "Cancel", "CancelShadow" } do
+		local inst = panel:FindFirstChild(n)
+		if inst then
+			inst.Visible = visible
+		end
+	end
+	-- pin the shadow to the button in pixels so the panel resize can't drag a scaled one off
+	local cancel, cancelShadow = panel:FindFirstChild("Cancel"), panel:FindFirstChild("CancelShadow")
+	if cancel and cancelShadow then
+		cancelShadow.AnchorPoint = cancel.AnchorPoint
+		cancelShadow.Size = cancel.Size
+		cancelShadow.Position = cancel.Position + UDim2.fromOffset(4, 4)
+	end
+	-- the panel and its shadow resize together
+	local height = if visible then PANEL_HEIGHT_COUNTDOWN else PANEL_HEIGHT
+	for _, frame in { panel, self._frame:FindFirstChild("PanelShadow") } do
+		TweenService:Create(frame, PANEL_TWEEN, { Size = UDim2.fromOffset(frame.Size.X.Offset, height) }):Play()
+	end
+end
+
+function QueueController:_stopCountdown()
+	if self._countdown then
+		pcall(task.cancel, self._countdown)
+		self._countdown = nil
+	end
+	self:_setCancel(false)
 end
 
 -- Shows or hides the Invite / Play Solo / Leave buttons together with their shadows.
@@ -122,10 +173,7 @@ end
 -- Back to "waiting for a rival": called every time you join a stage, so a second match
 -- doesn't start with the last one's countdown and hidden buttons.
 function QueueController:Reset()
-	if self._countdown then
-		pcall(task.cancel, self._countdown)
-		self._countdown = nil
-	end
+	self:_stopCountdown()
 	local panel = self._frame:FindFirstChild("Panel")
 	if not panel then
 		return
@@ -181,7 +229,11 @@ function QueueController:UpdateOpponent(opponent: Player?)
 		end
 		opponentNameLabel.Text = "Open spot"
 		if self._opponent then
-			-- they left before the countdown finished
+			-- they left (or cancelled) before the countdown finished: back to waiting
+			if self._countdown then
+				self:_stopCountdown()
+				self:_setButtons(true)
+			end
 			panelFrame.Title.Text = "Waiting for a rival…"
 			panelFrame.Subtitle.Text = "Nobody's joined the other spot yet"
 		end
@@ -198,14 +250,18 @@ function QueueController:StartIntermission()
 	self._invite:Reset()
 	self._solo:Close(true)
 	panelFrame.Title.Text = "Starting round in…"
-	if self._countdown then
-		pcall(task.cancel, self._countdown)
-	end
+	self:_stopCountdown()
+	self:_setCancel(true)
 	self._countdown = task.spawn(function()
 		for i = DuelConstants.START_TIME, 1, -1 do
 			panelFrame.Subtitle.Text = tostring(i)
 			if i <= 3 then
 				Sounds.Play("Countdown")
+			end
+			if i == 1 then
+				-- hide it for the last second so a late tap can't land after the server
+				-- has moved on (leaving then would be a forfeit)
+				self:_setCancel(false)
 			end
 			task.wait(1)
 		end

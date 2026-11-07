@@ -89,7 +89,7 @@ function ButtonScale.ApplyToDescendants(container: Instance, config: ButtonScale
 	local cleanups = {}
 
 	for _, descendant in container:GetDescendants() do
-		if descendant:IsA("GuiButton") then
+		if descendant:IsA("GuiButton") and descendant:GetAttribute("NoButtonScale") ~= true then
 			table.insert(cleanups, ButtonScale.Apply(descendant, config))
 		end
 	end

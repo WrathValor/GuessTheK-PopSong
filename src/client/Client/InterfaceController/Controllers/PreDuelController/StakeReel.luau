@@ -38,11 +38,14 @@ local BIG = Vector2.new(96, 62)
 local TRAVEL_CHIPS = 26 -- how many chips scroll past before it lands
 local OVERSHOOT = 16 -- px past the target before settling back
 
--- how much fuss a stake gets
-local function tierOf(stake: number): number
-	if stake >= 100 then
+-- how much fuss a stake gets. `chips` (Party Stages: multiplied amounts) moves the bar to
+-- that table's top two chips, so a ×1.5 pot isn't a jackpot every time.
+local function tierOf(stake: number, chips: { number }?): number
+	local list = chips or STAKES
+	local jackpot, big = list[#list], list[#list - 1] or list[#list]
+	if stake >= jackpot then
 		return 2
-	elseif stake >= 70 then
+	elseif stake >= big then
 		return 1
 	end
 	return 0
@@ -165,14 +168,16 @@ function StakeReel.Reset(stake: Frame)
 end
 
 -- Spins, lands on reel[4] (= the stake), celebrates. Yields for about `spinTime` seconds.
--- `resultText(n)` formats the result row ("70 coins" / "70 XP").
-function StakeReel.Spin(stake: Frame, reelValues: { number }, spinTime: number, resultText: (number) -> string)
+-- `resultText(n)` formats the result row ("70 coins" / "70 XP"). `chipValues` (optional, sorted
+-- low → high) is every value the strip may show; defaults to the duel stakes.
+function StakeReel.Spin(stake: Frame, reelValues: { number }, spinTime: number, resultText: (number) -> string, chipValues: { number }?)
 	StakeReel.Reset(stake)
 	local reel = stake.Reel
 	local chips = reel.Chips
 	local result = stake.Result
 	local value = reelValues[4]
-	local tier = tierOf(value)
+	local tier = tierOf(value, chipValues)
+	local pool = chipValues or STAKES
 	-- centre of the big chip slot (Juice.Pop re-anchors Chip4 to its centre after the first roll)
 	local slot = chips:FindFirstChild("Chip4") :: GuiObject
 	local centreX = slot.Position.X.Offset + (0.5 - slot.AnchorPoint.X) * slot.Size.X.Offset
@@ -189,7 +194,7 @@ function StakeReel.Spin(stake: Frame, reelValues: { number }, spinTime: number, 
 	local strip = new("Frame", { Name = "Strip", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1 }, spin)
 	local values = {}
 	for i = 1, TRAVEL_CHIPS do
-		values[i] = STAKES[math.random(1, #STAKES)]
+		values[i] = pool[math.random(1, #pool)]
 	end
 	for i = 1, 7 do
 		values[TRAVEL_CHIPS + i] = reelValues[i]

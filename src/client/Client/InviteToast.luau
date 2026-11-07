@@ -1,13 +1,15 @@
 --| InviteToast
--- The duel invite someone sent you (the "Invites · received" board): a photocard toast at
--- the top of the screen with their headshot, a FRIEND tag, "X wants to duel!", their level,
--- streak and stage, ACCEPT / DECLINE and a bar that drains over the invite's 15 seconds.
--- Accept puts you straight on their stage (Engine/InviteService). Not an Interface
--- controller: it has its own ScreenGui so it shows over any screen.
+-- An invite someone sent you (the "Invites · received" board): a photocard toast at the top
+-- of the screen with their headshot, a FRIEND tag, a title, a line of detail and ACCEPT /
+-- DECLINE. It goes away by itself when the invite runs out. Two kinds use it:
+--   • duel invites (InviteRemote): "X wants to duel!", level, streak, stage. Accept puts you
+--     straight on their stage (Engine/InviteService).
+--   • Party Stage invites (PartyController → InviteToast.Show): "X invited you", the mode and
+--     how full the stage is.
+-- Not an Interface controller: it has its own ScreenGui so it shows over any screen.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
@@ -25,19 +27,17 @@ local LILAC_SOFT = C("DCD3FF")
 local PINK = C("FF9EC4")
 local MINT = C("A7E9B8")
 local RED = C("FF5A4E")
-local YELLOW = C("FFE07A")
-local TRACK = C("EDE4D4")
 local HEAD = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy)
 local BODY = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.ExtraBold)
 local BODY_BOLD = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.Bold)
 
-local W, H = 480, 160
+local W, H = 340, 112
 local TOP = 70
-local INVITE_TIME = 15
+local INVITE_TIME = 15 -- duel invites, when the packet has no Expires
 
 local InviteToast = {}
 
-local gui, card, shadow, current, drain
+local gui, card, shadow, current
 
 -- --------------------------------- Helpers -------------------------------- --
 
@@ -99,39 +99,33 @@ local function build()
 	new("UIScale", { Name = "Pop" }, card)
 	new("UIScale", { Name = "Pop" }, shadow)
 
-	local photoShadow = new("Frame", { Name = "PhotoShadow", Position = UDim2.fromOffset(16 + 3, 14 + 3), Size = UDim2.fromOffset(64, 76), Rotation = -3, BackgroundColor3 = INK }, card)
+	local photoShadow = new("Frame", { Name = "PhotoShadow", Position = UDim2.fromOffset(12 + 3, 10 + 3), Size = UDim2.fromOffset(44, 52), Rotation = -3, BackgroundColor3 = INK }, card)
 	corner(photoShadow, 10)
-	local photo = new("ImageLabel", { Name = "Photo", Position = UDim2.fromOffset(16, 14), Size = UDim2.fromOffset(64, 76), Rotation = -3, BackgroundColor3 = LILAC_SOFT, ScaleType = Enum.ScaleType.Crop, Image = "", ZIndex = 2 }, card)
+	local photo = new("ImageLabel", { Name = "Photo", Position = UDim2.fromOffset(12, 10), Size = UDim2.fromOffset(44, 52), Rotation = -3, BackgroundColor3 = LILAC_SOFT, ScaleType = Enum.ScaleType.Crop, Image = "", ZIndex = 2 }, card)
 	corner(photo, 10)
 	stroke(photo, 3)
 
-	local tag = text(card, "Friend", { Position = UDim2.fromOffset(96, 16), Size = UDim2.fromOffset(56, 18), BackgroundTransparency = 0, BackgroundColor3 = PINK, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Center, TextTruncate = Enum.TextTruncate.None, Text = "FRIEND" })
+	local tag = text(card, "Friend", { Position = UDim2.fromOffset(68, 8), Size = UDim2.fromOffset(52, 16), BackgroundTransparency = 0, BackgroundColor3 = PINK, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Center, TextTruncate = Enum.TextTruncate.None, Text = "FRIEND" })
 	corner(tag, 7)
 	stroke(tag, 2)
-	text(card, "Title", { Position = UDim2.fromOffset(96, 40), Size = UDim2.fromOffset(W - 96 - 16, 24), FontFace = HEAD, TextSize = 19, Text = "someone wants to duel!" })
-	text(card, "Sub", { Position = UDim2.fromOffset(96, 66), Size = UDim2.fromOffset(W - 96 - 16, 18), FontFace = BODY_BOLD, TextSize = 13, TextColor3 = MUTED, Text = "Lv 1 · waiting on Stage 1" })
+	text(card, "Title", { Position = UDim2.fromOffset(68, 27), Size = UDim2.fromOffset(W - 80, 20), FontFace = HEAD, TextSize = 15, Text = "someone wants to duel!" })
+	text(card, "Sub", { Position = UDim2.fromOffset(68, 48), Size = UDim2.fromOffset(W - 80, 16), FontFace = BODY_BOLD, TextSize = 10, TextColor3 = MUTED, Text = "Lv 1 · waiting on Stage 1" })
 
-	local by = 98
-	button(card, "Accept", 16, by, W - 32 - 130, 46, MINT, "ACCEPT", 18)
-	button(card, "Decline", W - 16 - 120, by, 120, 46, RED, "DECLINE", 14)
-
-	local track = new("Frame", { Name = "Timer", AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 0, 1, 0), Size = UDim2.new(1, 0, 0, 6), BackgroundColor3 = TRACK, BorderSizePixel = 0, ZIndex = 3 }, card)
-	local fill = new("Frame", { Name = "Fill", Size = UDim2.fromScale(1, 1), BackgroundColor3 = YELLOW, BorderSizePixel = 0, ZIndex = 3 }, track)
-	new("Frame", { Name = "Edge", AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.new(0, 2, 1, 0), BackgroundColor3 = INK, BorderSizePixel = 0, ZIndex = 3 }, fill)
+	local by = 70
+	button(card, "Accept", 12, by, W - 28 - 92, 32, MINT, "ACCEPT", 14)
+	button(card, "Decline", W - 12 - 84, by, 84, 32, RED, "DECLINE", 11)
 
 	ButtonScale.ApplyToDescendants(card)
 end
 
+-- answer = true / false (the buttons) or nil (it ran out / was withdrawn)
 local function hide(answer: boolean?)
-	if answer ~= nil and current then
-		InviteRemote:Fire({ Action = "Answer", Accept = answer })
-	end
+	local shown = current
 	current = nil
-	if drain then
-		drain:Disconnect()
-		drain = nil
+	if answer ~= nil and shown and shown.Answer then
+		shown.Answer(answer)
 	end
-	if not gui.Enabled then
+	if not gui or not gui.Enabled then
 		return
 	end
 	local info = TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
@@ -144,24 +138,20 @@ local function hide(answer: boolean?)
 	end)
 end
 
-local function show(packet)
-	current = packet
-	card.Friend.Visible = packet.Friend == true
-	card.Title.Position = UDim2.fromOffset(96, if packet.Friend then 40 else 26)
-	card.Sub.Position = UDim2.fromOffset(96, if packet.Friend then 66 else 54)
-	card.Title.Text = `{packet.Name} wants to duel!`
-	local bits = { `Lv {packet.Level or 1}` }
-	if (packet.Streak or 0) > 0 then
-		table.insert(bits, `{packet.Streak} win streak`)
-	end
-	local stage = tostring(packet.Stage or ""):gsub("^DuelStage", "Stage ")
-	table.insert(bits, `waiting on {stage}`)
-	card.Sub.Text = table.concat(bits, " · ")
+-- opts = { From = userId, Friend, Title, Sub, Expires (server time), Answer = fn(accept),
+--          Kind = "Duel" | "Party" }
+local function show(opts)
+	current = opts
+	card.Friend.Visible = opts.Friend == true
+	card.Title.Position = UDim2.fromOffset(68, if opts.Friend then 27 else 18)
+	card.Sub.Position = UDim2.fromOffset(68, if opts.Friend then 48 else 39)
+	card.Title.Text = opts.Title or ""
+	card.Sub.Text = opts.Sub or ""
 
 	card.Photo.Image = ""
 	task.spawn(function()
-		local ok, img = pcall(Players.GetUserThumbnailAsync, Players, packet.From, Enum.ThumbnailType.AvatarBust, Enum.ThumbnailSize.Size150x150)
-		if ok and current == packet then
+		local ok, img = pcall(Players.GetUserThumbnailAsync, Players, opts.From, Enum.ThumbnailType.AvatarBust, Enum.ThumbnailSize.Size150x150)
+		if ok and current == opts then
 			card.Photo.Image = img
 		end
 	end)
@@ -173,17 +163,50 @@ local function show(packet)
 	TweenService:Create(shadow.Pop, pop, { Scale = 1 }):Play()
 	Sounds.Play("Notify", { Volume = 0.75 })
 
-	if drain then
-		drain:Disconnect()
-	end
-	local expires = packet.Expires or (workspace:GetServerTimeNow() + INVITE_TIME)
-	drain = RunService.RenderStepped:Connect(function()
-		local left = expires - workspace:GetServerTimeNow()
-		card.Timer.Fill.Size = UDim2.fromScale(math.clamp(left / INVITE_TIME, 0, 1), 1)
-		if left <= 0 then
-			hide() -- the server sends Expired to the sender
+	-- gone by itself when it runs out (the server tells the sender)
+	local expires = opts.Expires or (workspace:GetServerTimeNow() + INVITE_TIME)
+	task.delay(math.max(expires - workspace:GetServerTimeNow(), 0), function()
+		if current == opts then
+			hide()
 		end
 	end)
+end
+
+local function duelInvite(packet)
+	local bits = { `Lv {packet.Level or 1}` }
+	if (packet.Streak or 0) > 0 then
+		table.insert(bits, `{packet.Streak} win streak`)
+	end
+	local stage = tostring(packet.Stage or ""):gsub("^DuelStage", "Stage ")
+	table.insert(bits, `waiting on {stage}`)
+	show({
+		Kind = "Duel",
+		From = packet.From,
+		Friend = packet.Friend,
+		Title = `{packet.Name} wants to duel!`,
+		Sub = table.concat(bits, " · "),
+		Expires = packet.Expires,
+		Answer = function(accept)
+			InviteRemote:Fire({ Action = "Answer", Accept = accept })
+		end,
+	})
+end
+
+-- --------------------------------- API ------------------------------------ --
+
+-- Party Stage invites (PartyController) use the same toast; see show() for opts.
+function InviteToast.Show(opts)
+	if not gui then
+		return
+	end
+	show(opts)
+end
+
+-- withdraw the toast if it's still showing this kind of invite (nil = any)
+function InviteToast.Hide(kind: string?)
+	if current and (kind == nil or current.Kind == kind) then
+		hide()
+	end
 end
 
 -- --------------------------------- Start ---------------------------------- --
@@ -203,9 +226,9 @@ function InviteToast.Start()
 			return
 		end
 		if packet.Message == "Invite" then
-			show(packet)
+			duelInvite(packet)
 		elseif packet.Message == "InviteGone" then
-			hide()
+			InviteToast.Hide("Duel")
 		end
 	end)
 end

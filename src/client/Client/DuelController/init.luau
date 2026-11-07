@@ -62,7 +62,9 @@ function DuelController.Start()
 		local message = packet.Message
 		if message == "PreDuel" then
 			DuelController.Info = packet
-			if not packet.Tutorial then -- the tutorial goes straight into its rounds
+			-- the tutorial goes straight into its rounds; a Party Stage match shows its pot roll
+			-- (no Reel = a custom pool too small to pay out: straight in too)
+			if not packet.Tutorial and (not packet.Party or packet.Reel) then
 				InterfaceController:Open("PreDuel", packet)
 			end
 		elseif message == "Votes" then
@@ -84,11 +86,15 @@ function DuelController.Start()
 			call("Game", "OnRoundGo", packet)
 		elseif message == "RivalAnswered" then
 			call("Game", "OnRivalAnswered", packet.Seconds)
+		elseif message == "PlayerAnswered" then
+			call("Game", "OnPlayerAnswered", packet.UserId) -- Party Stage FFA ticket
 		elseif message == "RoundEnd" then
 			call("Game", "OnRoundEnd", packet)
 		elseif message == "End" then
 			backToLobby()
-			if packet.Tutorial then
+			if packet.Party then
+				call("Party", "ShowResults", packet) -- Party Stage placement + coins
+			elseif packet.Tutorial then
 				InterfaceController:Open("Tutorial", "Done", packet) -- "You're ready!" instead of results
 			else
 				InterfaceController:Open("Results", packet, DuelController.Info)
