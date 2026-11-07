@@ -57,6 +57,29 @@ for _, bundle in ShopCatalog.CoinBundles do
 	end
 end
 
+-- the one-time Debut Pack (ShopCatalog.DebutPack)
+do
+	local pack = ShopCatalog.DebutPack
+	if pack and (pack.ProductId or 0) > 0 then
+		Products[pack.Id] = {
+			Id = pack.ProductId,
+			Category = "Bundle",
+			Grant = function(data)
+				if not data.Rewards.Claimed.Has(pack.Id) then
+					data.Rewards.Claimed.Add(pack.Id)
+				end
+				data.Currencies.Won.Increment(pack.Coins)
+				if pack.Stage and not data.Inventory.Stages.Has(pack.Stage) then
+					data.Inventory.Stages.Add(pack.Stage)
+				end
+				if pack.Mic and not data.Inventory.Mics.Has(pack.Mic) then
+					data.Inventory.Mics.Add(pack.Mic)
+				end
+			end,
+		}
+	end
+end
+
 --| Template
 
 return Scribe({

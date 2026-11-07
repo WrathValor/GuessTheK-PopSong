@@ -44,11 +44,12 @@ AnalyticsEvents.Custom = {
 	QuestClaimed = { Fields = { "Quest" } }, -- value: coins
 	QuestBonusClaimed = {},
 	GroupRewardClaimed = {},
+	CodeRedeemed = { Fields = { "Code" } }, -- value: coins
 	SettingChanged = { Fields = { "Setting", "Value" } },
 
 	-- [[ From the client ]]
 	ScreenOpened = { Fields = { "Screen" }, Client = true, Allowed = {
-		Screen = { "Shop", "Inventory", "Index", "Rewards", "News", "Settings", "Queue", "Results", "SaveStreak", "Tutorial", "Party" },
+		Screen = { "Shop", "Roll", "UGC", "Inventory", "Index", "Rewards", "News", "Settings", "Queue", "Results", "SaveStreak", "Tutorial", "Party" },
 	} },
 	ShopTabOpened = { Fields = { "Tab" }, Client = true, Allowed = {
 		Tab = { "Featured", "Sets", "Items", "Songs", "UGC", "Coins" },

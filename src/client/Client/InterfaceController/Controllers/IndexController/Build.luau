@@ -323,15 +323,15 @@ function Build.Build(frames: Instance)
 	local FY = ch - 36
 	text(content, "Hint", { Position = UDim2.fromOffset(0, FY), Size = UDim2.fromOffset(400, 36), FontFace = BODY_BOLD, TextSize = 13, TextColor3 = MUTED, Text = "Locked songs can be rolled in the shop." })
 	-- on a set, the hint gives way to the next step for its title: chip · step · bar · progress
-	local nextRow = new("Frame", { Name = "NextStep", Position = UDim2.fromOffset(0, FY), Size = UDim2.fromOffset(560, 36), BackgroundTransparency = 1, Visible = false }, content)
+	local nextRow = new("Frame", { Name = "NextStep", Position = UDim2.fromOffset(0, FY), Size = UDim2.new(1, -(38 + 8 + 104 + 8 + 38) - 12, 0, 36), BackgroundTransparency = 1, Visible = false }, content)
 	new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder }, nextRow)
 	titleChip(nextRow, "Chip", 12, 20, 1)
-	text(nextRow, "Text", { LayoutOrder = 2, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 20), FontFace = BODY_BOLD, TextSize = 13, TextColor3 = MUTED, RichText = true, TextTruncate = Enum.TextTruncate.None, Text = "" })
+	local stepText = text(nextRow, "Text", { LayoutOrder = 2, Size = UDim2.fromOffset(0, 20), FontFace = BODY_BOLD, TextSize = 13, TextColor3 = MUTED, RichText = true, TextTruncate = Enum.TextTruncate.None, Text = "" })
 	local nb = bar(nextRow, "Bar", UDim2.new(), UDim2.fromOffset(90, 10), GOLD, SEG_TRACK)
 	nb.LayoutOrder = 3
 	stroke(nb, 1.5)
 	new("UIGradient", { Name = "Rainbow", Color = Build.RAINBOW, Enabled = false }, nb.Fill)
-	text(nextRow, "Progress", { LayoutOrder = 4, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 20), TextSize = 12, TextTruncate = Enum.TextTruncate.None, Text = "" })
+	text(nextRow, "Progress", { LayoutOrder = 4, Size = UDim2.fromOffset(84, 20), TextSize = 12, TextTruncate = Enum.TextTruncate.None, Text = "" })
 	button(content, "Next", UDim2.new(1, -38, 0, FY), UDim2.fromOffset(38, 36), "›")
 	text(content, "Page", { Position = UDim2.new(1, -38 - 8 - 104, 0, FY), Size = UDim2.fromOffset(104, 36), TextSize = 14, TextXAlignment = Enum.TextXAlignment.Center, Text = "Page 1 of 1" })
 	button(content, "Prev", UDim2.new(1, -38 - 8 - 104 - 8 - 38, 0, FY), UDim2.fromOffset(38, 36), "‹")

@@ -1,15 +1,17 @@
 --| ShopController
--- The shop (Interface.Frames.Shop, built by ./Build from the Shop A boards): tabs in the header,
--- six pages that never scroll (Featured, Sets, Items, Songs, UGC, Coins). Items sells stages
--- and mic stands one by one; Songs is the song roll (./Roll, on Pages.Roll), the only way to
--- get songs (it replaced buying packs); UGC sells the group's own avatar items for Robux (./Emotes). Fills everything from
--- ShopCatalog + the player's data; purchases are only requests, the server (ShopService)
--- checks and applies them. Open with Interface:Open("Shop", "Coins") to land on a tab.
+-- The shop (Interface.Frames.Shop, built in Studio from the "Shop v3" board): one scrolling
+-- page under the usual header. Top to bottom: the featured set, the one-time Debut Pack, the
+-- four stage sets in the rotation, the stages + mic stands in the rotation, the coin bundles,
+-- the passes and the code box. Fills everything from ShopCatalog + the player's data;
+-- purchases are only requests, the server (ShopService, RewardsService for codes) checks and
+-- applies them. The song roll and the group's UGC are their own screens (RollController,
+-- UGCController). Open with Interface:Open("Shop", "Coins") to land on the coin bundles.
 
 -- -------------------------------- Services -------------------------------- --
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local MarketplaceService = game:GetService("MarketplaceService")
+local TweenService = game:GetService("TweenService")
 
 -- --------------------------------- Imports -------------------------------- --
 local Janitor = require(ReplicatedStorage.Packages.janitor)
@@ -18,33 +20,34 @@ local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Client
 local ShopCatalog = require(ReplicatedStorage.Constants.ShopCatalog)
 local CosmeticView = require(ReplicatedStorage.Modules.UI.CosmeticView)
+local FitPanel = require(ReplicatedStorage.Modules.UI.FitPanel)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local FrameTransition = require(ReplicatedStorage.Modules.UI.Animations.FrameTransition)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
-local AnalyticsClient = require(ReplicatedStorage.Modules.AnalyticsClient)
-local Emotes = require(script.Emotes)
-local Roll = require(script.Roll)
 local Prices = require(ReplicatedStorage.Modules.Prices)
 
 -- -------------------------------- Variables ------------------------------- --
 local LOCAL_PLAYER = Players.LocalPlayer
 local ShopRemote = Bridgenet.ReferenceBridge("ShopRemote")
+local RewardsRemote = Bridgenet.ReferenceBridge("RewardsRemote")
 
 local C = Color3.fromHex
 local WHITE = C("FFFFFF")
 local MINT = C("A7E9B8")
 local GREY = C("EDE4D4")
+local PINK = C("FF9EC4")
+local RED = C("FF5A4E")
 
-local TABS = { "Featured", "Sets", "Items", "Songs", "UGC", "Coins" }
-local TAB_ALIASES = { Packs = "Songs", Roll = "Songs" } -- old tab names other screens may still open
-local PAGE_OF = { Songs = "Roll" } -- tabs whose page has another name (Songs → Pages.Roll)
-local COIN_LAYOUTS = {
-	[1] = { { 33, 32 } },
-	[3] = { { 33, 20 }, { 18, 44 }, { 48, 44 } },
-	[6] = { { 33, 8 }, { 20, 30 }, { 46, 30 }, { 8, 52 }, { 33, 52 }, { 58, 52 } },
-}
+local COIN = "rbxassetid://105055420801588"
+local ROBUX = "rbxassetid://83637405007021"
+
+local SCROLL_TWEEN = TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+local ITEM_OWNED = { Stage = "Stages", Mic = "Mics" }
+local ITEM_EQUIPPED = { Stage = "EquippedStage", Mic = "EquippedMic" }
+local PASS_CARDS = { VIP = "VIP", DoubleCoins = "DoubleCoins" } -- card name → ShopCatalog pass id
 
 local fmt = ShopCatalog.Format
 
@@ -59,7 +62,6 @@ function Shop.new()
 	self.State = "Inactive" :: UITypes.ControllerState
 	self._frame = nil :: any
 	self._janitor = Janitor.new()
-	self._tab = "Featured"
 	return (self :: any) :: UITypes.Controller
 end
 
@@ -70,19 +72,40 @@ local function owns(path, id: string): boolean
 	return ok and has == true
 end
 
--- Sets an Action-style button: label text, icon on/off, colour, and whether it can be pressed.
-local function setButton(button: GuiButton, label: string, opts: { Icon: boolean?, Colour: Color3?, Enabled: boolean?, Old: string? })
+-- Sets an action button (built with Icon + Label children): label, icon (Coin / Robux / none),
+-- colour, and whether it can be pressed. Its <name>Shadow hides while it can't be pressed.
+local function setButton(button: GuiButton, label: string, opts: { Icon: string?, Colour: Color3?, Enabled: boolean? })
 	local lbl = button:FindFirstChild("Label") :: TextLabel
 	local icon = button:FindFirstChild("Icon") :: ImageLabel
-	local old = button:FindFirstChild("Old") :: TextLabel?
 	lbl.Text = label
-	icon.Visible = opts.Icon ~= false
+	icon.Visible = opts.Icon ~= nil
+	if opts.Icon then
+		icon.Image = opts.Icon
+	end
 	button.BackgroundColor3 = opts.Colour or MINT
-	button.Active = opts.Enabled ~= false
-	if old then
-		old.Visible = opts.Old ~= nil
-		old.RichText = true
-		old.Text = if opts.Old then `<s>{opts.Old}</s>` else ""
+	local enabled = opts.Enabled ~= false
+	button.Active = enabled
+	button.AutoButtonColor = false
+	local shadow = button.Parent and button.Parent:FindFirstChild(button.Name .. "Shadow")
+	if shadow then
+		shadow.Visible = enabled
+	end
+end
+
+-- a Robux button: the live price (Modules/Prices), "…" while it loads, "Soon" when off sale
+-- or before the product exists (id 0)
+local function setRobuxButton(button: GuiButton, kind: string, id: number?)
+	if (id or 0) <= 0 then
+		setButton(button, "Soon", { Colour = GREY, Enabled = false })
+		return
+	end
+	local price, forSale = Prices.Get(kind, id)
+	if price then
+		setButton(button, fmt(price), { Icon = ROBUX })
+	elseif forSale == nil then
+		setButton(button, "…", { Enabled = false })
+	else
+		setButton(button, "Soon", { Colour = GREY, Enabled = false })
 	end
 end
 
@@ -92,77 +115,54 @@ local function setEquipped(set): boolean
 	return PlayerData.Inventory.EquippedStage.Get() == stage.Id and PlayerData.Inventory.EquippedMic.Get() == mic.Id
 end
 
--- Paints the art + name + action of a set card.
-function Shop:_fillSetCard(holder: Frame, set)
-	holder:SetAttribute("SetId", set and set.Id or nil)
-	holder.Visible = set ~= nil
-	local shadow = holder.Parent:FindFirstChild(holder.Name .. "Shadow")
-	if shadow then
-		shadow.Visible = set ~= nil
-	end
-	if not set then
-		return
-	end
-	local face = holder:FindFirstChild("Face") or holder
-	local art = face:FindFirstChild("Art")
-	if art then
-		art.BackgroundColor3 = C(set.Bg)
-		if art:FindFirstChild("Stage") then
-			art.Stage.BackgroundColor3 = C(set.Stage)
-		end
-		if art:FindFirstChild("Platform") then
-			art.Platform.BackgroundColor3 = C(set.Platform)
-		end
-		if art:FindFirstChild("Mic") then
-			art.Mic.BackgroundColor3 = C(set.Mic)
-		end
-		CosmeticView.Show(art, "Set", set.Id) -- the real stage + mic
-		local rarity = art:FindFirstChild("Rarity")
-		if rarity then
-			rarity.Text = set.Rarity
-			rarity.BackgroundColor3 = C(ShopCatalog.RARITY_COLOURS[set.Rarity] or "FFFFFF")
-		end
-	end
-	face.SetName.Text = set.Name
-
+-- Buy / Equip / Equipped on a set's button
+local function setSetButton(button: GuiButton, set)
 	local owned = owns(PlayerData.Inventory.Sets, set.Id)
-	local equipped = owned and setEquipped(set)
-	local action = face.Action
-	if equipped then
-		setButton(action, "Equipped", { Icon = false, Colour = GREY, Enabled = false })
+	if owned and setEquipped(set) then
+		setButton(button, "Equipped", { Colour = GREY, Enabled = false })
 	elseif owned then
-		setButton(action, "Equip", { Icon = false, Colour = WHITE })
+		setButton(button, "Equip", { Colour = WHITE })
 	else
-		setButton(action, fmt(set.Price), { Colour = MINT })
+		setButton(button, fmt(set.Price), { Icon = COIN })
 	end
 end
 
--- Clicked a set card's button: buy it, or equip it if it's already yours.
-function Shop:_setAction(setId: string?)
-	if not setId then
-		return
-	end
-	local set = ShopCatalog.GetSet(setId)
-	if owns(PlayerData.Inventory.Sets, setId) then
-		if set and setEquipped(set) then
-			return
-		end
-		ShopRemote:Fire({ Action = "EquipSet", Id = setId })
-	else
-		if set and PlayerData.Currencies.Won.Get() < set.Price then
-			self:_toast("Not enough coins")
-			Sounds.Play("Wrong")
-			Juice.Shake(self._frame.Panel.Header.Balance)
-			self:ShowTab("Coins")
-			return
-		end
-		ShopRemote:Fire({ Action = "BuySet", Id = setId })
+local function paintRarity(art: Instance, rarity: string)
+	local chip = art:FindFirstChild("Rarity") :: TextLabel?
+	if chip then
+		chip.Text = rarity
+		chip.BackgroundColor3 = C(ShopCatalog.RARITY_COLOURS[rarity] or "FFFFFF")
 	end
 end
+
+local function promptPass(pass)
+	if pass and (pass.GamePassId or 0) > 0 then
+		MarketplaceService:PromptGamePassPurchase(LOCAL_PLAYER, pass.GamePassId)
+	end
+end
+
+local function promptProduct(id: number?)
+	if (id or 0) > 0 then
+		MarketplaceService:PromptProductPurchase(LOCAL_PLAYER, id :: number)
+	end
+end
+
+-- the coin bundles on sale (a Hidden bundle still grants if bought before, but isn't shown)
+local function shownBundles(): { any }
+	local out = {}
+	for _, bundle in ShopCatalog.CoinBundles do
+		if not bundle.Hidden then
+			table.insert(out, bundle)
+		end
+	end
+	return out
+end
+
+-- ----------------------------------- Toast ---------------------------------- --
 
 function Shop:_toast(message: string)
 	local toast = self._frame:FindFirstChild("Toast")
-	if not toast then
+	if not toast or message == "" then
 		return
 	end
 	toast.Text = message
@@ -177,198 +177,177 @@ function Shop:_toast(message: string)
 	end)
 end
 
-local function promptPass(pass)
-	if (pass.GamePassId or 0) > 0 then
-		MarketplaceService:PromptGamePassPurchase(LOCAL_PLAYER, pass.GamePassId)
+function Shop:_notEnoughCoins()
+	self:_toast("Not enough coins")
+	Sounds.Play("Wrong")
+	Juice.Shake(self._frame.Panel.Header.Balance)
+	self:ScrollTo("Coins")
+end
+
+-- --------------------------------- Scrolling -------------------------------- --
+
+-- Scrolls the page so a section (Featured, Sets, Pieces, Coins, Passes, Codes) sits at the top.
+function Shop:ScrollTo(section: string?, instant: boolean?)
+	local scroll = self._scroll
+	local target = section and scroll:FindFirstChild(section)
+	local y = 0
+	if target then
+		-- CanvasPosition is in screen pixels, like AbsolutePosition; leave a small gap above
+		y = target.AbsolutePosition.Y - scroll.AbsolutePosition.Y + scroll.CanvasPosition.Y - 12
+	end
+	local maxY = math.max(scroll.AbsoluteCanvasSize.Y - scroll.AbsoluteWindowSize.Y, 0)
+	local to = Vector2.new(0, math.clamp(y, 0, maxY))
+	if instant then
+		scroll.CanvasPosition = to
+	else
+		TweenService:Create(scroll, SCROLL_TWEEN, { CanvasPosition = to }):Play()
 	end
 end
 
--- ---------------------------------- Pages --------------------------------- --
-
-function Shop:_restockText(): string
-	local _, ends = ShopCatalog.RotationWindow()
-	return `Restocks in {ShopCatalog.Countdown(ends - os.time())}`
-end
+-- ---------------------------------- Sections -------------------------------- --
 
 function Shop:_fillFeatured()
-	local page = self._pages.Featured
+	local face = self._scroll.Featured.Face
 	local set, ends = ShopCatalog.Featured()
-	local card = page.FeaturedSet
-	if set then
-		card:SetAttribute("SetId", set.Id)
-		card.Tag.Text = `FEATURED · LEAVES IN {string.upper(ShopCatalog.Countdown(ends - os.time()))}`
-		card.SetName.Text = set.Name
-		card.Blurb.Text = set.Blurb or `{set.Rarity} stage skin, platform + mic`
-		card.Art.Stage.BackgroundColor3 = C(set.Stage)
-		card.Art.Platform.BackgroundColor3 = C(set.Platform)
-		CosmeticView.Show(card.Art, "Set", set.Id)
-		local owned = owns(PlayerData.Inventory.Sets, set.Id)
-		local equipped = owned and setEquipped(set)
-		if equipped then
-			setButton(card.Action, "Equipped", { Icon = false, Colour = GREY, Enabled = false })
-		elseif owned then
-			setButton(card.Action, "Equip", { Icon = false, Colour = WHITE })
-		else
-			setButton(card.Action, fmt(set.Price), {})
-		end
+	self._scroll.Featured.Visible = set ~= nil
+	face:SetAttribute("SetId", set and set.Id or nil)
+	if not set then
+		return
 	end
-
-	local vip = ShopCatalog.GetPass("VIP")
-	if vip then
-		page.Vip.PassName.Text = vip.Name
-		for i = 1, 3 do
-			local perk = page.Vip.Perks:FindFirstChild("Perk" .. i)
-			if perk then
-				perk.Text = vip.Perks and vip.Perks[i] or ""
-				perk.Visible = vip.Perks ~= nil and vip.Perks[i] ~= nil
-			end
-		end
-		self:_fillPassButton(page.Vip.Action, vip)
+	face.Timer.Text = `Leaves in {ShopCatalog.Countdown(ends - os.time())}`
+	if self._featuredId ~= set.Id then
+		self._featuredId = set.Id
+		face.SetName.Text = set.Name
+		face.Desc.Text = set.Blurb or `{set.Rarity} stage skin, spot platform and mic`
+		face.Art.BackgroundColor3 = C(set.Bg)
+		paintRarity(face.Art, set.Rarity)
+		CosmeticView.Show(face.Art, "Set", set.Id)
 	end
+	setSetButton(face.Buy, set)
+end
 
-	page.TitleRow.Chip.Text = self:_restockText()
-	local rotation = ShopCatalog.Rotation()
+function Shop:_fillDebut()
+	local section = self._scroll.Debut
+	local pack = ShopCatalog.DebutPack
+	-- shown once the product exists, until it's bought
+	local show = pack ~= nil and (pack.ProductId or 0) > 0 and not owns(PlayerData.Rewards.Claimed, pack.Id)
+	section.Visible = show
+	if not show then
+		return
+	end
+	local items = section.Face.Items
 	for i = 1, 4 do
-		self:_fillSetCard(page.Grid["Card" .. i], rotation[i])
+		local tile = items:FindFirstChild("Item" .. i)
+		local entry = pack.Items[i]
+		tile.Visible = entry ~= nil
+		if entry then
+			tile.Label.Text = entry.Label
+			tile.Swatch.BackgroundColor3 = C(entry.Colour)
+		end
 	end
+	setRobuxButton(section.Face.Buy, "Product", pack.ProductId)
 end
 
 function Shop:_fillSets()
-	local page = self._pages.Sets
-	page.TitleRow.Chip.Text = self:_restockText()
+	self._scroll.SetsTitle.Chip.Text = `Restocks in {ShopCatalog.Countdown(select(2, ShopCatalog.RotationWindow()) - os.time())}`
 	local rotation = ShopCatalog.Rotation()
+	local sets = self._scroll.Sets
 	for i = 1, 4 do
-		self:_fillSetCard(page.Grid["Card" .. i], rotation[i])
-	end
-end
-
--- [[ Items: stages + mic stands ]]
-
-local ITEM_OWNED = { Stage = "Stages", Mic = "Mics" }
-local ITEM_EQUIPPED = { Stage = "EquippedStage", Mic = "EquippedMic" }
-
-function Shop:_fillItemCard(holder: Frame, kind: string, item)
-	holder.Visible = item ~= nil
-	holder:SetAttribute("ItemId", item and item.Id or nil)
-	if not item then
-		return
-	end
-	local face = holder.Face
-	local art = face.Art
-	art.BackgroundColor3 = C(item.Bg)
-	if kind == "Stage" then
-		art.Stage.BackgroundColor3 = C(item.Stage)
-		art.Platform.BackgroundColor3 = C(item.Platform)
-	else
-		art.Mic.BackgroundColor3 = C(item.Mic)
-	end
-	CosmeticView.Show(art, kind, item.Id) -- the real model
-	art.Rarity.Text = item.Rarity
-	art.Rarity.BackgroundColor3 = C(ShopCatalog.RARITY_COLOURS[item.Rarity] or "FFFFFF")
-	face.ItemName.Text = item.Name
-	local owned = owns(PlayerData.Inventory[ITEM_OWNED[kind]], item.Id)
-	local equipped = PlayerData.Inventory[ITEM_EQUIPPED[kind]].Get() == item.Id
-	if equipped then
-		setButton(face.Action, "Equipped", { Icon = false, Colour = GREY, Enabled = false })
-	elseif owned then
-		setButton(face.Action, "Equip", { Icon = false, Colour = WHITE })
-	else
-		setButton(face.Action, fmt(item.Price), { Colour = MINT })
-	end
-end
-
-function Shop:_fillItems()
-	local page = self._pages.Items
-	page.Chip.Text = self:_restockText()
-	for _, kind in { "Stage", "Mic" } do
-		local rotation = ShopCatalog.ItemRotation(kind)
-		local grid = page[kind .. "Grid"]
-		for i = 1, 4 do
-			self:_fillItemCard(grid["Card" .. i], kind, rotation[i])
+		local card = sets["Set" .. i]
+		local set = rotation[i]
+		card.Visible = set ~= nil
+		sets["Set" .. i .. "Shadow"].Visible = set ~= nil
+		card:SetAttribute("SetId", set and set.Id or nil)
+		if set then
+			if card:GetAttribute("Shown") ~= set.Id then
+				card:SetAttribute("Shown", set.Id)
+				card.SetName.Text = set.Name
+				card.Art.BackgroundColor3 = C(set.Bg)
+				paintRarity(card.Art, set.Rarity)
+				CosmeticView.Show(card.Art, "Set", set.Id)
+			end
+			local new = card:FindFirstChild("New")
+			if new then
+				new.Visible = set.New == true
+			end
+			setSetButton(card.Action, set)
 		end
 	end
 end
 
-function Shop:_itemAction(kind: string, id: string?)
-	if not id then
-		return
-	end
-	if PlayerData.Inventory[ITEM_EQUIPPED[kind]].Get() == id then
-		return
-	end
-	if owns(PlayerData.Inventory[ITEM_OWNED[kind]], id) then
-		ShopRemote:Fire({ Action = "EquipItem", Kind = kind, Id = id })
-		return
-	end
-	local item = ShopCatalog.GetItem(kind, id)
-	if item and PlayerData.Currencies.Won.Get() < (item.Price or 0) then
-		self:_toast("Not enough coins")
-		Sounds.Play("Wrong")
-		Juice.Shake(self._frame.Panel.Header.Balance)
-		self:ShowTab("Coins")
-		return
-	end
-	ShopRemote:Fire({ Action = "BuyItem", Kind = kind, Id = id })
-end
-
--- a Robux button: the live price (Modules/Prices), "…" while it loads, "Soon" when off sale
-local function setRobuxButton(button: GuiButton, kind: string, id: number?)
-	local price, forSale = Prices.Get(kind, id)
-	if price then
-		setButton(button, fmt(price), {})
-	elseif forSale == nil then
-		setButton(button, "…", { Icon = false, Colour = MINT, Enabled = false })
-	else
-		setButton(button, "Soon", { Icon = false, Colour = GREY, Enabled = false })
-	end
-end
-
-function Shop:_fillPassButton(button: GuiButton, pass)
-	if owns(PlayerData.GamePasses, pass.Id) then
-		setButton(button, "Owned", { Icon = false, Colour = GREY, Enabled = false })
-	else
-		setRobuxButton(button, "GamePass", pass.GamePassId)
+function Shop:_fillPieces()
+	local pieces = self._scroll.Pieces
+	for _, kind in { "Stage", "Mic" } do
+		local rotation = ShopCatalog.ItemRotation(kind)
+		for i = 1, 4 do
+			local card = pieces[kind .. i]
+			local item = rotation[i]
+			card.Visible = item ~= nil
+			pieces[kind .. i .. "Shadow"].Visible = item ~= nil
+			card:SetAttribute("ItemId", item and item.Id or nil)
+			if item then
+				if card:GetAttribute("Shown") ~= item.Id then
+					card:SetAttribute("Shown", item.Id)
+					card.ItemName.Text = item.Name
+					card.Art.BackgroundColor3 = C(item.Bg)
+					card.Rarity.Text = item.Rarity
+					card.Rarity.BackgroundColor3 = C(ShopCatalog.RARITY_COLOURS[item.Rarity] or "FFFFFF")
+					CosmeticView.Show(card.Art, kind, item.Id)
+				end
+				local equipped = PlayerData.Inventory[ITEM_EQUIPPED[kind]].Get() == item.Id
+				if equipped then
+					setButton(card.Action, "Equipped", { Colour = GREY, Enabled = false })
+				elseif owns(PlayerData.Inventory[ITEM_OWNED[kind]], item.Id) then
+					setButton(card.Action, "Equip", { Colour = WHITE })
+				else
+					setButton(card.Action, fmt(item.Price), { Icon = COIN })
+				end
+			end
+		end
 	end
 end
 
 function Shop:_fillCoins()
-	local page = self._pages.Coins
-	for i = 1, 3 do
-		local holder = page.Bundles:FindFirstChild("Bundle" .. i)
-		local bundle = ShopCatalog.CoinBundles[i]
+	local face = self._scroll.Coins.Face
+	local bundles = shownBundles()
+	for i = 1, 5 do
+		local holder = face:FindFirstChild("Bundle" .. i)
+		local bundle = bundles[i]
 		holder.Visible = bundle ~= nil
 		if bundle then
-			local face = holder.Face
-			face.Amount.Text = `{fmt(bundle.Amount)} coins`
-			face.Sub.Text = bundle.Sub
-			face.Art.BackgroundColor3 = C(bundle.Bg)
-			local layout = COIN_LAYOUTS[bundle.Coins] or COIN_LAYOUTS[1]
-			for c = 1, 6 do
-				local img = face.Art:FindFirstChild("Coin" .. c)
-				local spot = layout[c]
-				img.Visible = spot ~= nil
-				if spot then
-					img.Position = UDim2.fromScale(spot[1] / 100, spot[2] / 100)
-					img.ZIndex = c
+			holder.Amount.Text = `{fmt(bundle.Amount)} coins`
+			local tag = holder:FindFirstChild("Tag") :: TextLabel?
+			if bundle.Tag and not tag then
+				-- a sticker on a bundle that wasn't given one in Studio: borrow the BEST VALUE one
+				local source = face:FindFirstChild("Tag", true)
+				if source then
+					tag = source:Clone()
+					tag.Parent = holder
 				end
 			end
-			holder.Best.Visible = bundle.Best == true
-			setRobuxButton(face.Action, "Product", bundle.ProductId)
+			if tag then
+				tag.Visible = bundle.Tag ~= nil
+				tag.Text = bundle.Tag or ""
+				tag.BackgroundColor3 = if bundle.Tag == "BEST VALUE" then RED else PINK
+			end
+			setRobuxButton(holder.Buy, "Product", bundle.ProductId)
 		end
 	end
-	for i = 1, 2 do
-		local card = page:FindFirstChild("Pass" .. i)
-		local pass = ShopCatalog.Passes[i]
-		card.Visible = pass ~= nil
-		if pass then
-			card.BackgroundColor3 = C(pass.Bg)
-			card.PassName.Text = pass.Name
-			card.Sub.Text = pass.Sub
-			local isCrown = pass.Icon == "Crown"
-			card.IconCircle.IconText.Visible = not isCrown
-			card.IconCircle.IconText.Text = if isCrown then "" else pass.Icon
-			card.IconCircle.IconImage.Visible = isCrown
-			self:_fillPassButton(card.Action, pass)
+end
+
+function Shop:_fillPasses()
+	local passes = self._scroll.Passes
+	for card, id in PASS_CARDS do
+		local face = passes:FindFirstChild(card)
+		local pass = ShopCatalog.GetPass(id)
+		if face and pass then
+			face.PassName.Text = pass.Name
+			face.Desc.Text = pass.Sub
+			if owns(PlayerData.GamePasses, pass.Id) then
+				setButton(face.Action, "Owned", { Colour = GREY, Enabled = false })
+			else
+				setRobuxButton(face.Action, "GamePass", pass.GamePassId)
+			end
 		end
 	end
 end
@@ -389,50 +368,60 @@ function Shop:_refresh()
 		end
 		self._shownCoins = coins
 	end
-	if self._tab == "Featured" then
-		self:_fillFeatured()
-	elseif self._tab == "Sets" then
-		self:_fillSets()
-	elseif self._tab == "Items" then
-		self:_fillItems()
-	elseif self._tab == "Songs" then
-		self._roll:Fill()
-	elseif self._tab == "UGC" then
-		self._emotes:Fill()
-	elseif self._tab == "Coins" then
-		self:_fillCoins()
+	self:_fillFeatured()
+	self:_fillDebut()
+	self:_fillSets()
+	self:_fillPieces()
+	self:_fillCoins()
+	self:_fillPasses()
+end
+
+-- --------------------------------- Actions ---------------------------------- --
+
+-- Clicked a set's button: buy it, or equip it if it's already yours.
+function Shop:_setAction(setId: string?)
+	if not setId then
+		return
+	end
+	local set = ShopCatalog.GetSet(setId)
+	if owns(PlayerData.Inventory.Sets, setId) then
+		if set and setEquipped(set) then
+			return
+		end
+		ShopRemote:Fire({ Action = "EquipSet", Id = setId })
+	else
+		if set and PlayerData.Currencies.Won.Get() < set.Price then
+			self:_notEnoughCoins()
+			return
+		end
+		ShopRemote:Fire({ Action = "BuySet", Id = setId })
 	end
 end
 
-function Shop:ShowTab(name: string, force: boolean?)
-	name = TAB_ALIASES[name] or name
-	if not table.find(TABS, name) then
-		name = "Featured"
+function Shop:_itemAction(kind: string, id: string?)
+	if not id or PlayerData.Inventory[ITEM_EQUIPPED[kind]].Get() == id then
+		return
 	end
-	local changed = self._tab ~= name
-	self._tab = name
-	if changed then
-		AnalyticsClient.Event("ShopTabOpened", 1, name)
+	if owns(PlayerData.Inventory[ITEM_OWNED[kind]], id) then
+		ShopRemote:Fire({ Action = "EquipItem", Kind = kind, Id = id })
+		return
 	end
-	for _, tab in TABS do
-		local holder = self._frame.Panel.Header.Tabs[tab]
-		local on = tab == name
-		holder.Button.BackgroundTransparency = if on then 0 else 0.65
-		-- buttons are centre-anchored (CenterButtons); the active tab sits 1px higher
-		local base = holder.Button:GetAttribute("BaseY")
-		if base == nil then
-			base = holder.Button.Position.Y.Offset
-			holder.Button:SetAttribute("BaseY", base)
-		end
-		local p = holder.Button.Position
-		holder.Button.Position = UDim2.new(p.X.Scale, p.X.Offset, p.Y.Scale, base - (if on then 1 else 0))
-		holder.Shadow.Visible = on
-		self._pages[PAGE_OF[tab] or tab].Visible = on
-		if on and changed then
-			Juice.Pop(holder.Button, 0.12)
-		end
+	local item = ShopCatalog.GetItem(kind, id)
+	if item and PlayerData.Currencies.Won.Get() < (item.Price or 0) then
+		self:_notEnoughCoins()
+		return
 	end
-	self:_refresh()
+	ShopRemote:Fire({ Action = "BuyItem", Kind = kind, Id = id })
+end
+
+function Shop:_redeem()
+	local box = self._scroll.Codes.Face.CodeBox
+	local code = string.upper((box.Text:gsub("%s", "")))
+	if code == "" then
+		Juice.Shake(box, 0.25)
+		return
+	end
+	RewardsRemote:Fire({ Action = "RedeemCode", Code = code })
 end
 
 -- -------------------------------- Lifecycle ------------------------------- --
@@ -442,100 +431,67 @@ function Shop:Initialize(interface)
 	self._frame = interface:ResolveFrame("Interface", "Shop")
 	self._frame.Visible = false
 	local panel = self._frame.Panel
-	self._pages = panel.Pages
-	-- Give the tabs equal widths so removing their category dots doesn't leave an uneven gap.
-	local tabs = panel.Header.Tabs
-	local tabGap = 8
-	local tabLayout = tabs:FindFirstChildOfClass("UIListLayout")
-	if tabLayout then
-		tabLayout.Padding = UDim.new(0, tabGap)
-	end
-	local tabWidth = math.floor((tabs.Size.X.Offset - tabGap * (#TABS - 1)) / #TABS) - 3
-	for _, tab in TABS do
-		local holder = tabs[tab]
-		local button = holder.Button
-		local dot = button:FindFirstChild("Dot")
-		if dot then
-			dot.Visible = false
-		end
-		local layout = button:FindFirstChildOfClass("UIListLayout")
-		if layout then
-			layout.Padding = UDim.new(0, 0)
-		end
-		button.AutomaticSize = Enum.AutomaticSize.None
-		button.Size = UDim2.fromOffset(tabWidth, button.Size.Y.Offset)
-		holder.Size = UDim2.fromOffset(tabWidth + 3, holder.Size.Y.Offset)
-	end
+	local scroll = panel.Scroll
+	self._scroll = scroll
+	FitPanel.Watch(self._frame, self._janitor)
 	ButtonScale.ApplyToDescendants(panel)
 
 	local j = self._janitor
 	j:Add(panel.Header.Close.Activated:Connect(function()
 		self._interface:Close(self.Name)
 	end))
-	for _, tab in TABS do
-		j:Add(panel.Header.Tabs[tab].Button.Activated:Connect(function()
-			self:ShowTab(tab)
+	j:Add(panel.Header.Balance.Plus.Activated:Connect(function()
+		self:ScrollTo("Coins")
+	end))
+
+	-- featured + rotating sets
+	j:Add(scroll.Featured.Face.Buy.Activated:Connect(function()
+		self:_setAction(scroll.Featured.Face:GetAttribute("SetId"))
+	end))
+	for i = 1, 4 do
+		local card = scroll.Sets["Set" .. i]
+		j:Add(card.Action.Activated:Connect(function()
+			self:_setAction(card:GetAttribute("SetId"))
 		end))
 	end
 
-	-- set cards (Featured grid, Sets grid, featured set)
-	for _, page in { self._pages.Featured, self._pages.Sets } do
-		for i = 1, 4 do
-			local holder = page.Grid["Card" .. i]
-			j:Add(holder.Face.Action.Activated:Connect(function()
-				self:_setAction(holder:GetAttribute("SetId"))
-			end))
-		end
-	end
-	j:Add(self._pages.Featured.FeaturedSet.Action.Activated:Connect(function()
-		self:_setAction(self._pages.Featured.FeaturedSet:GetAttribute("SetId"))
-	end))
-	j:Add(self._pages.Featured.Vip.Action.Activated:Connect(function()
-		local vip = ShopCatalog.GetPass("VIP")
-		if vip then
-			promptPass(vip)
-		end
-	end))
-
-	-- items
-	local itemsPage = self._pages.Items
+	-- stages + mic stands
 	for _, kind in { "Stage", "Mic" } do
 		for i = 1, 4 do
-			local holder = itemsPage[kind .. "Grid"]["Card" .. i]
-			j:Add(holder.Face.Action.Activated:Connect(function()
-				self:_itemAction(kind, holder:GetAttribute("ItemId"))
+			local card = scroll.Pieces[kind .. i]
+			j:Add(card.Action.Activated:Connect(function()
+				self:_itemAction(kind, card:GetAttribute("ItemId"))
 			end))
 		end
 	end
 
-	-- the song roll (./Roll): replaced buying packs
-	self._roll = Roll.new(self._pages, self._frame, j, function(message)
-		self:_toast(message)
-	end)
-
-	-- the group's UGC (Robux): dancing closes the shop so you can see yourself
-	self._emotes = Emotes.new(self._pages.UGC, j, function()
-		self._interface:Close(self.Name)
-	end)
-
-	-- coins + passes (Robux)
-	local coins = self._pages.Coins
-	for i = 1, 3 do
-		j:Add(coins.Bundles["Bundle" .. i].Face.Action.Activated:Connect(function()
-			local bundle = ShopCatalog.CoinBundles[i]
-			if bundle and (bundle.ProductId or 0) > 0 then
-				MarketplaceService:PromptProductPurchase(LOCAL_PLAYER, bundle.ProductId)
-			end
+	-- Robux: debut pack, coin bundles, passes
+	j:Add(scroll.Debut.Face.Buy.Activated:Connect(function()
+		local pack = ShopCatalog.DebutPack
+		promptProduct(pack and pack.ProductId)
+	end))
+	for i = 1, 5 do
+		j:Add(scroll.Coins.Face["Bundle" .. i].Buy.Activated:Connect(function()
+			local bundle = shownBundles()[i]
+			promptProduct(bundle and bundle.ProductId)
 		end))
 	end
-	for i = 1, 2 do
-		j:Add(coins["Pass" .. i].Action.Activated:Connect(function()
-			local pass = ShopCatalog.Passes[i]
-			if pass then
-				promptPass(pass)
-			end
+	for card, id in PASS_CARDS do
+		j:Add(scroll.Passes[card].Action.Activated:Connect(function()
+			promptPass(ShopCatalog.GetPass(id))
 		end))
 	end
+
+	-- codes
+	local codes = scroll.Codes.Face
+	j:Add(codes.Redeem.Activated:Connect(function()
+		self:_redeem()
+	end))
+	j:Add(codes.CodeBox.FocusLost:Connect(function(enter: boolean)
+		if enter then
+			self:_redeem()
+		end
+	end))
 
 	-- server replies
 	j:Add(ShopRemote:Connect(function(packet)
@@ -548,6 +504,17 @@ function Shop:Initialize(interface)
 			end
 		end
 	end), "Disconnect") -- BridgeNet2 connections have no Destroy
+	j:Add(RewardsRemote:Connect(function(packet)
+		if type(packet) == "table" and packet.Message == "Result" and packet.Action == "RedeemCode" then
+			-- (RewardsController plays the success / wrong sound for every RewardsRemote reply)
+			self:_toast(packet.Text or "")
+			if packet.Ok then
+				codes.CodeBox.Text = ""
+			else
+				Juice.Shake(codes.CodeBox, 0.25)
+			end
+		end
+	end), "Disconnect")
 
 	-- live data → redraw
 	for _, path in {
@@ -557,7 +524,7 @@ function Shop:Initialize(interface)
 		PlayerData.Inventory.Mics,
 		PlayerData.Inventory.EquippedStage,
 		PlayerData.Inventory.EquippedMic,
-		PlayerData.Inventory.Songs,
+		PlayerData.Rewards.Claimed,
 		PlayerData.GamePasses,
 	} do
 		j:Add(path.Observe(function()
@@ -575,19 +542,29 @@ function Shop:Initialize(interface)
 		while true do
 			task.wait(1)
 			if self.State == "Active" then
-				local window = ShopCatalog.RotationWindow()
-				if window ~= self._window then
-					self._window = window
-				end
 				self:_refresh()
 			end
 		end
 	end), true)
 end
 
-function Shop:Activate(tab: string?)
+-- section: "Coins" (or any section name) to land on it; nil starts at the top
+function Shop:Activate(section: string?)
 	self._frame.Visible = true
-	self:ShowTab(tab or self._tab or "Featured", true)
+	self:_refresh()
+	-- old tab names other screens may still open with
+	if section == "Featured" or section == "Sets" then
+		section = nil
+	elseif section == "Items" then
+		section = "PiecesTitle"
+	end
+	self:ScrollTo(section, true)
+	if section then
+		-- the canvas size settles a frame after the first fill
+		task.defer(function()
+			self:ScrollTo(section, true)
+		end)
+	end
 	if self.State == "Active" or self.State == "Activating" then
 		return Promise.resolve()
 	end
@@ -602,7 +579,6 @@ function Shop:Deactivate()
 		return Promise.resolve()
 	end
 	self.State = "Deactivating"
-	self._roll:Hide()
 	return FrameTransition.Close(self._frame):andThen(function()
 		self._frame.Visible = false
 		self.State = "Inactive"

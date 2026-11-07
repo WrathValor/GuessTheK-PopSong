@@ -9,6 +9,8 @@
 --                   each paying its Reward; finishing all 3 unlocks BONUS.
 --   • Group reward – one time: join the Roblox group, get GROUP.Coins, the group stage and
 --                   the GROUP.Title title.
+--   • Codes – typed into the shop's code box; each pays its Coins once per account
+--             (Rewards.Claimed "Code:<CODE>"). Codes past their Expires (os.time) stop working.
 
 local RewardsCatalog = {}
 
@@ -41,6 +43,11 @@ RewardsCatalog.GROUP = table.freeze({
 	Title = "Supporter", -- name-tag title, only from this reward
 	ClaimedKey = "Group", -- in Rewards.Claimed
 })
+
+-- Shop codes, by code (upper case, no spaces, at most 30 characters). Add one like:
+--   LAUNCH = { Coins = 500 },
+--   HALLOWEEN = { Coins = 250, Expires = 1793750400 }, -- os.time() it stops working
+RewardsCatalog.CODES = table.freeze({})
 
 function RewardsCatalog.Day(t: number): number
 	return math.floor(t / 86400)

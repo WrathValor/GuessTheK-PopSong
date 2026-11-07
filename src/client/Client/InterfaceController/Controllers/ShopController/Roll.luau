@@ -277,7 +277,7 @@ function Roll:_fill()
 		then "Song rolls aren't available for your account."
 		elseif fresh <= 0 then "You own every song: rolls now level your cards up."
 		elseif dupes >= RollConstants.PITY then "<b>Your next roll is a guaranteed new song!</b>"
-		else `New song guaranteed after {RollConstants.PITY} duplicates in a row · <b>{dupes} / {RollConstants.PITY}</b>`
+		else `Guaranteed new song after {RollConstants.PITY} dupes in a row · <b>{dupes} / {RollConstants.PITY}</b>`
 end
 
 -- true when the roll was sent

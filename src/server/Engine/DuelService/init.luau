@@ -17,6 +17,12 @@ local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 --| Types
 
 type Slot = "A" | "B"
+-- a running rematch series between two players (see seriesFor)
+type Series = {
+	Games: number, -- games finished in this series
+	Wins: { [string]: number }, -- userId -> wins
+	LastLoser: number?, -- userId who lost the last game (nil after a draw)
+}
 export type Stage = {
 	Name: string,
 	Model: Model,
@@ -27,6 +33,7 @@ export type Stage = {
 	SlotJanitors: { [Slot]: any },
 	Duel: any?,
 	Rematch: { [Player]: boolean },
+	Series: Series?,
 	Solo: boolean?,
 	Janitor: any,
 }
@@ -47,6 +54,44 @@ local queuedAt: { [Player]: number } = {}
 local sessions: { [Player]: string } = {}
 local played: { [Player]: boolean } = {}
 
+-- players still on the results screen of a game on their stage (cleared once they press
+-- Rematch, step off or step on again). A rival who steps on meanwhile waits for them to
+-- accept instead of pulling them straight into a game.
+local onResults: { [Player]: boolean } = {}
+
+-- rematch series, kept per pair of players rather than per stage, so stepping off and back
+-- on against the same rival carries it on. It ends when either of them plays someone else
+-- or leaves the game.
+local seriesByPair: { [string]: Series } = {}
+local seriesKey: { [Player]: string } = {}
+
+local function endSeries(key: string)
+	seriesByPair[key] = nil
+	for p, k in seriesKey do
+		if k == key then
+			seriesKey[p] = nil
+		end
+	end
+end
+
+local function seriesFor(a: Player, b: Player): Series
+	local x, y = a.UserId, b.UserId
+	if x > y then
+		x, y = y, x
+	end
+	local key = `{x}-{y}`
+	for _, p in { a, b } do
+		local old = seriesKey[p]
+		if old and old ~= key then
+			endSeries(old) -- playing someone else ends your last series
+		end
+	end
+	local series = seriesByPair[key] or { Games = 0, Wins = {}, LastLoser = nil }
+	seriesByPair[key] = series
+	seriesKey[a], seriesKey[b] = key, key
+	return series
+end
+
 local function newSession(player: Player): string
 	local id = `{player.UserId}-{os.time()}-{math.random(1000, 9999)}`
 	sessions[player] = id
@@ -64,7 +109,7 @@ DuelService.PlayerStage = {} :: { [Player]: Stage }
 
 -- [[ Private ]]
 
-local leave, tryStart, notifyOpponents -- forward declared, join() needs them
+local leave, tryStart, notifyOpponents, requestRematch -- forward declared, join() needs them
 
 local function otherSlot(slot: Slot): Slot
 	return if slot == "A" then "B" else "A"
@@ -186,6 +231,16 @@ local function join(stage: Stage, slot: Slot, player: Player, how: string?)
 	Analytics.Onboarding(player, "SteppedOnStage")
 	newSession(player)
 	notifyOpponents(stage)
+	onResults[player] = nil
+
+	-- the rival is still on their results screen: stepping on counts as asking for a rematch,
+	-- and the game starts once they accept (requestRematch) rather than pulling them off it
+	local rival = stage.Players[otherSlot(slot)]
+	if rival and onResults[rival] then
+		QueueRemote:Fire(player, { Message = "RematchWaiting" })
+		requestRematch(player)
+		return
+	end
 	tryStart(stage)
 end
 
@@ -205,6 +260,8 @@ function leave(player: Player)
 	stage.SlotJanitors[slot]:Cleanup()
 	StageCosmetics.Apply(stage, slot, nil)
 	stage.Rematch = {}
+	stage.Series = nil -- the series itself lives on in seriesByPair
+	onResults[player] = nil
 
 	if stage.Duel then
 		if stage.Duel.Started and not stage.Duel.Intermission then
@@ -253,6 +310,27 @@ local function onDuelEnded(stage: Stage, result)
 		stage.Duel = nil
 	end
 
+	-- rematch series: a win right after losing to this same rival is a Revenge win (Rewards
+	-- pays the bonus), then the series score moves on
+	local series = stage.Series
+	if series and not result.Solo then
+		local winner = result.Winner
+		if winner and not result.Draw and series.LastLoser == winner.UserId and result.Leaver == nil then
+			result.Revenge = winner
+		end
+		series.Games += 1
+		series.LastLoser = nil
+		if winner and not result.Draw then
+			local id = tostring(winner.UserId)
+			series.Wins[id] = (series.Wins[id] or 0) + 1
+			for _, p in (duel and duel.Players or {}) do
+				if p ~= winner then
+					series.LastLoser = p.UserId
+				end
+			end
+		end
+	end
+
 	-- everyone who played, including someone who left mid-duel (they still lose their streak)
 	local players = table.clone(duel and duel.Players or {})
 	local earned = Rewards.Apply(result, players)
@@ -282,6 +360,7 @@ local function onDuelEnded(stage: Stage, result)
 		if p then
 			table.insert(present, p)
 			played[p] = true
+			onResults[p] = true
 		end
 	end
 	if #present > 0 then
@@ -297,6 +376,7 @@ local function onDuelEnded(stage: Stage, result)
 			Scores = scores,
 			Rounds = rounds,
 			Rewards = rewards,
+			Series = if series then { Games = series.Games, Wins = table.clone(series.Wins) } else nil,
 		})
 	end
 
@@ -306,11 +386,12 @@ local function onDuelEnded(stage: Stage, result)
 	refreshPrompts(stage)
 end
 
-local function requestRematch(player: Player)
+function requestRematch(player: Player)
 	local stage = DuelService.PlayerStage[player]
 	if not stage or stage.State ~= "Waiting" or stage.Duel then
 		return
 	end
+	onResults[player] = nil
 	stage.Rematch = stage.Rematch or {}
 	if not stage.Rematch[player] then
 		Analytics.Event(player, "RematchRequested", 1, if stage.Solo then "Solo" else "Duel")
@@ -426,6 +507,15 @@ function tryStart(stage: Stage, soloStage: boolean?, rematch: boolean?)
 
 	local duel = Duels.new(stage, a, b, soloStage)
 	stage.Duel = duel
+	-- rematch series: the same two players carry theirs on, however they got back here
+	if soloStage then
+		stage.Series = nil
+	elseif a and b then
+		stage.Series = seriesFor(a, b)
+	end
+	if stage.Series and stage.Series.Games > 0 then
+		duel.Series = { Game = stage.Series.Games + 1, Wins = table.clone(stage.Series.Wins) }
+	end
 	duel.Tutorial = soloStage == true and stage.Tutorial == true
 	stage.Tutorial = nil -- a rematch after the tutorial is ordinary solo practice
 	for _, p in duel.Players do
@@ -571,6 +661,13 @@ function DuelService.Start()
 	end
 
 	Players.PlayerRemoving:Connect(leave)
+	Players.PlayerRemoving:Connect(function(player)
+		local key = seriesKey[player]
+		if key then
+			endSeries(key)
+		end
+		onResults[player] = nil
+	end)
 	-- Request is a string, or { Request = "Solo", Theme, Mix } from the solo theme picker
 	QueueRemote:Connect(function(Player: Player, Request: any)
 		local packet = nil

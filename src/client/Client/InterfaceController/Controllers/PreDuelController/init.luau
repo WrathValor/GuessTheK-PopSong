@@ -18,8 +18,6 @@ local FrameTransition = require(ReplicatedStorage.Modules.UI.Animations.FrameTra
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
-local TitleChip = require(ReplicatedStorage.Modules.UI.TitleChip)
-local HUDConstants = require(ReplicatedStorage.Constants.HUDConstants)
 local StakeReel = require(script.StakeReel)
 
 -- -------------------------------- Variables ------------------------------- --
@@ -200,12 +198,6 @@ function PreDuel:_fillPlayer(card, profile)
 	card.Sub.Text = if profile.SubText then profile.SubText
 		elseif profile.Streak > 0 then `Lv {profile.Level} · {profile.Streak} streak`
 		else `Lv {profile.Level}`
-	-- title chip under the level
-	local chip = card:FindFirstChild("TitleChip")
-	if not chip then
-		chip = TitleChip.new(card, { Name = "TitleChip", Height = 15, TextSize = 10, Pad = 5, ZIndex = card.ZIndex + 1, Position = UDim2.fromOffset(card.Sub.Position.X.Offset, 56) })
-	end
-	TitleChip.Set(chip, profile.Title or HUDConstants.DEFAULT_TITLE, profile.TitleTier)
 	task.spawn(function()
 		card.Avatar.Thumbnail.Image = thumb(profile.UserId)
 	end)
@@ -250,6 +242,22 @@ function PreDuel:Setup(packet)
 	end
 	self:_fillPlayer(f.You, me)
 	self:_fillPlayer(f.Rival, rival)
+
+	-- rematch series chip under the VS: "REMATCH #3 · 2–1" (your wins first)
+	local seriesChip = f:FindFirstChild("Series")
+	if seriesChip then
+		local series = packet.Series
+		seriesChip.Visible = series ~= nil and not packet.Solo
+		if series then
+			local mine = series.Wins[tostring(LOCAL_PLAYER.UserId)] or 0
+			local theirs = rival and series.Wins[tostring(rival.UserId)] or 0
+			seriesChip.Label.Text = `REMATCH #{series.Game - 1} · {mine}–{theirs}`
+		end
+		local shadow = f:FindFirstChild("SeriesShadow")
+		if shadow then
+			shadow.Visible = seriesChip.Visible
+		end
+	end
 	f.VS.Visible = rival ~= nil
 	f.RivalFound.Visible = rival ~= nil
 	f.RivalFoundShadow.Visible = rival ~= nil

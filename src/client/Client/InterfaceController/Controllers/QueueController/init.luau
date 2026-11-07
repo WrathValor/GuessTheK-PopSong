@@ -178,6 +178,7 @@ function QueueController:Reset()
 	if not panel then
 		return
 	end
+	self._rematch = false
 	panel.Title.Text = "Waiting for a rival…"
 	panel.Subtitle.Text = "Nobody's joined the other spot yet"
 	self._invite:Reset()
@@ -205,8 +206,10 @@ function QueueController:UpdateOpponent(opponent: Player?)
 			self._solo:Close() -- a rival joined while you were picking a theme
 			self._invite:Reset() -- or while you were inviting someone
 		end
-		panelFrame.Title.Text = "Opponent found!"
-		panelFrame.Subtitle.Text = "Starting soon…"
+		if not self._rematch then
+			panelFrame.Title.Text = "Opponent found!"
+			panelFrame.Subtitle.Text = "Starting soon…"
+		end
 		opponentAvatar.Visible = true
 		opponentAvatar.Thumbnail.Visible = true
 		opponentAvatar.Unknown.Visible = false
@@ -228,6 +231,11 @@ function QueueController:UpdateOpponent(opponent: Player?)
 			dashes.Visible = true
 		end
 		opponentNameLabel.Text = "Open spot"
+		if self._rematch then
+			-- the rival we were waiting on stepped off: back to an ordinary open queue
+			self._rematch = false
+			self:_setButtons(true)
+		end
 		if self._opponent then
 			-- they left (or cancelled) before the countdown finished: back to waiting
 			if self._countdown then
@@ -241,11 +249,39 @@ function QueueController:UpdateOpponent(opponent: Player?)
 	self._opponent = opponent
 end
 
+-- A rematch is asked for (Results' Rematch, or stepping back on while the rival is still on
+-- their results screen): wait here for them to accept. Only Leave stays, which drops it.
+function QueueController:ShowRematch()
+	local panel = self._frame:FindFirstChild("Panel")
+	if not panel then
+		return
+	end
+	local rival = self._opponent
+	if not rival or rival == LOCAL_PLAYER or not rival.Parent then
+		self:Reset() -- they've already stepped off: just an open queue
+		return
+	end
+	self:_stopCountdown()
+	self._invite:Reset()
+	self._solo:Close(true)
+	self:_setButtons(false)
+	for _, n in { "Leave", "LeaveShadow" } do
+		local inst = panel:FindFirstChild(n)
+		if inst then
+			inst.Visible = true
+		end
+	end
+	panel.Title.Text = "Rematch requested"
+	panel.Subtitle.Text = `Waiting for {rival.DisplayName} to accept…`
+	self._rematch = true
+end
+
 function QueueController:StartIntermission()
 	local panelFrame = self._frame:FindFirstChild("Panel")
 	if not panelFrame then
 		return
 	end
+	self._rematch = false
 	self:_setButtons(false)
 	self._invite:Reset()
 	self._solo:Close(true)

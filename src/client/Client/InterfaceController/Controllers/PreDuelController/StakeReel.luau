@@ -14,6 +14,7 @@ local TweenService = game:GetService("TweenService")
 
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
+local TierShine = require(ReplicatedStorage.Modules.UI.TierShine)
 
 local C = Color3.fromHex
 local INK = C("1E1B2E")
@@ -23,13 +24,6 @@ local CHIP_TEXT = C("8A8396")
 local YELLOW = C("FFE07A")
 local WHITE = C("FFFFFF")
 local CONFETTI = { C("FF5A4E"), C("FFE07A"), C("A7E9B8"), C("9ED8F5"), C("B9A6FF"), C("FF9EC4") }
-local RAINBOW = ColorSequence.new({
-	ColorSequenceKeypoint.new(0, C("FFB3C7")),
-	ColorSequenceKeypoint.new(0.25, C("FFF1A8")),
-	ColorSequenceKeypoint.new(0.5, C("B8F0C8")),
-	ColorSequenceKeypoint.new(0.75, C("B5DDFF")),
-	ColorSequenceKeypoint.new(1, C("D4C2FF")),
-})
 
 local STAKES = { 20, 30, 40, 50, 70, 100 }
 local STEP = 84 -- chip pitch on the strip (74 wide + 10 gap), same as the Studio reel
@@ -297,15 +291,10 @@ function StakeReel.Spin(stake: Frame, reelValues: { number }, spinTime: number, 
 		confetti(stake, origin, if tier == 2 then 28 else 12)
 	end
 	if tier == 2 then
-		-- jackpot chip shimmers rainbow, and a second burst a moment later
-		big.BackgroundColor3 = WHITE
-		local g = new("UIGradient", { Name = "Jackpot", Color = RAINBOW }, big)
-		task.spawn(function()
-			while g.Parent do
-				g.Rotation = (g.Rotation + 4) % 360
-				RunService.RenderStepped:Wait()
-			end
-		end)
+		-- jackpot chip takes the Rainbow tier's animation (Modules/UI/TierShine), and a second
+		-- burst a moment later
+		local g = new("UIGradient", { Name = "Jackpot", Rotation = 35 }, big)
+		TierShine.Apply(big, g, "Rainbow", YELLOW)
 		Sounds.Play("Perfect")
 		task.delay(0.35, function()
 			if stake.Parent then

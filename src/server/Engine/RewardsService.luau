@@ -1,7 +1,8 @@
 --| RewardsService
 -- Server side of the Rewards screen (Constants/RewardsCatalog). Every claim is checked here.
 --
--- RewardsRemote requests: { Action = "ClaimDaily" }
+-- RewardsRemote requests: { Action = "RedeemCode", Code = "LAUNCH" }   (the shop's code box)
+--                         { Action = "ClaimDaily" }
 --                         { Action = "ClaimQuest", Id = questId }
 --                         { Action = "ClaimBonus" }
 --                         { Action = "ClaimGroup" }
@@ -157,7 +158,28 @@ local function claimGroup(player: Player, data)
 	reply(player, "ClaimGroup", true, `+{g.Coins} coins, Group Exclusive stage + {g.Title} title`, g.Coins)
 end
 
+-- a code from the shop's code box (Catalog.CODES): its coins, once per account
+local function redeemCode(player: Player, data, packet)
+	local code = if type(packet.Code) == "string" then string.upper((packet.Code:gsub("%s", ""))) else ""
+	local entry = if #code > 0 and #code <= 30 then Catalog.CODES[code] else nil
+	if not entry or (entry.Expires and os.time() >= entry.Expires) then
+		return reply(player, "RedeemCode", false, "That code doesn't work")
+	end
+	local key = `Code:{code}`
+	if data.Rewards.Claimed.Has(key) then
+		return reply(player, "RedeemCode", false, "You've already used that code")
+	end
+	PlayerData.Batch(player, function()
+		data.Rewards.Claimed.Add(key)
+		data.Currencies.Won.Increment(entry.Coins)
+	end)
+	Analytics.Event(player, "CodeRedeemed", entry.Coins, code)
+	Analytics.Economy(player, "Source", "Coins", entry.Coins, data.Currencies.Won.Get(), "Code", "Code")
+	reply(player, "RedeemCode", true, `Code redeemed: +{entry.Coins} coins`, entry.Coins)
+end
+
 local ACTIONS = {
+	RedeemCode = redeemCode,
 	ClaimDaily = claimDaily,
 	ClaimQuest = function(player, data, packet)
 		claimQuest(player, data, packet.Id)

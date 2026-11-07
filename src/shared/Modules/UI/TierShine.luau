@@ -3,7 +3,10 @@
 -- Heartbeat loop (one ColorSequence of each kind built per frame and shared, so any number
 -- costs the same). Client only.
 --   • Rainbow – the pastel rainbow slides sideways in a slow loop
---   • Gold    – gold, with a soft white shine sweeping across every few seconds
+--   • Gold    – gold, with a soft white shine sweeping across every few seconds. The band is a
+--               fixed gold–shine–gold gradient moved with Offset from fully off the left edge to
+--               fully off the right, so it always slides out instead of stopping on the card
+--               (rotated gradients reach past 0..1 at the corners, which used to catch the band)
 -- Apply() sets a GuiObject up for its tier: Gold / Rainbow paint the object white and let the
 -- gradient carry the colour; anything else turns the gradient off and uses `otherColour`.
 --   TierShine.Apply(face, face.Level, "Gold", WHITE)
@@ -20,7 +23,10 @@ local WHITE = C("FFFFFF")
 local RAINBOW = { C("FFB3C7"), C("FFD8A8"), C("FFF1A8"), C("B8F0C8"), C("B5DDFF"), C("D8C4FF") }
 local GOLD, SHINE = C("F2C94C"), C("FFF6D6")
 local RAINBOW_PERIOD = 4 -- seconds for the rainbow to go all the way round
-local SHINE_EVERY, SHINE_TIME, SHINE_WIDTH = 2.6, 0.8, 0.14 -- a sweep every 2.6 s, 0.8 s long
+local SHINE_EVERY, SHINE_TIME, SHINE_WIDTH = 2.6, 1.3, 0.14 -- a sweep every 2.6 s, 1.3 s long
+-- how far either side of the centre the band starts / ends (Offset units): past the far corner
+-- of a wide card under a 35° gradient, so the band is fully off before it stops
+local SHINE_REACH = 1.1
 local STEPS = 12 -- rainbow keypoints (Roblox allows up to 20)
 
 local TierShine = {}
@@ -47,24 +53,26 @@ local function rainbow(t: number): ColorSequence
 	return ColorSequence.new(points)
 end
 
-local PLAIN_GOLD = ColorSequence.new(GOLD)
-local function gold(t: number): ColorSequence
+-- gold with the shine band in the middle; Offset slides it across
+local GOLD_BAND = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, GOLD),
+	ColorSequenceKeypoint.new(0.5 - SHINE_WIDTH, GOLD),
+	ColorSequenceKeypoint.new(0.5, SHINE),
+	ColorSequenceKeypoint.new(0.5 + SHINE_WIDTH, GOLD),
+	ColorSequenceKeypoint.new(1, GOLD),
+})
+local RESTING = Vector2.new(SHINE_REACH, 0) -- band parked off the right edge between sweeps
+local CENTRED = Vector2.zero
+
+-- where the band is now: off the left at the start of a sweep, off the right at the end
+local function goldOffset(t: number): Vector2
 	local into = t % SHINE_EVERY
-	if into > SHINE_TIME then
-		return PLAIN_GOLD
+	if into >= SHINE_TIME then
+		return RESTING
 	end
-	-- the band's centre runs from just off the left edge to just off the right
-	local c = -SHINE_WIDTH + (into / SHINE_TIME) * (1 + 2 * SHINE_WIDTH)
-	local a, b = c - SHINE_WIDTH, c + SHINE_WIDTH
-	local points = { ColorSequenceKeypoint.new(0, if a < 0 and b > 0 then GOLD:Lerp(SHINE, 1 - math.abs(c) / SHINE_WIDTH) else GOLD) }
-	for _, k in { { a, GOLD }, { c, SHINE }, { b, GOLD } } do
-		if k[1] > points[#points].Time + 0.001 and k[1] < 0.999 then
-			table.insert(points, ColorSequenceKeypoint.new(k[1], k[2]))
-		end
-	end
-	local last = if a < 1 and b > 1 then GOLD:Lerp(SHINE, 1 - math.abs(1 - c) / SHINE_WIDTH) else GOLD
-	table.insert(points, ColorSequenceKeypoint.new(1, last))
-	return ColorSequence.new(points)
+	local p = into / SHINE_TIME
+	p = p * p * (3 - 2 * p) -- ease in and out: the band glides on and off
+	return Vector2.new(-SHINE_REACH + p * 2 * SHINE_REACH, 0)
 end
 
 -- [[ Loop ]]
@@ -100,11 +108,17 @@ local function start()
 		for gradient in gradients do
 			if gradient.Enabled and shown(gradient) then
 				if gradient:GetAttribute("Shine") == "Gold" then
-					gd = gd or gold(t)
-					gradient.Color = gd
+					gd = gd or goldOffset(t)
+					if gradient.Color ~= GOLD_BAND then
+						gradient.Color = GOLD_BAND
+					end
+					gradient.Offset = gd
 				else
 					rb = rb or rainbow(t)
 					gradient.Color = rb
+					if gradient.Offset ~= CENTRED then
+						gradient.Offset = CENTRED -- in case it was gold before
+					end
 				end
 			end
 		end

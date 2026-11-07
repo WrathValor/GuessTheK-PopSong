@@ -51,6 +51,12 @@ return table.freeze({
 	OWNED_ROUNDS_MAX = 3,
 	OWNED_XP = 2, -- bonus XP for guessing a song you own (duels only)
 
+	-- rematch series: two players who keep pressing Rematch play a running series (shown on
+	-- the pre-duel + results screens). Winning a rematch right after losing to that same rival
+	-- is a Revenge win and pays this on top (before the 2× Coins pass).
+	REVENGE_COINS = 15,
+	REVENGE_XP = 25,
+
 	-- Save Streak developer product. 0 = not set up yet (button is disabled).
 	SAVE_STREAK_PRODUCT_ID = 3726066704,
 

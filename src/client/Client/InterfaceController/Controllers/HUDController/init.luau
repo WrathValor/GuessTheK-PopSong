@@ -13,7 +13,6 @@ local Levels = require(ReplicatedStorage.Modules.Levels)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
 local HUDConstants = require(ReplicatedStorage.Constants.HUDConstants)
-local TitleChip = require(ReplicatedStorage.Modules.UI.TitleChip)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 
 local Effects = require(script.Effects)
@@ -27,7 +26,6 @@ local FILL_TWEEN = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirecti
 -- Slide-out when a menu opens: each corner group leaves through its nearest edge.
 local SLIDE = {
 	TopLeft = Vector2.new(-480, 0),
-	Currency = Vector2.new(480, 0),
 	Buttons = Vector2.new(480, 0),
 	Menu = Vector2.new(0, 340),
 }
@@ -93,7 +91,7 @@ function HUDController.Initialize(self: Self, interface: any)
 
 	ButtonScale.ApplyToDescendants(hud)
 
-	self:_bindProfile()
+	self:_bindXP()
 	self:_bindCurrency()
 	self:_bindButtons()
 	self:_applyStatic()
@@ -118,75 +116,27 @@ function HUDController.Initialize(self: Self, interface: any)
 	end
 end
 
--- [[ Profile card ]]
+-- [[ XP bar ]]
+-- Menu.XPBar, under the tiles: "LEVEL 7 [620/1,000]", the fill tweening to the level's progress.
+-- (The old profile card with the avatar, name and title chip is gone: titles still show on
+-- name tags and in duels.)
 
-function HUDController._bindProfile(self: Self)
-	local profile = self._hud.Currency.Profile
-
-	-- "Name" clashes with Instance.Name, so look the label up explicitly.
-	local nameLabel = profile:FindFirstChild("Name") :: TextLabel
-	nameLabel.Text = LOCAL_PLAYER.DisplayName
-	task.spawn(function()
-		local ok, image = pcall(
-			Players.GetUserThumbnailAsync,
-			Players,
-			LOCAL_PLAYER.UserId,
-			Enum.ThumbnailType.HeadShot,
-			Enum.ThumbnailSize.Size150x150
-		)
-		if ok then
-			profile.Avatar.Thumbnail.Image = image
-		end
-	end)
-
+function HUDController._bindXP(self: Self)
 	self._janitor:Add(PlayerData.Player.XP.Observe(function(xp: number)
 		self:SetXP(xp)
-	end))
-
-	self._janitor:Add(PlayerData.Inventory.Title.Observe(function(title: string)
-		self:SetTitle(if title ~= "" then title else HUDConstants.DEFAULT_TITLE)
-	end))
-	-- the title's tier (Normal / Gold / Rainbow) is set by the server (DataService)
-	self._janitor:Add(Players.LocalPlayer:GetAttributeChangedSignal("TitleTier"):Connect(function()
-		self:SetTitle(self._title or HUDConstants.DEFAULT_TITLE)
 	end))
 end
 
 function HUDController.SetXP(self: Self, totalXP: number)
-	local profile = self._hud.Currency.Profile
+	local bar = self._hud.Menu.XPBar
 	local level, into, need = Levels.FromXP(totalXP)
-
-	profile.Level.Value.Text = tostring(level)
 	local maxed = level >= Levels.MAX_LEVEL
-	profile.XPLabel.Text = if maxed then `MAX · Lv {level}` else `{commas(into)} / {commas(need)} XP · Lv {level}`
 
+	bar.Label.Text = if maxed then `LEVEL {level} [MAX]` else `LEVEL {level} [{commas(into)}/{commas(need)}]`
 	-- Fill sits in a rounded CanvasGroup ("Clip") so it can't poke past the bar's outline
-	local clip = profile.XPBar:FindFirstChild("Clip")
-	local fill = if clip then clip.Fill else profile.XPBar.Fill
-	TweenService:Create(fill, FILL_TWEEN, {
+	TweenService:Create(bar.Clip.Fill, FILL_TWEEN, {
 		Size = UDim2.new(if maxed then 1 else math.clamp(into / need, 0, 1), 0, 1, 0),
 	}):Play()
-end
-
-function HUDController.SetTitle(self: Self, title: string)
-	self._title = title
-	-- the Studio chip is replaced by the shared title chip (shared/Modules/UI/TitleChip)
-	local profile = self._hud.Currency.Profile
-	local chip = profile:FindFirstChild("TitleChip")
-	if not chip then
-		local old = profile.Title
-		old.Visible = false
-		chip = TitleChip.new(profile, {
-			Name = "TitleChip",
-			Height = old.Size.Y.Offset,
-			TextSize = old.Label.TextSize,
-			Font = old.Label.FontFace,
-			ZIndex = old.ZIndex,
-			AnchorPoint = old.AnchorPoint,
-			Position = old.Position,
-		})
-	end
-	TitleChip.Set(chip, title, Players.LocalPlayer:GetAttribute("TitleTier"))
 end
 
 -- [[ Coins / wins ]]
@@ -260,6 +210,14 @@ function HUDController._bindButtons(self: Self)
 
 	self._janitor:Add(hud.TopLeft.Coins.Buy.Activated:Connect(function()
 		self:_open("Shop", "Coins")
+	end))
+	-- the two small buttons under the currencies: the song roll, and the group's UGC
+	self._janitor:Add(hud.TopLeft.Roll.Activated:Connect(function()
+		self:_open("Roll")
+	end))
+	self._janitor:Add(hud.TopLeft.UGC.Activated:Connect(function()
+		hud.TopLeft.UGC.New.Visible = false -- the NEW sticker goes once you've looked
+		self:_open("UGC")
 	end))
 	self._janitor:Add(hud.Buttons.News.Activated:Connect(function()
 		self:_open("News")

@@ -147,8 +147,8 @@ return {
             MusicId = "rbxassetid://126339266327367",
             AnimationId = "rbxassetid://123506894570535",
             PlaybackSpeed = 0.55,
-            TimePosition = 5,
-            ChorusPosition = 0,
+            TimePosition = 2,
+            ChorusPosition = 30.6,
         },
          {
             Name = "UNTOUCHABLE",

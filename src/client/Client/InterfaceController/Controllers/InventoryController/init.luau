@@ -439,7 +439,7 @@ function Inventory:Initialize(interface)
 			elseif kind == "Title" then
 				ShopRemote:Fire({ Action = "EquipTitle", Id = key })
 			elseif kind == "Pack" then
-				self._interface:Open("Shop", "Songs") -- My Pack's "Roll for more"
+				self._interface:Open("Roll") -- My Pack's "Roll for more"
 			end
 		end))
 	end

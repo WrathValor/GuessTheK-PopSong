@@ -90,10 +90,13 @@ function Juice.Pop(gui: GuiObject?, amount: number?)
 end
 
 -- Quick wobble, for a refusal.
-function Juice.Shake(gui: GuiObject?)
+-- Rattle `gui` (a quick rotation wobble). `strength` scales it (default 1): wide things like
+-- a text box swing much further at their ends, so they want ~0.25.
+function Juice.Shake(gui: GuiObject?, strength: number?)
 	if not gui then
 		return
 	end
+	local k = strength or 1
 	local token = (gui:GetAttribute("JuiceShake") or 0) + 1
 	gui:SetAttribute("JuiceShake", token)
 	local base = gui:GetAttribute("JuiceShakeRot")
@@ -106,7 +109,7 @@ function Juice.Shake(gui: GuiObject?)
 			if gui:GetAttribute("JuiceShake") ~= token then
 				return
 			end
-			gui.Rotation = base + r
+			gui.Rotation = base + r * k
 			task.wait(0.035)
 		end
 		gui.Rotation = base

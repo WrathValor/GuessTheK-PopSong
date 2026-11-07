@@ -188,6 +188,8 @@ function Duels.new(stage, playerA: Player?, playerB: Player?, solo: boolean?, pa
 	self.Tutorial = false
 	self.RoundCount = DuelConstants.ROUNDS -- how many rounds this game plays
 	self.Cap = DuelConstants.ROUND_CAP
+	-- rematch series so far, { Game, Wins } (set by DuelService on a rematch, shown on PreDuel)
+	self.Series = nil :: any
 
 	self.Ended = Signal.new()
 	self._janitor = Janitor.new()
@@ -407,6 +409,7 @@ function Duels:_preDuel()
 		Reel = reel,
 		Players = profiles,
 		Solo = self.Solo,
+		Series = self.Series,
 		SpinTime = DuelConstants.STAKE_SPIN,
 		ModeVote = DuelConstants.MODE_VOTE,
 		VoteTime = if DuelConstants.MODE_VOTE then DuelConstants.VOTE_TIME else DuelConstants.PRE_DUEL_HOLD,

@@ -46,6 +46,8 @@ local LIBRARY = {
 	Lose = { Id = 87193628501201, Volume = 0.5 },
 	Coins = { Id = 135483737426662, Volume = 0.55 },
 	Perfect = { Id = 134464238316794, Volume = 0.55 },
+	Revenge = { Id = 98800727577803, Volume = 0.55 }, -- the REVENGE! stamp slamming onto the results winner card
+	Rematch = { Id = 9119669160, Volume = 0.5 }, -- the Rematch button popping in at the end of the results reveal
 }
 
 -- Looping background music. Id = 0 means "not picked yet" and is skipped quietly.

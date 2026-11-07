@@ -29,6 +29,7 @@ export type Earned = {
 	Streak: number,
 	StreakLost: number, -- streak the player just lost (0 if none), for the Save Streak offer
 	Perfect: boolean,
+	Revenge: boolean?, -- won a rematch right after losing to this rival (DuelService sets result.Revenge)
 	Outcome: "Win" | "Lose" | "Draw" | "Solo" | "Left",
 	Tutorial: boolean?, -- the tutorial's welcome gift was paid this time
 	LevelUp: number?, -- the new level, when this match levelled the player up
@@ -150,6 +151,14 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 			earned.XP += DuelConstants.PERFECT_XP
 			earned.Coins += DuelConstants.PERFECT_COINS
 			earned.CoinsDetail ..= " + perfect"
+		end
+
+		-- revenge: won the rematch after losing the last game to this rival
+		if result.Revenge == player and earned.Outcome == "Win" then
+			earned.Revenge = true
+			earned.XP += DuelConstants.REVENGE_XP
+			earned.Coins += DuelConstants.REVENGE_COINS
+			earned.CoinsDetail ..= " + revenge"
 		end
 
 		-- 2× Coins pass doubles everything coin-related from a match

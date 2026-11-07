@@ -4,7 +4,8 @@
 -- "4 win streak" + a dark ×1.2 / ×1.5 / ×2 coin-multiplier badge from 3 wins, yellow, and
 -- orange from 10 wins. Hidden while that player is
 -- in a duel (the "InDuel" attribute) — the rival tag takes over there. Built on this client
--- only, and replaces Roblox's default overhead name.
+-- only, and replaces Roblox's default overhead name. Your own tag shows too, at SELF_SCALE: it
+-- sits in the middle of your screen, so full size would cover a lot of the view.
 -- Streak comes from the "Streak" player attribute, which DataService mirrors from PlayerData.
 
 local Players = game:GetService("Players")
@@ -27,6 +28,7 @@ local FONT = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWei
 
 local PLATE_H = 30
 local CHIP_H = 22
+local SELF_SCALE = 0.7 -- the local player's own tag, relative to everyone else's
 
 local NameTags = {}
 
@@ -197,15 +199,26 @@ local function build(player: Player, character: Model)
 	round(badge, 5)
 	new("UIPadding", { PaddingLeft = UDim.new(0, 5), PaddingRight = UDim.new(0, 5) }, badge)
 
+	if player == LOCAL_PLAYER then
+		-- smaller, and re-spaced so it stays centred where the full-size tag was
+		local full = PLATE_H - 1 + CHIP_H
+		local top = (bb.Size.Y.Offset - full * SELF_SCALE) / 2
+		plate.Position = UDim2.new(0.5, 0, 0, top)
+		chip.Position = UDim2.new(0.5, 0, 0, top + (PLATE_H - 1) * SELF_SCALE)
+		for _, group in { plate, chip } do
+			new("UIScale", { Scale = SELF_SCALE }, group)
+		end
+	end
+
 	bb.Parent = head
 	tags[player] = bb
 	refresh(player)
 end
 
 local function track(player: Player)
-	if player == LOCAL_PLAYER then
+	--[[if player == LOCAL_PLAYER then
 		return -- you don't see your own tag
-	end
+	end]]--
 	player:GetAttributeChangedSignal("InDuel"):Connect(function()
 		refresh(player)
 	end)

@@ -353,7 +353,7 @@ local function featuredPage(pages: Instance)
 	text(f, "SetName", { Position = UDim2.fromOffset(166, 50), Size = UDim2.fromOffset(270, 32), FontFace = HEAD, TextSize = 24, TextColor3 = WHITE, Text = "Encore Stage Set" })
 	text(f, "Blurb", {
 		Position = UDim2.fromOffset(166, 84),
-		Size = UDim2.fromOffset(270, 36),
+		Size = UDim2.fromOffset(270, 50), -- 2 lines with room to spare on phones
 		FontFace = BODY_BOLD,
 		TextSize = 13,
 		TextColor3 = C("D9D3F0"),
@@ -392,7 +392,7 @@ local function featuredPage(pages: Instance)
 	text(vip, "PassName", { Position = UDim2.fromOffset(82, 32), Size = UDim2.fromOffset(140, 32), FontFace = HEAD, TextSize = 22, Text = "VIP Pass" })
 	priceButton(vip, "Action", UDim2.fromOffset(PAGE_W - vx - 18 - 96, 26), UDim2.fromOffset(96, 44), ICONS.Robux, 16, MINT, 3, 3)
 	local perks = new("Frame", { Name = "Perks", Position = UDim2.fromOffset(18, 92), Size = UDim2.new(1, -36, 0, 22), BackgroundTransparency = 1 }, vip)
-	row(perks, 6)
+	row(perks, 4)
 	for i = 1, 3 do
 		local c = text(perks, "Perk" .. i, {
 			LayoutOrder = i,
@@ -400,13 +400,13 @@ local function featuredPage(pages: Instance)
 			Size = UDim2.fromOffset(0, 20),
 			BackgroundTransparency = 0,
 			BackgroundColor3 = WHITE,
-			TextSize = 11,
+			TextSize = 10,
 			TextTruncate = Enum.TextTruncate.None,
 			Text = "Perk",
 		})
 		corner(c, 8)
 		stroke(c, 2)
-		pad(c, 8)
+		pad(c, 6)
 	end
 
 	titleRow(page, 164, "Sets", "Restocks in 1h 42m")

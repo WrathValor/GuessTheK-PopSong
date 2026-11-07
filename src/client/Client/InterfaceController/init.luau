@@ -11,6 +11,7 @@ local Promise = require(ReplicatedStorage.Packages.promise)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 local AnalyticsClient = require(ReplicatedStorage.Modules.AnalyticsClient)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
+local FitText = require(ReplicatedStorage.Modules.UI.FitText)
 
 -- --------------------------------- Tables --------------------------------- --
 -- screens that log "ScreenOpened" (Constants/AnalyticsEvents ScreenOpened.Allowed)
@@ -211,6 +212,12 @@ function Interface.Start(self: Self)
 
 	for _, controller in pairs(self.Controllers) do
 		controller:Initialize(self)
+	end
+
+	-- shrink text and chip rows that would overflow their boxes (mostly on phones, where the
+	-- canvas is scaled right down); watches UI the controllers build later too
+	if interfaceGui then
+		FitText.Watch(interfaceGui)
 	end
 
 	-- the loading screen (ReplicatedFirst/Loading) waits for this before it fades out

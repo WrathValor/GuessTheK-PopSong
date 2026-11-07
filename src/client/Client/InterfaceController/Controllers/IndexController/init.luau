@@ -18,6 +18,7 @@
 -- -------------------------------- Services -------------------------------- --
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
+local TextService = game:GetService("TextService")
 
 -- --------------------------------- Imports -------------------------------- --
 local Janitor = require(ReplicatedStorage.Packages.janitor)
@@ -254,10 +255,63 @@ function Index:_fillReward(pack, copies)
 	end
 	TitleChip.Paint(nextRow.Chip, title, goal)
 	nextRow.Text.Text = step
+	self:_fitStep()
 	nextRow.Progress.Text = progress
 	fill.Size = UDim2.fromScale(math.clamp(done / n, 0, 1), 1)
 	fill.Visible = done > 0
 	TierShine.Apply(fill, fill.Rainbow, goal, GREEN) -- green to own them all, then gold / rainbow
+end
+
+-- Sizes the footer's step text so the bar and progress sit right after it, and stop
+-- before the pager. Measured at the size it really renders on this screen (design size ×
+-- canvas scale, in screen px) so phones' pixel rounding is counted; if it doesn't fit the
+-- room left, the font steps down until it does. FitText skips this label (FitTextSkip).
+local STEP_MIN_RATIO = 0.6
+
+function Index:_fitStep()
+	local row = self._frame.Panel.Content.NextStep
+	local label = row.Text
+	self._stepToken = (self._stepToken or 0) + 1
+	local token = self._stepToken
+	task.spawn(function()
+		task.wait() -- let the chip's AutomaticSize catch up with its new title first
+		if token ~= self._stepToken then
+			return
+		end
+		-- screen px per design px (the row's height is a plain offset, so it gives the scale)
+		local px = row.AbsoluteSize.Y / math.max(1, row.Size.Y.Offset)
+		local layout = row:FindFirstChildOfClass("UIListLayout")
+		local gap = (if layout then layout.Padding.Offset else 10) * px
+		local others = 0
+		for _, child in row:GetChildren() do
+			if child:IsA("GuiObject") and child ~= label and child.Visible then
+				others += child.AbsoluteSize.X + gap
+			end
+		end
+		local room = math.max(40 * px, row.AbsoluteSize.X - others) -- screen px
+		local base = label:GetAttribute("StepTextSize") or label.TextSize
+		label:SetAttribute("StepTextSize", base)
+		local params = Instance.new("GetTextBoundsParams")
+		params.Text = label.Text
+		params.Font = label.FontFace
+		params.RichText = label.RichText
+		params.Width = math.huge
+		local size, width = base, 0
+		while true do
+			params.Size = math.max(1, math.floor(size * px + 0.5)) -- what this screen draws
+			local ok, bounds = pcall(TextService.GetTextBoundsAsync, TextService, params)
+			if token ~= self._stepToken then
+				return
+			end
+			width = if ok then bounds.X + 2 else room
+			if width <= room or size <= math.ceil(base * STEP_MIN_RATIO) then
+				break
+			end
+			size -= 1
+		end
+		label.TextSize = size
+		label.Size = UDim2.fromOffset(math.ceil(math.min(width, room) / px), label.Size.Y.Offset)
+	end)
 end
 
 function Index:_fillCard(holder: Frame, song, level: string?, count: number, allSongs: boolean)
@@ -430,6 +484,33 @@ function Index:Initialize(interface)
 	local panel = self._frame.Panel
 	local content = panel.Content
 	ButtonScale.ApplyToDescendants(panel)
+	-- Footer next-step row (chip · step · bar · progress): stop it at the pager instead of
+	-- running into it. The step text is sized to its own width (see _fitStep) so the bar
+	-- follows right behind it, shrinking its font if it runs long (FitText leaves it alone).
+	local nextRow = content.NextStep
+	nextRow.Size = UDim2.new(1, -(38 + 8 + 104 + 8 + 38) - 12, 0, 36)
+	local stepText = nextRow.Text
+	stepText:SetAttribute("FitTextSkip", true)
+	stepText.TextScaled = false
+	stepText.TextWrapped = false
+	stepText.AutomaticSize = Enum.AutomaticSize.None
+	stepText.Size = UDim2.fromOffset(0, 20)
+	local oldFlex = stepText:FindFirstChildOfClass("UIFlexItem")
+	if oldFlex then
+		oldFlex:Destroy()
+	end
+	-- re-measure when the screen changes size (the rendered font size changes with it)
+	local canvasScale = self._frame.Parent:FindFirstChildOfClass("UIScale")
+	if canvasScale then
+		self._janitor:Add(canvasScale:GetPropertyChangedSignal("Scale"):Connect(function()
+			if nextRow.Visible then
+				self:_fitStep()
+			end
+		end))
+	end
+	local progress = nextRow.Progress
+	progress.AutomaticSize = Enum.AutomaticSize.None
+	progress.Size = UDim2.fromOffset(84, 20)
 	local j = self._janitor
 	-- the Rainbow stat dot scrolls too (cards + the next-step bar register as they're painted)
 	TierShine.AddAll(content.Tiers, "UIGradient")
@@ -450,7 +531,7 @@ function Index:Initialize(interface)
 		self._interface:Close(self.Name)
 	end))
 	j:Add(panel.Header.Roll.Activated:Connect(function()
-		self._interface:Open("Shop", "Songs")
+		self._interface:Open("Roll")
 	end))
 	for i = 1, Build.RAIL_ROWS do
 		j:Add(panel.Rail["Row" .. i].Activated:Connect(function()

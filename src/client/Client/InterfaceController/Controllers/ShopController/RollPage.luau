@@ -189,12 +189,12 @@ function Build.Build(pages: Instance, shop: Instance): (Frame, Frame)
 			new("Frame", { Name = "Fill", Size = UDim2.fromScale(0.35, 1), BackgroundColor3 = INK, BorderSizePixel = 0 }, gb)
 		end
 
-		for _, spec in { { "Odds", 296, BLUE, "ODDS" }, { "Levels", 380, YELLOW, "COPIES" } } do
-			local box = card(left, spec[1], UDim2.fromOffset(0, spec[2]), UDim2.fromOffset(460, 72), WHITE, 12, 0, 3)
-			local chip = text(box, "Chip", { Position = UDim2.fromOffset(12, 25), Size = UDim2.fromOffset(56, 22), BackgroundTransparency = 0, BackgroundColor3 = spec[3], FontFace = HEAD, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Center, Text = spec[4] })
+		for _, spec in { { "Odds", 296, BLUE, "ODDS" }, { "Levels", 404, YELLOW, "COPIES" } } do
+			local box = card(left, spec[1], UDim2.fromOffset(0, spec[2]), UDim2.fromOffset(460, 96), WHITE, 12, 0, 3) -- room for 4 lines on phones
+			local chip = text(box, "Chip", { Position = UDim2.fromOffset(12, 37), Size = UDim2.fromOffset(64, 22), BackgroundTransparency = 0, BackgroundColor3 = spec[3], FontFace = HEAD, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Center, Text = spec[4] })
 			corner(chip, 6)
 			stroke(chip, 2)
-			text(box, "Text", { Position = UDim2.fromOffset(80, 0), Size = UDim2.new(1, -92, 1, 0), FontFace = BODY_BOLD, TextSize = 13, TextWrapped = true, RichText = true, TextColor3 = BODYTEXT, Text = "" })
+			text(box, "Text", { Position = UDim2.fromOffset(86, 6), Size = UDim2.new(1, -98, 1, -12), FontFace = BODY_BOLD, TextSize = 13, TextWrapped = true, RichText = true, TextColor3 = BODYTEXT, Text = "" })
 		end
 
 		-- right: the roll stage

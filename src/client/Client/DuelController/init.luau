@@ -55,6 +55,8 @@ function DuelController.Start()
 			call("Queue", "StartIntermission")
 		elseif message == "Opponent" then
 			call("Queue", "UpdateOpponent", packet.Opponent)
+		elseif message == "RematchWaiting" then
+			call("Queue", "ShowRematch") -- stepped back on: the rival is still on their results
 		end
 	end)
 

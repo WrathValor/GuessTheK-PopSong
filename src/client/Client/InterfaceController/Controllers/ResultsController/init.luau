@@ -11,6 +11,7 @@ local Promise = require(ReplicatedStorage.Packages.promise)
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local FrameTransition = require(ReplicatedStorage.Modules.UI.Animations.FrameTransition)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
+local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 local DanceColumn = require(script.DanceColumn)
@@ -64,10 +65,21 @@ function Results:Initialize(interface)
 	local w = self._frame.Panel.Winner
 	self._janitor:Add(w.Rematch.Activated:Connect(function()
 		DuelRemote:Fire({ Action = "Rematch" })
-		self._rematchRequested = true
-		w.Rematch.Active = false
-		w.RematchNote.Visible = true
-		w.RematchNote.Text = if self._solo then "Starting…" else "Waiting for your rival…"
+		if self._solo then
+			self._rematchRequested = true
+			w.Rematch.Active = false
+			w.RematchNote.Visible = true
+			w.RematchNote.Text = "Starting…"
+			return
+		end
+		-- duels: wait for the rival on the queue screen. The request stays open there (leaving
+		-- the stage drops it), so closing this screen mustn't cancel it.
+		self._rematchRequested = false
+		self._interface:Open("Queue")
+		local queue = self._interface:GetController("Queue")
+		if queue then
+			queue:ShowRematch()
+		end
 	end))
 	self._janitor:Add(w.Leave.Activated:Connect(function()
 		QueueRemote:Fire("Leave")
@@ -178,9 +190,23 @@ function Results:Show(packet, info)
 		titleChip.Visible = mine.NewTitle ~= nil
 		titleChip.Text = if mine.NewTitle then `New title unlocked: {mine.NewTitle}` else ""
 	end
+	-- rematch series score (from the second game on) and the Revenge! banner
+	local seriesChip = w:FindFirstChild("Series")
+	if seriesChip then
+		local series = packet.Series
+		seriesChip.Visible = series ~= nil and series.Games >= 2 and rivalKey ~= nil and not packet.Solo
+		if seriesChip.Visible then
+			seriesChip.Text = `SERIES {series.Wins[ME] or 0}–{series.Wins[rivalKey] or 0}`
+		end
+	end
+	local revenge = w:FindFirstChild("Revenge")
+	if revenge then
+		revenge.Visible = false -- popped in by _reveal with the winner card
+	end
 
 	w.Rematch.Active = true
 	w.RematchNote.Visible = false
+	w.Rematch.Count.Visible = false -- "1/2" / "2/2" only once someone has asked (UpdateRematch)
 
 	self:_reveal(packet, rivalKey, mine)
 end
@@ -261,6 +287,26 @@ function Results:_reveal(packet, rivalKey: string?, mine)
 		if mine.Perfect then
 			task.delay(1.5, Sounds.Play, "Perfect")
 		end
+		-- revenge win: the stamp slams on over the winner card, after the coins and before
+		-- the perfect sound so each gets its own beat
+		local revenge = w:FindFirstChild("Revenge")
+		if mine.Revenge and revenge then
+			task.delay(1.3, function()
+				revenge.Visible = true
+				local s = scaleOf(revenge)
+				s.Scale = 1.6
+				TweenService:Create(s, POP, { Scale = 1 }):Play()
+				Sounds.Play("Revenge")
+			end)
+		end
+
+		-- the Rematch button pops in with its own sound, after the coins / revenge / perfect beats
+		task.delay(if mine.Perfect then 2.1 elseif mine.Revenge then 1.9 else 1.5, function()
+			if self.State ~= "Inactive" and w.Rematch.Visible then
+				Juice.Pop(w.Rematch, 0.14)
+				Sounds.Play("Rematch")
+			end
+		end)
 
 		-- lost a streak: offer to save it
 		if (mine.StreakLost or 0) >= 2 then
@@ -284,6 +330,11 @@ function Results:UpdateRematch(wants)
 			theirs = true
 		end
 	end
+	-- the button's chip counts who's in: 1/2, 2/2 (hidden while nobody has asked)
+	local asked = (if mine then 1 else 0) + (if theirs then 1 else 0)
+	local count = self._frame.Panel.Winner.Rematch.Count
+	count.Visible = asked > 0 and not self._solo
+	count.Value.Text = `{asked}/2`
 	if theirs and not mine then
 		note.Visible = true
 		note.Text = "Your rival wants a rematch!"

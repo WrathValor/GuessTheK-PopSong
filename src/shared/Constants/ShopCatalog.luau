@@ -105,10 +105,32 @@ ShopCatalog.PACK_COLOURS = { "B9A6FF", "A7E9B8", "FFD2CE", "9ED8F5", "FFE07A" }
 -- [[ Robux: coin bundles (developer products) and passes (game passes) ]]
 -- No prices here: the shop reads each one live from Roblox (Modules/Prices), so regional /
 -- managed pricing and price changes in Creator Hub show up by themselves.
+-- Shown in this order (the shop's coin banner has 5 slots, pile art 1–5 left to right).
+-- Tag puts a sticker on the bundle. Hidden bundles aren't shown but still grant, so a product
+-- that's retired keeps paying out any purchase still being processed.
 ShopCatalog.CoinBundles = {
-	{ Id = "Coins500", Amount = 500, ProductId = 3726064237, Sub = "A little top-up", Bg = "FFF6D6", Coins = 1 },
-	{ Id = "Coins2500", Amount = 2500, ProductId = 3726065843, Sub = "Most popular", Bg = "FFE4EF", Coins = 3, Best = true },
-	{ Id = "Coins12000", Amount = 12000, ProductId = 3726066331, Sub = "Mega bag", Bg = "E8FBEE", Coins = 6 },
+	{ Id = "Coins250", Amount = 250, ProductId = 0 },
+	{ Id = "Coins500", Amount = 500, ProductId = 3726064237 },
+	{ Id = "Coins1000", Amount = 1000, ProductId = 0, Tag = "POPULAR" },
+	{ Id = "Coins2500", Amount = 2500, ProductId = 3726065843 },
+	{ Id = "Coins5000", Amount = 5000, ProductId = 0, Tag = "BEST VALUE" },
+	{ Id = "Coins12000", Amount = 12000, ProductId = 3726066331, Hidden = true }, -- the old Mega bag
+}
+
+-- The Debut Pack: a one-time starter bundle (developer product), shown near the top of the
+-- shop until it's bought (Rewards.Claimed "Debut"). Hidden while ProductId is 0. Items are
+-- the tiles on its banner.
+ShopCatalog.DebutPack = {
+	Id = "Debut",
+	ProductId = 0,
+	Coins = 2500,
+	Stage = "PracticeRoom",
+	Mic = "Bubble",
+	Items = {
+		{ Label = "2,500 coins", Colour = "FFD23F" },
+		{ Label = "Practice Room", Colour = "DDB287" },
+		{ Label = "Bubble Mic", Colour = "9ED8F5" },
+	},
 }
 
 ShopCatalog.Passes = {
