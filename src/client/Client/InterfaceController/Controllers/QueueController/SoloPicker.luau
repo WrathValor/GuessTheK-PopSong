@@ -228,7 +228,7 @@ function SoloPicker.Build(queueFrame: Instance)
 	stroke(tag, 3)
 
 	text(back, "Heading", { Position = UDim2.fromOffset(22, 26), Size = UDim2.fromOffset(330, 26), FontFace = HEAD, TextSize = 21, Text = "Pick your theme" })
-	text(back, "Sub", { Position = UDim2.fromOffset(22, 52), Size = UDim2.fromOffset(330, 16), FontFace = BODY_BOLD, TextSize = 12, TextColor3 = MUTED, Text = "XP + Index only · all 4 answers come from it" })
+	text(back, "Sub", { Position = UDim2.fromOffset(22, 52), Size = UDim2.fromOffset(330, 16), FontFace = BODY_BOLD, TextSize = 12, TextColor3 = MUTED, Text = "XP only · all 4 answers come from it" })
 
 	-- segmented tabs
 	local tabsW = 3
@@ -244,8 +244,9 @@ function SoloPicker.Build(queueFrame: Instance)
 		local b = new("TextButton", {
 			Name = t,
 			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromOffset(x + tw / 2, 17),
-			Size = UDim2.fromOffset(tw, 28),
+			-- fills the bar's height (3px inset all round), so the picked pill isn't short at the bottom
+			Position = UDim2.fromOffset(x + tw / 2, 20),
+			Size = UDim2.fromOffset(tw, 34),
 			BackgroundColor3 = INK,
 			BackgroundTransparency = 1,
 			AutoButtonColor = false,
@@ -254,7 +255,7 @@ function SoloPicker.Build(queueFrame: Instance)
 			TextColor3 = INK,
 			Text = TAB_LABEL[t],
 		}, tabs)
-		corner(b, 8)
+		corner(b, 9) -- the bar's 12 minus the 3px inset, so the curves match
 		x += tw + 3
 	end
 

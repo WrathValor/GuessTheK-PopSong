@@ -16,6 +16,8 @@
 --                                           the model (once per art; resets on a new model)
 --   CosmeticView.SetAvatar(model?)        – who stands on the pads (the client tracks the
 --                                           local player's character by itself)
+-- Stages, mics and sets turn slowly on their own while the card is on screen (AUTO_SPIN);
+-- a drag takes over and the turning picks up again shortly after letting go.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -25,6 +27,11 @@ local CosmeticView = {}
 
 local FOV = 30
 local MARGIN = 0.86 -- < 1 zooms in past the box's outline (its corners are empty air)
+local AUTO_SPIN = 0.45 -- radians a second the camera circles a stage / mic / set
+local SPIN_RESUME = 1.5 -- seconds after a drag before the auto turn picks up again
+local SPINS = { Stage = true, Mic = true, Set = true }
+local SPIN_DELAY = 0.8 -- seconds a fresh model holds still while its meshes / avatar load in
+local MAX_STEP = 1 / 30 -- a hitch never makes the model jump further than one 30fps frame
 local CARD = Color3.fromHex("FFFFFF") -- tinted by the gradient below
 local NIGHT = ColorSequence.new(Color3.fromHex("4A3F78"), Color3.fromHex("1E1B2E"))
 local SHADOW = Color3.fromHex("1E1B2E")
@@ -33,8 +40,23 @@ local KEEP = { Rarity = true, Model3D = true, Kind = true, InGame = true, Hint =
 
 local avatarTemplate: Model? = nil
 -- art -> where its camera orbits: { Centre, Dir, Dist, Yaw } (EnableSpin turns Yaw)
-local orbits = setmetatable({}, { __mode = "k" }) :: { [GuiObject]: any }
-local shown = setmetatable({}, { __mode = "k" }) :: { [GuiObject]: { string } } -- art -> { kind, id }
+-- Plain tables, not weak ones: a weak key on an Instance drops out whenever Lua lets go of
+-- its wrapper (the GuiObject still exists), which made the spin stop at random. Entries go
+-- when the art is destroyed instead (forget).
+local orbits = {} :: { [GuiObject]: any }
+local shown = {} :: { [GuiObject]: { string } } -- art -> { kind, id }
+local watched = {} :: { [GuiObject]: boolean }
+local function forget(art: GuiObject)
+	if watched[art] then
+		return
+	end
+	watched[art] = true
+	art.Destroying:Once(function()
+		orbits[art] = nil
+		shown[art] = nil
+		watched[art] = nil
+	end)
+end
 
 -- a group item's preview: the Animation (dance) or Accessory, loaded by Engine/UGCService
 local function ugcAsset(id: string): Instance?
@@ -470,8 +492,18 @@ local function render(art: GuiObject, kind: string, id: string): boolean
 		return false
 	end
 	-- a dance swings the arms well outside the standing pose: leave room around it
+	-- a turning model is framed for its widest side, so nothing gets cut off mid-turn
+	local sideDist = 0
+	if SPINS[kind] then
+		_, sideDist = frameCamera(vf, world, CFrame.Angles(0, math.pi / 2, 0):VectorToWorldSpace(dir))
+	end
 	local centre, dist = frameCamera(vf, world, dir, if kind == "Dance" then 1.45 elseif kind == "Accessory" then 1.1 else nil)
-	orbits[art] = { Centre = centre, Dir = dir, Dist = dist, Yaw = 0 }
+	if sideDist > dist then
+		dist = sideDist
+		vf.CurrentCamera.CFrame = CFrame.lookAt(centre + dir * dist, centre)
+	end
+	orbits[art] = { Centre = centre, Dir = dir, Dist = dist, Yaw = 0, Auto = SPINS[kind] == true, HeldUntil = os.clock() + SPIN_DELAY }
+	forget(art)
 	paintCard(art)
 	vf.Visible = true
 	hideDrawnArt(art)
@@ -482,6 +514,7 @@ function CosmeticView.Show(art: GuiObject?, kind: string, id: string?)
 	if not art or not id then
 		return CosmeticView.Clear(art)
 	end
+	forget(art)
 	local key = `{kind}:{id}`
 	local vf = art:FindFirstChild("Model3D")
 	if vf and vf:GetAttribute("Shown") == key and vf.Visible then
@@ -544,6 +577,7 @@ function CosmeticView.EnableSpin(art: GuiObject?)
 			return
 		end
 		orbit.Yaw -= (input.Position.X - lastX) * 0.012
+		orbit.HeldUntil = os.clock() + SPIN_RESUME
 		lastX = input.Position.X
 		local dir = CFrame.Angles(0, orbit.Yaw, 0):VectorToWorldSpace(orbit.Dir)
 		cam.CFrame = CFrame.lookAt(orbit.Centre + dir * orbit.Dist, orbit.Centre)
@@ -583,6 +617,50 @@ if RunService:IsClient() and Players.LocalPlayer then
 		task.spawn(track, player.Character)
 	end
 	player.CharacterAdded:Connect(track)
+end
+
+-- the auto turn: one loop for every card, only the ones actually on screen move
+-- (hidden, or scrolled / clipped out of view: a viewport off screen still costs a render)
+local function onScreen(gui: GuiObject): boolean
+	local pos, size = gui.AbsolutePosition, gui.AbsoluteSize
+	local node: Instance? = gui
+	while node do
+		if node:IsA("GuiObject") then
+			if not node.Visible then
+				return false
+			end
+			if node ~= gui and (node.ClipsDescendants or node:IsA("ScrollingFrame")) then
+				local p, s = node.AbsolutePosition, node.AbsoluteSize
+				if pos.X > p.X + s.X or pos.Y > p.Y + s.Y or pos.X + size.X < p.X or pos.Y + size.Y < p.Y then
+					return false
+				end
+			end
+		elseif node:IsA("LayerCollector") then
+			return node.Enabled
+		end
+		node = node.Parent
+	end
+	return false
+end
+
+if RunService:IsClient() and RunService:IsRunning() then
+	RunService.RenderStepped:Connect(function(dt)
+		dt = math.min(dt, MAX_STEP)
+		local now = os.clock()
+		for art, orbit in orbits do
+			if not orbit.Auto or now < orbit.HeldUntil or not art.Parent then
+				continue
+			end
+			local vf = art:FindFirstChild("Model3D") :: ViewportFrame?
+			local cam = vf and vf.CurrentCamera
+			if not (vf and cam and onScreen(vf)) then
+				continue
+			end
+			orbit.Yaw += dt * AUTO_SPIN
+			local dir = CFrame.Angles(0, orbit.Yaw, 0):VectorToWorldSpace(orbit.Dir)
+			cam.CFrame = CFrame.lookAt(orbit.Centre + dir * orbit.Dist, orbit.Centre)
+		end
+	end)
 end
 
 return CosmeticView

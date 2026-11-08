@@ -87,6 +87,9 @@ ShopCatalog.Mics = {
 }
 -- reward-only stages (no Price, so never in the shop)
 table.insert(ShopCatalog.Stages, { Id = "GroupStage", Name = "Group Exclusive", Rarity = "Rare", Bg = "E8FFF0", Stage = "A7E9B8", Platform = "FFFFFF", Reward = "Group" })
+-- Debut Pack only (ShopCatalog.DebutPack): never in the shop rotation
+table.insert(ShopCatalog.Stages, { Id = "DebutStage", Name = "Debut Stage", Rarity = "Epic", Bg = "FFE4EF", Stage = "B9A6FF", Platform = "FF9EC4", Reward = "Debut" })
+table.insert(ShopCatalog.Mics, { Id = "DebutMic", Name = "Debut Mic", Rarity = "Epic", Bg = "FFE4EF", Mic = "FF9EC4", Reward = "Debut" })
 ShopCatalog.DEFAULT_STAGE = { Id = "Default", Name = "Classic", Rarity = "Common", Bg = "F3EBDD", Stage = "FFFFFF", Platform = "FFFFFF" }
 ShopCatalog.DEFAULT_MIC = { Id = "Default", Name = "Classic Mic", Rarity = "Common", Bg = "F3EBDD", Mic = "FFFFFF" }
 ShopCatalog.ITEMS_PER_ROTATION = 4 -- stages, and the same number of mics, every rotation
@@ -108,28 +111,30 @@ ShopCatalog.PACK_COLOURS = { "B9A6FF", "A7E9B8", "FFD2CE", "9ED8F5", "FFE07A" }
 -- Shown in this order (the shop's coin banner has 5 slots, pile art 1–5 left to right).
 -- Tag puts a sticker on the bundle. Hidden bundles aren't shown but still grant, so a product
 -- that's retired keeps paying out any purchase still being processed.
+-- Pile = the stacked-coin picture (shop banner + the purchase reveal)
 ShopCatalog.CoinBundles = {
-	{ Id = "Coins250", Amount = 250, ProductId = 0 },
-	{ Id = "Coins500", Amount = 500, ProductId = 3726064237 },
-	{ Id = "Coins1000", Amount = 1000, ProductId = 0, Tag = "POPULAR" },
-	{ Id = "Coins2500", Amount = 2500, ProductId = 3726065843 },
-	{ Id = "Coins5000", Amount = 5000, ProductId = 0, Tag = "BEST VALUE" },
-	{ Id = "Coins12000", Amount = 12000, ProductId = 3726066331, Hidden = true }, -- the old Mega bag
+	{ Id = "Coins250", Amount = 250, ProductId = 3729530222, Pile = "rbxassetid://121219836580813" },
+	{ Id = "Coins500", Amount = 500, ProductId = 3726064237, Pile = "rbxassetid://80732573906769" },
+	{ Id = "Coins1000", Amount = 1000, ProductId = 3729530471, Tag = "POPULAR", Pile = "rbxassetid://81363910226647" },
+	{ Id = "Coins2500", Amount = 2500, ProductId = 3726065843, Pile = "rbxassetid://75882247530961" },
+	{ Id = "Coins5000", Amount = 5000, ProductId = 3729530903, Tag = "BEST VALUE", Pile = "rbxassetid://95124619717890" },
+	{ Id = "Coins12000", Amount = 12000, ProductId = 3726066331, Hidden = true, Pile = "rbxassetid://95124619717890" }, -- the old Mega bag
 }
 
 -- The Debut Pack: a one-time starter bundle (developer product), shown near the top of the
--- shop until it's bought (Rewards.Claimed "Debut"). Hidden while ProductId is 0. Items are
--- the tiles on its banner.
+-- shop; once bought (Rewards.Claimed "Debut") it stays with a greyed "Bought" button.
+-- Hidden while ProductId is 0. Items are
+-- the tiles on its banner. Its stage + mic (the Debut set) exist only in this pack.
 ShopCatalog.DebutPack = {
 	Id = "Debut",
-	ProductId = 0,
+	ProductId = 3729531904,
 	Coins = 2500,
-	Stage = "PracticeRoom",
-	Mic = "Bubble",
+	Stage = "DebutStage",
+	Mic = "DebutMic",
 	Items = {
-		{ Label = "2,500 coins", Colour = "FFD23F" },
-		{ Label = "Practice Room", Colour = "DDB287" },
-		{ Label = "Bubble Mic", Colour = "9ED8F5" },
+		{ Label = "x2,500", Colour = "FFE07A", Image = "rbxassetid://75882247530961" }, -- the 2,500 coin pile
+		{ Label = "Debut Stage", Colour = "9ED8F5", Kind = "Stage", Id = "DebutStage" },
+		{ Label = "Debut Mic", Colour = "A7E9B8", Kind = "Mic", Id = "DebutMic" },
 	},
 }
 

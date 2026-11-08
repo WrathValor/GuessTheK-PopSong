@@ -4,11 +4,13 @@
 -- "4 win streak" + a dark ×1.2 / ×1.5 / ×2 coin-multiplier badge from 3 wins, yellow, and
 -- orange from 10 wins. Hidden while that player is
 -- in a duel (the "InDuel" attribute) — the rival tag takes over there. Built on this client
--- only, and replaces Roblox's default overhead name. Your own tag shows too, at SELF_SCALE: it
+-- only, and replaces Roblox's default overhead name. Phones and tablets draw every tag at
+-- TOUCH_SCALE (a fixed-pixel tag covers far more of a small screen). Your own tag shows too, at SELF_SCALE: it
 -- sits in the middle of your screen, so full size would cover a lot of the view.
 -- Streak comes from the "Streak" player attribute, which DataService mirrors from PlayerData.
 
 local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
@@ -28,7 +30,8 @@ local FONT = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWei
 
 local PLATE_H = 30
 local CHIP_H = 22
-local SELF_SCALE = 0.7 -- the local player's own tag, relative to everyone else's
+local SELF_SCALE = 0.95 -- the local player's own tag, relative to everyone else's
+local TOUCH_SCALE = 0.7 -- every tag on phones / tablets (touch screen, no mouse)
 
 local NameTags = {}
 
@@ -166,7 +169,7 @@ local function build(player: Player, character: Model)
 	}, plateFace)
 	plateFace:FindFirstChildOfClass("UIPadding").PaddingLeft = UDim.new(0, 8)
 	-- the title chip (shared/Modules/UI/TitleChip)
-	local titleChip = TitleChip.new(plateFace, { Name = "Title", LayoutOrder = 1, Height = 18, TextSize = 11, Font = MULT_FONT, ZIndex = 3 })
+	local titleChip = TitleChip.new(plateFace, { Name = "Title", LayoutOrder = 1, Height = 20, TextSize = 13, Font = MULT_FONT, ZIndex = 3 })
 	titleChip.Visible = false
 	local nameLabel = label(plateFace, player.DisplayName, 17, PLATE_H)
 	nameLabel.LayoutOrder = 2
@@ -199,14 +202,16 @@ local function build(player: Player, character: Model)
 	round(badge, 5)
 	new("UIPadding", { PaddingLeft = UDim.new(0, 5), PaddingRight = UDim.new(0, 5) }, badge)
 
-	if player == LOCAL_PLAYER then
+	local touch = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
+	local scale = (if player == LOCAL_PLAYER then SELF_SCALE else 1) * (if touch then TOUCH_SCALE else 1)
+	if scale ~= 1 then
 		-- smaller, and re-spaced so it stays centred where the full-size tag was
 		local full = PLATE_H - 1 + CHIP_H
-		local top = (bb.Size.Y.Offset - full * SELF_SCALE) / 2
+		local top = (bb.Size.Y.Offset - full * scale) / 2
 		plate.Position = UDim2.new(0.5, 0, 0, top)
-		chip.Position = UDim2.new(0.5, 0, 0, top + (PLATE_H - 1) * SELF_SCALE)
+		chip.Position = UDim2.new(0.5, 0, 0, top + (PLATE_H - 1) * scale)
 		for _, group in { plate, chip } do
-			new("UIScale", { Scale = SELF_SCALE }, group)
+			new("UIScale", { Scale = scale }, group)
 		end
 	end
 

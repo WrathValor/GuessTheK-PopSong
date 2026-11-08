@@ -229,12 +229,14 @@ end
 function Shop:_fillDebut()
 	local section = self._scroll.Debut
 	local pack = ShopCatalog.DebutPack
-	-- shown once the product exists, until it's bought
-	local show = pack ~= nil and (pack.ProductId or 0) > 0 and not owns(PlayerData.Rewards.Claimed, pack.Id)
+	-- shown once the product exists. Once bought it stays, with a "Bought" button: a pack
+	-- that vanishes from the shop reads as "my data got wiped"
+	local show = pack ~= nil and (pack.ProductId or 0) > 0
 	section.Visible = show
 	if not show then
 		return
 	end
+	local bought = owns(PlayerData.Rewards.Claimed, pack.Id)
 	local items = section.Face.Items
 	for i = 1, 4 do
 		local tile = items:FindFirstChild("Item" .. i)
@@ -242,10 +244,28 @@ function Shop:_fillDebut()
 		tile.Visible = entry ~= nil
 		if entry then
 			tile.Label.Text = entry.Label
-			tile.Swatch.BackgroundColor3 = C(entry.Colour)
+			-- what's inside: a coin pile image, or the actual stage / mic model,
+			-- each on its own pastel tile (not the night card the other model cards use)
+			local art = tile.Art
+			if entry.Kind then
+				CosmeticView.Show(art, entry.Kind, entry.Id)
+				local night = art:FindFirstChild("CardGradient")
+				if night then
+					night.Enabled = false
+				end
+				art.BackgroundColor3 = C(entry.Colour)
+			else
+				art.BackgroundColor3 = C(entry.Colour)
+				art.Pic.Image = entry.Image or ""
+				art.Pic.Visible = entry.Image ~= nil
+			end
 		end
 	end
-	setRobuxButton(section.Face.Buy, "Product", pack.ProductId)
+	if bought then
+		setButton(section.Face.Buy, "Bought", { Colour = GREY, Enabled = false })
+	else
+		setRobuxButton(section.Face.Buy, "Product", pack.ProductId)
+	end
 end
 
 function Shop:_fillSets()
@@ -468,6 +488,9 @@ function Shop:Initialize(interface)
 	-- Robux: debut pack, coin bundles, passes
 	j:Add(scroll.Debut.Face.Buy.Activated:Connect(function()
 		local pack = ShopCatalog.DebutPack
+		if pack and owns(PlayerData.Rewards.Claimed, pack.Id) then
+			return -- already theirs (the button reads "Bought")
+		end
 		promptProduct(pack and pack.ProductId)
 	end))
 	for i = 1, 5 do
@@ -496,7 +519,11 @@ function Shop:Initialize(interface)
 	-- server replies
 	j:Add(ShopRemote:Connect(function(packet)
 		if type(packet) == "table" and packet.Message == "Result" then
-			self:_toast(packet.Text or "")
+			-- a successful buy gets the full purchase reveal (PurchasedController) instead of a toast
+			local bought = packet.Ok and (packet.Action == "BuySet" or packet.Action == "BuyItem")
+			if not bought then
+				self:_toast(packet.Text or "")
+			end
 			if packet.Ok and packet.Action ~= "EquipSet" and packet.Action ~= "EquipItem" then
 				Sounds.Play("Success")
 			elseif not packet.Ok then

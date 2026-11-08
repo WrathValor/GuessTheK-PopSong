@@ -35,6 +35,9 @@ export type Earned = {
 	LevelUp: number?, -- the new level, when this match levelled the player up
 	NewTitle: string?, -- level title unlocked by that level up (Modules/Levels.TITLES)
 	Place: number?, -- Party Stages: where they finished (1 = first)
+	PrevBest: number?, -- solo: best score before this run (the results screen's "NEW BEST!" sticker)
+	NewBest: boolean?, -- solo: this run beat PrevBest
+	XPBefore: number?, -- total XP before this match (the results screen's level bar)
 }
 
 -- Analytics for one player's finished game (after the data is written)
@@ -109,6 +112,12 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 			-- solo practice pays the rolled stake as XP
 			earned.Outcome = "Solo"
 			earned.XP = result.Stake
+			-- personal best (full 7-round runs only, so the tutorial can't set one)
+			if not result.Tutorial then
+				local score = result.Scores[player] or 0
+				earned.PrevBest = data.Statistics.SoloBest.Get()
+				earned.NewBest = score > (earned.PrevBest :: number)
+			end
 			-- the first-join tutorial: a one-time welcome gift
 			if result.Tutorial and not data.Rewards.Claimed.Has("Tutorial") then
 				earned.Coins = DuelConstants.TUTORIAL_COINS
@@ -168,6 +177,7 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 		end
 
 		-- level up? (the results screen shows it next to the XP)
+		earned.XPBefore = data.Player.XP.Get()
 		local before = Levels.FromXP(data.Player.XP.Get())
 		local after = Levels.FromXP(data.Player.XP.Get() + earned.XP)
 		if after > before then
@@ -200,6 +210,9 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 			end
 			if result.Solo then
 				data.Statistics.SoloGames.Increment(1)
+				if earned.NewBest then
+					data.Statistics.SoloBest.Set(result.Scores[player] or 0)
+				end
 			else
 				data.Statistics.Duels.Increment(1)
 				data.Player.Streak.Set(earned.Streak)

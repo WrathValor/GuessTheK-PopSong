@@ -1,4 +1,6 @@
 -- Match results: per-round table, totals, the winner card with what you earned, Rematch / Leave.
+-- Solo practice swaps the copied "rival" for its own layout: a GUESSED AT column (how much of
+-- the clip you needed), a rank stamp and personal best, Play again and Find a rival.
 
 -- -------------------------------- Services -------------------------------- --
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -11,10 +13,13 @@ local Promise = require(ReplicatedStorage.Packages.promise)
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local FrameTransition = require(ReplicatedStorage.Modules.UI.Animations.FrameTransition)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
+local FitPanel = require(ReplicatedStorage.Modules.UI.FitPanel)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 local DanceColumn = require(script.DanceColumn)
+local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
+local Levels = require(ReplicatedStorage.Modules.Levels)
 
 -- -------------------------------- Variables ------------------------------- --
 local LOCAL_PLAYER = Players.LocalPlayer
@@ -23,6 +28,70 @@ local DuelRemote = Bridgenet.ReferenceBridge("DuelRemote")
 local QueueRemote = Bridgenet.ReferenceBridge("QueueRemote")
 local C = Color3.fromHex
 local CELL = { Correct = C("A7E9B8"), Wrong = C("FFD2CE"), None = C("EDE4D4") }
+local WHITE = C("FFFFFF")
+
+-- solo: one scale for the points chip and the clip ladder (fast = green … slow = orange)
+local SOLO_FAST, SOLO_MID, SOLO_SLOW, SOLO_MISS = C("A7E9B8"), C("FFE07A"), C("FFB38A"), C("FFD2DE")
+local PIP_COLOURS = { SOLO_FAST, SOLO_FAST, SOLO_MID, SOLO_SLOW, SOLO_SLOW } -- by tier used
+local PIP_MISS = C("E3DEEA")
+-- solo rank: share of the max score needed, best first
+local GRADES = {
+	{ Letter = "S", Share = 0.9, Colour = C("FF9EC4") },
+	{ Letter = "A", Share = 0.7, Colour = C("FFE07A") },
+	{ Letter = "B", Share = 0.5, Colour = C("9ED8F5") },
+	{ Letter = "C", Share = 0.3, Colour = C("A7E9B8") },
+	{ Letter = "D", Share = 0, Colour = C("B9A6FF") },
+}
+-- total bar stickers: duel columns sit under YOU / RIVAL; solo's "49 / 70" is wider, at the end
+local STICKER = {
+	You = { X = 439, Colour = C("FF8A80") },
+	Rival = { X = 511, Colour = C("B9A6FF") },
+	Solo = { X = 568, Width = 96, Colour = C("FFE07A") },
+}
+local TITLE_TAG = { Duel = C("FFE07A"), Solo = C("9ED8F5") }
+
+-- points → snippet tier (1 = the shortest clip); nil for a miss
+local function tierOf(points: number): number?
+	for i, p in DuelConstants.TIER_POINTS do
+		if p == points then
+			return i
+		end
+	end
+	return nil
+end
+
+local function soloColour(points: number): Color3
+	return if points >= 7 then SOLO_FAST elseif points >= 5 then SOLO_MID elseif points > 0 then SOLO_SLOW else SOLO_MISS
+end
+
+local function seconds(s: number): string
+	return (if s < 1 then string.format("%.1f", s) else tostring(s)) .. " s"
+end
+
+-- XP row: "XP  Lv n" and the bar (lilac = what you had, yellow = this match)
+local function fillXP(row, before: number?, gained: number)
+	local bar = row:FindFirstChild("Bar")
+	if not before or not bar then
+		row.Label.Text = "XP"
+		if bar then
+			bar.Visible = false
+		end
+		return
+	end
+	local lvBefore, intoBefore, need = Levels.FromXP(before)
+	local lvAfter, intoAfter, needAfter = Levels.FromXP(before + gained)
+	row.Label.Text = `XP  <font color="#5C566B" size="12">Lv {lvAfter}</font>`
+	local old, gain
+	if lvAfter > lvBefore then
+		old, gain = 0, intoAfter / needAfter
+	else
+		old, gain = intoBefore / need, (intoAfter - intoBefore) / need
+	end
+	bar.Visible = true
+	bar.Old.Size = UDim2.fromScale(old, 1)
+	bar.Gain.Position = UDim2.fromScale(old, 0)
+	bar.Gain.Size = UDim2.fromScale(math.clamp(gain, 0, 1 - old), 1)
+end
 
 -- reveal timing: rows drop in one by one, then the totals, then the winner card
 local REVEAL_DELAY = 0.45 -- lets the frame finish opening
@@ -61,6 +130,7 @@ function Results:Initialize(interface)
 	self._frame = interface:ResolveFrame("Interface", "Results")
 	self._frame.Visible = false
 	ButtonScale.ApplyToDescendants(self._frame)
+	FitPanel.Watch(self._frame, self._janitor) -- bigger panel on phones, like the Shop
 	DanceColumn.Connect(self._frame.Panel, self._janitor) -- buy a round's dance (group UGC)
 	local w = self._frame.Panel.Winner
 	self._janitor:Add(w.Rematch.Activated:Connect(function()
@@ -85,12 +155,19 @@ function Results:Initialize(interface)
 		QueueRemote:Fire("Leave")
 		self._interface:Close(self.Name)
 	end))
+	-- solo: step off and go find a real duel (the nearest stage with someone waiting)
+	self._janitor:Add(w.FindRival.Activated:Connect(function()
+		QueueRemote:Fire("Leave")
+		QueueRemote:Fire("QuickPlay")
+		self._interface:Close(self.Name)
+	end))
 end
 
 function Results:Show(packet, info)
 	local panel = self._frame.Panel
 	local w = panel.Winner
 	self._solo = packet.Solo
+	self._max = #packet.Rounds * DuelConstants.TIER_POINTS[1]
 	self._rematchRequested = false
 
 	local rivalKey
@@ -112,10 +189,16 @@ function Results:Show(packet, info)
 		end
 	end
 
+	local solo = packet.Solo == true
+	self:_layout(solo, packet.Tutorial == true)
+
 	-- round table
 	local rows = panel.Table.Rows
-	panel.Table.Header.ColRival.Visible = rivalKey ~= nil
-	panel.Table.Header.Song.Text = if packet.Mode == "Choreography" then "SONG · CHOREOGRAPHY" else "SONG · AUDIO"
+	local header = panel.Table.Header
+	header.ColRival.Visible = rivalKey ~= nil
+	header.Song.Text = if packet.Mode == "Choreography" then "SONG · CHOREOGRAPHY" else "SONG · AUDIO"
+	local ladder = DuelConstants.TIERS[packet.Mode] or DuelConstants.TIERS.Song
+	local correct, fastest, fastCount, roundsWon = 0, nil :: number?, 0, 0
 	for i = 1, 7 do
 		local row = rows:FindFirstChild("Round" .. i)
 		local round = packet.Rounds[i]
@@ -124,22 +207,80 @@ function Results:Show(packet, info)
 			if round then
 				row.Title.Text = round.Name
 				row.Artist.Text = round.Artist
+				local mine = round.Picks[ME]
 				local function cell(frame, pick)
 					frame.Visible = pick ~= nil
 					if pick then
-						frame.BackgroundColor3 = if pick.Correct then CELL.Correct elseif pick.Picked then CELL.Wrong else CELL.None
+						frame.BackgroundColor3 = if solo then soloColour(pick.Points)
+							elseif pick.Correct then CELL.Correct
+							elseif pick.Picked then CELL.Wrong
+							else CELL.None
 						frame.Value.Text = if pick.Points > 0 then `+{pick.Points}` else "0"
 					end
 				end
-				cell(row.You, round.Picks[ME])
-				cell(row.Rival, rivalKey and round.Picks[rivalKey] or nil)
+				cell(row.You, mine)
+				cell(row.Rival, if solo then nil elseif rivalKey then round.Picks[rivalKey] else nil)
+
+				if solo then
+					-- how much of the clip you needed: lit pips up to that tier, then its length
+					local tier = mine and mine.Correct and tierOf(mine.Points) or nil
+					for k = 1, 5 do
+						local pip = row.Clip.Pips:FindFirstChild(tostring(k))
+						if pip then
+							pip.BackgroundColor3 = if not tier then PIP_MISS elseif k <= tier then PIP_COLOURS[tier] else WHITE
+						end
+					end
+					row.Clip.Time.Text = if tier then seconds(ladder[tier]) else "Missed"
+					if tier then
+						correct += 1
+						if not fastest or tier < fastest then
+							fastest, fastCount = tier, 1
+						elseif tier == fastest then
+							fastCount += 1
+						end
+					end
+				elseif rivalKey then
+					local theirs = round.Picks[rivalKey]
+					if (mine and mine.Points or 0) > (theirs and theirs.Points or 0) then
+						roundsWon += 1
+					end
+				end
 			end
 		end
 	end
 	DanceColumn.Fill(panel, packet.Rounds)
-	panel.Table.Total.You.Text = tostring(packet.Scores[ME] or 0)
-	panel.Table.Total.Rival.Visible = rivalKey ~= nil
-	panel.Table.Total.Rival.Text = rivalKey and tostring(packet.Scores[rivalKey] or 0) or ""
+
+	-- total bar: chips + score stickers
+	local total = panel.Table.Total
+	local chip1, chip2 = total.Chips.Chip1, total.Chips.Chip2
+	local myScore = packet.Scores[ME] or 0
+	if solo then
+		chip1.Text = `{correct} / {#packet.Rounds} correct`
+		chip2.Visible = fastest ~= nil
+		if fastest then
+			chip2.Text = `{fastCount} from {seconds(ladder[fastest])}`
+		end
+	else
+		chip1.Text = if rivalKey then `You won {roundsWon} of {#packet.Rounds}` else `{myScore} points`
+		chip2.Visible = false
+	end
+	total.Rival.Visible = rivalKey ~= nil and not solo
+	total.RivalShadow.Visible = false
+	self:_setTotal(0)
+	if total.Rival.Visible then
+		total.Rival.Text = tostring(packet.Scores[rivalKey] or 0)
+		-- the higher score gets the tilt + hard shadow
+		local theirScore = packet.Scores[rivalKey] or 0
+		total.You.Rotation = if myScore > theirScore then -3 else 0
+		total.Rival.Rotation = if theirScore > myScore then -3 else 0
+		total.YouShadow.Visible = myScore > theirScore
+		total.RivalShadow.Visible = theirScore > myScore
+	else
+		total.You.Rotation = -2
+		total.YouShadow.Visible = true
+	end
+	total.YouShadow.Rotation = total.You.Rotation
+	total.RivalShadow.Rotation = total.Rival.Rotation
 
 	-- winner card
 	local winnerId = packet.Winner
@@ -179,6 +320,36 @@ function Results:Show(packet, info)
 	w.Coins.Value.Text = `+{mine.Coins or 0}`
 	w.Coins.Detail.Text = mine.CoinsDetail or ""
 	w.XP.Value.Text = `+{mine.XP or 0}`
+	fillXP(w.XP, mine.XPBefore, mine.XP or 0)
+
+	-- solo: rank stamp, personal best and how far the next rank is
+	if solo and not packet.Tutorial then
+		local max = #packet.Rounds * DuelConstants.TIER_POINTS[1]
+		local index = #GRADES
+		for i, grade in GRADES do
+			if myScore >= math.ceil(grade.Share * max) then
+				index = i
+				break
+			end
+		end
+		local grade = GRADES[index]
+		w.Rank.Grade.Text = grade.Letter
+		w.Rank.BackgroundColor3 = grade.Colour
+		if index > 1 then
+			local up = GRADES[index - 1]
+			w.RankHint.Text = `{math.ceil(up.Share * max) - myScore} more points for {up.Letter} rank`
+		else
+			w.RankHint.Text = "Top rank!"
+		end
+		local best = w.Best
+		best.Visible = mine.PrevBest ~= nil
+		if mine.PrevBest ~= nil then
+			best.New.Visible = mine.NewBest == true
+			best.Old.Text = if not mine.NewBest then `best {mine.PrevBest}`
+				elseif mine.PrevBest > 0 then `old best {mine.PrevBest}`
+				else "first full run!"
+		end
+	end
 	-- level up: a chip in the XP row, and the title it unlocked under it
 	local levelChip = w.XP:FindFirstChild("LevelUp")
 	if levelChip then
@@ -208,7 +379,60 @@ function Results:Show(packet, info)
 	w.RematchNote.Visible = false
 	w.Rematch.Count.Visible = false -- "1/2" / "2/2" only once someone has asked (UpdateRematch)
 
-	self:_reveal(packet, rivalKey, mine)
+	self:_reveal(packet, if solo then nil else rivalKey, mine)
+end
+
+-- Solo and duels share the frame; this moves the columns / buttons between the two layouts.
+function Results:_layout(solo: boolean, tutorial: boolean)
+	local panel = self._frame.Panel
+	local header = panel.Table.Header
+	panel.TitleTag.BackgroundColor3 = if solo then TITLE_TAG.Solo else TITLE_TAG.Duel
+	header.ColYou.Text = if solo then "GUESSED AT" else "YOU"
+	header.ColYou.Position = UDim2.fromOffset(if solo then 330 else 404, 0)
+	header.ColYou.Size = UDim2.fromOffset(if solo then 150 else 70, 20)
+	header.ColYou.TextXAlignment = if solo then Enum.TextXAlignment.Left else Enum.TextXAlignment.Center
+	header.ColRival.Text = if solo then "POINTS" else "RIVAL"
+	for i = 1, 7 do
+		local row = panel.Table.Rows:FindFirstChild("Round" .. i)
+		if row then
+			row.Clip.Visible = solo
+			row.You.Position = UDim2.fromOffset(if solo then 487 else 415, 13) -- solo: points under POINTS
+			row.Title.Size = UDim2.fromOffset(if solo then 280 else 350, 20)
+			row.Artist.Size = UDim2.fromOffset(if solo then 280 else 350, 18)
+		end
+	end
+
+	local total = panel.Table.Total
+	local spot = if solo then STICKER.Solo else STICKER.You
+	local width = spot.Width or 60
+	total.You.Size = UDim2.fromOffset(width, 38)
+	total.You.Position = UDim2.fromOffset(spot.X, 33)
+	total.You.BackgroundColor3 = spot.Colour
+	total.YouShadow.Size = total.You.Size
+	total.YouShadow.Position = UDim2.fromOffset(spot.X + 3, 36)
+	total.RivalShadow.Position = UDim2.fromOffset(STICKER.Rival.X + 3, 36)
+
+	local w = panel.Winner
+	local extras = solo and not tutorial
+	w.Rank.Visible = extras
+	w.RankShadow.Visible = extras
+	w.RankHint.Visible = extras
+	w.Best.Visible = false -- Show() turns it on once it knows the best
+	w.Rematch.Label.Visible = not solo
+	w.Rematch.SoloLabel.Visible = solo
+	w.FindRival.Visible = solo
+	w.Leave.Size = UDim2.fromOffset(if solo then 130 else 264, 42)
+	w.Leave.Position = UDim2.fromOffset(if solo then 217 else 150, 495)
+end
+
+-- The You sticker in the total bar ("49 / 70" in solo, so the max reads at a glance)
+function Results:_setTotal(score: number)
+	local label = self._frame.Panel.Table.Total.You
+	if self._solo and self._max then
+		label.Text = `{score}<font size="13" color="#5C566B"> / {self._max}</font>`
+	else
+		label.Text = tostring(score)
+	end
 end
 
 -- Rows come in one at a time with the totals counting up, then the winner card pops in.
@@ -234,7 +458,7 @@ function Results:_reveal(packet, rivalKey: string?, mine)
 			table.insert(shown, { Row = row, Round = packet.Rounds[i] })
 		end
 	end
-	total.You.Text = "0"
+	self:_setTotal(0)
 	if rivalKey then
 		total.Rival.Text = "0"
 	end
@@ -254,7 +478,7 @@ function Results:_reveal(packet, rivalKey: string?, mine)
 			local picks = entry.Round and entry.Round.Picks or {}
 			you += picks[ME] and picks[ME].Points or 0
 			rival += rivalKey and picks[rivalKey] and picks[rivalKey].Points or 0
-			total.You.Text = tostring(you)
+			self:_setTotal(you)
 			if rivalKey then
 				total.Rival.Text = tostring(rival)
 			end
@@ -262,7 +486,7 @@ function Results:_reveal(packet, rivalKey: string?, mine)
 		end
 
 		-- final totals (includes the first-correct bonus), with a punch
-		total.You.Text = tostring(packet.Scores[ME] or 0)
+		self:_setTotal(packet.Scores[ME] or 0)
 		if rivalKey then
 			total.Rival.Text = tostring(packet.Scores[rivalKey] or 0)
 		end

@@ -258,6 +258,8 @@ function Duels:Start()
 			return
 		end
 		if self.Solo and not self.Tutorial then
+			-- practice is at your own pace: no 20 s round clock, so no countdown either
+			self.Cap = DuelConstants.SOLO_CAP
 			local me = self.Players[1]
 			Analytics.Event(me, "SoloStarted", 1, self.Theme, if self.Boost then "On" else "Off")
 			Analytics.Funnel(me, "Solo", self.Sessions[me] or Analytics.SoloSession(me), "Started")

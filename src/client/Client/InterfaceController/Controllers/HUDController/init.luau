@@ -95,7 +95,7 @@ function HUDController.Initialize(self: Self, interface: any)
 	self:_bindCurrency()
 	self:_bindButtons()
 	self:_applyStatic()
-	-- looping eye-catchers: rainbow Shop outline, Quick Play / New Drop sheen, Rewards badge hop
+	-- looping eye-catchers: rainbow Shop outline, Quick Play sheen, Rewards badge hop
 	Effects.Start(hud, self._janitor, function(gui)
 		Juice.Pop(gui, 0.18)
 	end)
@@ -232,20 +232,8 @@ end
 function HUDController._applyStatic(self: Self)
 	local hud = self._hud
 
-	self:SetNewDrop(HUDConstants.NEW_DROP)
 	hud.Menu.Tiles.Shop.Sale.Visible = HUDConstants.SHOP_SALE
 	self:SetRewardsBadge(self._rewardsBadge or 0)
-end
-
--- Text under "NEW DROP"; nil hides the card.
-function HUDController.SetNewDrop(self: Self, text: string?)
-	local topLeft = self._hud.TopLeft
-	local visible = text ~= nil
-	topLeft.NewDrop.Visible = visible
-	topLeft.NewDropShadow.Visible = visible
-	if text then
-		topLeft.NewDrop.Body.Text = text
-	end
 end
 
 -- Number of unclaimed rewards on the Rewards tile; 0 hides the badge.

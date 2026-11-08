@@ -157,6 +157,7 @@ return Scribe({
 			Losses = Count(),
 			Draws = Count(),
 			SoloGames = Count(),
+			SoloBest = Count(), -- best solo practice score (7 rounds, not the tutorial)
 			HighestStreak = Count(),
 			StreaksSaved = Count(),
 			CorrectAnswers = Count(),

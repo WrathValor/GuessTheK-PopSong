@@ -15,6 +15,7 @@ return table.freeze({
 	-- rounds
 	ROUNDS = 7,
 	ROUND_CAP = 20, -- a round never lasts longer than this
+	SOLO_CAP = 180, -- solo practice has no clock: this only ends a round someone walked away from
 	LOAD_TIMEOUT = 8, -- longest the round clock waits for players' clips to load
 	ANSWER_WINDOW = 10, -- after the first guess, everyone else has this long
 	REVEAL_TIME = 5, -- seconds the answer + song play between rounds

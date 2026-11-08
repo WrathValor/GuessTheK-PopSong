@@ -7,7 +7,7 @@
 -- ShopRemote requests: { Action = "BuySet" | "EquipSet", Id = setId }
 --                      { Action = "BuyItem" | "EquipItem", Kind = "Stage" | "Mic", Id = itemId }
 --                      { Action = "EquipTitle", Id = title ("" = default) }
--- Reply to the player:  { Message = "Result", Ok = bool, Text = string, Action, Id }
+-- Reply to the player:  { Message = "Result", Ok = bool, Text = string, Action, Id, Kind }
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
@@ -42,6 +42,7 @@ local function reply(player: Player, packet, ok: boolean, text: string)
 		Text = text,
 		Action = packet.Action,
 		Id = packet.Id,
+		Kind = packet.Kind, -- BuyItem / EquipItem: "Stage" | "Mic" (the purchase reveal needs it)
 	})
 end
 

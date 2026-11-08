@@ -14,8 +14,8 @@ return {
 			Name = "Monster",
 			Year = 2016,
 			MusicId = "rbxassetid://101024672072100",
-			PlaybackSpeed = 0.75,
-			TimePosition = 0,
+			PlaybackSpeed = 0.72,
+			TimePosition = 0.5,
 			ChorusPosition = 78.8,
 		},
 		{
