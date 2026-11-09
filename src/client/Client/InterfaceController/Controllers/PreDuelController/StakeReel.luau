@@ -2,7 +2,7 @@
 -- The pre-duel stake roll as a real slot reel: a strip of chips slides left under the pointer,
 -- fast at first and easing out, overshoots a hair and settles on the rolled stake. The
 -- landing chip turns yellow and grows into the design's big chip, then the result row counts up.
--- Big stakes get more: 70 → "BIG STAKE!" sticker, flash + shake; 100 → "JACKPOT!", confetti,
+-- Big stakes get more: the second-highest stake → "BIG STAKE!" sticker, flash + shake; the top one → "JACKPOT!", confetti,
 -- a rainbow chip and a bigger shake.
 --
 -- Built on top of Stake.Reel at run time (nothing to build in Studio): the Studio chips are
@@ -25,7 +25,7 @@ local YELLOW = C("FFE07A")
 local WHITE = C("FFFFFF")
 local CONFETTI = { C("FF5A4E"), C("FFE07A"), C("A7E9B8"), C("9ED8F5"), C("B9A6FF"), C("FF9EC4") }
 
-local STAKES = { 20, 30, 40, 50, 70, 100 }
+local STAKES = require(ReplicatedStorage.Constants.DuelConstants).STAKES -- (the duel strip; parties pass their own)
 local STEP = 84 -- chip pitch on the strip (74 wide + 10 gap), same as the Studio reel
 local SMALL = Vector2.new(74, 52)
 local BIG = Vector2.new(96, 62)

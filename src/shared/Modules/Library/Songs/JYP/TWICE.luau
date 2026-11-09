@@ -159,7 +159,7 @@ return {
             AnimationId = "rbxassetid://8887872679",
             PlaybackSpeed = 0.55,
             TimePosition = 5,
-            ChorusPosition = 0,
+            ChorusPosition = 35.5,
         },
         {
             Name = "GO HARD",

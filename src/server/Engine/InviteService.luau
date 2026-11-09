@@ -5,12 +5,14 @@
 --
 -- InviteRemote, client → server: { Action = "List" }
 --                                { Action = "Send", Target = userId }
+--                                { Action = "Challenge", Target = userId }  (from the player card: takes a
+--                                  free stage first when you aren't waiting on one, then sends)
 --                                { Action = "Cancel" }
 --                                { Action = "Answer", Accept = bool }
 -- server → client:               { Message = "List", Players = { {UserId, Name, Level, Streak, Status} } }
 --                                { Message = "Invite", From, Name, Level, Streak, Stage, Expires }
 --                                { Message = "Sent", Target, Name, Expires }
---                                { Message = "Result", Result = "Accepted" | "Declined" | "Expired" | "Cancelled" | "Failed", Name }
+--                                { Message = "Result", Result = "Accepted" | "Declined" | "Expired" | "Cancelled" | "Failed" | "NoStage", Name }
 --                                { Message = "InviteGone" }   (the invite you were shown no longer stands)
 -- Status is "Open" | "Sent" | "InDuel" | "Off" | "Cooldown".
 
@@ -191,6 +193,17 @@ function InviteService.Start()
 			sendList(player)
 		elseif packet.Action == "Send" then
 			send(player, packet.Target)
+		elseif packet.Action == "Challenge" then
+			local target = type(packet.Target) == "number" and Players:GetPlayerByUserId(packet.Target)
+			if not target or target == player or statusFor(player, target) ~= "Open" then
+				InviteRemote:Fire(player, { Message = "Result", Result = "Failed", Name = if target then target.DisplayName else nil })
+			elseif waitingStage(player) or DuelService.TakeEmptyStage(player) then
+				send(player, packet.Target)
+			elseif DuelService.PlayerStage[player] then
+				InviteRemote:Fire(player, { Message = "Result", Result = "Failed", Name = target.DisplayName })
+			else
+				InviteRemote:Fire(player, { Message = "Result", Result = "NoStage", Name = target.DisplayName })
+			end
 		elseif packet.Action == "Cancel" then
 			local invite = outgoing[player]
 			if invite then

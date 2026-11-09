@@ -377,7 +377,9 @@ function Results:Show(packet, info)
 
 	w.Rematch.Active = true
 	w.RematchNote.Visible = false
-	w.Rematch.Count.Visible = false -- "1/2" / "2/2" only once someone has asked (UpdateRematch)
+	-- who's in for a rematch: starts at 0/2 (UpdateRematch counts it up); solo has no rival
+	w.Rematch.Count.Visible = not solo
+	w.Rematch.Count.Value.Text = "0/2"
 
 	self:_reveal(packet, if solo then nil else rivalKey, mine)
 end
@@ -528,7 +530,8 @@ function Results:_reveal(packet, rivalKey: string?, mine)
 		task.delay(if mine.Perfect then 2.1 elseif mine.Revenge then 1.9 else 1.5, function()
 			if self.State ~= "Inactive" and w.Rematch.Visible then
 				Juice.Pop(w.Rematch, 0.14)
-				Sounds.Play("Rematch")
+				-- duel: the Rematch pop; solo: Play again's own bounce
+				Sounds.Play(if self._solo then "PlayAgain" else "Rematch")
 			end
 		end)
 
@@ -554,10 +557,10 @@ function Results:UpdateRematch(wants)
 			theirs = true
 		end
 	end
-	-- the button's chip counts who's in: 1/2, 2/2 (hidden while nobody has asked)
+	-- the button's chip counts who's in: 0/2, 1/2, 2/2
 	local asked = (if mine then 1 else 0) + (if theirs then 1 else 0)
 	local count = self._frame.Panel.Winner.Rematch.Count
-	count.Visible = asked > 0 and not self._solo
+	count.Visible = not self._solo
 	count.Value.Text = `{asked}/2`
 	if theirs and not mine then
 		note.Visible = true

@@ -150,6 +150,13 @@ return Scribe({
 
 		GamePasses = Scribe.SetOf(Id(32)),
 
+		-- the Profile screen (InterfaceController/Controllers/ProfileController)
+		Profile = {
+			-- the 5 song cards pinned to the showcase, by Song Id ("" = empty slot; all empty =
+			-- your best 5 are shown). Set through ProfileRemote (Engine/ProfileService).
+			Showcase = { S1 = Id(80), S2 = Id(80), S3 = Id(80), S4 = Id(80), S5 = Id(80) },
+		},
+
 		Statistics = {
 			PlayTime = Count(), -- seconds
 			Duels = Count(), -- 1v1 duels finished (not solo)
@@ -168,9 +175,14 @@ return Scribe({
 	Products = if next(Products) then Products else nil,
 	-- The map signs (client/Client/Leaderboards). Scribe writes, reads and replicates them;
 	-- the client reads PlayerData.Client.GetLeaderboard(name) / OnLeaderboard.
+	-- Limit 100: the signs show the top 10, the rest is there so each player's own place
+	-- (the YOU row) is known inside the top 100.
 	Leaderboards = {
-		WeeklyWins = { Stat = "Statistics.Wins", Period = "Weekly", Mode = "Gain", Replicate = true, Limit = 10 },
-		TopStreaks = { Stat = "Statistics.HighestStreak", Replicate = true, Limit = 10 },
+		WeeklyWins = { Stat = "Statistics.Wins", Period = "Weekly", Mode = "Gain", Replicate = true, Limit = 100 },
+		TopStreaks = { Stat = "Statistics.HighestStreak", Replicate = true, Limit = 100 },
+		PerfectGames = { Stat = "Statistics.PerfectGames", Replicate = true, Limit = 100 },
+		WeeklyAnswers = { Stat = "Statistics.CorrectAnswers", Period = "Weekly", Mode = "Gain", Replicate = true, Limit = 100 },
+		TopFans = { Stat = "Player.XP", Replicate = true, Limit = 100 }, -- shown as a level (Modules/Levels)
 	},
 	PeriodReset = { UtcOffset = 0, WeekStart = "Monday" }, -- weekly boards reset Monday 00:00 UTC
 	ProfileStoreIndex = "PlayerData", -- required: your DataStore name

@@ -41,8 +41,16 @@ function DuelController.Start()
 	QueueRemote:Connect(function(packet)
 		local message = packet.Message
 		if message == "Queueing" then
+			-- (back to an open queue: a walk-on that was running stops)
 			call("Queue", "Reset")
 			InterfaceController:Open("Queue")
+			-- waiting for a rival: the camera shows you on your own stage + mic, the card
+			-- steps aside (CameraController.Showcase falls back to the normal camera if it can't)
+			if CameraController.Showcase() then
+				call("Queue", "ShowAside")
+			elseif CameraController.Mode == "WalkOn" then
+				CameraController.Reset()
+			end
 		elseif message == "LeftQueue" then
 			-- leaving can happen from the queue or the results screen
 			local active = InterfaceController.ActiveController
@@ -53,8 +61,25 @@ function DuelController.Start()
 			backToLobby()
 		elseif message == "Intermission" then
 			call("Queue", "StartIntermission")
+			-- rival found: the walk-on shows both players on their own stage + mic while the
+			-- countdown runs (it holds the wide shot until the round camera takes over)
+			local spots = CameraController.SpotPlayers()
+			local running, aLeft = CameraController.WalkOn(function(shot)
+				call("Queue", "HighlightWalkOn", shot)
+			end)
+			if running then
+				call("Queue", "ShowWalkOn", spots, aLeft)
+			end
 		elseif message == "Opponent" then
 			call("Queue", "UpdateOpponent", packet.Opponent)
+			-- the rival cancelled mid walk-on: back to the waiting shot of you on your stage
+			if packet.Opponent == nil and CameraController.Mode == "WalkOn" then
+				if CameraController.Showcase() then
+					call("Queue", "ShowAside")
+				else
+					CameraController.Reset()
+				end
+			end
 		elseif message == "RematchWaiting" then
 			call("Queue", "ShowRematch") -- stepped back on: the rival is still on their results
 		end
@@ -93,6 +118,18 @@ function DuelController.Start()
 		elseif message == "RoundEnd" then
 			call("Game", "OnRoundEnd", packet)
 		elseif message == "End" then
+			-- a 1v1 with a winner: the victory shot on the winner's stage first (VictoryController
+			-- hands the camera back and opens the results itself)
+			-- (Party Stage matches get it too, on whoever came first, before their placement card)
+			local partyWinner = false
+			for _, p in (packet.Party and packet.Party.Placement) or {} do
+				partyWinner = partyWinner or (p.Place == 1 and not p.Left)
+			end
+			if (packet.Winner and not (packet.Party or packet.Tutorial or packet.Solo or packet.Draw)) or partyWinner then
+				BackgroundMusic.Resume()
+				InterfaceController:Open("Victory", packet, DuelController.Info)
+				return
+			end
 			backToLobby()
 			if packet.Party then
 				call("Party", "ShowResults", packet) -- Party Stage placement + coins

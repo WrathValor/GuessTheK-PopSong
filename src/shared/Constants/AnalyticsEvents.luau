@@ -49,7 +49,7 @@ AnalyticsEvents.Custom = {
 
 	-- [[ From the client ]]
 	ScreenOpened = { Fields = { "Screen" }, Client = true, Allowed = {
-		Screen = { "Shop", "Roll", "UGC", "Inventory", "Index", "Rewards", "News", "Settings", "Queue", "Results", "SaveStreak", "Tutorial", "Party" },
+		Screen = { "Shop", "Roll", "UGC", "Inventory", "Index", "Rewards", "News", "Settings", "Queue", "Results", "SaveStreak", "Tutorial", "Party", "Profile", "PlayerCard" },
 	} },
 	ShopTabOpened = { Fields = { "Tab" }, Client = true, Allowed = {
 		Tab = { "Featured", "Sets", "Items", "Songs", "UGC", "Coins" },

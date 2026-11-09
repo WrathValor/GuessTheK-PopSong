@@ -83,9 +83,12 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 		end
 
 		-- per-player round stats
-		local correct, fastCorrect, ownedHits = 0, 0, 0
+		local correct, fastCorrect, ownedHits, answered = 0, 0, 0, 0
 		for _, round in result.Rounds do
 			local pick = round.Picks[player]
+			if pick and pick.Picked ~= nil then
+				answered += 1
+			end
 			if pick and pick.Correct then
 				correct += 1
 				if round.Owners and round.Owners[player] then
@@ -168,6 +171,12 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 			earned.XP += DuelConstants.REVENGE_XP
 			earned.Coins += DuelConstants.REVENGE_COINS
 			earned.CoinsDetail ..= " + revenge"
+		end
+
+		-- AFK guard: no answer in any round = no coins (the base XP still counts)
+		if not result.Solo and answered == 0 and earned.Coins > 0 then
+			earned.Coins = 0
+			earned.CoinsDetail = "No answers, no coins"
 		end
 
 		-- 2× Coins pass doubles everything coin-related from a match
@@ -262,9 +271,12 @@ function Rewards.ApplyParty(result, info): { [Player]: Earned }
 		if not ok or not data or not player.Parent then
 			continue
 		end
-		local correct = 0
+		local correct, answered = 0, 0
 		for _, round in result.Rounds do
 			local pick = round.Picks[player]
+			if pick and pick.Picked ~= nil then
+				answered += 1
+			end
 			if pick and pick.Correct then
 				correct += 1
 			end
@@ -286,6 +298,11 @@ function Rewards.ApplyParty(result, info): { [Player]: Earned }
 			earned.Coins = math.floor(pot * share + 0.5)
 			earned.CoinsDetail = `{math.floor(share * 100 + 0.5)}% of {pot} pot`
 			earned.XP = correct * DuelConstants.XP_CORRECT + (if place == 1 then DuelConstants.XP_WIN else DuelConstants.XP_LOSE)
+			-- AFK guard: no answer in any round = no share of the pot (the XP still counts)
+			if answered == 0 then
+				earned.Coins = 0
+				earned.CoinsDetail = "No answers, no coins"
+			end
 			if earned.Coins > 0 and data.GamePasses.Has("DoubleCoins") then
 				earned.Coins *= 2
 				earned.CoinsDetail ..= " · 2× pass"

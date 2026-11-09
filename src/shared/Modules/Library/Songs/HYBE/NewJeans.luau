@@ -41,7 +41,7 @@ return {
 			Year = 2024,
 			MusicId = "rbxassetid://132825291286602",
 			PlaybackSpeed = 0.75,
-			TimePosition = 0,
+			TimePosition = 0.5,
 			ChorusPosition = 45.8,
 		},
 		{

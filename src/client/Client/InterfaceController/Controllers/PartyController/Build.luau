@@ -324,7 +324,7 @@ local function buildSongs(root: Instance)
 	stroke(check, 2)
 	text(pool, "Text", { Position = UDim2.fromOffset(28, 0), Size = UDim2.new(1, -28, 1, 0), TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, RichText = true, Text = "48 songs · 20+ keeps coins + XP on" })
 	button(c, "Back", 22, 488, 120, 54, WHITE, 0, "Back")
-	button(c, "Save", 154, 488, RW - 132, 54, MINT, 4, "SAVE · 48 SONGS", "Custom pool · ×0.8 coins")
+	button(c, "Save", 154, 488, RW - 132, 54, MINT, 4, "SAVE · 48 SONGS", "Custom pool · ×0.6 coins")
 end
 
 local function buildPrompt(root: Instance)

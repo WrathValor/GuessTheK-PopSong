@@ -14,16 +14,31 @@
 -- On a set (a group, or a company with no group picked) the footer shows title reward progress:
 -- own them all → all Gold → all Rainbow → done.
 -- ♪ ROLL SONGS opens the shop's Songs tab. Nothing can be bought here.
+-- Showcase slot mode (design board "Profile 3 · showcase"): tapping a slot on the Profile
+-- opens Open("Index", { Slot = 3, Showcase = ids }). The header reads CHOOSE CARD 3 with your 5
+-- slots beside it (slot 3 lit) and ‹ BACK in place of the close button; the cards show Owned,
+-- songs already in a slot are tagged "SLOT n". Tapping an owned card puts it in the slot (one
+-- already in another slot swaps places with it), saves through ProfileRemote
+-- (Engine/ProfileService) and goes straight back to the Profile, still editing.
+-- Listening (normal mode): tap a card you own and its song plays from its snippet start
+-- (TimePosition), the lobby music ducked; its art tile shows bouncing equaliser bars (Art.Eq)
+-- and hovering an owned card turns its initials into ▶. Tap it again to stop, tap
+-- another to switch, close the Index (or let the song end) and the lobby music comes back.
 
 -- -------------------------------- Services -------------------------------- --
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 local TextService = game:GetService("TextService")
 
 -- --------------------------------- Imports -------------------------------- --
 local Janitor = require(ReplicatedStorage.Packages.janitor)
 local Promise = require(ReplicatedStorage.Packages.promise)
+local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Client
+local Showcase = require(ReplicatedStorage.Modules.Showcase)
+local Sounds = require(ReplicatedStorage.Modules.Sounds)
+local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
 local Songs = require(ReplicatedStorage.Modules.Library.Songs)
 local Cards = require(ReplicatedStorage.Modules.Library.Cards)
 local Packs = require(ReplicatedStorage.Modules.Library.Packs)
@@ -35,8 +50,12 @@ local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 
 local Build = require(script.Build)
+local Snippet = require(script.Parent.GameController.Snippet) -- plays a song from its TimePosition
+local BackgroundMusic = require(script.Parent.Parent.Parent.BackgroundMusic) -- Client/BackgroundMusic
 
 -- -------------------------------- Variables ------------------------------- --
+local ProfileRemote = Bridgenet.ReferenceBridge("ProfileRemote")
+
 local C = Color3.fromHex
 local INK = C("1E1B2E")
 local WHITE = C("FFFFFF")
@@ -71,6 +90,8 @@ function Index.new()
 	self._group = nil :: string? -- a group picked inside a company row (nil = all its groups)
 	self._show = 1
 	self._sort = 1
+	self._pick = nil :: { Slot: number, Ids: { string } }? -- showcase slot mode: the slot + the 5 ids
+	self._pageSongs = {} :: { [number]: any } -- the song on each card of this page
 	return (self :: any) :: UITypes.Controller
 end
 
@@ -203,8 +224,10 @@ function Index:_fillShow(instant: boolean?)
 	for _, name in SHOWS do
 		seg[name].TextColor3 = if name == SHOWS[self._show] then INK else MUTED
 	end
-	local goal = { Position = UDim2.fromOffset(picked.Position.X.Offset, seg.Thumb.Position.Y.Offset), Size = UDim2.fromOffset(picked.Size.X.Offset, seg.Thumb.Size.Y.Offset) }
-	local shadowGoal = { Position = UDim2.fromOffset(picked.Position.X.Offset, seg.ThumbShadow.Position.Y.Offset), Size = goal.Size }
+	-- the buttons are centre-anchored (for ButtonScale), the thumb is top-left: line up its left edge
+	local left = picked.Position.X.Offset - picked.Size.X.Offset * picked.AnchorPoint.X
+	local goal = { Position = UDim2.fromOffset(left, seg.Thumb.Position.Y.Offset), Size = UDim2.fromOffset(picked.Size.X.Offset, seg.Thumb.Size.Y.Offset) }
+	local shadowGoal = { Position = UDim2.fromOffset(left, seg.ThumbShadow.Position.Y.Offset), Size = goal.Size }
 	if instant then
 		seg.Thumb.Position, seg.Thumb.Size = goal.Position, goal.Size
 		seg.ThumbShadow.Position, seg.ThumbShadow.Size = shadowGoal.Position, shadowGoal.Size
@@ -457,7 +480,183 @@ function Index:_refresh()
 	for i = 1, PER_PAGE do
 		local song = list[(self._page - 1) * PER_PAGE + i]
 		local level, count = if song then levelOf(song) else nil, 0
-		self:_fillCard(content.Grid["Card" .. i], song, level, count, row.Kind == "All")
+		local holder = content.Grid["Card" .. i]
+		self:_fillCard(holder, song, level, count, row.Kind == "All")
+		self._pageSongs[i] = song
+		self:_fillPick(holder, song, level ~= nil)
+		self:_markPlaying(holder, song)
+	end
+	self:_paintMode()
+end
+
+-- [[ Showcase slot mode ]]
+
+local SLOT_ON = C("FFE07A")
+local SLOT_EMPTY = C("F3EBDD")
+
+-- one card's "SLOT n" tag + tap area (only owned songs can go in a slot)
+function Index:_fillPick(holder: Frame, song, mine: boolean)
+	local pick = self._pick
+	local slot = if pick and song then table.find(pick.Ids, song.Id) else nil
+	holder.Pick.Visible = slot ~= nil
+	holder.Pick.Text = `SLOT {slot or ""}`
+	holder.Hit.Visible = song ~= nil and mine -- slot mode: choose it; otherwise: listen to it
+	if slot then
+		holder.Face.Copies.Visible = false -- the tag sits there
+		if slot == pick.Slot then
+			holder.Face:FindFirstChildOfClass("UIStroke").Thickness = 5
+		end
+	end
+end
+
+-- the header + footer hint for the mode the Index is in
+function Index:_paintMode()
+	local panel = self._frame.Panel
+	local header = panel.Header
+	local pick = self._pick
+	header.Title.Text = if pick then `CHOOSE CARD {pick.Slot}` else "INDEX"
+	header.Roll.Visible = not pick
+	header.RollShadow.Visible = not pick
+	header.Close.Visible = not pick
+	header.CloseShadow.Visible = not pick
+	header.Showcase.Visible = pick ~= nil
+	if pick then
+		for i = 1, Showcase.SLOTS do
+			local slot = header.Showcase.Tray["Slot" .. i]
+			local id = pick.Ids[i]
+			local song = id and id ~= "" and Songs.GetById(id)
+			local on = i == pick.Slot
+			slot.BackgroundColor3 = if on then SLOT_ON elseif song then WHITE else SLOT_EMPTY
+			slot.Label.Text = if song then song.Name else "Empty"
+			slot.Chip.BackgroundColor3 = if on then INK else TRACK
+			slot.Chip.TextColor3 = if on then SLOT_ON else INK
+		end
+	end
+	local hint = panel.Content.Hint
+	local PICK_HINT = "Tap a song to put it in this slot. One already in another slot swaps."
+	if pick then
+		hint.Text = PICK_HINT
+	elseif hint.Text == PICK_HINT then
+		hint.Text = "Locked songs can be rolled in the shop."
+	end
+end
+
+-- a card tapped in slot mode: into the slot, save, back to the Profile
+function Index:_choose(i: number)
+	local song = self._pageSongs[i]
+	local pick = self._pick
+	if not pick or not song then
+		return
+	end
+	local ids = table.clone(pick.Ids)
+	local was = table.find(ids, song.Id)
+	if was and was ~= pick.Slot then
+		ids[was] = ids[pick.Slot] or "" -- swap places
+	end
+	ids[pick.Slot] = song.Id
+	Sounds.Play("Click")
+	Juice.Pop(self._frame.Panel.Content.Grid["Card" .. i], 0.12)
+	ProfileRemote:Fire({ Action = "SetShowcase", Songs = ids })
+	self._interface:Open("Profile", { Showcase = ids, Editing = true })
+end
+
+-- [[ Listening ]]
+
+-- the art tile: equaliser bars on the song that's playing, ▶ on the one under the mouse,
+-- else the song's initials
+function Index:_markPlaying(holder: Frame, song)
+	local art = holder.Face.Art
+	local playing = song ~= nil and self._playing ~= nil and self._playing.Id == song.Id
+	local eq = art:FindFirstChild("Eq")
+	if eq then
+		eq.Visible = playing
+	end
+	art.Initials.Visible = not playing
+	if song and not playing then
+		art.Initials.Text = if self._hover == holder and holder.Hit.Visible and not self._pick then "▶" else initials(song.Name)
+	end
+end
+
+-- bounces the bars of whichever card is playing (runs only while a song plays)
+function Index:_animateEq(on: boolean)
+	if self._eqConn then
+		self._eqConn:Disconnect()
+		self._eqConn = nil
+	end
+	if not on then
+		return
+	end
+	local grid = self._frame.Panel.Content.Grid
+	self._eqConn = RunService.RenderStepped:Connect(function()
+		local t = os.clock()
+		for i = 1, PER_PAGE do
+			local eq = grid["Card" .. i].Face.Art:FindFirstChild("Eq")
+			if eq and eq.Visible then
+				for b = 1, 3 do
+					local h = 0.3 + 0.7 * math.abs(math.sin(t * (5 + b * 1.7) + b * 1.3))
+					eq["Bar" .. b].Size = UDim2.new(0, 6, h, 0)
+				end
+			end
+		end
+	end)
+end
+
+-- a card tapped in normal mode: play its song, or stop it if it's the one playing
+function Index:_listen(i: number)
+	local song = self._pageSongs[i]
+	if not song then
+		return
+	end
+	local same = self._playing and self._playing.Id == song.Id
+	self:_stopListening(0.25)
+	if not same then
+		local entry = Songs.GetById(song.Id) or song
+		if type(entry.MusicId) == "string" and entry.MusicId ~= "" then
+			local clip = Snippet.new(entry, "Song")
+			self._playing = { Id = song.Id, Clip = clip }
+			if not self._ducked then
+				self._ducked = true
+				BackgroundMusic.Duck()
+			end
+			clip:PlayFull(true) -- from the song's TimePosition, on to the end of the audio
+			self:_animateEq(true)
+			if clip.Sound then
+				clip.Sound.Ended:Once(function()
+					if self._playing and self._playing.Clip == clip then
+						self:_stopListening(0)
+						self:_refresh()
+					end
+				end)
+			end
+		end
+	end
+	Sounds.Play("Click")
+	Juice.Pop(self._frame.Panel.Content.Grid["Card" .. i], 0.08)
+	self:_refresh()
+end
+
+-- fades out whatever's playing; the lobby music comes back once nothing is
+function Index:_stopListening(fade: number)
+	local playing = self._playing
+	self._playing = nil
+	self:_animateEq(false)
+	if playing then
+		playing.Clip:FadeAndDestroy(fade)
+	end
+	if self._ducked then
+		self._ducked = false
+		task.delay(fade, function()
+			if not self._ducked then
+				BackgroundMusic.Resume()
+			end
+		end)
+	end
+end
+
+function Index:_back()
+	local pick = self._pick
+	if pick then
+		self._interface:Open("Profile", { Showcase = pick.Ids, Editing = true })
 	end
 end
 
@@ -530,6 +729,30 @@ function Index:Initialize(interface)
 	j:Add(panel.Header.Close.Activated:Connect(function()
 		self._interface:Close(self.Name)
 	end))
+	j:Add(panel.Header.Showcase.Back.Activated:Connect(function()
+		self:_back()
+	end))
+	for i = 1, PER_PAGE do
+		j:Add(content.Grid["Card" .. i].Hit.Activated:Connect(function()
+			if self._pick then
+				self:_choose(i)
+			else
+				self:_listen(i)
+			end
+		end))
+		-- hover: the art's initials turn into ▶
+		local holder = content.Grid["Card" .. i]
+		j:Add(holder.Hit.MouseEnter:Connect(function()
+			self._hover = holder
+			self:_markPlaying(holder, self._pageSongs[i])
+		end))
+		j:Add(holder.Hit.MouseLeave:Connect(function()
+			if self._hover == holder then
+				self._hover = nil
+			end
+			self:_markPlaying(holder, self._pageSongs[i])
+		end))
+	end
 	j:Add(panel.Header.Roll.Activated:Connect(function()
 		self._interface:Open("Roll")
 	end))
@@ -593,7 +816,15 @@ function Index:Initialize(interface)
 	end
 end
 
-function Index:Activate()
+function Index:Activate(opts: any?)
+	-- slot mode only when the Profile asks for it; owned songs while choosing
+	if type(opts) == "table" and type(opts.Slot) == "number" and type(opts.Showcase) == "table" then
+		self._pick = { Slot = math.clamp(math.floor(opts.Slot), 1, Showcase.SLOTS), Ids = table.clone(opts.Showcase) }
+		self._show = table.find(SHOWS, "Owned") or self._show
+		self._page = 1
+	else
+		self._pick = nil
+	end
 	self._frame.Visible = true
 	self:_refresh()
 	self:_animate(true)
@@ -611,6 +842,7 @@ function Index:Deactivate()
 		return Promise.resolve()
 	end
 	self.State = "Deactivating"
+	self:_stopListening(0.4) -- closing the Index stops the song
 	return FrameTransition.Close(self._frame):andThen(function()
 		self._frame.Visible = false
 		self.State = "Inactive"
@@ -618,6 +850,7 @@ function Index:Deactivate()
 end
 
 function Index:Destroy()
+	self:_animateEq(false)
 	self._janitor:Destroy()
 end
 

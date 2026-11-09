@@ -39,8 +39,8 @@ return {
 			Name = "Mirror Mirror",
 			Year = 2026,
 			MusicId = "rbxassetid://94766253273433",
-			PlaybackSpeed = 0.8,
-			TimePosition = 0,
+			PlaybackSpeed = 0.85,
+			TimePosition = 1,
 			ChorusPosition = 36.5,
 		},
 		{

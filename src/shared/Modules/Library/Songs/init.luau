@@ -200,48 +200,52 @@ function Songs.GetSongByName(name: string)
 	return nil
 end
 
--- `count` wrong options for `answer`. Same generation first so the options are fair,
--- then anything else to fill up. Never the same artist+name twice. `within` (a solo theme's
--- songs) is tried first, so a themed game's options all come from the theme.
+-- `count` wrong options for `answer`, drawn from across the generations (the answer's own
+-- generation is only slightly favoured, so a round can mix 2nd, 3rd and 4th gen) and never
+-- two from the same artist (nor the answer's artist) while the pool has enough artists.
+-- `within` (a solo theme's songs, a party's custom pool) is used first, so a themed game's
+-- options all come from the theme; a one-group theme falls back to repeating the artist.
+local SAME_GEN_WEIGHT = 1.5 -- vs 1 for any other generation
+
 function Songs.GetWrongOptions(answer, count: number, within: { any }?)
-	local picked, used = {}, { [answer.Id] = true }
-	local function take(pool)
-		local needed = count - #picked
-		if needed <= 0 then
-			return
-		end
-		-- Reservoir sample eligible songs without cloning/shuffling the full candidate pool.
-		local sample, eligible = {}, 0
-		for _, song in pool do
-			if not used[song.Id] then
-				eligible += 1
-				if #sample < needed then
-					table.insert(sample, song)
-				else
-					local slot = math.random(1, eligible)
-					if slot <= needed then
-						sample[slot] = song
-					end
+	local picked = {}
+	local usedIds = { [answer.Id] = true }
+	local usedArtists = { [answer.Artist] = true }
+	-- one weighted pick at a time from `pool` (a new artist only, when `newArtist`)
+	local function fill(pool, newArtist: boolean)
+		while #picked < count do
+			local total, candidates, weights = 0, {}, {}
+			for _, song in pool do
+				if not usedIds[song.Id] and not (newArtist and usedArtists[song.Artist]) then
+					local w = if song.Generation == answer.Generation then SAME_GEN_WEIGHT else 1
+					total += w
+					table.insert(candidates, song)
+					table.insert(weights, w)
 				end
 			end
-		end
-		for _, song in sample do
-			used[song.Id] = true
-			table.insert(picked, song)
+			if #candidates == 0 then
+				return
+			end
+			local roll = math.random() * total
+			local chosen = candidates[#candidates]
+			for i, song in candidates do
+				roll -= weights[i]
+				if roll <= 0 then
+					chosen = song
+					break
+				end
+			end
+			usedIds[chosen.Id] = true
+			usedArtists[chosen.Artist] = true
+			table.insert(picked, chosen)
 		end
 	end
 	if within then
-		local sameGen = {}
-		for _, song in within do
-			if song.Generation == answer.Generation then
-				table.insert(sameGen, song)
-			end
-		end
-		take(sameGen)
-		take(within)
+		fill(within, true)
+		fill(within, false)
 	end
-	take(ByGeneration[answer.Generation] or {})
-	take(All)
+	fill(All, true)
+	fill(All, false)
 	return picked
 end
 

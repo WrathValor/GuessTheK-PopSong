@@ -55,6 +55,7 @@ local function onPlayerAdded(Player: Player)
     -- who levelled up before titles existed)
     data.Player.XP.Observe(function(xp: number)
         local level = Levels.FromXP(xp)
+        Player:SetAttribute("Level", level) -- (the walk-on chips show it)
         for _, title in Levels.TitlesUpTo(level) do
             if title ~= HUDConstants.DEFAULT_TITLE and not data.Inventory.Titles.Has(title) then
                 data.Inventory.Titles.Add(title)

@@ -12,6 +12,8 @@ local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
+local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
+local TitleChip = require(ReplicatedStorage.Modules.UI.TitleChip)
 local SoloPicker = require(script.SoloPicker)
 local InvitePicker = require(script.InvitePicker)
 
@@ -24,6 +26,13 @@ local QueueRemote = Bridgenet.ReferenceBridge("QueueRemote")
 local PANEL_HEIGHT = 383
 local PANEL_HEIGHT_COUNTDOWN = 350
 local PANEL_TWEEN = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+-- walk-on (rival found): the queue card steps aside for a slim countdown pill
+local CHIP_LOCKED = Color3.fromHex("EDE4D4")
+-- waiting for a rival: the card steps over to the right, the camera shows you on your stage
+local ASIDE_X, ASIDE_Y = 1014, 360
+local ASIDE_TWEEN = TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+local CHIP_ON = Color3.fromHex("FFE07A")
+local CHIP_OFF = Color3.fromHex("FFFFFF")
 
 -- --------------------------------- Tables --------------------------------- --
 -- Reusable subcontroller class - NOT a concrete screen. Instantiate one of these per real
@@ -61,6 +70,15 @@ function QueueController.Initialize(self: typeof(QueueController.new({} :: UITyp
 	ButtonScale.ApplyToDescendants(self._frame)
 
 	local panelFrame = self._frame:FindFirstChild("Panel")
+	local walkOn = self._frame:FindFirstChild("WalkOn")
+	if walkOn then
+		walkOn.Visible = false
+	end
+	-- where the card + shadow sit normally (waiting moves them aside so the camera can show you)
+	local panelShadow = self._frame:FindFirstChild("PanelShadow")
+	self._panelHome = panelFrame.Position
+	self._shadowHome = panelShadow and panelShadow.Position
+
 	-- Layout comes from the Studio UI (Photocard design); don't resize it here.
 	local participantsFrame: Frame = panelFrame:FindFirstChild("Participants")
 	local youAvatar = participantsFrame and participantsFrame:FindFirstChild("You")
@@ -112,10 +130,13 @@ function QueueController.Initialize(self: typeof(QueueController.new({} :: UITyp
 
 	-- Cancel (intermission only): leaves the stage; the server calls the match off with no
 	-- forfeit and sends the rival back to waiting
-	local cancelBtn = panelFrame:FindFirstChild("Cancel")
-	if cancelBtn then
+	local pill = walkOn and walkOn:FindFirstChild("Pill", true)
+	for _, cancelBtn in { panelFrame:FindFirstChild("Cancel") or false, pill and pill:FindFirstChild("Cancel") or false } do
+		if not cancelBtn then
+			continue
+		end
 		self._janitor:Add(cancelBtn.Activated:Connect(function()
-			if self._countdown then
+			if self._countdown and not self._cancelLocked then
 				self:_setCancel(false)
 				QueueRemote:Fire("Leave")
 			end
@@ -149,6 +170,141 @@ function QueueController:_setCancel(visible: boolean)
 	end
 end
 
+-- --------------------------------- Walk-on -------------------------------- --
+-- While the intermission counts down, the camera (CameraController.WalkOn) shows both stages
+-- then each player on theirs; the chips at the bottom say who's who: name, title, level, streak.
+
+-- a chip's badge row: [TITLE] [Lv N] [N win streak] from the player's attributes (DataService)
+local function fillBadges(badges: Frame, player: Player?)
+	badges.Visible = player ~= nil
+	if not player then
+		return
+	end
+	local title = player:GetAttribute("Title")
+	badges.Title.Visible = type(title) == "string" and title ~= ""
+	if badges.Title.Visible then
+		TitleChip.Paint(badges.Title, title, player:GetAttribute("TitleTier") or "Normal")
+	end
+	local level = player:GetAttribute("Level")
+	badges.Level.Visible = type(level) == "number"
+	badges.Level.Text = `Lv {level or 1}`
+	local streak = player:GetAttribute("Streak") or 0
+	badges.Streak.Visible = streak > 0
+	badges.Streak.Text = `{streak} win streak`
+end
+
+-- ------------------------------ Waiting aside ------------------------------- --
+-- While you wait for a rival (CameraController.Showcase), the card sits on the right so the
+-- camera can show you on your stage.
+
+function QueueController:ShowAside()
+	local panel, shadow = self._frame:FindFirstChild("Panel"), self._frame:FindFirstChild("PanelShadow")
+	if not (panel and shadow and self._panelHome) then
+		return
+	end
+	self._aside = true
+	local dx, dy = ASIDE_X - self._panelHome.X.Offset, ASIDE_Y - self._panelHome.Y.Offset
+	TweenService:Create(panel, ASIDE_TWEEN, { Position = self._panelHome + UDim2.fromOffset(dx, dy) }):Play()
+	TweenService:Create(shadow, ASIDE_TWEEN, { Position = self._shadowHome + UDim2.fromOffset(dx, dy) }):Play()
+end
+
+function QueueController:_hideAside()
+	if not self._aside then
+		return
+	end
+	self._aside = false
+	local panel, shadow = self._frame:FindFirstChild("Panel"), self._frame:FindFirstChild("PanelShadow")
+	if panel and shadow then
+		panel.Position = self._panelHome
+		shadow.Position = self._shadowHome
+	end
+end
+
+-- the walk-on hides the queue card (its slim top pill has the countdown + Cancel instead)
+function QueueController:_compact(on: boolean)
+	for _, n in { "Panel", "PanelShadow" } do
+		local frame = self._frame:FindFirstChild(n)
+		if frame then
+			frame.Visible = not on
+		end
+	end
+end
+
+-- Cancel in its last second: greyed "Starting…" and dead, so it doesn't just vanish
+function QueueController:_lockCancel(locked: boolean)
+	self._cancelLocked = locked
+	local panel = self._frame:FindFirstChild("Panel")
+	local pill = self._frame:FindFirstChild("Pill", true)
+	for _, b in { panel and panel:FindFirstChild("Cancel") or false, pill and pill:FindFirstChild("Cancel") or false } do
+		if not b then
+			continue
+		end
+		local home = b:GetAttribute("HomeColour")
+		if not home then
+			b:SetAttribute("HomeColour", b.BackgroundColor3)
+			home = b.BackgroundColor3
+		end
+		b.BackgroundColor3 = if locked then CHIP_LOCKED else home
+		b.Active = not locked
+		local label = b:FindFirstChild("Label") or b:FindFirstChildWhichIsA("TextLabel")
+		if label then
+			if not label:GetAttribute("HomeText") then
+				label:SetAttribute("HomeText", label.Text)
+			end
+			label.Text = if locked then "Starting…" else label:GetAttribute("HomeText")
+		elseif b:IsA("TextButton") and b.Text ~= "" then
+			if not b:GetAttribute("HomeText") then
+				b:SetAttribute("HomeText", b.Text)
+			end
+			b.Text = if locked then "Starting…" else b:GetAttribute("HomeText")
+		end
+	end
+end
+
+-- spots = { A = Player?, B = Player? }; aLeft = spot A is on the left of the screen
+function QueueController:ShowWalkOn(spots, aLeft: boolean)
+	local w = self._frame:FindFirstChild("WalkOn")
+	if not w then
+		return
+	end
+	self._walkOnSlots = { ChipA = if aLeft then "A" else "B", ChipB = if aLeft then "B" else "A" }
+	for chipName, slot in self._walkOnSlots do
+		local chip = w[chipName]
+		local player = spots[slot]
+		chip.PlayerName.Text = if player then player.DisplayName else "…"
+		fillBadges(chip.Badges, player)
+		chip.BackgroundColor3 = CHIP_OFF
+	end
+	w.Visible = true
+	self:_compact(true)
+	Juice.Stagger({ w.Top.Pill, w.Top.PillShadow, w.ChipA, w.ChipAShadow, w.VS, w.VSShadow, w.ChipB, w.ChipBShadow }, 0.04, 0.5)
+end
+
+-- the camera moved to a new shot: light up that player's chip ("Wide" lights none)
+function QueueController:HighlightWalkOn(shot: string)
+	local w = self._frame:FindFirstChild("WalkOn")
+	if not (w and w.Visible and self._walkOnSlots) then
+		return
+	end
+	for chipName, slot in self._walkOnSlots do
+		local on = slot == shot
+		w[chipName].BackgroundColor3 = if on then CHIP_ON else CHIP_OFF
+		if on then
+			Juice.Pop(w[chipName], 0.1)
+			Sounds.Play("SpinTick", { Pitch = if slot == "A" then 1 else 1.12 })
+		end
+	end
+end
+
+function QueueController:_hideWalkOn()
+	local w = self._frame and self._frame:FindFirstChild("WalkOn")
+	if w then
+		w.Visible = false
+	end
+	self._walkOnSlots = nil
+	self:_compact(false)
+end
+
 function QueueController:_stopCountdown()
 	if self._countdown then
 		pcall(task.cancel, self._countdown)
@@ -174,6 +330,7 @@ end
 -- doesn't start with the last one's countdown and hidden buttons.
 function QueueController:Reset()
 	self:_stopCountdown()
+	self:_hideWalkOn()
 	local panel = self._frame:FindFirstChild("Panel")
 	if not panel then
 		return
@@ -242,6 +399,9 @@ function QueueController:UpdateOpponent(opponent: Player?)
 				self:_stopCountdown()
 				self:_setButtons(true)
 			end
+			-- and the walk-on (countdown pill + chips) goes, the card comes back
+			self:_hideWalkOn()
+			self:_lockCancel(false)
 			panelFrame.Title.Text = "Waiting for a rival…"
 			panelFrame.Subtitle.Text = "Nobody's joined the other spot yet"
 		end
@@ -262,6 +422,7 @@ function QueueController:ShowRematch()
 		return
 	end
 	self:_stopCountdown()
+	self:_hideWalkOn()
 	self._invite:Reset()
 	self._solo:Close(true)
 	self:_setButtons(false)
@@ -288,16 +449,21 @@ function QueueController:StartIntermission()
 	panelFrame.Title.Text = "Starting round in…"
 	self:_stopCountdown()
 	self:_setCancel(true)
+	self:_lockCancel(false)
+	local pill = self._frame:FindFirstChild("Pill", true)
 	self._countdown = task.spawn(function()
 		for i = DuelConstants.START_TIME, 1, -1 do
 			panelFrame.Subtitle.Text = tostring(i)
+			if pill then
+				pill.Count.Text = `Starting in {i}`
+			end
 			if i <= 3 then
 				Sounds.Play("Countdown")
 			end
 			if i == 1 then
-				-- hide it for the last second so a late tap can't land after the server
-				-- has moved on (leaving then would be a forfeit)
-				self:_setCancel(false)
+				-- locked for the last second so a late tap can't land after the server has
+				-- moved on (leaving then would be a forfeit); it greys out rather than vanishing
+				self:_lockCancel(true)
 			end
 			task.wait(1)
 		end
@@ -327,6 +493,8 @@ function QueueController.Deactivate(self: typeof(QueueController.new({} :: UITyp
 
 	return FrameTransition.Close(self._frame):andThen(function()
 		self._frame.Visible = false
+		self:_hideWalkOn()
+		self:_hideAside()
 		self.State = "Inactive"
 	end)
 end

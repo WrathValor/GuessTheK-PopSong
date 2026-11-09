@@ -19,8 +19,8 @@ local SCREEN_EVENTS = {}
 for _, screen in require(ReplicatedStorage.Constants.AnalyticsEvents).Custom.ScreenOpened.Allowed.Screen do
 	SCREEN_EVENTS[screen] = true
 end
--- frames that open without the "Open" sound (the HUD, and the round screen, which has its own)
-local SILENT_OPEN = { HUD = true, Game = true }
+-- frames that open without the "Open" sound (the HUD, the round screen and the victory shot have their own)
+local SILENT_OPEN = { HUD = true, Game = true, Victory = true }
 local Interface = {}
 type Self = typeof(Interface)
 

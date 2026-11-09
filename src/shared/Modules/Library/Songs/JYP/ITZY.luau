@@ -100,7 +100,7 @@ return {
             AnimationId = "rbxassetid://10375092129",
             PlaybackSpeed = 0.71,
             TimePosition = 1,
-            ChorusPosition = 94.5,
+            ChorusPosition = 72.9,
         },
         {
             Name = "Voltage",

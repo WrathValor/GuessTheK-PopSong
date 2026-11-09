@@ -116,6 +116,60 @@ local function bar(parent: Instance, name: string, pos: UDim2, size: UDim2, colo
 	return b
 end
 
+-- Showcase slot mode (Profile → Edit → a slot, see IndexController): the header gets Showcase
+-- (Tray: your 5 slots, Slot1–Slot5 each with Chip + Label, the one being filled lit; Back where
+-- ROLL SONGS sits), and every card a Pick tag ("SLOT 2" while that song fills a slot) and a
+-- Hit button over it. Part of Build(); run it on its own to add them to an Index built before:
+--   require(<this module>).AddShowcase(game.StarterGui.Interface.Frames.Index)
+function Build.AddShowcase(index: Instance)
+	local panel = index:FindFirstChild("Panel")
+	local header = panel.Header
+	local old = header:FindFirstChild("Showcase")
+	if old then
+		old:Destroy()
+	end
+	local PW = panel.Size.X.Offset
+	local group = new("Frame", { Name = "Showcase", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Visible = false }, header)
+	-- Back, where the close button is (that hides in this mode)
+	local bw = 120
+	local bx = PW - 14 - bw / 2
+	local bs = new("Frame", { Name = "BackShadow", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(bx + 3, 32 + 3), Size = UDim2.fromOffset(bw, 42), BackgroundColor3 = INK, BorderSizePixel = 0 }, group)
+	corner(bs, 12)
+	local back = new("TextButton", { Name = "Back", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(bx, 32), Size = UDim2.fromOffset(bw, 42), BackgroundColor3 = WHITE, BorderSizePixel = 0, AutoButtonColor = false, FontFace = HEAD, TextSize = 15, TextColor3 = INK, Text = "‹ BACK" }, group)
+	corner(back, 12)
+	stroke(back, 3)
+	-- the tray: your 5 slots, between the title and Back
+	local tx, tw = 300, PW - 300 - 14 - bw - 16
+	local tray = new("Frame", { Name = "Tray", Position = UDim2.fromOffset(tx, 12), Size = UDim2.fromOffset(tw, 40), BackgroundTransparency = 1 }, group)
+	local gap = 8
+	local sw = math.floor((tw - gap * 4) / 5)
+	for i = 1, 5 do
+		local slot = new("Frame", { Name = "Slot" .. i, Position = UDim2.fromOffset((i - 1) * (sw + gap), 0), Size = UDim2.fromOffset(sw, 40), BackgroundColor3 = WHITE }, tray)
+		corner(slot, 10)
+		stroke(slot, 3)
+		local chip = new("TextLabel", { Name = "Chip", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 7, 0.5, 0), Size = UDim2.fromOffset(22, 22), BackgroundColor3 = TRACK, FontFace = BODY, TextSize = 12, TextColor3 = INK, Text = tostring(i) }, slot)
+		corner(chip, UDim.new(0.5, 0))
+		text(slot, "Label", { Position = UDim2.fromOffset(34, 0), Size = UDim2.new(1, -40, 1, 0), FontFace = BODY, TextSize = 12, Text = "Empty" })
+	end
+
+	for _, holder in panel.Content.Grid:GetChildren() do
+		if holder:IsA("Frame") and string.sub(holder.Name, 1, 4) == "Card" then
+			for _, name in { "Pick", "Hit" } do
+				local x = holder:FindFirstChild(name)
+				if x then
+					x:Destroy()
+				end
+			end
+			-- "SLOT 2": this song already fills a slot (picking it swaps the two)
+			local pick = new("TextLabel", { Name = "Pick", AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -10, 1, -8), Size = UDim2.fromOffset(0, 18), AutomaticSize = Enum.AutomaticSize.X, BackgroundColor3 = INK, FontFace = BODY, TextSize = 11, TextColor3 = C("FFE07A"), Text = "SLOT 1", Visible = false, ZIndex = 4 }, holder)
+			corner(pick, 6)
+			new("UIPadding", { PaddingLeft = UDim.new(0, 7), PaddingRight = UDim.new(0, 7) }, pick)
+			local hit = new("TextButton", { Name = "Hit", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Text = "", Visible = false, ZIndex = 5 }, holder)
+			hit:SetAttribute("NoButtonScale", true)
+		end
+	end
+end
+
 function Build.Build(frames: Instance)
 	local old = frames:FindFirstChild("Index")
 	if old then
@@ -213,7 +267,9 @@ function Build.Build(frames: Instance)
 			new("UIGradient", { Color = Build.RAINBOW, Rotation = 45 }, dot)
 		end
 		text(f, "Label", { Position = UDim2.fromOffset(40, 9), Size = UDim2.fromOffset(60, 14), FontFace = HEAD, TextSize = 10, TextColor3 = MUTED, Text = spec[2] })
-		text(f, "Count", { Position = UDim2.fromOffset(40, 23), Size = UDim2.fromOffset(60, 20), FontFace = HEAD, TextSize = 15, Text = "0 / 0" })
+		-- shrinks to fit, so a big total ("353 / 353") isn't cut off
+		local count = text(f, "Count", { Position = UDim2.fromOffset(40, 23), Size = UDim2.fromOffset(58, 20), FontFace = HEAD, TextScaled = true, TextTruncate = Enum.TextTruncate.None, Text = "0 / 0" })
+		new("UITextSizeConstraint", { MaxTextSize = 15, MinTextSize = 8 }, count)
 	end
 
 	-- the filter row (as in the redesign): chips that scroll sideways (a company's groups, or
@@ -338,6 +394,7 @@ function Build.Build(frames: Instance)
 	content.Prev.TextSize = 22
 	content.Next.TextSize = 22
 
+	Build.AddShowcase(index)
 	index.Parent = frames
 	require(game:GetService("ReplicatedStorage").Modules.UI.CenterButtons).Apply(index)
 	return index

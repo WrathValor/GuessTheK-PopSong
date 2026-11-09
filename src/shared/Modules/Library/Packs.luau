@@ -68,6 +68,12 @@ Packs.FANDOMS = {
 	Hearts2Hearts = "S2U",
 	BESTie = "BESTiny",
 	KiiiKiii = "TiiiKiii",
+	["ALLDAY PROJECT"] = "DAY ONE",
+	GOT7 = "iGOT7",
+	LNGSHOT = "Shotties",
+	MEOVV = "PAWMPAWM",
+	RIIZE = "BRIIZE",
+	-- TUIDE has not announced an official fandom name yet.
 	-- A2O LITE: no fandom name yet (shows "A2O LITE Stan")
 }
 

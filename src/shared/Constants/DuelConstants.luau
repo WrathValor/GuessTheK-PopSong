@@ -29,8 +29,8 @@ return table.freeze({
 	TIER_POINTS = table.freeze({ 10, 7, 5, 2, 1 }),
 	MODES = table.freeze({ "Song", "Choreography" }),
 
-	-- stake roll: 20-100 coins, weighted to the low end
-	STAKES = table.freeze({ 20, 30, 40, 50, 70, 100 }),
+	-- stake roll: 30-130 coins, weighted to the low end (averages ~52)
+	STAKES = table.freeze({ 30, 40, 50, 70, 90, 130 }),
 	STAKE_WEIGHTS = table.freeze({ 30, 25, 18, 12, 10, 5 }),
 
 	-- rewards

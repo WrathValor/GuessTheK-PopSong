@@ -32,6 +32,7 @@ local GroupArt = require(ReplicatedStorage.Modules.UI.GroupArt)
 
 local Build = require(script.Build)
 local InviteToast = require(script.Parent.Parent.Parent.InviteToast) -- Client/InviteToast: party invites use the duel toast
+local CameraController = require(script.Parent.Parent.Parent.CameraController) -- Client/CameraController: the lobby pan
 
 local LOCAL_PLAYER = Players.LocalPlayer
 local PartyRemote = Bridgenet.ReferenceBridge("PartyRemote")
@@ -55,6 +56,10 @@ local AV = { C("FFD2CE"), C("DCD3FF"), C("C8EFD6"), C("CDEBFA"), C("FFE9A8"), C(
 local MEDAL = { C("FFE07A"), C("E6E2EE"), C("F2C3A0"), C("FBF7F0"), C("FBF7F0"), C("FBF7F0") }
 local ORDINAL = { "1st", "2nd", "3rd", "4th", "5th", "6th" }
 local PAGES = { "Lobby", "Settings", "Invite", "Player", "Songs", "Prompt", "Results", "Watch" }
+-- the lobby's own cards sit on the right (their right edge at ASIDE_RIGHT) while you're on the
+-- stage, so the camera's circle of the ring (CameraController.PartyPan) shows everyone's spot
+local ASIDE = { Lobby = true, Settings = true, Invite = true, Player = true, Songs = true }
+local ASIDE_RIGHT = 1250
 local FLIP_OUT = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 local FLIP_IN = TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 
@@ -179,6 +184,11 @@ function Party:_show(page: string)
 	local from = self._page
 	self._page = page
 	local function reveal()
+		-- on the stage, the lobby's cards step over to the right (see ASIDE)
+		local aside = self.InParty and ASIDE[page] == true
+		for f, spots in self._home or {} do
+			f.Position = if aside then spots.Aside else spots.Home
+		end
 		for _, p in PAGES do
 			local visible = p == page
 			frame[p].Visible = visible
@@ -200,6 +210,20 @@ function Party:_show(page: string)
 		reveal()
 	end
 	self:_countdownLoop(page == "Lobby")
+	self:_lobbyCamera()
+end
+
+-- On the stage before a match: the camera circles the ring (CameraController.PartyPan). Never
+-- over the round camera or the victory shot; Left hands it back.
+function Party:_lobbyCamera()
+	if not (self.InParty and self.Info and self.Info.Status ~= "InMatch") then
+		return
+	end
+	local mode = CameraController.Mode
+	if mode == "PartyPan" or mode == "Victory" or mode == "Song" or mode == "Choreography" then
+		return
+	end
+	CameraController.PartyPan()
 end
 
 function Party:_render()
@@ -878,6 +902,7 @@ function Party:_onPacket(packet)
 		if packet.Status == "InMatch" then
 			return -- the round screen takes over (DuelController)
 		end
+		self:_lobbyCamera()
 		local active = self.State == "Active" or self.State == "Activating"
 		if not was and not active then
 			self._interface:Open("Party", "Lobby")
@@ -889,6 +914,9 @@ function Party:_onPacket(packet)
 	elseif m == "Left" then
 		self.InParty = false
 		self.Info = nil
+		if CameraController.Mode == "PartyPan" then
+			CameraController.Reset()
+		end
 		if packet.Reason == "Removed" then
 			self:_prompt({
 				Tag = "LEFT THE STAGE",
@@ -1034,6 +1062,15 @@ function Party:Initialize(interface)
 	end
 	ButtonScale.ApplyToDescendants(frame)
 	local j = self._janitor
+	-- each card's (and shadow's) home spot, and where it sits aside
+	self._home = {}
+	for page in ASIDE do
+		for _, f in { frame[page], frame[page .. "Shadow"] } do
+			local home = f.Position
+			local dx = (ASIDE_RIGHT - frame[page].Size.X.Offset / 2) - frame[page].Position.X.Offset
+			self._home[f] = { Home = home, Aside = home + UDim2.fromOffset(dx, 0) }
+		end
+	end
 
 	-- the spot prompts are for people walking up: hide them on the stage you're on
 	-- (the server never sets Enabled, so this local change sticks)

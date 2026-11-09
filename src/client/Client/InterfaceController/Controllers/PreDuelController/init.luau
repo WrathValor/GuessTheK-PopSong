@@ -261,6 +261,12 @@ function PreDuel:Setup(packet)
 	f.VS.Visible = rival ~= nil
 	f.RivalFound.Visible = rival ~= nil
 	f.RivalFoundShadow.Visible = rival ~= nil
+	-- Party free-for-all: no "you vs rival" row (the whole stage is your rival)
+	if packet.Party and packet.Kind ~= "Duel" then
+		for _, n in { "You", "YouShadow", "Rival", "RivalShadow", "VS", "RivalFound", "RivalFoundShadow" } do
+			f[n].Visible = false
+		end
+	end
 
 	-- stake (solo: the stake is paid out as XP)
 	local solo = packet.Solo

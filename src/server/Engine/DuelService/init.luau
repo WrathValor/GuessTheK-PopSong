@@ -638,6 +638,21 @@ end
 
 -- Puts a player on the free spot of a stage someone is already waiting on (an accepted
 -- duel invite). Returns whether they got on.
+-- Puts a player on spot A of a fully empty stage (inviting someone from their player card,
+-- InviteService "Challenge"). Returns whether they got on.
+function DuelService.TakeEmptyStage(player: Player): boolean
+	if DuelService.PlayerStage[player] then
+		return false
+	end
+	for _, stage in DuelService.Stages do
+		if stage.State == "Waiting" and not stage.Solo and not stage.Duel and not stage.Players.A and not stage.Players.B then
+			join(stage, "A", player, "Challenge")
+			return DuelService.PlayerStage[player] == stage
+		end
+	end
+	return false
+end
+
 function DuelService.JoinStage(player: Player, stageName: string): boolean
 	local stage = DuelService.Stages[stageName]
 	if not stage or stage.Solo or stage.Duel or stage.State ~= "Waiting" then

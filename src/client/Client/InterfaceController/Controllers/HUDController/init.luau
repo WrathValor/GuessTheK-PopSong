@@ -1,7 +1,6 @@
 -- -------------------------------- Services -------------------------------- --
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
-local SocialService = game:GetService("SocialService")
 local TweenService = game:GetService("TweenService")
 
 -- --------------------------------- Imports -------------------------------- --
@@ -35,6 +34,7 @@ local SLIDE_IN = TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.
 -- Frames opened by the HUD buttons. Missing controllers are skipped with a warning, so
 -- buttons start working as soon as the matching controller is added.
 local TILE_TARGETS = {
+	Profile = "Profile",
 	Index = "Index",
 	Shop = "Shop",
 	Inventory = "Inventory",
@@ -199,14 +199,6 @@ function HUDController._bindButtons(self: Self)
 		end))
 	end
 
-	self._janitor:Add(menu.Tiles.Invite.Activated:Connect(function()
-		task.spawn(function()
-			local ok, canInvite = pcall(SocialService.CanSendGameInviteAsync, SocialService, LOCAL_PLAYER)
-			if ok and canInvite then
-				pcall(SocialService.PromptGameInvite, SocialService, LOCAL_PLAYER)
-			end
-		end)
-	end))
 
 	self._janitor:Add(hud.TopLeft.Coins.Buy.Activated:Connect(function()
 		self:_open("Shop", "Coins")
