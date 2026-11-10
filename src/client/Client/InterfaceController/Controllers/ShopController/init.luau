@@ -1,8 +1,9 @@
 --| ShopController
 -- The shop (Interface.Frames.Shop, built in Studio from the "Shop v3" board): one scrolling
 -- page under the usual header. Top to bottom: the featured set, the one-time Debut Pack, the
--- four stage sets in the rotation, the stages + mic stands in the rotation, the coin bundles,
--- the passes and the code box. Fills everything from ShopCatalog + the player's data;
+-- four stage sets in the rotation, the stages + mic stands in the rotation, the banners +
+-- photocards in the rotation (a set, or either half), roll tickets + card upgrades (Robux
+-- bundles, the "Rolls" section), the coin bundles, the passes and the code box. Fills everything from ShopCatalog + the player's data;
 -- purchases are only requests, the server (ShopService, RewardsService for codes) checks and
 -- applies them. The song roll and the group's UGC are their own screens (RollController,
 -- UGCController). Open with Interface:Open("Shop", "Coins") to land on the coin bundles.
@@ -27,6 +28,8 @@ local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 local Prices = require(ReplicatedStorage.Modules.Prices)
+local SeasonArt = require(ReplicatedStorage.Modules.UI.SeasonArt)
+local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
 
 -- -------------------------------- Variables ------------------------------- --
 local LOCAL_PLAYER = Players.LocalPlayer
@@ -40,7 +43,8 @@ local GREY = C("EDE4D4")
 local PINK = C("FF9EC4")
 local RED = C("FF5A4E")
 
-local COIN = "rbxassetid://105055420801588"
+local Currencies = require(ReplicatedStorage.Constants.Currencies)
+local COIN = Currencies.Coins.Icon
 local ROBUX = "rbxassetid://83637405007021"
 
 local SCROLL_TWEEN = TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
@@ -48,6 +52,7 @@ local SCROLL_TWEEN = TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirec
 local ITEM_OWNED = { Stage = "Stages", Mic = "Mics" }
 local ITEM_EQUIPPED = { Stage = "EquippedStage", Mic = "EquippedMic" }
 local PASS_CARDS = { VIP = "VIP", DoubleCoins = "DoubleCoins" } -- card name → ShopCatalog pass id
+local ROLL_CARDS = { "Tickets", "Upgrades" } -- the Rolls section's cards, by Currencies id
 
 local fmt = ShopCatalog.Format
 
@@ -327,6 +332,107 @@ function Shop:_fillPieces()
 	end
 end
 
+-- [[ Banners + photocards ]]
+
+local STYLE_OWNED = { Banner = "Banners", Photocard = "Photocards" }
+local STYLE_WORN = { Banner = "Banner", Photocard = "Photocard" }
+local STYLE_FREE = { Banner = SeasonConstants.FREE_BANNERS, Photocard = SeasonConstants.FREE_PHOTOCARDS }
+
+local function ownsStyle(kind: string, id: string): boolean
+	return STYLE_FREE[kind][id] == true or owns(PlayerData.Inventory[STYLE_OWNED[kind]], id)
+end
+
+local function wearing(kind: string, id: string): boolean
+	local worn = PlayerData.Inventory[STYLE_WORN[kind]].Get()
+	return worn == id or (worn == "" and id == SeasonConstants["DEFAULT_" .. string.upper(kind)])
+end
+
+-- what a style button would do: "Buy" (+ price), "Equip" or nil (nothing: already on)
+local function styleAction(kind: string, id: string): (string?, number?)
+	if kind == "Set" then
+		local hasB, hasC = ownsStyle("Banner", id), ownsStyle("Photocard", id)
+		if hasB and hasC then
+			return if wearing("Banner", id) and wearing("Photocard", id) then nil else "Equip", nil
+		elseif hasB then
+			return "Buy", ShopCatalog.StylePrice(id, "Photocard")
+		elseif hasC then
+			return "Buy", ShopCatalog.StylePrice(id, "Banner")
+		end
+		return "Buy", ShopCatalog.StylePrice(id, "Set")
+	end
+	if ownsStyle(kind, id) then
+		return if wearing(kind, id) then nil else "Equip", nil
+	end
+	return "Buy", ShopCatalog.StylePrice(id, kind)
+end
+
+-- the small half buttons: kind label over coin + price / Owned
+local function setHalfButton(button: GuiButton, kind: string, id: string)
+	local owned = ownsStyle(kind, id)
+	button.BackgroundColor3 = if owned then GREY else WHITE
+	button.Active = not owned
+	button.Row.Icon.Visible = not owned
+	button.Row.Label.Text = if owned then "Owned" else fmt(ShopCatalog.StylePrice(id, kind) or 0)
+	local shadow = button.Parent:FindFirstChild(button.Name .. "Shadow")
+	if shadow then
+		shadow.Visible = not owned
+	end
+end
+
+function Shop:_fillStyle()
+	local title = self._scroll:FindFirstChild("StyleTitle")
+	local section = self._scroll:FindFirstChild("Style")
+	if not title or not section then
+		return -- not built yet (SeasonController/Build.ShopStyle)
+	end
+	title.Chip.Text = `Restocks in {ShopCatalog.Countdown(select(2, ShopCatalog.RotationWindow()) - os.time())}`
+	local rotation = ShopCatalog.StyleRotation()
+	for i = 1, 4 do
+		local card = section["Style" .. i]
+		local spec = rotation[i]
+		card.Visible = spec ~= nil
+		section["Style" .. i .. "Shadow"].Visible = spec ~= nil
+		card:SetAttribute("StyleId", spec and spec.Id or nil)
+		if spec then
+			local id = spec.Id
+			if card:GetAttribute("Shown") ~= id then
+				card:SetAttribute("Shown", id)
+				card.SetName.Text = spec.Name
+				local art = card.Art
+				SeasonArt.PaintBanner(art.Banner, id)
+				local avatar = art.Card.Photo:FindFirstChild("Avatar")
+				if avatar then
+					avatar.Image = `rbxthumb://type=AvatarBust&id={LOCAL_PLAYER.UserId}&w=150&h=150`
+				end
+				SeasonArt.PaintPhotocard(art.Card, id)
+				art.BackgroundColor3 = spec.Fill
+				art.Animated.Visible = spec.Animated == true
+			end
+			-- Set: buy both / finish the set / equip it
+			local action, price = styleAction("Set", id)
+			local full = ShopCatalog.StylePrice(id, "Set") or 0
+			local halves = (ShopCatalog.StylePrice(id, "Banner") or 0) + (ShopCatalog.StylePrice(id, "Photocard") or 0)
+			local finishing = action == "Buy" and price ~= full
+			local pre = card.SetBuy:FindFirstChild("Pre")
+			if pre then
+				pre.Visible = action == "Buy"
+				pre.Text = if finishing then "Finish set" else "Set"
+			end
+			if action == "Buy" then
+				setButton(card.SetBuy, fmt(price :: number), { Icon = COIN })
+			elseif action == "Equip" then
+				setButton(card.SetBuy, "Equip set", { Colour = WHITE })
+			else
+				setButton(card.SetBuy, "Equipped", { Colour = GREY, Enabled = false })
+			end
+			card.Save.Visible = action == "Buy" and not finishing
+			card.Save.Text = `SAVE {fmt(halves - full)}`
+			setHalfButton(card.BannerBuy, "Banner", id)
+			setHalfButton(card.PhotocardBuy, "Photocard", id)
+		end
+	end
+end
+
 function Shop:_fillCoins()
 	local face = self._scroll.Coins.Face
 	local bundles = shownBundles()
@@ -351,6 +457,35 @@ function Shop:_fillCoins()
 				tag.BackgroundColor3 = if bundle.Tag == "BEST VALUE" then RED else PINK
 			end
 			setRobuxButton(holder.Buy, "Product", bundle.ProductId)
+		end
+	end
+end
+
+-- Rolls + upgrades: how many you have, and each card's three Robux bundles
+function Shop:_fillRolls()
+	local section = self._scroll:FindFirstChild("Rolls")
+	if not section then
+		return
+	end
+	for _, id in ROLL_CARDS do
+		local face = section:FindFirstChild(id)
+		if face then
+			face.Have.Text = `You have {fmt(Currencies.Count(LOCAL_PLAYER, id))}`
+			local bundles = ShopCatalog.RollBundlesFor(id)
+			for i = 1, 3 do
+				local tile = face:FindFirstChild("Bundle" .. i)
+				local bundle = bundles[i]
+				if tile then
+					tile.Visible = bundle ~= nil
+					if bundle then
+						tile.Count.Text = `×{bundle.Amount}`
+						tile.Tag.Visible = bundle.Tag ~= nil
+						tile.Tag.Text = bundle.Tag or ""
+						tile.Tag.BackgroundColor3 = if bundle.Tag == "BEST VALUE" then RED else PINK
+						setRobuxButton(tile.Buy, "Product", bundle.ProductId)
+					end
+				end
+			end
 		end
 	end
 end
@@ -392,6 +527,8 @@ function Shop:_refresh()
 	self:_fillDebut()
 	self:_fillSets()
 	self:_fillPieces()
+	self:_fillStyle()
+	self:_fillRolls()
 	self:_fillCoins()
 	self:_fillPasses()
 end
@@ -432,6 +569,27 @@ function Shop:_itemAction(kind: string, id: string?)
 		return
 	end
 	ShopRemote:Fire({ Action = "BuyItem", Kind = kind, Id = id })
+end
+
+-- kind = "Set" | "Banner" | "Photocard"
+function Shop:_styleAction(kind: string, id: string?)
+	if not id then
+		return
+	end
+	local action, price = styleAction(kind, id)
+	if action == "Equip" then
+		ShopRemote:Fire({
+			Action = "EquipStyle",
+			Banner = if kind ~= "Photocard" then id else nil,
+			Photocard = if kind ~= "Banner" then id else nil,
+		})
+	elseif action == "Buy" then
+		if PlayerData.Currencies.Won.Get() < (price or 0) then
+			self:_notEnoughCoins()
+			return
+		end
+		ShopRemote:Fire({ Action = "BuyStyle", Kind = kind, Id = id })
+	end
 end
 
 function Shop:_redeem()
@@ -485,6 +643,19 @@ function Shop:Initialize(interface)
 		end
 	end
 
+	-- banners + photocards (built by SeasonController/Build.ShopStyle)
+	local style = scroll:FindFirstChild("Style")
+	for i = 1, 4 do
+		local card = style and style:FindFirstChild("Style" .. i)
+		if card then
+			for button, kind in { SetBuy = "Set", BannerBuy = "Banner", PhotocardBuy = "Photocard" } do
+				j:Add(card[button].Activated:Connect(function()
+					self:_styleAction(kind, card:GetAttribute("StyleId"))
+				end))
+			end
+		end
+	end
+
 	-- Robux: debut pack, coin bundles, passes
 	j:Add(scroll.Debut.Face.Buy.Activated:Connect(function()
 		local pack = ShopCatalog.DebutPack
@@ -497,6 +668,23 @@ function Shop:Initialize(interface)
 		j:Add(scroll.Coins.Face["Bundle" .. i].Buy.Activated:Connect(function()
 			local bundle = shownBundles()[i]
 			promptProduct(bundle and bundle.ProductId)
+		end))
+	end
+	local rolls = scroll:FindFirstChild("Rolls")
+	for _, id in ROLL_CARDS do
+		local face = rolls and rolls:FindFirstChild(id)
+		for i = 1, 3 do
+			local tile = face and face:FindFirstChild("Bundle" .. i)
+			if tile then
+				j:Add(tile.Buy.Activated:Connect(function()
+					local bundle = ShopCatalog.RollBundlesFor(id)[i]
+					promptProduct(bundle and bundle.ProductId)
+				end))
+			end
+		end
+		-- "You have n" stays right
+		j:Add(LOCAL_PLAYER:GetAttributeChangedSignal(Currencies.Get(id).Attribute):Connect(function()
+			self:_refresh()
 		end))
 	end
 	for card, id in PASS_CARDS do
@@ -520,11 +708,11 @@ function Shop:Initialize(interface)
 	j:Add(ShopRemote:Connect(function(packet)
 		if type(packet) == "table" and packet.Message == "Result" then
 			-- a successful buy gets the full purchase reveal (PurchasedController) instead of a toast
-			local bought = packet.Ok and (packet.Action == "BuySet" or packet.Action == "BuyItem")
+			local bought = packet.Ok and (packet.Action == "BuySet" or packet.Action == "BuyItem" or packet.Action == "BuyStyle")
 			if not bought then
 				self:_toast(packet.Text or "")
 			end
-			if packet.Ok and packet.Action ~= "EquipSet" and packet.Action ~= "EquipItem" then
+			if packet.Ok and packet.Action ~= "EquipSet" and packet.Action ~= "EquipItem" and packet.Action ~= "EquipStyle" then
 				Sounds.Play("Success")
 			elseif not packet.Ok then
 				Sounds.Play("Wrong")
@@ -534,10 +722,11 @@ function Shop:Initialize(interface)
 	j:Add(RewardsRemote:Connect(function(packet)
 		if type(packet) == "table" and packet.Message == "Result" and packet.Action == "RedeemCode" then
 			-- (RewardsController plays the success / wrong sound for every RewardsRemote reply)
-			self:_toast(packet.Text or "")
+			-- a code that worked gets the purchase reveal (PurchasedController) instead of a toast
 			if packet.Ok then
 				codes.CodeBox.Text = ""
 			else
+				self:_toast(packet.Text or "")
 				Juice.Shake(codes.CodeBox, 0.25)
 			end
 		end
@@ -551,6 +740,10 @@ function Shop:Initialize(interface)
 		PlayerData.Inventory.Mics,
 		PlayerData.Inventory.EquippedStage,
 		PlayerData.Inventory.EquippedMic,
+		PlayerData.Inventory.Banners,
+		PlayerData.Inventory.Photocards,
+		PlayerData.Inventory.Banner,
+		PlayerData.Inventory.Photocard,
 		PlayerData.Rewards.Claimed,
 		PlayerData.GamePasses,
 	} do

@@ -26,6 +26,8 @@ local Songs = require(ReplicatedStorage.Modules.Library.Songs)
 local Showcase = require(ReplicatedStorage.Modules.Showcase)
 local SongCard = require(ReplicatedStorage.Modules.UI.SongCard)
 local TitleChip = require(ReplicatedStorage.Modules.UI.TitleChip)
+local SeasonArt = require(ReplicatedStorage.Modules.UI.SeasonArt)
+local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
 local HUDConstants = require(ReplicatedStorage.Constants.HUDConstants)
 local FrameTransition = require(ReplicatedStorage.Modules.UI.Animations.FrameTransition)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
@@ -48,10 +50,10 @@ local PENDING_FOR = 5 -- seconds a just-saved pick shows before PlayerData must 
 
 -- stat tile → the board its rank tag comes from
 local RANKS = {
-	Wins = { Board = "WeeklyWins", Text = "this week" },
+	Wins = { Board = "MostWins", Text = "all time" },
 	BestStreak = { Board = "TopStreaks", Text = "all time" },
 	Perfect = { Board = "PerfectGames", Text = "all time" },
-	Correct = { Board = "WeeklyAnswers", Text = "this week" },
+	Correct = { Board = "MostAnswers", Text = "all time" },
 }
 
 -- --------------------------------- Helpers -------------------------------- --
@@ -124,7 +126,19 @@ function Profile:_paintCard()
 	local face = left.Photocard.Face
 	face.PlayerName.Text = LOCAL_PLAYER.DisplayName
 	face.Photo.Avatar.Image = `rbxthumb://type=AvatarBust&id={LOCAL_PLAYER.UserId}&w=420&h=420`
-	TitleChip.Paint(face.Title, LOCAL_PLAYER:GetAttribute("Title") or HUDConstants.DEFAULT_TITLE, LOCAL_PLAYER:GetAttribute("TitleTier") or "Normal")
+	local chips = face:FindFirstChild("Chips") or face -- title + tier sit in a Chips row (SeasonController/Build)
+	TitleChip.Paint(chips.Title, LOCAL_PLAYER:GetAttribute("Title") or HUDConstants.DEFAULT_TITLE, LOCAL_PLAYER:GetAttribute("TitleTier") or "Normal")
+
+	-- season: the banner band, its season tag and the tier chip on the photocard
+	local _, tierInfo, banner, photocard = SeasonArt.Of(LOCAL_PLAYER)
+	local header = self._frame.Panel.Header
+	SeasonArt.PaintBanner(header:FindFirstChild("Banner"), banner)
+	SeasonArt.PaintPhotocard(face, photocard)
+	if header:FindFirstChild("SeasonTag") then
+		header.SeasonTag.Visible = SeasonConstants.ENABLED
+		header.SeasonTag.Text = SeasonConstants.Current().Name
+	end
+	SeasonArt.PaintChip(chips:FindFirstChild("Tier"), tierInfo)
 
 	local level, into, need = Levels.FromXP(get(PlayerData.Player.XP, 0))
 	local maxed = level >= Levels.MAX_LEVEL
@@ -145,14 +159,24 @@ function Profile:_paintStats()
 		total += 1
 		owned += if owns(song.Id) then 1 else 0
 	end
+	-- season tile: SP now, the tier it's in and the highest tier reached this season
+	local sp = LOCAL_PLAYER:GetAttribute("SeasonSP") or 0
+	local peak = math.max(sp, LOCAL_PLAYER:GetAttribute("SeasonPeakSP") or 0)
+	local function tierName(info): string
+		return if info.Division ~= "" then `{info.Tier.Name} {info.Division}` else info.Tier.Name
+	end
 	local values = {
 		Wins = { commas(wins), if duels > 0 then `{math.floor(wins / duels * 100 + 0.5)}% win rate` else "no duels yet" },
 		BestStreak = { commas(get(stats.HighestStreak, 0)), `now on {get(PlayerData.Player.Streak, 0)}` },
 		Perfect = { commas(get(stats.PerfectGames, 0)), "7–0 wins" },
 		Correct = { commas(get(stats.CorrectAnswers, 0)), "duels + solo" },
 		Songs = { commas(owned), `of {total} in the Index` },
-		SoloBest = { commas(get(stats.SoloBest, 0)), "points in 7 rounds" },
+		-- the sixth tile: the season while seasons are on, Solo Best while they're off
+		Season = if SeasonConstants.ENABLED
+			then { `{commas(sp)} SP`, `{tierName(SeasonConstants.TierOf(sp))} · peak {tierName(SeasonConstants.TierOf(peak))}` }
+			else { commas(get(stats.SoloBest, 0)), "points in 7 rounds" },
 	}
+	tiles.Season.Label.Text = if SeasonConstants.ENABLED then "SEASON" else "SOLO BEST"
 	for name, v in values do
 		local tile = tiles[name]
 		tile.Value.Text = v[1]
@@ -251,6 +275,12 @@ function Profile:Initialize(interface)
 	j:Add(panel.Content.Left.ChangeTitle.Activated:Connect(function()
 		self._interface:Open("Inventory", "Titles")
 	end))
+	local bannerButton = panel.Header:FindFirstChild("BannerButton")
+	if bannerButton then
+		j:Add(bannerButton.Activated:Connect(function()
+			self._interface:Open("Banners")
+		end))
+	end
 	-- Edit / Done
 	j:Add(right.Edit.Activated:Connect(function()
 		self._editing = not self._editing
@@ -297,6 +327,10 @@ function Profile:Initialize(interface)
 	end
 	j:Add(LOCAL_PLAYER:GetAttributeChangedSignal("Title"):Connect(changed))
 	j:Add(LOCAL_PLAYER:GetAttributeChangedSignal("TitleTier"):Connect(changed))
+	j:Add(LOCAL_PLAYER:GetAttributeChangedSignal("SeasonSP"):Connect(changed))
+	j:Add(LOCAL_PLAYER:GetAttributeChangedSignal("SeasonPeakSP"):Connect(changed))
+	j:Add(LOCAL_PLAYER:GetAttributeChangedSignal("Banner"):Connect(changed))
+	j:Add(LOCAL_PLAYER:GetAttributeChangedSignal("Photocard"):Connect(changed))
 end
 
 function Profile:Activate(opts: any?)

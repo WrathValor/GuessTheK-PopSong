@@ -20,6 +20,20 @@
 -- songs already in a slot are tagged "SLOT n". Tapping an owned card puts it in the slot (one
 -- already in another slot swaps places with it), saves through ProfileRemote
 -- (Engine/ProfileService) and goes straight back to the Profile, still editing.
+-- Card upgrade mode (board "Seasons 12"): a Season Track card upgrade is +1 copy on a card you
+-- pick. Open("Index", { Upgrade = true }) (after claiming one, or the header's UPGRADE ×n, shown
+-- while Upgrades > 0): the header reads UPGRADE A CARD with "n left" and UPGRADE THIS CARD in
+-- ROLL SONGS' place; the cards show Owned, tapping one picks it ("+1 → GOLD!" / "+1 COPY",
+-- Rainbow cards are MAX). Confirm asks Engine/SeasonService (SeasonRemote UseUpgrade); the mode
+-- stays until the upgrades run out or the Index is closed. A +1 that makes the card Gold or
+-- Rainbow plays the song roll's level-up reveal (RollController, Open("Roll", { Upgrade = pull }))
+-- and Done comes back here.
+-- Background music (board "Rainbow cards · background music"): while a card plays, the
+-- footer's hint / title-progress spot (left of the pager, which never moves) shows the Now
+-- Playing bar: the song, ✕ to stop, and on a Rainbow card SET AS BACKGROUND MUSIC (or USE
+-- DEFAULT MUSIC on the one already set) through ProfileRemote SetBgMusic. Gold / Normal cards
+-- say what it takes. The card that's your background music wears a note sticker on its corner. The song
+-- itself plays from Client/BackgroundMusic (the "BgMusic" attribute).
 -- Listening (normal mode): tap a card you own and its song plays from its snippet start
 -- (TimePosition), the lobby music ducked; its art tile shows bouncing equaliser bars (Art.Eq)
 -- and hovering an owned card turns its initials into ▶. Tap it again to stop, tap
@@ -33,6 +47,7 @@ local TextService = game:GetService("TextService")
 
 -- --------------------------------- Imports -------------------------------- --
 local Janitor = require(ReplicatedStorage.Packages.janitor)
+local Currencies = require(ReplicatedStorage.Constants.Currencies)
 local Promise = require(ReplicatedStorage.Packages.promise)
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Client
@@ -55,6 +70,8 @@ local BackgroundMusic = require(script.Parent.Parent.Parent.BackgroundMusic) -- 
 
 -- -------------------------------- Variables ------------------------------- --
 local ProfileRemote = Bridgenet.ReferenceBridge("ProfileRemote")
+local SeasonRemote = Bridgenet.ReferenceBridge("SeasonRemote")
+local LOCAL_PLAYER = game:GetService("Players").LocalPlayer
 
 local C = Color3.fromHex
 local INK = C("1E1B2E")
@@ -91,6 +108,7 @@ function Index.new()
 	self._show = 1
 	self._sort = 1
 	self._pick = nil :: { Slot: number, Ids: { string } }? -- showcase slot mode: the slot + the 5 ids
+	self._upgrade = nil :: { Picked: string? }? -- card upgrade mode: the card picked
 	self._pageSongs = {} :: { [number]: any } -- the song on each card of this page
 	return (self :: any) :: UITypes.Controller
 end
@@ -494,8 +512,27 @@ end
 local SLOT_ON = C("FFE07A")
 local SLOT_EMPTY = C("F3EBDD")
 
+-- the BG music sticker (Build.AddCardStates) on or off
+local function setSticker(holder: Frame, on: boolean)
+	for _, name in { "BgSticker", "BgStickerShadow" } do
+		local x = holder:FindFirstChild(name)
+		if x then
+			x.Visible = on
+		end
+	end
+end
+
 -- one card's "SLOT n" tag + tap area (only owned songs can go in a slot)
 function Index:_fillPick(holder: Frame, song, mine: boolean)
+	local dim = holder:FindFirstChild("Dim")
+	if dim then
+		dim.Visible = false
+	end
+	-- your background music card wears the note sticker (not in upgrade mode, where cards fade)
+	setSticker(holder, not self._upgrade and song ~= nil and mine and song.Id == (LOCAL_PLAYER:GetAttribute("BgMusic") or ""))
+	if self._upgrade then
+		return self:_fillUpgradeCard(holder, song, mine)
+	end
 	local pick = self._pick
 	local slot = if pick and song then table.find(pick.Ids, song.Id) else nil
 	holder.Pick.Visible = slot ~= nil
@@ -509,14 +546,165 @@ function Index:_fillPick(holder: Frame, song, mine: boolean)
 	end
 end
 
+-- [[ Background music ]]
+
+-- the Now Playing bar in the footer (hides the hint / title progress while it shows)
+function Index:_paintPlaying()
+	local content = self._frame.Panel.Content
+	local bar = content:FindFirstChild("Playing")
+	if not bar then
+		return
+	end
+	local playing = self._playing
+	local song = playing and Songs.GetById(playing.Id)
+	local show = song ~= nil and not self._pick and not self._upgrade
+	bar.Visible = show
+	content.PlayingShadow.Visible = show
+	if not show then
+		return
+	end
+	content.Hint.Visible = false
+	content.NextStep.Visible = false
+	bar.SongName.Text = `{song.Name} · {song.Artist}`
+	local copies = nil
+	pcall(function()
+		copies = PlayerData.Inventory.Copies.Get()
+	end)
+	local count = Cards.Copies(copies, owned(song), song.Id)
+	local level = Cards.Level(count)
+	TierShine.Apply(bar, bar.Level, level, WHITE) -- Rainbow / Gold like the card; Normal white
+	local rainbow = level == "Rainbow"
+	bar.SetBg.Visible = rainbow
+	bar.SetBgShadow.Visible = rainbow
+	bar.Note.Visible = not rainbow
+	if rainbow then
+		local isMine = (LOCAL_PLAYER:GetAttribute("BgMusic") or "") == song.Id
+		bar.SetBg.Text = if isMine then "USE DEFAULT MUSIC" else "SET AS BACKGROUND MUSIC"
+	elseif level == "Gold" then
+		local _, need = Cards.Next(count)
+		local more = (need or count) - count
+		bar.Note.Text = `Rainbow cards can be your background music · <b>{more} more cop{if more == 1 then "y" else "ies"}</b>`
+	else
+		bar.Note.Text = "Rainbow cards can be your background music"
+	end
+end
+
+-- SET AS BACKGROUND MUSIC / USE DEFAULT MUSIC on the playing card
+function Index:_toggleBgMusic()
+	local playing = self._playing
+	if not playing then
+		return
+	end
+	local isMine = (LOCAL_PLAYER:GetAttribute("BgMusic") or "") == playing.Id
+	ProfileRemote:Fire({ Action = "SetBgMusic", Id = if isMine then "" else playing.Id })
+	Sounds.Play("Success")
+	Juice.Pop(self._frame.Panel.Content.Playing.SetBg, 0.12)
+end
+
+-- [[ Card upgrade mode ]]
+
+local function upgrades(): number
+	return Currencies.Count(LOCAL_PLAYER, "Upgrades")
+end
+
+-- one card in upgrade mode: what +1 copy does to it, the picked one marked
+function Index:_fillUpgradeCard(holder: Frame, song, mine: boolean)
+	holder.Hit.Visible = song ~= nil and mine
+	holder.Pick.Visible = false
+	if not song or not mine then
+		return
+	end
+	local copies = nil
+	pcall(function()
+		copies = PlayerData.Inventory.Copies.Get()
+	end)
+	local count = Cards.Copies(copies, true, song.Id)
+	local nextLevel, need = Cards.Next(count)
+	local picked = self._upgrade.Picked == song.Id
+	if not nextLevel then
+		-- maxed: the card fades and can't be picked
+		local dim = holder:FindFirstChild("Dim")
+		if dim then
+			dim.Visible = true
+		end
+		holder.Hit.Visible = false
+	elseif picked then
+		holder.Pick.Visible = true
+		holder.Pick.Text = if count + 1 >= (need :: number) then `+1 → {string.upper(nextLevel)}!` else "+1 COPY"
+		holder.Face:FindFirstChildOfClass("UIStroke").Thickness = 5
+	end
+	if holder.Pick.Visible then
+		holder.Face.Copies.Visible = false -- the tag sits there
+	end
+end
+
+function Index:_enterUpgrade()
+	if upgrades() <= 0 then
+		return
+	end
+	self._upgrade = {}
+	self._pick = nil
+	self._show = table.find(SHOWS, "Owned") or self._show
+	self._page = 1
+	self:_refresh()
+end
+
+-- a card tapped in upgrade mode: pick it (Rainbow cards are maxed)
+function Index:_pickUpgrade(i: number)
+	local song = self._pageSongs[i]
+	if not self._upgrade or not song then
+		return
+	end
+	local copies = nil
+	pcall(function()
+		copies = PlayerData.Inventory.Copies.Get()
+	end)
+	local holder = self._frame.Panel.Content.Grid["Card" .. i]
+	if Cards.Next(Cards.Copies(copies, true, song.Id)) == nil then
+		Juice.Shake(holder)
+		Sounds.Play("Wrong")
+		return
+	end
+	Sounds.Play("Click")
+	self._upgrade.Picked = song.Id
+	Juice.Pop(holder, 0.1)
+	self:_refresh()
+end
+
+function Index:_confirmUpgrade()
+	local up = self._upgrade
+	if not up or not up.Picked or upgrades() <= 0 then
+		Juice.Shake(self._frame.Panel.Header.Confirm)
+		Sounds.Play("Wrong")
+		return
+	end
+	SeasonRemote:Fire({ Action = "UseUpgrade", Id = up.Picked })
+end
+
 -- the header + footer hint for the mode the Index is in
 function Index:_paintMode()
 	local panel = self._frame.Panel
 	local header = panel.Header
 	local pick = self._pick
-	header.Title.Text = if pick then `CHOOSE CARD {pick.Slot}` else "INDEX"
-	header.Roll.Visible = not pick
-	header.RollShadow.Visible = not pick
+	local upgrade = self._upgrade
+	header.Title.Text = if pick then `CHOOSE CARD {pick.Slot}` elseif upgrade then "UPGRADE A CARD" else "INDEX"
+	header.Roll.Visible = not pick and not upgrade
+	header.RollShadow.Visible = not pick and not upgrade
+	local n = upgrades()
+	local upButton = header:FindFirstChild("Upgrade")
+	if upButton then
+		local show = not pick and not upgrade and n > 0
+		upButton.Visible = show
+		header.UpgradeShadow.Visible = show
+		upButton.Label.Text = `UPGRADE ×{n}`
+		header.UpgradeLeft.Visible = upgrade ~= nil
+		header.UpgradeLeft.Text = `{n} left`
+		local canConfirm = upgrade ~= nil and upgrade.Picked ~= nil
+		header.Confirm.Visible = upgrade ~= nil
+		header.ConfirmShadow.Visible = canConfirm
+		header.Confirm.BackgroundColor3 = if canConfirm then C("A7E9B8") else TRACK
+		header.Confirm.TextTransparency = if canConfirm then 0 else 0.45
+	end
 	header.Close.Visible = not pick
 	header.CloseShadow.Visible = not pick
 	header.Showcase.Visible = pick ~= nil
@@ -532,11 +720,15 @@ function Index:_paintMode()
 			slot.Chip.TextColor3 = if on then SLOT_ON else INK
 		end
 	end
+	self:_paintPlaying()
 	local hint = panel.Content.Hint
 	local PICK_HINT = "Tap a song to put it in this slot. One already in another slot swaps."
+	local UPGRADE_HINT = "Pick a card: it gets +1 copy. 3 copies = Gold, 5 = Rainbow."
 	if pick then
 		hint.Text = PICK_HINT
-	elseif hint.Text == PICK_HINT then
+	elseif upgrade then
+		hint.Text = UPGRADE_HINT
+	elseif hint.Text == PICK_HINT or hint.Text == UPGRADE_HINT then
 		hint.Text = "Locked songs can be rolled in the shop."
 	end
 end
@@ -587,8 +779,15 @@ function Index:_animateEq(on: boolean)
 		return
 	end
 	local grid = self._frame.Panel.Content.Grid
+	local footerEq = self._frame.Panel.Content:FindFirstChild("Playing")
+	footerEq = footerEq and footerEq:FindFirstChild("Eq")
 	self._eqConn = RunService.RenderStepped:Connect(function()
 		local t = os.clock()
+		if footerEq and footerEq.Parent.Visible then
+			for b = 1, 3 do
+				footerEq["Bar" .. b].Size = UDim2.new(0, 6, 0.3 + 0.7 * math.abs(math.sin(t * (5 + b * 1.7) + b * 1.3)), 0)
+			end
+		end
 		for i = 1, PER_PAGE do
 			local eq = grid["Card" .. i].Face.Art:FindFirstChild("Eq")
 			if eq and eq.Visible then
@@ -734,7 +933,9 @@ function Index:Initialize(interface)
 	end))
 	for i = 1, PER_PAGE do
 		j:Add(content.Grid["Card" .. i].Hit.Activated:Connect(function()
-			if self._pick then
+			if self._upgrade then
+				self:_pickUpgrade(i)
+			elseif self._pick then
 				self:_choose(i)
 			else
 				self:_listen(i)
@@ -756,6 +957,78 @@ function Index:Initialize(interface)
 	j:Add(panel.Header.Roll.Activated:Connect(function()
 		self._interface:Open("Roll")
 	end))
+	-- the Now Playing bar: ✕ stops, SET AS / USE DEFAULT MUSIC saves your background music
+	local bar = content:FindFirstChild("Playing")
+	if bar then
+		j:Add(bar.Stop.Activated:Connect(function()
+			Sounds.Play("Click")
+			self:_stopListening(0.25)
+			self:_refresh()
+		end))
+		j:Add(bar.SetBg.Activated:Connect(function()
+			self:_toggleBgMusic()
+		end))
+	end
+	j:Add(LOCAL_PLAYER:GetAttributeChangedSignal("BgMusic"):Connect(function()
+		if self._frame.Visible then
+			self:_refresh()
+		end
+	end))
+
+	-- card upgrades: UPGRADE ×n → upgrade mode; UPGRADE THIS CARD → the server
+	if panel.Header:FindFirstChild("Upgrade") then
+		j:Add(panel.Header.Upgrade.Activated:Connect(function()
+			Sounds.Play("Click")
+			self:_enterUpgrade()
+		end))
+		j:Add(panel.Header.Confirm.Activated:Connect(function()
+			self:_confirmUpgrade()
+		end))
+	end
+	j:Add(LOCAL_PLAYER:GetAttributeChangedSignal(Currencies.Upgrades.Attribute):Connect(function()
+		if self._frame.Visible then
+			self:_paintMode()
+		end
+	end))
+	j:Add(SeasonRemote:Connect(function(packet)
+		if type(packet) ~= "table" or packet.Message ~= "Result" or packet.Action ~= "UseUpgrade" then
+			return
+		end
+		if not packet.Ok then
+			Sounds.Play("Wrong")
+			return
+		end
+		-- a +1 that makes the card Gold / Rainbow gets the roll's level-up reveal; a plain +1 a pop
+		local after = tonumber(packet.Copies) or 0
+		local level = Cards.Level(after)
+		local song = Songs.GetById(packet.Id)
+		if song and after > 1 and level ~= Cards.Level(after - 1) then
+			if self._upgrade then
+				self._upgrade.Picked = nil
+			end
+			self._interface:Open("Roll", {
+				Upgrade = { Song = song, New = false, Copies = after, Level = level, LevelUp = true },
+			})
+			return
+		end
+		Sounds.Play("Success")
+		for i = 1, PER_PAGE do
+			local s = self._pageSongs[i]
+			if s and s.Id == packet.Id then
+				Juice.Pop(content.Grid["Card" .. i], 0.2)
+			end
+		end
+		-- stay in upgrade mode while there are more to use
+		if self._upgrade then
+			self._upgrade.Picked = nil
+			if upgrades() <= 0 then
+				self._upgrade = nil
+			end
+		end
+		task.defer(function()
+			self:_refresh()
+		end)
+	end), "Disconnect") -- BridgeNet2 connections have no Destroy
 	for i = 1, Build.RAIL_ROWS do
 		j:Add(panel.Rail["Row" .. i].Activated:Connect(function()
 			pickRow(i)
@@ -820,10 +1093,17 @@ function Index:Activate(opts: any?)
 	-- slot mode only when the Profile asks for it; owned songs while choosing
 	if type(opts) == "table" and type(opts.Slot) == "number" and type(opts.Showcase) == "table" then
 		self._pick = { Slot = math.clamp(math.floor(opts.Slot), 1, Showcase.SLOTS), Ids = table.clone(opts.Showcase) }
+		self._upgrade = nil
 		self._show = table.find(SHOWS, "Owned") or self._show
 		self._page = 1
 	else
 		self._pick = nil
+		self._upgrade = nil
+		if type(opts) == "table" and opts.Upgrade and upgrades() > 0 then
+			self._upgrade = {}
+			self._show = table.find(SHOWS, "Owned") or self._show
+			self._page = 1
+		end
 	end
 	self._frame.Visible = true
 	self:_refresh()

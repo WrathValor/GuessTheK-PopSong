@@ -12,6 +12,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Scribe = require(ReplicatedStorage.Packages.scribe)
 local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 local ShopCatalog = require(ReplicatedStorage.Constants.ShopCatalog)
+local Currencies = require(ReplicatedStorage.Constants.Currencies)
 
 --| Helpers
 
@@ -57,6 +58,20 @@ for _, bundle in ShopCatalog.CoinBundles do
 	end
 end
 
+-- roll tickets + card upgrades bought with Robux (ShopCatalog.RollBundles)
+for _, bundle in ShopCatalog.RollBundles do
+	if (bundle.ProductId or 0) > 0 then
+		local amount, currency = bundle.Amount, bundle.Currency
+		Products[bundle.Id] = {
+			Id = bundle.ProductId,
+			Category = currency,
+			Grant = function(data)
+				Currencies.Data(data, currency).Increment(amount)
+			end,
+		}
+	end
+end
+
 -- the one-time Debut Pack (ShopCatalog.DebutPack)
 do
 	local pack = ShopCatalog.DebutPack
@@ -90,6 +105,23 @@ return Scribe({
 			LostStreak = Count(), -- streak lost in the last duel; what Save Streak restores (0 = nothing to save)
 		},
 
+		-- the current season (Engine/SeasonService; Constants/SeasonConstants). A new SEASON.Id
+		-- starts the track over.
+		Season = {
+			Id = Scribe.String("", { MaxLength = 20 }),
+			Stars = Count(),
+			Claimed = Count(), -- milestones claimed (always the first n)
+			Duels = Count(),
+			Wins = Count(),
+			Day = Count(), -- UTC day the daily counts below are for
+			DuelsToday = Count(),
+			QuestsToday = Count(),
+			SoloToday = Count(),
+			SP = Count(), -- Season Points: ranked duels move it (Engine/SeasonService.Rate)
+			PeakSP = Count(), -- highest SP this season: season-end rewards go by this
+			History = Scribe.MapOf("string", Count(), { MaxKeys = 100, MaxKeyLength = 20 }), -- season id → peak SP, kept when a season ends
+		},
+
 		Currencies = {
 			Won = Count(), -- coins
 		},
@@ -107,6 +139,16 @@ return Scribe({
 			Mics = Scribe.SetOf(Id(40)), -- mic stands owned, same
 			EquippedStage = Scribe.String("Default", { MaxLength = 40 }),
 			EquippedMic = Scribe.String("Default", { MaxLength = 40 }),
+			-- profile style (Constants/SeasonConstants): banners + photocards owned (bought in the
+			-- shop as halves or sets, or earned) and the ones worn ("" = the default)
+			Banners = Scribe.SetOf(Id(40)),
+			Photocards = Scribe.SetOf(Id(40)),
+			Banner = Scribe.String("", { MaxLength = 40 }),
+			Photocard = Scribe.String("", { MaxLength = 40 }),
+			-- Season Track rewards waiting to be used: a free roll from one group (RollService) and
+			-- +1 copy on a card of your choice (Engine/SeasonService UseUpgrade)
+			Tickets = Count(),
+			Upgrades = Count(),
 			Packs = Scribe.SetOf(Id(80)), -- song packs completed (pack ids, see Modules/Library/Packs)
 			Songs = Scribe.SetOf(Id(80)), -- songs owned (bought in the shop or pulled from a roll), by Song Id
 			-- copies pulled from the song roll, by Song Id (card level: Modules/Library/Cards).
@@ -155,6 +197,9 @@ return Scribe({
 			-- the 5 song cards pinned to the showcase, by Song Id ("" = empty slot; all empty =
 			-- your best 5 are shown). Set through ProfileRemote (Engine/ProfileService).
 			Showcase = { S1 = Id(80), S2 = Id(80), S3 = Id(80), S4 = Id(80), S5 = Id(80) },
+			-- a Rainbow card played as your background music, by Song Id ("" = the game's own
+			-- playlist). Set through ProfileRemote (Engine/ProfileService).
+			BgMusic = Id(80),
 		},
 
 		Statistics = {
@@ -178,13 +223,12 @@ return Scribe({
 	-- Limit 100: the signs show the top 10, the rest is there so each player's own place
 	-- (the YOU row) is known inside the top 100.
 	Leaderboards = {
-		WeeklyWins = { Stat = "Statistics.Wins", Period = "Weekly", Mode = "Gain", Replicate = true, Limit = 100 },
+		MostWins = { Stat = "Statistics.Wins", Replicate = true, Limit = 100 }, -- all time
 		TopStreaks = { Stat = "Statistics.HighestStreak", Replicate = true, Limit = 100 },
 		PerfectGames = { Stat = "Statistics.PerfectGames", Replicate = true, Limit = 100 },
-		WeeklyAnswers = { Stat = "Statistics.CorrectAnswers", Period = "Weekly", Mode = "Gain", Replicate = true, Limit = 100 },
+		MostAnswers = { Stat = "Statistics.CorrectAnswers", Replicate = true, Limit = 100 }, -- all time
 		TopFans = { Stat = "Player.XP", Replicate = true, Limit = 100 }, -- shown as a level (Modules/Levels)
 	},
-	PeriodReset = { UtcOffset = 0, WeekStart = "Monday" }, -- weekly boards reset Monday 00:00 UTC
 	ProfileStoreIndex = "PlayerData", -- required: your DataStore name
 	ProfileKeyPrefix = "PLAYER_",
 	Mode = "Live",

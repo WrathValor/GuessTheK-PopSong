@@ -17,6 +17,7 @@ local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local FrameTransition = require(ReplicatedStorage.Modules.UI.Animations.FrameTransition)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
+local SeasonArt = require(ReplicatedStorage.Modules.UI.SeasonArt)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 local StakeReel = require(script.StakeReel)
 
@@ -201,10 +202,22 @@ function PreDuel:_fillPlayer(card, profile)
 	task.spawn(function()
 		card.Avatar.Thumbnail.Image = thumb(profile.UserId)
 	end)
+	-- season: their banner strip + tier chip (party and solo games aren't rated)
+	local player = Players:GetPlayerByUserId(profile.UserId)
+	local _, tierInfo, banner = SeasonArt.Of(player)
+	SeasonArt.PaintBanner(card:FindFirstChild("Banner"), banner)
+	local chip = card:FindFirstChild("Tier")
+	if chip then
+		SeasonArt.PaintChip(chip, tierInfo)
+		if self._unrated then
+			chip.Label.Text = "NOT RATED"
+		end
+	end
 end
 
 function PreDuel:Setup(packet)
 	self._session:Cleanup()
+	self._unrated = packet.Party ~= nil or packet.Solo == true
 	self._votes = { Song = {}, Choreography = {} }
 	self._myVote = nil
 	self._voteOpen = false

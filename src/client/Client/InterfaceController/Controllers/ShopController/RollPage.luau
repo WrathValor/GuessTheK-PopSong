@@ -24,7 +24,7 @@ local HEAD = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeigh
 local BODY = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.ExtraBold)
 local BODY_BOLD = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.Bold)
 
-local COIN = "rbxassetid://105055420801588" -- same coin as the HUD + shop
+local COIN = require(game:GetService("ReplicatedStorage").Constants.Currencies).Coins.Icon -- same coin as the HUD + shop
 
 local Build = {}
 Build.GENS = { "2nd", "3rd", "4th", "5th" }

@@ -15,6 +15,13 @@
 -- chorus when the roll made the card Gold / Rainbow, and keeps going until ROLL AGAIN, Done
 -- or the song ends. Through the Song clips volume, with the lobby music paused under it
 -- (GameController/Snippet + Client/BackgroundMusic).
+-- Roll tickets (Season Track): while you have any, Stage.TicketStrip shows under the coin rolls
+-- (the deck and buttons move up to make room) and ROLL A GROUP opens the Pick a Group overlay
+-- (RollController/Picker); RollGroup(id) then rolls one song from that group for a ticket.
+-- ROLL AGAIN repeats the last kind of roll (a group roll only while tickets last).
+-- Card upgrades (Index upgrade mode) that make a card Gold / Rainbow play the same ×1 reveal
+-- through ShowUpgrade(pull, onDone): NOW GOLD! / NOW RAINBOW!, no ROLL AGAIN, and Done hands
+-- back to the Index.
 -- ROLL AGAIN shrinks the last card away while the next roll is asked for. Rolls are off (buttons greyed, reason shown) when the "RollsAllowed" attribute
 -- isn't true: paid random items are restricted for that account.
 
@@ -28,6 +35,7 @@ local Songs = require(ReplicatedStorage.Modules.Library.Songs)
 local Packs = require(ReplicatedStorage.Modules.Library.Packs)
 local Cards = require(ReplicatedStorage.Modules.Library.Cards)
 local RollConstants = require(ReplicatedStorage.Constants.RollConstants)
+local Currencies = require(ReplicatedStorage.Constants.Currencies)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
@@ -110,6 +118,7 @@ function Roll.new(pages: Instance, shop: Instance, janitor, toast: (string) -> (
 	self._toast = toast
 	self._rolling = false
 	self._last = 1 -- count of the last roll (ROLL AGAIN repeats it)
+	self._lastGroup = nil :: string? -- the group of the last roll, if it was a ticket roll
 	ButtonScale.ApplyToDescendants(self._page)
 	ButtonScale.ApplyToDescendants(self._reveal)
 
@@ -126,10 +135,21 @@ function Roll.new(pages: Instance, shop: Instance, janitor, toast: (string) -> (
 	end))
 	janitor:Add(self._reveal.Done.Activated:Connect(function()
 		self:_closeReveal()
+		local done = self._upgradeDone
+		self._upgradeDone = nil
+		if done then
+			done()
+		end
 	end))
 	janitor:Add(self._reveal.Again.Activated:Connect(function()
+		if self._upgradeDone then
+			return -- an upgrade reveal has nothing to roll again
+		end
 		-- the last card shrinks away while the next roll is asked for (the reveal stays open)
-		if self:_roll(self._last) then
+		local again = if self._lastGroup and (Currencies.Count(Players.LocalPlayer, "Tickets")) > 0
+			then self:RollGroup(self._lastGroup)
+			else self:_roll(self._last)
+		if again then
 			self:_exitCard()
 		end
 	end))
@@ -159,6 +179,7 @@ function Roll.new(pages: Instance, shop: Instance, janitor, toast: (string) -> (
 		janitor:Add(path.Observe(refresh))
 	end
 	janitor:Add(Players.LocalPlayer:GetAttributeChangedSignal("RollsAllowed"):Connect(refresh))
+	janitor:Add(Players.LocalPlayer:GetAttributeChangedSignal(Currencies.Tickets.Attribute):Connect(refresh))
 	return self
 end
 
@@ -177,6 +198,7 @@ end
 function Roll:Hide()
 	self._reveal.Visible = false
 	self:_stopChorus(0.3)
+	self._upgradeDone = nil -- an upgrade reveal closed with the screen
 end
 
 -- [[ The song ]]
@@ -272,12 +294,86 @@ function Roll:_fill()
 		b.Label.TextTransparency = if can then 0 else 0.45
 		b.Cost.Amount.TextColor3 = if coins >= cost then INK else C("C0392B")
 	end
+	self:_fillTickets(allowed)
 	local dupes = get(PlayerData.Inventory.DupesInRow, 0)
 	stage.Pity.Text = if not allowed
 		then "Song rolls aren't available for your account."
 		elseif fresh <= 0 then "You own every song: rolls now level your cards up."
 		elseif dupes >= RollConstants.PITY then "<b>Your next roll is a guaranteed new song!</b>"
 		else `Guaranteed new song after {RollConstants.PITY} dupes in a row · <b>{dupes} / {RollConstants.PITY}</b>`
+end
+
+-- a card upgrade that levelled a card up: the ×1 reveal for it (pull = { Song, New = false,
+-- Copies, Level, LevelUp = true }); onDone runs when Done closes it
+function Roll:ShowUpgrade(pull, onDone: (() -> ())?)
+	self._upgradeDone = onDone or function() end
+	self._rolling = false
+	self:_setTitle(nil)
+	self:_showOne(pull, 0)
+end
+
+-- [[ Roll tickets ]]
+
+-- the stage's two layouts: as built, and moved up to fit the ticket strip
+local LAYOUT = {
+	Normal = { DeckY = 50, DeckScale = 1, ButtonY = 380, PityY = 432 },
+	Tickets = { DeckY = 34, DeckScale = 0.8, ButtonY = 290, PityY = 330 },
+}
+
+function Roll:_fillTickets(allowed: boolean)
+	local stage = self._page.Stage
+	local strip = stage:FindFirstChild("TicketStrip")
+	if not strip then
+		return -- not built yet (SeasonController/Build.SeasonRewards)
+	end
+	local n = Currencies.Count(Players.LocalPlayer, "Tickets")
+	local show = n > 0 and allowed
+	strip.Visible = show
+	strip.Heading.Text = if n == 1 then "1 roll ticket" else `{n} roll tickets`
+	local l = if show then LAYOUT.Tickets else LAYOUT.Normal
+	if stage:GetAttribute("Layout") ~= (if show then "Tickets" else "Normal") then
+		stage:SetAttribute("Layout", if show then "Tickets" else "Normal")
+		stage.Deck.Position = UDim2.new(0.5, 0, 0, l.DeckY)
+		local scale = stage.Deck:FindFirstChild("LayoutScale") or Instance.new("UIScale")
+		scale.Name = "LayoutScale"
+		scale.Scale = l.DeckScale
+		scale.Parent = stage.Deck
+		for _, name in { "RollOne", "RollTen" } do
+			local b, sh = stage[name], stage[name .. "Shadow"]
+			b.Position = UDim2.fromOffset(b.Position.X.Offset, l.ButtonY)
+			sh.Position = UDim2.fromOffset(sh.Position.X.Offset, l.ButtonY + 5)
+		end
+		stage.Pity.Position = UDim2.fromOffset(stage.Pity.Position.X.Offset, l.PityY)
+	end
+end
+
+-- a ticket roll: one song from the group (a Packs id, "Group:<artist>"). True when it was sent.
+function Roll:RollGroup(groupId: string): boolean
+	if self._rolling then
+		return false
+	end
+	if not self:_allowed() or (Currencies.Count(Players.LocalPlayer, "Tickets")) < 1 then
+		Sounds.Play("Wrong")
+		return false
+	end
+	self._rolling = true
+	self._last, self._lastGroup = 1, groupId
+	Sounds.Play("Click")
+	Juice.Shake(self._page.Stage.Deck.Top)
+	self:_fill()
+	RollRemote:Fire({ Action = "Roll", Count = 1, Group = groupId })
+	local token = {}
+	self._token = token
+	task.delay(REPLY_TIMEOUT, function()
+		if self._token == token and self._rolling then
+			self._rolling = false
+			if self._reveal.Visible then
+				self:_closeReveal()
+			end
+			self:_fill()
+		end
+	end)
+	return true
 end
 
 -- true when the roll was sent
@@ -297,7 +393,7 @@ function Roll:_roll(count: number): boolean
 		return false
 	end
 	self._rolling = true
-	self._last = count
+	self._last, self._lastGroup = count, nil
 	Sounds.Play("Click")
 	Juice.Shake(stage.Deck.Top)
 	self:_fill()
@@ -405,7 +501,8 @@ function Roll:_showFooter(on: boolean)
 	reveal.Refund.Visible = on and not title and (self._refund or 0) > 0
 	reveal.Title.Visible = title
 	reveal.TitleShadow.Visible = title
-	for name, visible in { Again = on and not title, Equip = title, Done = on } do
+	local again = on and not title and self._upgradeDone == nil
+	for name, visible in { Again = again, Equip = title, Done = on } do
 		reveal[name].Visible = visible
 		reveal[name .. "Shadow"].Visible = visible
 	end
@@ -414,7 +511,7 @@ function Roll:_showFooter(on: boolean)
 		Sounds.Play("Success")
 	end
 	if on then
-		Juice.Stagger({ if title then reveal.Equip else reveal.Again, reveal.Done }, 0.05)
+		Juice.Stagger({ if title then reveal.Equip elseif again then reveal.Again else reveal.Done, reveal.Done }, 0.05)
 	end
 end
 

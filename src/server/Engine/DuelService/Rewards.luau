@@ -8,6 +8,7 @@ local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 local Levels = require(ReplicatedStorage.Modules.Levels)
 local DailyQuests = require(script.Parent.Parent.RewardsService) -- Engine/RewardsService
+local SeasonService = require(script.Parent.Parent.SeasonService) -- Engine/SeasonService
 local Analytics = require(script.Parent.Parent.Analytics) -- Engine/Analytics
 local AnalyticsEvents = require(ReplicatedStorage.Constants.AnalyticsEvents)
 
@@ -38,6 +39,9 @@ export type Earned = {
 	PrevBest: number?, -- solo: best score before this run (the results screen's "NEW BEST!" sticker)
 	NewBest: boolean?, -- solo: this run beat PrevBest
 	XPBefore: number?, -- total XP before this match (the results screen's level bar)
+	-- the results screen's Season bar: SP moved by a rated duel (Engine/SeasonService.Rate) and
+	-- the Stars it earned. Before / After / Delta are nil when the game wasn't rated.
+	Season: { Before: number?, After: number?, Delta: number?, Gap: number?, TierUp: boolean?, TierDown: boolean?, Stars: number }?,
 }
 
 -- Analytics for one player's finished game (after the data is written)
@@ -76,6 +80,9 @@ end
 
 function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 	local out = {}
+	-- Season Points: 1v1 duels only (solo, the tutorial and party matches aren't rated). Worked
+	-- out first, from both players' SP before the duel.
+	local rated = if result.Solo or result.Tutorial then {} else SeasonService.Rate(result, players)
 	for _, player in players do
 		local ok, data = pcall(PlayerData.Get, player)
 		if not ok or not data then
@@ -242,6 +249,25 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 
 		out[player] = earned
 		Rewards._log(player, data, result, earned, correct)
+
+		-- season Stars (Engine/SeasonService): a duel played (+ won), or a solo game; with the SP
+		-- the duel moved, for the results screen's Season bar
+		local stars = 0
+		if result.Solo then
+			stars = SeasonService.Award(player, "Solo")
+		elseif earned.Outcome ~= "Left" then
+			stars = SeasonService.Award(player, "Duel", earned.Outcome == "Win")
+		end
+		local sp = rated[player]
+		earned.Season = {
+			Before = sp and sp.Before,
+			After = sp and sp.After,
+			Delta = sp and sp.Delta,
+			Gap = sp and sp.Gap,
+			TierUp = sp and sp.TierUp,
+			TierDown = sp and sp.TierDown,
+			Stars = stars,
+		}
 
 		-- daily quest counters (Rewards screen)
 		task.spawn(DailyQuests.Record, player, {

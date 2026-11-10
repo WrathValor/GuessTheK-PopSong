@@ -9,7 +9,7 @@
 --                   each paying its Reward; finishing all 3 unlocks BONUS.
 --   • Group reward – one time: join the Roblox group, get GROUP.Coins, the group stage and
 --                   the GROUP.Title title.
---   • Codes – typed into the shop's code box; each pays its Coins once per account
+--   • Codes – typed into the shop's code box; each pays its rewards once per account
 --             (Rewards.Claimed "Code:<CODE>"). Codes past their Expires (os.time) stop working.
 
 local RewardsCatalog = {}
@@ -44,10 +44,49 @@ RewardsCatalog.GROUP = table.freeze({
 	ClaimedKey = "Group", -- in Rewards.Claimed
 })
 
--- Shop codes, by code (upper case, no spaces, at most 30 characters). Add one like:
---   LAUNCH = { Coins = 500 },
---   HALLOWEEN = { Coins = 250, Expires = 1793750400 }, -- os.time() it stops working
+-- Shop codes, by code (upper case, no spaces, at most 30 characters). A code gives every
+-- reward it lists, once per account, then shows the purchase reveal:
+--   Coins / Tickets / Upgrades = how many (Constants/Currencies)
+--   Stage / Mic = a ShopCatalog stage / mic id
+--   Banner / Photocard = a SeasonConstants banner / photocard id
+--   Title = a title (TitleTier 1 Normal / 2 Gold / 3 Rainbow, default 1)
+--   Expires = when it stops working, in UTC (os.time with a date, or a unix time); no
+--             Expires = it never does
+-- e.g.
+--   LAUNCH = { Coins = 500, Tickets = 2 },
+--   HALLOWEEN = { Coins = 250, Upgrades = 1, Mic = "PumpkinMic", Expires = os.time({ year = 2026, month = 11, day = 1, hour = 0 }) },
 RewardsCatalog.CODES = table.freeze({})
+
+-- the order a code's rewards are given and shown in, and what kind each key is
+RewardsCatalog.CODE_REWARDS = table.freeze({
+	{ Key = "Coins", Kind = "Currency" },
+	{ Key = "Tickets", Kind = "Currency" },
+	{ Key = "Upgrades", Kind = "Currency" },
+	{ Key = "Stage", Kind = "Item" },
+	{ Key = "Mic", Kind = "Item" },
+	{ Key = "Banner", Kind = "Style" },
+	{ Key = "Photocard", Kind = "Style" },
+	{ Key = "Title", Kind = "Title" },
+})
+
+-- a code's rewards as a list: { Key, Kind, Amount? (currencies), Id? (items, styles, titles) }
+function RewardsCatalog.CodeRewards(entry): { any }
+	local out = {}
+	for _, spec in RewardsCatalog.CODE_REWARDS do
+		local value = entry[spec.Key]
+		if spec.Kind == "Currency" and type(value) == "number" and value > 0 then
+			table.insert(out, { Key = spec.Key, Kind = spec.Kind, Amount = math.floor(value) })
+		elseif spec.Kind ~= "Currency" and type(value) == "string" and value ~= "" then
+			table.insert(out, { Key = spec.Key, Kind = spec.Kind, Id = value, Tier = if spec.Key == "Title" then entry.TitleTier else nil })
+		end
+	end
+	return out
+end
+
+-- true once a code's Expires has passed
+function RewardsCatalog.CodeExpired(entry, now: number?): boolean
+	return type(entry.Expires) == "number" and (now or os.time()) >= entry.Expires
+end
 
 function RewardsCatalog.Day(t: number): number
 	return math.floor(t / 86400)

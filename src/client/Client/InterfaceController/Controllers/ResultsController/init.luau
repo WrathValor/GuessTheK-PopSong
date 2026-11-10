@@ -17,7 +17,8 @@ local FitPanel = require(ReplicatedStorage.Modules.UI.FitPanel)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
-local DanceColumn = require(script.DanceColumn)
+local SeasonArt = require(ReplicatedStorage.Modules.UI.SeasonArt)
+local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
 local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 local Levels = require(ReplicatedStorage.Modules.Levels)
 
@@ -44,8 +45,8 @@ local GRADES = {
 }
 -- total bar stickers: duel columns sit under YOU / RIVAL; solo's "49 / 70" is wider, at the end
 local STICKER = {
-	You = { X = 439, Colour = C("FF8A80") },
-	Rival = { X = 511, Colour = C("B9A6FF") },
+	You = { X = 513, Colour = C("FF8A80") },
+	Rival = { X = 585, Colour = C("B9A6FF") },
 	Solo = { X = 568, Width = 96, Colour = C("FFE07A") },
 }
 local TITLE_TAG = { Duel = C("FFE07A"), Solo = C("9ED8F5") }
@@ -131,7 +132,6 @@ function Results:Initialize(interface)
 	self._frame.Visible = false
 	ButtonScale.ApplyToDescendants(self._frame)
 	FitPanel.Watch(self._frame, self._janitor) -- bigger panel on phones, like the Shop
-	DanceColumn.Connect(self._frame.Panel, self._janitor) -- buy a round's dance (group UGC)
 	local w = self._frame.Panel.Winner
 	self._janitor:Add(w.Rematch.Activated:Connect(function()
 		DuelRemote:Fire({ Action = "Rematch" })
@@ -248,7 +248,6 @@ function Results:Show(packet, info)
 			end
 		end
 	end
-	DanceColumn.Fill(panel, packet.Rounds)
 
 	-- total bar: chips + score stickers
 	local total = panel.Table.Total
@@ -281,6 +280,8 @@ function Results:Show(packet, info)
 	end
 	total.YouShadow.Rotation = total.You.Rotation
 	total.RivalShadow.Rotation = total.Rival.Rotation
+
+	self:_season(packet)
 
 	-- winner card
 	local winnerId = packet.Winner
@@ -384,23 +385,79 @@ function Results:Show(packet, info)
 	self:_reveal(packet, if solo then nil else rivalKey, mine)
 end
 
+-- The Season bar under the table: your tier, the SP this duel moved (solo / party / the
+-- tutorial aren't rated) and the Stars it earned: your Rewards entry's Season
+-- ({ Before, After, Delta, TierUp, TierDown, Stars }, Engine/SeasonService). A duel the server
+-- didn't rate (the season's Ends has passed) shows "not rated".
+function Results:_season(packet)
+	local bar = self._frame.Panel:FindFirstChild("Season")
+	if not bar then
+		return
+	end
+	-- seasons off: no Season bar (or its shadow)
+	bar.Visible = SeasonConstants.ENABLED
+	local barShadow = self._frame.Panel:FindFirstChild("SeasonShadow")
+	if barShadow then
+		barShadow.Visible = SeasonConstants.ENABLED
+	end
+	if not SeasonConstants.ENABLED then
+		return
+	end
+	local mine = packet.Rewards and packet.Rewards[tostring(LOCAL_PLAYER.UserId)]
+	local season = packet.Season or (mine and mine.Season)
+	local rated = season ~= nil and season.After ~= nil
+	local unrated = packet.Solo == true or packet.Party ~= nil or packet.Tutorial == true or not rated
+	local current = LOCAL_PLAYER:GetAttribute("SeasonSP") or 0
+	local after = if rated then season.After else current
+	local before = if rated then season.Before else after
+	local info = SeasonConstants.TierOf(after)
+	SeasonArt.PaintChip(bar.Tier, info)
+	bar.Delta.Visible = not unrated
+	bar.Bar.Visible = not unrated
+	bar.Range.Visible = not unrated
+	bar.Note.Visible = unrated
+	bar.Note.Text = if packet.Tutorial then "Practice round · not rated"
+		elseif packet.Solo then "Solo practice doesn't change SP"
+		elseif packet.Party ~= nil then "Party matches don't change SP"
+		else "Season over · SP isn't moving"
+	local delta = after - before
+	bar.Delta.Text = if delta < 0 then `−{-delta} SP` else `+{delta} SP`
+	bar.Bar.Fill.Size = UDim2.fromScale(info.Progress, 1)
+	bar.Range.Text = if info.Next then `{after} / {info.Next}` else `{after} SP`
+	local won = packet.Winner == LOCAL_PLAYER.UserId
+	local stars = if season and season.Stars ~= nil then season.Stars
+		elseif packet.Tutorial then 0
+		elseif packet.Solo then SeasonConstants.SOLO_STARS
+		else 10 + (if won then 10 else 0)
+	bar.Stars.Text = `+{stars}`
+	bar.Stars.Visible = stars > 0
+	local promoted = season ~= nil and season.TierUp == true
+	bar.Promoted.Visible = promoted
+	bar.Promoted.Text = `★ PROMOTED · {info.Label}`
+	if promoted then
+		Juice.Pop(bar.Promoted, 0.25)
+	end
+end
+
 -- Solo and duels share the frame; this moves the columns / buttons between the two layouts.
 function Results:_layout(solo: boolean, tutorial: boolean)
 	local panel = self._frame.Panel
 	local header = panel.Table.Header
 	panel.TitleTag.BackgroundColor3 = if solo then TITLE_TAG.Solo else TITLE_TAG.Duel
 	header.ColYou.Text = if solo then "GUESSED AT" else "YOU"
-	header.ColYou.Position = UDim2.fromOffset(if solo then 330 else 404, 0)
+	header.ColYou.Position = UDim2.fromOffset(if solo then 330 else 478, 0)
 	header.ColYou.Size = UDim2.fromOffset(if solo then 150 else 70, 20)
 	header.ColYou.TextXAlignment = if solo then Enum.TextXAlignment.Left else Enum.TextXAlignment.Center
 	header.ColRival.Text = if solo then "POINTS" else "RIVAL"
+	header.ColRival.Position = UDim2.fromOffset(if solo then 476 else 550, 0)
 	for i = 1, 7 do
 		local row = panel.Table.Rows:FindFirstChild("Round" .. i)
 		if row then
 			row.Clip.Visible = solo
-			row.You.Position = UDim2.fromOffset(if solo then 487 else 415, 13) -- solo: points under POINTS
-			row.Title.Size = UDim2.fromOffset(if solo then 280 else 350, 20)
-			row.Artist.Size = UDim2.fromOffset(if solo then 280 else 350, 18)
+			row.You.Position = UDim2.fromOffset(if solo then 487 else 489, 13) -- solo: points under POINTS
+			row.Rival.Position = UDim2.fromOffset(561, 13)
+			row.Title.Size = UDim2.fromOffset(if solo then 280 else 424, 20)
+			row.Artist.Size = UDim2.fromOffset(if solo then 280 else 424, 18)
 		end
 	end
 
@@ -412,6 +469,7 @@ function Results:_layout(solo: boolean, tutorial: boolean)
 	total.You.BackgroundColor3 = spot.Colour
 	total.YouShadow.Size = total.You.Size
 	total.YouShadow.Position = UDim2.fromOffset(spot.X + 3, 36)
+	total.Rival.Position = UDim2.fromOffset(STICKER.Rival.X, 33)
 	total.RivalShadow.Position = UDim2.fromOffset(STICKER.Rival.X + 3, 36)
 
 	local w = panel.Winner

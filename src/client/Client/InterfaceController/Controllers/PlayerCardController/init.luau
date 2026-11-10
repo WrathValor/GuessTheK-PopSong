@@ -27,6 +27,7 @@ local Songs = require(ReplicatedStorage.Modules.Library.Songs)
 local Showcase = require(ReplicatedStorage.Modules.Showcase)
 local SongCard = require(ReplicatedStorage.Modules.UI.SongCard)
 local TitleChip = require(ReplicatedStorage.Modules.UI.TitleChip)
+local SeasonArt = require(ReplicatedStorage.Modules.UI.SeasonArt)
 local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 local HUDConstants = require(ReplicatedStorage.Constants.HUDConstants)
 local FrameTransition = require(ReplicatedStorage.Modules.UI.Animations.FrameTransition)
@@ -50,10 +51,10 @@ local PROMPT_NAME = "ViewProfile" -- the copy on each character
 
 -- the boards their rank line can come from, best first when tied
 local BOARDS = {
-	{ Name = "WeeklyWins", Label = "Weekly Wins" },
+	{ Name = "MostWins", Label = "Most Wins" },
 	{ Name = "TopStreaks", Label = "Top Streaks" },
 	{ Name = "PerfectGames", Label = "Perfect Games" },
-	{ Name = "WeeklyAnswers", Label = "Weekly Answers" },
+	{ Name = "MostAnswers", Label = "Most Answers" },
 	{ Name = "TopFans", Label = "Top Fans" },
 }
 
@@ -82,7 +83,7 @@ local function multiplierFor(streak: number): number
 	return 1
 end
 
--- their best place on any board's kept top 100: "#2 Weekly Wins"
+-- their best place on any board's kept top 100: "#2 Most Wins"
 local function bestRank(userId: number): string
 	local best, label = nil, nil
 	for _, board in BOARDS do
@@ -133,6 +134,12 @@ function PlayerCard:_paint()
 	TitleChip.Paint(top.Chips.Title, player:GetAttribute("Title") or HUDConstants.DEFAULT_TITLE, player:GetAttribute("TitleTier") or "Normal")
 	top.Chips.Level.Text = `LV {number(player, "Level")}`
 	top.Rank.Text = bestRank(player.UserId)
+	top.Rank.Visible = top.Rank.Text ~= ""
+	-- season: their banner behind the top strip + their tier chip
+	local _, tierInfo, banner, photocard = SeasonArt.Of(player)
+	SeasonArt.PaintBanner(top:FindFirstChild("Banner"), banner)
+	SeasonArt.PaintPhotocard(top.Photocard, photocard)
+	SeasonArt.PaintChip(top.Chips:FindFirstChild("Tier"), tierInfo)
 
 	body.Stats.Wins.Value.Text = commas(number(player, "Wins"))
 	body.Stats.BestStreak.Value.Text = commas(number(player, "BestStreak"))
@@ -376,7 +383,7 @@ function PlayerCard:Activate(player: Player?)
 	self._player = player
 	self._note = nil
 	self._watch:Cleanup()
-	for _, attribute in { "Level", "Title", "TitleTier", "Streak", "Wins", "BestStreak", "Perfect", "SongsOwned", "Showcase", "InDuel", "Stage", "PartyStage" } do
+	for _, attribute in { "Level", "Title", "TitleTier", "Streak", "Wins", "BestStreak", "Perfect", "SongsOwned", "Showcase", "InDuel", "Stage", "PartyStage", "Banner", "Photocard", "SeasonSP" } do
 		self._watch:Add(player:GetAttributeChangedSignal(attribute):Connect(function()
 			self:_paint()
 		end))

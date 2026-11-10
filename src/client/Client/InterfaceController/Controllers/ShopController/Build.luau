@@ -23,7 +23,7 @@ local BODY_BOLD = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.Fo
 local Build = {}
 
 Build.ICONS = {
-	Coin = "rbxassetid://105055420801588",
+	Coin = require(game:GetService("ReplicatedStorage").Constants.Currencies).Coins.Icon,
 	CoinStack = "rbxassetid://83386580979392",
 	Robux = "rbxassetid://83637405007021",
 	Crown = "rbxassetid://131353192492921",
@@ -925,6 +925,111 @@ function Build.Build(frames: Instance)
 	-- centre every button's AnchorPoint so the ButtonScale tween grows from the middle
 	require(game:GetService("ReplicatedStorage").Modules.UI.CenterButtons).Apply(shop)
 	return shop
+end
+
+-- [[ Rolls + upgrades ]]
+-- The scrolling shop's "Rolls + upgrades" section (design board "Shop v3 · roll tickets + card
+-- upgrades"): RollsTitle + Rolls, between Banners + photocards and Coins. Two cards side by
+-- side, Tickets (pink) and Upgrades (lilac): the currency's icon, name, a line on what it
+-- does, a "You have n" chip and three bundles (Count, Unit, a Robux Buy button cloned from
+-- the coin bundles, a POPULAR / BEST VALUE Tag). ShopController fills them from
+-- ShopCatalog.RollBundles. Run once in Studio, Edit mode (safe to run again):
+--   require(<this module>).AddRolls(game.StarterGui.Interface.Frames)
+function Build.AddRolls(frames: Instance)
+	local Currencies = require(game:GetService("ReplicatedStorage").Constants.Currencies)
+	local scroll = frames.Shop.Panel.Scroll
+	local after = (scroll:FindFirstChild("Style") or scroll.Pieces).LayoutOrder
+	if not scroll:FindFirstChild("RollsTitle") then
+		-- first build: make room for two more sections before Coins
+		for _, child in scroll:GetChildren() do
+			if child:IsA("GuiObject") and child.LayoutOrder > after then
+				child.LayoutOrder += 2
+			end
+		end
+	end
+	for _, name in { "RollsTitle", "Rolls" } do
+		local old = scroll:FindFirstChild(name)
+		if old then
+			old:Destroy()
+		end
+	end
+
+	-- heading: "—— Rolls + upgrades  never expire ——", like the other section titles
+	local title = scroll.SetsTitle:Clone()
+	title.Name = "RollsTitle"
+	title.LayoutOrder = after + 1
+	title.Title.Text = "Rolls + upgrades"
+	local hint = title.Chip
+	hint.Name = "Hint"
+	hint.BackgroundTransparency = 1
+	hint.TextColor3 = MUTED
+	hint.Text = "Never expire · stack with the ones from codes"
+	for _, d in hint:GetChildren() do
+		if d:IsA("UIStroke") then
+			d:Destroy()
+		end
+	end
+	title.Parent = scroll
+
+	local coinFace = scroll.Coins.Face
+	local buyTemplate, buyShadowTemplate = coinFace.Bundle1.Buy, coinFace.Bundle1.BuyShadow
+	local tagTemplate = coinFace:FindFirstChild("Tag", true)
+
+	local W, GAP, CH = 941, 18, 236
+	local CW = math.floor((W - GAP) / 2)
+	local section = new("Frame", { Name = "Rolls", LayoutOrder = after + 2, Size = UDim2.new(1, 0, 0, CH + 5), BackgroundTransparency = 1 }, scroll)
+	for i, spec in {
+		{ Id = "Tickets", Colour = C("FFE4EF"), Title = "Roll tickets", Body = "A free song roll from any group you pick", Unit = "tickets" },
+		{ Id = "Upgrades", Colour = C("EFEAFF"), Title = "Card upgrades", Body = "+1 copy on any song you own. Gold at 3, Rainbow at 5", Unit = "upgrades" },
+	} do
+		local x = (i - 1) * (CW + GAP)
+		local face = card(section, spec.Id, UDim2.fromOffset(x, 0), UDim2.fromOffset(CW, CH), spec.Colour, 16, 5, 3)
+		-- head: icon tile, name + line, "You have n"
+		local tile = new("Frame", { Name = "IconTile", Position = UDim2.fromOffset(16, 16), Size = UDim2.fromOffset(78, 78), BackgroundColor3 = WHITE }, face)
+		corner(tile, 14)
+		stroke(tile, 3)
+		new("ImageLabel", { Name = "Icon", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(62, 62), BackgroundTransparency = 1, Image = Currencies.Get(spec.Id).Icon, ScaleType = Enum.ScaleType.Fit }, tile)
+		text(face, "CardTitle", { Position = UDim2.fromOffset(108, 22), Size = UDim2.new(1, -230, 0, 28), FontFace = HEAD, TextSize = 21, Text = spec.Title })
+		text(face, "Body", { Position = UDim2.fromOffset(108, 52), Size = UDim2.new(1, -124, 0, 38), FontFace = BODY_BOLD, TextSize = 13, TextWrapped = true, TextTruncate = Enum.TextTruncate.None, TextYAlignment = Enum.TextYAlignment.Top, Text = spec.Body })
+		local have = text(face, "Have", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -14, 0, 18), Size = UDim2.fromOffset(0, 22), AutomaticSize = Enum.AutomaticSize.X, BackgroundTransparency = 0, BackgroundColor3 = WHITE, TextSize = 12, TextTruncate = Enum.TextTruncate.None, Text = "You have 0" })
+		corner(have, 8)
+		stroke(have, 2)
+		pad(have, 8)
+		-- three bundles
+		local bw = math.floor((CW - 32 - 2 * 10) / 3)
+		for b = 1, 3 do
+			local bx = 16 + (b - 1) * (bw + 10)
+			local holder = new("Frame", { Name = "Bundle" .. b, Position = UDim2.fromOffset(bx, 110), Size = UDim2.fromOffset(bw, 108), BackgroundColor3 = WHITE }, face)
+			corner(holder, 12)
+			stroke(holder, 2)
+			text(holder, "Count", { Position = UDim2.fromOffset(0, 8), Size = UDim2.new(1, 0, 0, 30), FontFace = HEAD, TextSize = 26, TextXAlignment = Enum.TextXAlignment.Center, Text = `×{({ 1, 5, 12 })[b]}` })
+			text(holder, "Unit", { Position = UDim2.fromOffset(0, 38), Size = UDim2.new(1, 0, 0, 14), TextSize = 11, TextColor3 = C("4A4460"), TextXAlignment = Enum.TextXAlignment.Center, Text = spec.Unit })
+			local bwBtn, bh, by = bw - 18, 40, 58
+			local sh = buyShadowTemplate:Clone()
+			sh.Size = UDim2.fromOffset(bwBtn, bh)
+			sh.Position = UDim2.fromOffset(9 + bwBtn / 2 + 3, by + bh / 2 + 3)
+			sh.Parent = holder
+			local buy = buyTemplate:Clone()
+			buy.Size = UDim2.fromOffset(bwBtn, bh)
+			buy.Position = UDim2.fromOffset(9 + bwBtn / 2, by + bh / 2)
+			buy.Parent = holder
+			buy.Icon.Size = UDim2.fromOffset(18, 18)
+			buy.Label.TextSize = math.min(buy.Label.TextSize, 16)
+			buy.Label.Size = UDim2.fromOffset(0, bh - 8)
+			if tagTemplate then
+				local tag = tagTemplate:Clone()
+				tag.Name = "Tag"
+				tag.AnchorPoint = Vector2.new(1, 0)
+				tag.Position = UDim2.new(1, 6, 0, -10)
+				tag.Visible = b > 1
+				tag.Text = if b == 3 then "BEST VALUE" else "POPULAR"
+				tag.BackgroundColor3 = if b == 3 then RED else C("FF9EC4")
+				tag.ZIndex = 3
+				tag.Parent = holder
+			end
+		end
+	end
+	return section
 end
 
 return Build

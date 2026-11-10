@@ -1,0 +1,47 @@
+-- photocards: one per banner (same Id, name, tag + source), three image layers on the Profile
+-- photocard's shape (280 × 334, photo window 12,12 256 × 228): Face (card + name plate), Photo
+-- (behind the avatar) and Deco (stickers over the window). assets/ui/photocards. A banner + its
+-- photocard is a set. Fx = SeasonFx effects (see Modules/UI/SeasonFx).
+SeasonConstants.PHOTOCARDS = table.freeze({
+	table.freeze({ Id = "Sky", Face = "rbxassetid://119061865579712", Photo = "rbxassetid://72140529020333", Deco = "rbxassetid://88005047175412" }),
+	table.freeze({ Id = "Lilac", Face = "rbxassetid://95545539731191", Photo = "rbxassetid://107977577126282", Deco = "rbxassetid://139004081582154" }),
+	table.freeze({ Id = "Mint", Face = "rbxassetid://91076255485657", Photo = "rbxassetid://133730307605414", Deco = "rbxassetid://136447155936527" }),
+	table.freeze({ Id = "S1Comeback", Face = "rbxassetid://103676179031991", Photo = "rbxassetid://83229544265584", Deco = "rbxassetid://108905320416441", Fx = { { Kind = "Confetti", Layer = "Photo", Area = { 0, 0, 1, 1 }, Count = 14 }, { Kind = "Shine" }, { Kind = "Sparkle", At = { { 0.893, 0.078, 0.206 } } } } }),
+	table.freeze({ Id = "S1Glow", Face = "rbxassetid://101062805392559", Photo = "rbxassetid://103301335242084", Deco = "rbxassetid://94202223110701", Fx = { { Kind = "Glow", At = { { 0.893, 0.078, 0.2, "FFE07A" } } }, { Kind = "Glow", Layer = "Photo", At = { { 0.141, 0.211, 0.219, "FF9EC4" }, { 0.852, 0.342, 0.281, "FFE07A" }, { 0.188, 0.825, 0.188, "FFFFFF" }, { 0.82, 0.868, 0.219, "FF9EC4" } } }, { Kind = "Sparkle", At = { { 0.107, 0.749, 0.094 }, { 0.893, 0.766, 0.077 } } } } }),
+	table.freeze({ Id = "Lightsticks", Face = "rbxassetid://106886286585631", Photo = "rbxassetid://97619553209723", Deco = "rbxassetid://135565533029606" }),
+	table.freeze({ Id = "CityNight", Face = "rbxassetid://95397970892569", Photo = "rbxassetid://137477381840051", Deco = "rbxassetid://101404560387608" }),
+	table.freeze({ Id = "PopArt", Face = "rbxassetid://115537992489445", Photo = "rbxassetid://87696933767713", Deco = "rbxassetid://123496984465777" }),
+	table.freeze({ Id = "Y2KDesktop", Face = "rbxassetid://75026928743192", Photo = "rbxassetid://116660554636841", Deco = "rbxassetid://71874407787619" }),
+	table.freeze({ Id = "RetroBloom", Face = "rbxassetid://134428048652424", Photo = "rbxassetid://71257568198134", Deco = "rbxassetid://127011137020037", Fx = { { Kind = "Sway", At = { { "FlowerOrange", 0.893, 0.078, 0.257 } } }, { Kind = "Glow", Layer = "Photo", At = { { 0.297, 0.561, 0.664, "FF8FE0" } } }, { Kind = "Sparkle", At = { { 0.25, 0.078, 0.094 }, { 0.936, 0.898, 0.06 } } } } }),
+	table.freeze({ Id = "ChromeDream", Face = "rbxassetid://130524959042811", Photo = "rbxassetid://130772139421306", Deco = "rbxassetid://124041385319429", Fx = { { Kind = "Holo", Alpha = 0.82 }, { Kind = "Shine" }, { Kind = "Sparkle", At = { { 0.107, 0.09, 0.086 }, { 0.936, 0.898, 0.069 }, { 0.064, 0.898, 0.06 }, { 0.879, 0.096, 0.171 } } }, { Kind = "Sparkle", Layer = "Photo", At = { { 0.789, 0.167, 0.075 }, { 0.133, 0.693, 0.066 } } } } }),
+	table.freeze({ Id = "MascotParade", Face = "rbxassetid://124942287849483", Photo = "rbxassetid://138169082010036", Deco = "rbxassetid://113371062836680" }),
+	table.freeze({ Id = "PastelGem", Face = "rbxassetid://109912899213827", Photo = "rbxassetid://85477617547396", Deco = "rbxassetid://98745820887983" }),
+	table.freeze({ Id = "NeonSeoul", Face = "rbxassetid://102648297286667", Photo = "rbxassetid://92203061872836", Deco = "rbxassetid://136325065136709", Fx = { { Kind = "Glow", Flicker = true, At = { { 0.9, 0.287, 0.45, "FF5FA8" }, { 0.136, 0.665, 0.283, "FF5FA8" }, { 0.236, 0.102, 0.257, "FFF6C8" } } } } }),
+	table.freeze({ Id = "LightstickCrowd", Face = "rbxassetid://136116035577224", Photo = "rbxassetid://104734834990873", Deco = "rbxassetid://89495527811596" }),
+	table.freeze({ Id = "Mixtape", Face = "rbxassetid://82779448828591", Photo = "rbxassetid://102374397453746", Deco = "rbxassetid://88515233303856" }),
+	table.freeze({ Id = "PhotocardSwap", Face = "rbxassetid://77571232670242", Photo = "rbxassetid://84374909808052", Deco = "rbxassetid://124772323829969" }),
+	table.freeze({ Id = "S1Star", Face = "rbxassetid://87119291654500", Photo = "rbxassetid://128230449559331", Deco = "rbxassetid://79178566902839", Fx = { { Kind = "Rays", Layer = "Photo", At = { 0.5, 0.474, 1.4 }, Speed = 14 }, { Kind = "Shine" }, { Kind = "Sparkle", At = { { 0.886, 0.09, 0.189 }, { 0.107, 0.743, 0.129 }, { 0.907, 0.754, 0.077 } } } } }),
+	table.freeze({ Id = "S1Icon", Face = "rbxassetid://125414317299661", Photo = "rbxassetid://112439978049859", Deco = "rbxassetid://82964733680142", Fx = { { Kind = "Spin", Image = "Vinyl", At = { { 0.879, 0.09, 0.189, 50 } } }, { Kind = "Spin", Image = "Vinyl", Layer = "Photo", At = { { 0.109, 0.825, 0.292, -35 } } }, { Kind = "Sparkle", At = { { 0.1, 0.754, 0.086 }, { 0.907, 0.766, 0.069 } } } } }),
+	table.freeze({ Id = "S1Legend", Face = "rbxassetid://124052413832460", Photo = "rbxassetid://105256806056014", Deco = "rbxassetid://137159811122811", Fx = { { Kind = "Holo", Alpha = 0.8 }, { Kind = "Rays", Layer = "Photo", At = { 0.5, 0.43, 1.4 }, Speed = 10 }, { Kind = "Shine" }, { Kind = "Sparkle", At = { { 0.893, 0.084, 0.154 }, { 0.107, 0.09, 0.103 }, { 0.1, 0.754, 0.111 }, { 0.907, 0.76, 0.086 } } } } }),
+})
+-- banner animations (SeasonFx), by banner Id; positions are fractions of the banner art
+SeasonConstants.BANNER_FX = table.freeze({
+	S1Comeback = { { Kind = "Confetti", Area = { 0.45, 0, 1, 1 }, Count = 26 }, { Kind = "Shine" }, { Kind = "Sparkle", At = { { 0.725, 0.5, 0.06 } } } },
+	S1Glow = { { Kind = "Glow", At = { { 0.517, 0.667, 0.087, "FFFFFF" }, { 0.6, 0.3, 0.113, "FF9EC4" }, { 0.708, 0.633, 0.14, "FFE07A" }, { 0.817, 0.267, 0.1, "FFFFFF" }, { 0.9, 0.667, 0.127, "FF9EC4" }, { 0.967, 0.233, 0.08, "FFE07A" } } }, { Kind = "Sparkle", At = { { 0.658, 0.133, 0.028 }, { 0.775, 0.867, 0.024 }, { 0.942, 0.9, 0.024 }, { 0.583, 0.8, 0.02 } } } },
+	RetroBloom = { { Kind = "Sway", At = { { "FlowerOrange", 0.596, 0.234, 0.108 }, { "FlowerPink", 0.879, 0.879, 0.103 }, { "FlowerYellow", 0.942, 0.195, 0.08 } } }, { Kind = "Glow", At = { { 0.649, 0.566, 0.225, "FF8FE0" } } }, { Kind = "Sparkle", At = { { 0.723, 0.078, 0.023 }, { 0.459, 0.742, 0.019 }, { 0.967, 0.43, 0.021 } } } },
+	ChromeDream = { { Kind = "Holo", Alpha = 0.82 }, { Kind = "Shine" }, { Kind = "Sparkle", At = { { 0.547, 0.156, 0.028 }, { 0.85, 0.898, 0.023 }, { 0.977, 0.156, 0.033 }, { 0.508, 0.898, 0.019 }, { 0.674, 0.117, 0.016 }, { 0.918, 0.547, 0.014 } } } },
+	NeonSeoul = { { Kind = "Glow", Flicker = true, At = { { 0.62, 0.578, 0.186, "FF5FA8" }, { 0.776, 0.535, 0.225, "5FF2FF" }, { 0.938, 0.156, 0.146, "FFF6C8" }, { 0.903, 0.723, 0.107, "FF5FA8" } } } },
+	S1Star = { { Kind = "Rays", At = { 0.75, 0.5, 0.62 }, Speed = 14 }, { Kind = "Sparkle", At = { { 0.633, 0.8, 0.032 }, { 0.842, 0.133, 0.028 }, { 0.567, 0.3, 0.028 }, { 0.933, 0.2, 0.024 } } }, { Kind = "Shine" } },
+	S1Icon = { { Kind = "Spin", Image = "Vinyl", At = { { 0.75, 0.5, 0.176, 40 }, { 0.9, 0.733, 0.103, -60 } } }, { Kind = "Sparkle", At = { { 0.65, 0.233, 0.032 }, { 0.842, 0.133, 0.026 }, { 0.983, 0.767, 0.024 } } } },
+	S1Legend = { { Kind = "Holo", Alpha = 0.78 }, { Kind = "Rays", At = { 0.767, 0.5, 0.6 }, Speed = 10 }, { Kind = "Shine" }, { Kind = "Sparkle", At = { { 0.583, 0.267, 0.044 }, { 0.917, 0.2, 0.052 }, { 0.95, 0.8, 0.036 }, { 0.633, 0.8, 0.028 }, { 0.867, 0.9, 0.024 } } } },
+})
+-- the images the effects use
+SeasonConstants.FX_IMAGES = table.freeze({
+	FlowerOrange = "rbxassetid://116919994382602",
+	FlowerYellow = "rbxassetid://80583273140442",
+	FlowerPink = "rbxassetid://138885098588904",
+	Vinyl = "rbxassetid://76971127570840",
+	Rays = "rbxassetid://140372449518848",
+	Glow = "rbxassetid://118244830983530",
+	Sparkle = "rbxassetid://91554616661236",
+})

@@ -25,7 +25,7 @@ local MUTED = C("5C566B")
 local MINE = C("FFF1B8") -- your own row
 local HEAD = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy)
 local BODY = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.ExtraBold)
-local COIN = "rbxassetid://105055420801588"
+local COIN = require(game:GetService("ReplicatedStorage").Constants.Currencies).Coins.Icon
 
 local W, H = 640, 800 -- the Join sign
 local BW = 1280 -- the big board (same height)
@@ -47,8 +47,8 @@ local Build = {}
 -- the big board's tabs, left to right (Name = the PlayerData board; Client/Leaderboards
 -- knows each one's colours and text)
 Build.TABS = {
-	{ Name = "WeeklyWins", Label = "Weekly Wins" },
-	{ Name = "WeeklyAnswers", Label = "Weekly Answers" },
+	{ Name = "MostWins", Label = "Most Wins" },
+	{ Name = "MostAnswers", Label = "Most Answers" },
 	{ Name = "TopStreaks", Label = "Top Streaks" },
 	{ Name = "PerfectGames", Label = "Perfect Games" },
 	{ Name = "TopFans", Label = "Top Fans" },

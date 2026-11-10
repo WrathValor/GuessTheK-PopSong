@@ -170,6 +170,37 @@ function Build.AddShowcase(index: Instance)
 	end
 end
 
+-- Card states (design board "Index cards · BG music + maxed", option A): every grid card gets
+--   BgSticker (+ BgStickerShadow) – a round yellow note sticker hanging off the top-right
+--                                   corner: this card is your background music
+--   Dim                           – a cream veil over the card (and its shadow): in upgrade
+--                                   mode, a maxed (Rainbow) card that can't take another copy
+-- IndexController shows them; the "×n owned" line never changes. Run once in Studio, Edit mode
+-- (safe to run again):
+--   require(<this module>).AddCardStates(game.StarterGui.Interface.Frames.Index)
+local NOTE_ICON = "rbxassetid://139417424771393"
+function Build.AddCardStates(index: Instance)
+	for _, holder in index.Panel.Content.Grid:GetChildren() do
+		if holder:IsA("Frame") and string.sub(holder.Name, 1, 4) == "Card" then
+			for _, name in { "BgSticker", "BgStickerShadow", "Dim" } do
+				local x = holder:FindFirstChild(name)
+				if x then
+					x:Destroy()
+				end
+			end
+			local dim = new("Frame", { Name = "Dim", Size = UDim2.new(1, 4, 1, 4), BackgroundColor3 = CREAM, BackgroundTransparency = 0.4, BorderSizePixel = 0, Visible = false, ZIndex = 4 }, holder)
+			corner(dim, 14)
+			local at = UDim2.new(1, -3, 0, 3) -- centred on the corner, half off the card
+			local sh = new("Frame", { Name = "BgStickerShadow", AnchorPoint = Vector2.new(0.5, 0.5), Position = at + UDim2.fromOffset(2, 2), Size = UDim2.fromOffset(28, 28), Rotation = 8, BackgroundColor3 = INK, BorderSizePixel = 0, Visible = false, ZIndex = 6 }, holder)
+			corner(sh, UDim.new(0.5, 0))
+			local sticker = new("Frame", { Name = "BgSticker", AnchorPoint = Vector2.new(0.5, 0.5), Position = at, Size = UDim2.fromOffset(28, 28), Rotation = 8, BackgroundColor3 = C("FFE07A"), BorderSizePixel = 0, Visible = false, ZIndex = 7 }, holder)
+			corner(sticker, UDim.new(0.5, 0))
+			stroke(sticker, 3)
+			new("ImageLabel", { Name = "Icon", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(15, 15), BackgroundTransparency = 1, Image = NOTE_ICON, ImageColor3 = INK, ScaleType = Enum.ScaleType.Fit, ZIndex = 8 }, sticker)
+		end
+	end
+end
+
 function Build.Build(frames: Instance)
 	local old = frames:FindFirstChild("Index")
 	if old then

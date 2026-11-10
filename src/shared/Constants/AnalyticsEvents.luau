@@ -42,6 +42,9 @@ AnalyticsEvents.Custom = {
 	Equip = { Fields = { "Kind", "Item" } },
 	DailyClaimed = { Fields = { "Day" } }, -- value: coins
 	QuestClaimed = { Fields = { "Quest" } }, -- value: coins
+	SeasonClaim = { Fields = { "Kind" } }, -- value: milestone number
+	CardUpgrade = { Fields = { "Song" } }, -- value: copies after
+	TicketRoll = { Fields = { "Group", "Result" } }, -- Result New / Duplicate
 	QuestBonusClaimed = {},
 	GroupRewardClaimed = {},
 	CodeRedeemed = { Fields = { "Code" } }, -- value: coins
@@ -89,6 +92,10 @@ AnalyticsEvents.Transactions = {
 	ShopSet = "ShopSet",
 	ShopStage = "ShopStage",
 	ShopMic = "ShopMic",
+	SeasonTrack = "SeasonTrack", -- (a source: milestone coins)
+	ShopStyleSet = "ShopStyleSet", -- banner + photocard together
+	ShopStyleBanner = "ShopStyleBanner",
+	ShopStylePhotocard = "ShopStylePhotocard",
 	ShopSong = "ShopSong",
 	ShopPack = "ShopPack",
 	Roll = "SongRoll",

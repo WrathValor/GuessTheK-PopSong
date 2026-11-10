@@ -9,7 +9,12 @@
 -- PolicyService says those are restricted (checked on join; if the check fails, rolls stay
 -- off). The "RollsAllowed" player attribute tells the client.
 --
+-- Roll tickets (Season Track rewards, Inventory.Tickets): a free single roll from one group you
+-- pick (a Packs group, "Group:<artist>"), every song in it equally likely. No coins, no pity
+-- (DupesInRow is the coin rolls' counter); duplicates still level the card + refund coins.
+--
 -- RollRemote request: { Action = "Roll", Count = 1 | 10 }
+--                     { Action = "Roll", Count = 1, Group = "Group:<artist>" } – spends a ticket
 -- Reply:              { Message = "Rolled", Ok, Text?, Pulls = { { Song, New, Copies, Level, LevelUp } },
 --                       Refund, DupesInRow, Title? = { Title, Tier, New } }
 --   Title: the set title the roll unlocked or upgraded (Engine/Collection), for the reveal's
@@ -22,6 +27,7 @@ local PolicyService = game:GetService("PolicyService")
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 local RollConstants = require(ReplicatedStorage.Constants.RollConstants)
+local Currencies = require(ReplicatedStorage.Constants.Currencies)
 local Songs = require(ReplicatedStorage.Modules.Library.Songs)
 local Cards = require(ReplicatedStorage.Modules.Library.Cards)
 local Analytics = require(script.Parent.Analytics)
@@ -58,7 +64,7 @@ local function reply(player: Player, ok: boolean, text: string?, extra: { [strin
 	RollRemote:Fire(player, packet)
 end
 
-local function roll(player: Player, count: number)
+local function roll(player: Player, count: number, groupId: string?)
 	if busy[player] then
 		return
 	end
@@ -70,11 +76,22 @@ local function roll(player: Player, count: number)
 		return reply(player, false, "Your data hasn't loaded yet")
 	end
 	local all = Songs.All
+	local group = nil
+	if groupId then
+		group = Packs.Get(groupId)
+		if not group or group.Kind ~= "Group" then
+			return reply(player, false, "That group can't be rolled")
+		end
+		if Currencies.Data(data, "Tickets").Get() < 1 then
+			return reply(player, false, "No roll tickets left")
+		end
+		all, count = group.Songs, 1
+	end
 	if #all == 0 then
 		return reply(player, false, "No songs to roll yet")
 	end
-	local price = if count == 10 then RollConstants.TEN_COST else RollConstants.COST
-	if data.Currencies.Won.Get() < price then
+	local price = if group then 0 elseif count == 10 then RollConstants.TEN_COST else RollConstants.COST
+	if Currencies.Data(data, "Coins").Get() < price then
 		return reply(player, false, "Not enough coins")
 	end
 	busy[player] = true
@@ -91,7 +108,7 @@ local function roll(player: Player, count: number)
 	local pulls, changed, refund = {}, {}, 0
 	for _ = 1, count do
 		local pool = all
-		if dupes >= RollConstants.PITY then
+		if dupes >= RollConstants.PITY and not group then
 			local fresh = {}
 			for _, song in all do
 				if not owned[song.Id] then
@@ -111,9 +128,9 @@ local function roll(player: Player, count: number)
 		changed[song.Id] = true
 		local level = Cards.Level(after)
 		if new then
-			dupes = 0
+			dupes = if group then dupes else 0
 		else
-			dupes += 1
+			dupes += if group then 0 else 1
 			refund += RollConstants.DUPLICATE_REFUND
 		end
 		table.insert(pulls, {
@@ -126,7 +143,10 @@ local function roll(player: Player, count: number)
 	end
 
 	PlayerData.Batch(player, function()
-		data.Currencies.Won.Increment(refund - price)
+		Currencies.Data(data, "Coins").Increment(refund - price)
+		if group then
+			Currencies.Data(data, "Tickets").Increment(-1)
+		end
 		for id in changed do
 			if not data.Inventory.Songs.Has(id) then
 				data.Inventory.Songs.Add(id)
@@ -166,7 +186,11 @@ local function roll(player: Player, count: number)
 	end
 
 	local balance = data.Currencies.Won.Get()
-	Analytics.Economy(player, "Sink", "Coins", price, balance - refund, "SongRoll", `Roll{count}`)
+	if group then
+		Analytics.Event(player, "TicketRoll", 1, group.Name, if pulls[1].New then "New" else "Duplicate")
+	else
+		Analytics.Economy(player, "Sink", "Coins", price, balance - refund, "SongRoll", `Roll{count}`)
+	end
 	Analytics.Economy(player, "Source", "Coins", refund, balance, "RollRefund", "Duplicate")
 	local fresh = 0
 	for _, pull in pulls do
@@ -174,7 +198,7 @@ local function roll(player: Player, count: number)
 		fresh += if pull.New then 1 else 0
 	end
 	RewardsService.RecordNewSongs(player, fresh) -- the "new songs" daily quest
-	reply(player, true, nil, { Pulls = pulls, Refund = refund, DupesInRow = dupes, Title = title })
+	reply(player, true, nil, { Pulls = pulls, Refund = refund, DupesInRow = dupes, Title = title, Group = group and group.Name or nil })
 end
 
 -- [[ Lifecycle ]]
@@ -193,7 +217,8 @@ function RollService.Start()
 			return
 		end
 		local count = if packet.Count == 10 then 10 else 1
-		local ok, err = pcall(roll, player, count)
+		local groupId = if type(packet.Group) == "string" then packet.Group else nil
+		local ok, err = pcall(roll, player, count, groupId)
 		if not ok then
 			busy[player] = nil
 			warn(`[RollService] roll failed for {player.Name}: {err}`)

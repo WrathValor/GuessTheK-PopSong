@@ -5,7 +5,7 @@
 -- ("Leaderboard_Main" / "Leaderboard_JoinTheGroup", built once by ./Build); this script points
 -- each at its part (its "Board" attribute) and fills it in. They live in PlayerGui so the
 -- buttons work and each player sees their own tab, row and Join state.
--- The big board has a tab per PlayerData board (Weekly Wins, Weekly Answers, Top Streaks,
+-- The big board has a tab per PlayerData board (Most Wins, Most Answers, Top Streaks,
 -- Perfect Games, Top Fans). It flips to the next one every FLIP seconds until you tap a tab,
 -- and starts again once you've left it alone for IDLE seconds; the sign and its frame part
 -- (tinted on this client only) take the open board's colours. The pinned YOU row is your
@@ -45,8 +45,8 @@ local LIST_TINT = 0.12 -- the list panel: the board's colour, a shade darker (no
 local Leaderboards = {}
 
 -- How each board looks and shows its numbers, in tab order (Build.TABS). Face / Frame are
--- the sign's and the frame part's colours, Sub the header line (a weekly board counts down to
--- its reset), Unit follows the podium values, Format turns a score into text, Local is your
+-- the sign's and the frame part's colours, Sub the header line (every board is all time),
+-- Unit follows the podium values, Format turns a score into text, Local is your
 -- own value for when you're past the top 100 on a lifetime board.
 local function own(path): () -> number?
 	return function()
@@ -54,8 +54,8 @@ local function own(path): () -> number?
 	end
 end
 local BOARDS = {
-	WeeklyWins = { Face = C("A7E9B8"), Frame = C("9ED8F5"), SubColour = YELLOW, Sub = "MOST WINS THIS WEEK", Weekly = true, Unit = "wins" },
-	WeeklyAnswers = { Face = C("9ED8F5"), Frame = C("A7E9B8"), SubColour = C("9ED8F5"), Sub = "MOST CORRECT THIS WEEK", Weekly = true, Unit = "right" },
+	MostWins = { Face = C("A7E9B8"), Frame = C("9ED8F5"), SubColour = YELLOW, Sub = "MOST WINS · ALL TIME", Unit = "wins", Local = own(PlayerData.Statistics.Wins) },
+	MostAnswers = { Face = C("9ED8F5"), Frame = C("A7E9B8"), SubColour = C("9ED8F5"), Sub = "MOST CORRECT ANSWERS · ALL TIME", Unit = "right", Local = own(PlayerData.Statistics.CorrectAnswers) },
 	TopStreaks = { Face = C("B9A6FF"), Frame = YELLOW, SubColour = C("FF9EC4"), Sub = "BEST WIN STREAK · ALL TIME", Unit = "streak", Local = own(PlayerData.Statistics.HighestStreak) },
 	PerfectGames = { Face = YELLOW, Frame = C("FF9EC4"), SubColour = YELLOW, Sub = "7–0 WINS · ALL TIME", Unit = "perfect", Local = own(PlayerData.Statistics.PerfectGames) },
 	TopFans = {
@@ -69,19 +69,10 @@ local BOARDS = {
 		Local = own(PlayerData.Player.XP),
 	},
 }
-local ORDER = { "WeeklyWins", "WeeklyAnswers", "TopStreaks", "PerfectGames", "TopFans" }
+local ORDER = { "MostWins", "MostAnswers", "TopStreaks", "PerfectGames", "TopFans" }
 
 local function headshot(userId: number): string
 	return `rbxthumb://type=AvatarHeadShot&id={userId}&w=150&h=150`
-end
-
--- weekly boards reset Monday 00:00 UTC (PlayerData PeriodReset)
-local WEEK, MONDAY0 = 7 * 86400, 4 * 86400 -- 1970-01-05 was a Monday
-local function resetText(): string
-	local now = os.time()
-	local left = (math.floor((now - MONDAY0) / WEEK) + 1) * WEEK + MONDAY0 - now
-	local d, h = math.floor(left / 86400), math.floor(left % 86400 / 3600)
-	return if d > 0 then `RESETS MONDAY · {d}D {h}H` else `RESETS IN {h}H {math.floor(left % 3600 / 60)}M`
 end
 
 -- ------------------------------ The big board ------------------------------ --
@@ -159,7 +150,7 @@ local function bindMain(gui: SurfaceGui, framePart: BasePart?)
 			framePart.Color = spec.Frame -- this client only
 		end
 		sign.Header.Sub.TextColor3 = spec.SubColour
-		sign.Header.Sub.Text = if spec.Weekly then `{spec.Sub} · {resetText()}` else spec.Sub
+		sign.Header.Sub.Text = spec.Sub
 		for _, name in ORDER do
 			local tab = sign.Tabs[name]
 			local on = name == current

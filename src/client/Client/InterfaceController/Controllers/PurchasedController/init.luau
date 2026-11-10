@@ -6,9 +6,14 @@
 -- burst, "✓ Added to your Inventory", and EQUIP / Nice!.
 --
 -- What triggers it (no one has to call it):
---   ShopRemote reply  { Message = "Result", Ok = true, Action = "BuySet" | "BuyItem", Id, Kind }
+--   ShopRemote reply  { Message = "Result", Ok = true, Action = "BuySet" | "BuyItem" | "BuyStyle", Id, Kind }
 --                     – coin buys; the server has already equipped them
---   PromptProductPurchaseFinished – the Debut Pack (waits for Rewards.Claimed "Debut") and coin bundles
+--   SeasonRemote reply { Message = "Result", Action = "Claim", Ok = true, Kind = "Banner" |
+--                     "Photocard", N } – a Season Track banner / photocard (EQUIP NOW puts it on)
+--   RewardsRemote reply { Message = "Result", Action = "RedeemCode", Ok = true, Code, Rewards }
+--                     – a shop code: everything it gave (RewardsCatalog.CodeRewards)
+--   PromptProductPurchaseFinished – the Debut Pack (waits for Rewards.Claimed "Debut"), coin
+--                     bundles and roll ticket / card upgrade bundles (ShopCatalog.RollBundles)
 --   PromptGamePassPurchaseFinished – passes (waits for GamePasses to have it)
 -- A second buy while one is showing waits its turn.
 
@@ -25,6 +30,10 @@ local Promise = require(ReplicatedStorage.Packages.promise)
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Client
 local ShopCatalog = require(ReplicatedStorage.Constants.ShopCatalog)
+local Currencies = require(ReplicatedStorage.Constants.Currencies)
+local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
+local SeasonArt = require(ReplicatedStorage.Modules.UI.SeasonArt)
+local ProfileBuild = require(script.Parent.ProfileController.Build)
 local CosmeticView = require(ReplicatedStorage.Modules.UI.CosmeticView)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
@@ -32,6 +41,8 @@ local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 
 local ShopRemote = Bridgenet.ReferenceBridge("ShopRemote")
+local SeasonRemote = Bridgenet.ReferenceBridge("SeasonRemote")
+local RewardsRemote = Bridgenet.ReferenceBridge("RewardsRemote")
 
 -- -------------------------------- Constants ------------------------------- --
 local LOCAL_PLAYER = Players.LocalPlayer
@@ -74,6 +85,40 @@ local function coinCard(amount: number, pile: string?)
 	return { Name = `+{commas(amount)}`, Kind = "Coins", Colour = "FFE07A", Image = pile, Tag = "COINS", TagColour = "FFFFFF" }
 end
 
+-- the coin pile picture for an amount: the biggest coin bundle's pile that isn't bigger
+local function pileFor(amount: number): string?
+	local best, bestAmount = nil, -1
+	for _, bundle in ShopCatalog.CoinBundles do
+		if bundle.Amount <= amount and bundle.Amount > bestAmount then
+			best, bestAmount = bundle.Pile, bundle.Amount
+		end
+	end
+	return best or (ShopCatalog.CoinBundles[1] and ShopCatalog.CoinBundles[1].Pile)
+end
+
+-- roll tickets / card upgrades (or coins): "+5" over the currency's icon
+local function currencyCard(id: string, amount: number)
+	if id == "Coins" then
+		return coinCard(amount, pileFor(amount))
+	end
+	local c = Currencies.Get(id)
+	if not c then
+		return nil
+	end
+	return {
+		Name = `+{commas(amount)}`,
+		Kind = if amount == 1 then c.Name else c.Plural,
+		Colour = c.Colour:ToHex(),
+		Image = c.Icon,
+		Tag = string.upper(c.Plural),
+		TagColour = "FFFFFF",
+	}
+end
+
+local function titleCard(title: string)
+	return { Name = title, Kind = "Title", Colour = "FFE07A", Big = "Aa", Tag = "NEW", TagColour = "FF9EC4" }
+end
+
 local function itemCard(kind: string, id: string)
 	local item = if kind == "Set" then ShopCatalog.GetSet(id) else ShopCatalog.GetItem(kind, id)
 	if not item then
@@ -87,6 +132,99 @@ local function itemCard(kind: string, id: string)
 		Tag = "NEW",
 		TagColour = RARITY_TAG[item.Rarity] or "B9A6FF",
 	}
+end
+
+-- a banner or photocard you bought (Show draws it: see styleArt)
+local function styleCard(kind: string, id: string)
+	local spec = SeasonConstants.Banner(id) -- shop or Season Track, any banner / photocard
+	if not spec or spec.Id ~= id then
+		return nil
+	end
+	return {
+		Name = spec.Name,
+		Kind = if kind == "Banner" then "Profile banner" else "Photocard",
+		Colour = spec.Fill:ToHex(),
+		Style = { kind, id },
+		Tag = if spec.Animated then "ANIMATED" else "NEW",
+		TagColour = if spec.Animated then "FF9EC4" else "9ED8F5",
+	}
+end
+
+-- a small photocard with your avatar (skin, photo background, stickers + its animation)
+local function miniPhotocard(parent: Instance, id: string, pos: UDim2, w: number, rotation: number): Frame
+	local h = math.floor(w * 334 / 280)
+	local card = Instance.new("Frame")
+	card.Name = "Card"
+	card.AnchorPoint = Vector2.new(0.5, 0)
+	card.Position = pos
+	card.Size = UDim2.fromOffset(w, h)
+	card.Rotation = rotation
+	card.BackgroundColor3 = C("FFFFFF")
+	card.ZIndex = 2
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = card
+	local line = Instance.new("UIStroke")
+	line.Thickness = 2
+	line.Color = C("1E1B2E")
+	line.Parent = card
+	card.Parent = parent
+	local photo = ProfileBuild.Photo(card, UDim2.fromScale(12 / 280, 12 / 334), UDim2.fromScale(256 / 280, 228 / 334), 2)
+	photo:FindFirstChildOfClass("UICorner").CornerRadius = UDim.new(0, 5)
+	SeasonArt.BuildCardSkin(card, photo, 8, true)
+	photo.Avatar.Image = `rbxthumb://type=AvatarBust&id={LOCAL_PLAYER.UserId}&w=150&h=150`
+	SeasonArt.PaintPhotocard(card, id)
+	return card
+end
+
+-- the card art for a banner (it across the top with the photocard you wear in front, like
+-- your profile) or a photocard (the whole card, standing)
+local function styleArt(art: Frame, kind: string, id: string)
+	local holder = Instance.new("Frame")
+	holder.Name = "Style"
+	holder.Size = UDim2.fromScale(1, 1)
+	holder.BackgroundTransparency = 1
+	holder.ZIndex = 10
+	holder.Parent = art
+	if kind == "Banner" then
+		-- like the profile: the banner band, your photocard tucked bottom-left, your name beside it
+		art.BackgroundColor3 = C("FBF7F0")
+		local banner = SeasonArt.BuildBanner(holder, "Banner", UDim2.fromOffset(0, 0), UDim2.new(1, 0, 0, 84), 0, false)
+		SeasonArt.PaintBanner(banner, id)
+		local rule = Instance.new("Frame")
+		rule.Name = "Rule"
+		rule.Position = UDim2.fromOffset(0, 84)
+		rule.Size = UDim2.new(1, 0, 0, 2)
+		rule.BackgroundColor3 = C("1E1B2E")
+		rule.BorderSizePixel = 0
+		rule.ZIndex = 2
+		rule.Parent = holder
+		local worn = LOCAL_PLAYER:GetAttribute("Photocard") or SeasonConstants.DEFAULT_PHOTOCARD
+		miniPhotocard(holder, worn, UDim2.new(0, 34, 0, 64), 50, -4)
+		local name = Instance.new("TextLabel")
+		name.Name = "PlayerName"
+		name.AnchorPoint = Vector2.new(0, 0.5)
+		name.Position = UDim2.new(0, 66, 0, 116)
+		name.Size = UDim2.new(1, -72, 0, 22)
+		name.BackgroundColor3 = C("FFFFFF")
+		name.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy)
+		name.TextSize = 11
+		name.TextColor3 = C("1E1B2E")
+		name.TextTruncate = Enum.TextTruncate.AtEnd
+		name.Text = LOCAL_PLAYER.DisplayName
+		name.ZIndex = 2
+		local nc = Instance.new("UICorner")
+		nc.CornerRadius = UDim.new(0, 7)
+		nc.Parent = name
+		local ns = Instance.new("UIStroke")
+		ns.Thickness = 2
+		ns.Color = C("1E1B2E")
+		ns.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		ns.Parent = name
+		name.Parent = holder
+	else
+		miniPhotocard(holder, id, UDim2.new(0.5, 0, 0, 10), 108, -3)
+	end
 end
 
 -- --------------------------------- Class ---------------------------------- --
@@ -143,6 +281,15 @@ function Purchased:Initialize(interface)
 				Cards = { itemCard("Set", packet.Id) },
 				Where = "Equipped · added to your Inventory",
 			})
+		elseif packet.Action == "BuyStyle" and type(packet.Id) == "string" and type(packet.Kind) == "string" then
+			local set = packet.Kind == "Set"
+			local price = if type(packet.Price) == "number" then packet.Price else ShopCatalog.StylePrice(packet.Id, packet.Kind)
+			self:Show({
+				Banner = if set then "NEW SET!" elseif packet.Kind == "Banner" then "NEW BANNER!" else "NEW PHOTOCARD!",
+				Sub = if price then `−{commas(price)} coins` else "",
+				Cards = if set then { styleCard("Banner", packet.Id), styleCard("Photocard", packet.Id) } else { styleCard(packet.Kind, packet.Id) },
+				Where = "Equipped · swap it any time in STYLE on your profile",
+			})
 		elseif packet.Action == "BuyItem" and type(packet.Id) == "string" and type(packet.Kind) == "string" then
 			local item = ShopCatalog.GetItem(packet.Kind, packet.Id)
 			self:Show({
@@ -154,7 +301,69 @@ function Purchased:Initialize(interface)
 		end
 	end), "Disconnect") -- BridgeNet2 connections have no Destroy
 
-	-- Robux: the Debut Pack + coin bundles
+	-- Season Track: a banner / photocard milestone gets the same reveal (it isn't worn yet)
+	j:Add(SeasonRemote:Connect(function(packet)
+		if type(packet) ~= "table" or packet.Message ~= "Result" or packet.Action ~= "Claim" or not packet.Ok then
+			return
+		end
+		local spec = SeasonConstants.TRACK[packet.N]
+		if not spec or (spec.Kind ~= "Banner" and spec.Kind ~= "Photocard") then
+			return
+		end
+		local id = spec.Banner or spec.Photocard
+		self:Show({
+			Banner = if spec.Kind == "Banner" then "NEW BANNER!" else "NEW PHOTOCARD!",
+			Sub = `Season Track · milestone {packet.N}`,
+			Cards = { styleCard(spec.Kind, id) },
+			Where = "Added to STYLE on your profile",
+			EquipText = "EQUIP NOW",
+			Equip = function()
+				ShopRemote:Fire({ Action = "EquipStyle", [spec.Kind] = id })
+			end,
+		})
+	end), "Disconnect")
+
+	-- shop codes: everything the code gave
+	j:Add(RewardsRemote:Connect(function(packet)
+		if type(packet) ~= "table" or packet.Message ~= "Result" or packet.Action ~= "RedeemCode" or not packet.Ok then
+			return
+		end
+		local cards = {}
+		local wearable = {} -- stages / mics / banners / photocards EQUIP can put on
+		for _, r in (if type(packet.Rewards) == "table" then packet.Rewards else {}) do
+			if r.Kind == "Currency" then
+				table.insert(cards, currencyCard(r.Key, r.Amount or 0))
+			elseif r.Kind == "Item" then
+				table.insert(cards, itemCard(r.Key, r.Id))
+				table.insert(wearable, r)
+			elseif r.Kind == "Style" then
+				table.insert(cards, styleCard(r.Key, r.Id))
+				table.insert(wearable, r)
+			elseif r.Kind == "Title" then
+				table.insert(cards, titleCard(r.Id))
+			end
+		end
+		self:Show({
+			Banner = "CODE REDEEMED!",
+			Sub = if type(packet.Code) == "string" then packet.Code else "",
+			Cards = cards,
+			Where = if #wearable > 0 then "Added to your Inventory" else "Added to your account",
+			EquipText = if #wearable > 0 then "EQUIP NOW" else nil,
+			Equip = if #wearable > 0
+				then function()
+					for _, r in wearable do
+						if r.Kind == "Item" then
+							ShopRemote:Fire({ Action = "EquipItem", Kind = r.Key, Id = r.Id })
+						else
+							ShopRemote:Fire({ Action = "EquipStyle", [r.Key] = r.Id })
+						end
+					end
+				end
+				else nil,
+		})
+	end), "Disconnect")
+
+	-- Robux: the Debut Pack, coin bundles, roll ticket + card upgrade bundles
 	j:Add(MarketplaceService.PromptProductPurchaseFinished:Connect(function(userId, productId, purchased)
 		if not purchased or userId ~= LOCAL_PLAYER.UserId then
 			return
@@ -194,6 +403,24 @@ function Purchased:Initialize(interface)
 						Sub = "Coins added",
 						Cards = { coinCard(bundle.Amount, bundle.Pile) },
 						Where = "Added to your coins",
+					})
+				end)
+				return
+			end
+		end
+		for _, bundle in ShopCatalog.RollBundles do
+			if bundle.ProductId == productId then
+				local c = Currencies.Get(bundle.Currency)
+				local before = Currencies.Count(LOCAL_PLAYER, bundle.Currency)
+				waitFor(function()
+					return Currencies.Count(LOCAL_PLAYER, bundle.Currency) > before
+				end):andThen(function()
+					self:Show({
+						Banner = "YOU GOT!",
+						Sub = if c then `{c.Plural} added` else "",
+						Cards = { currencyCard(bundle.Currency, bundle.Amount) },
+						Where = if bundle.Currency == "Tickets" then "Use them on Roll · Pick a Group"
+							else "Use them in the Index on any song you own",
 					})
 				end)
 				return
@@ -297,6 +524,9 @@ function Purchased:Show(info)
 		art.Big.Text = card.Big or ""
 		art.Big.Visible = card.Big ~= nil
 		c.Parent = frame.Items
+		if card.Style then
+			styleArt(art, card.Style[1], card.Style[2])
+		end
 		if card.Model then
 			CosmeticView.Show(art, card.Model[1], card.Model[2])
 			-- keep the card's own pastel, not the shop's night card

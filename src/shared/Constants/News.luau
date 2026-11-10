@@ -53,7 +53,7 @@ return table.freeze({
 			Id = "2026-11-20-boards",
 			Date = "20 Nov",
 			Title = "Climb the leaderboards",
-			Body = "Weekly Wins resets every Monday. Top Streaks is forever. Find both on the street.",
+			Body = "Most Wins, Most Answers, Top Streaks: every board is all time now. Find them on the street.",
 			Tag = "NEW",
 			Colour = "FFE07A",
 			Glyph = "★",

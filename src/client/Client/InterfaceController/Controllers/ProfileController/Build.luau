@@ -50,7 +50,7 @@ Build.STATS = {
 	{ Name = "Perfect", Label = "PERFECT GAMES", Colour = "FFE07A" },
 	{ Name = "Correct", Label = "CORRECT ANSWERS", Colour = "CDEBFA" },
 	{ Name = "Songs", Label = "SONGS OWNED", Colour = "DCD3FF" },
-	{ Name = "SoloBest", Label = "SOLO BEST", Colour = "FFFFFF" },
+	{ Name = "Season", Label = "SEASON", Colour = "FFFFFF" },
 }
 
 Build.SHOWCASE = 5

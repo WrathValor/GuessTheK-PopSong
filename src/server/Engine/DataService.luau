@@ -8,6 +8,7 @@ local Players = game:GetService("Players")
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 local HUDConstants = require(ReplicatedStorage.Constants.HUDConstants)
 local ShopCatalog = require(ReplicatedStorage.Constants.ShopCatalog)
+local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
 local Levels = require(ReplicatedStorage.Modules.Levels)
 local Collection = require(script.Parent.Collection)
 local Cards = require(ReplicatedStorage.Modules.Library.Cards)
@@ -40,6 +41,40 @@ local function onPlayerAdded(Player: Player)
             end
         end
     end
+
+    -- the pre-season's banners, photocards and title were called S1 before they became S0:
+    -- move anything saved under the old names
+    PlayerData.Batch(Player, function()
+        for _, kind in { "Comeback", "Glow", "Star", "Icon", "Legend" } do
+            local old, new = "S1" .. kind, "S0" .. kind
+            for _, list in { data.Inventory.Banners, data.Inventory.Photocards } do
+                if list.Has(old) then
+                    list.Remove(old)
+                    if not list.Has(new) then
+                        list.Add(new)
+                    end
+                end
+            end
+            for _, worn in { data.Inventory.Banner, data.Inventory.Photocard } do
+                if worn.Get() == old then
+                    worn.Set(new)
+                end
+            end
+        end
+        if data.Inventory.Titles.Has("S1 Comeback") then
+            data.Inventory.Titles.Remove("S1 Comeback")
+            if not data.Inventory.Titles.Has("S0 Comeback") then
+                data.Inventory.Titles.Add("S0 Comeback")
+            end
+            local tier = data.Inventory.TitleTiers["S1 Comeback"].Get() or 0
+            if tier > (data.Inventory.TitleTiers["S0 Comeback"].Get() or 0) then
+                data.Inventory.TitleTiers["S0 Comeback"].Set(tier)
+            end
+            if data.Inventory.Title.Get() == "S1 Comeback" then
+                data.Inventory.Title.Set("S0 Comeback")
+            end
+        end
+    end)
 
     -- public bits other players' clients need (name tags, stage looks): mirrored as attributes
     data.Inventory.EquippedStage.Observe(function(id: string)
@@ -79,6 +114,20 @@ local function onPlayerAdded(Player: Player)
     end
     data.Inventory.Title.Observe(showTitle)
     data.Inventory.TitleTiers.Observe(showTitle)
+    -- profile style: the banner + photocard worn (everyone's inspect card / PreDuel reads
+    -- them) and the owned lists as comma lists (the STYLE picker reads those)
+    data.Inventory.Banner.Observe(function(id: string)
+        Player:SetAttribute("Banner", if id ~= "" then id else SeasonConstants.DEFAULT_BANNER)
+    end)
+    data.Inventory.Photocard.Observe(function(id: string)
+        Player:SetAttribute("Photocard", if id ~= "" then id else SeasonConstants.DEFAULT_PHOTOCARD)
+    end)
+    data.Inventory.Banners.Observe(function()
+        Player:SetAttribute("Banners", table.concat(data.Inventory.Banners.Get() or {}, ","))
+    end)
+    data.Inventory.Photocards.Observe(function()
+        Player:SetAttribute("Photocards", table.concat(data.Inventory.Photocards.Get() or {}, ","))
+    end)
 end
 
 -- [[ Public ]]

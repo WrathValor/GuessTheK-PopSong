@@ -121,6 +121,30 @@ ShopCatalog.CoinBundles = {
 	{ Id = "Coins12000", Amount = 12000, ProductId = 3726066331, Hidden = true, Pile = "rbxassetid://95124619717890" }, -- the old Mega bag
 }
 
+-- Roll tickets + card upgrades (developer products): the shop's "Rolls + upgrades" section,
+-- three bundles of each, left to right. Currency is a Constants/Currencies id. A bundle whose
+-- ProductId is still 0 shows "Soon" and can't be bought; Hidden ones aren't shown but still
+-- grant (like CoinBundles). Bought ones show the purchase reveal (PurchasedController).
+ShopCatalog.RollBundles = {
+	{ Id = "Tickets1", Currency = "Tickets", Amount = 1, ProductId = 3730112610 },
+	{ Id = "Tickets5", Currency = "Tickets", Amount = 5, ProductId = 3730112632, Tag = "POPULAR" },
+	{ Id = "Tickets12", Currency = "Tickets", Amount = 12, ProductId = 3730112656, Tag = "BEST VALUE" },
+	{ Id = "Upgrades1", Currency = "Upgrades", Amount = 1, ProductId = 3730112680 },
+	{ Id = "Upgrades5", Currency = "Upgrades", Amount = 5, ProductId = 3730112697, Tag = "POPULAR" },
+	{ Id = "Upgrades12", Currency = "Upgrades", Amount = 12, ProductId = 3730112726, Tag = "BEST VALUE" },
+}
+
+-- the shown RollBundles of one currency, in order
+function ShopCatalog.RollBundlesFor(currency: string): { any }
+	local out = {}
+	for _, bundle in ShopCatalog.RollBundles do
+		if bundle.Currency == currency and not bundle.Hidden then
+			table.insert(out, bundle)
+		end
+	end
+	return out
+end
+
 -- The Debut Pack: a one-time starter bundle (developer product), shown near the top of the
 -- shop; once bought (Rewards.Claimed "Debut") it stays with a greyed "Bought" button.
 -- Hidden while ProductId is 0. Items are
@@ -290,6 +314,65 @@ function ShopCatalog.Countdown(seconds: number): string
 		return `{h}h {m}m`
 	end
 	return `{m}m`
+end
+
+-- [[ Banners + photocards (Constants/SeasonConstants: every BANNERS entry with Shop = true) ]]
+-- Sold as a set (banner + its photocard, cheaper together) or either half on its own. They
+-- rotate on the stage sets' clock, STYLE_PER_ROTATION at a time. Animated ones cost more.
+local SeasonConstants = require(script.Parent.SeasonConstants)
+
+ShopCatalog.STYLE_PER_ROTATION = 4
+ShopCatalog.STYLE_PRICES = table.freeze({
+	Regular = table.freeze({ Banner = 800, Photocard = 600, Set = 1200 }),
+	Animated = table.freeze({ Banner = 1500, Photocard = 1100, Set = 2200 }),
+})
+
+-- the shop's banner spec for `id` (nil if it isn't sold)
+function ShopCatalog.GetStyle(id: string?)
+	local spec = id and SeasonConstants.Banner(id)
+	if spec and spec.Id == id and spec.Shop and SeasonConstants.Photocard(id) then
+		return spec
+	end
+	return nil
+end
+
+-- kind = "Banner" | "Photocard" | "Set"
+function ShopCatalog.StylePrice(id: string, kind: string): number?
+	local spec = ShopCatalog.GetStyle(id)
+	if not spec then
+		return nil
+	end
+	return ShopCatalog.STYLE_PRICES[if spec.Animated then "Animated" else "Regular"][kind]
+end
+
+-- the banners + photocards in the shop right now, in BANNERS order (same on every server)
+function ShopCatalog.StyleRotation(time: number?): { any }
+	local window = ShopCatalog.RotationWindow(time)
+	local pool = {}
+	for _, spec in SeasonConstants.BANNERS do
+		if ShopCatalog.GetStyle(spec.Id) then
+			table.insert(pool, spec)
+		end
+	end
+	local rng = Random.new(window * 104729 + 31)
+	for i = #pool, 2, -1 do
+		local j = rng:NextInteger(1, i)
+		pool[i], pool[j] = pool[j], pool[i]
+	end
+	local out = {}
+	for i = 1, math.min(ShopCatalog.STYLE_PER_ROTATION, #pool) do
+		out[i] = pool[i]
+	end
+	return out
+end
+
+function ShopCatalog.StyleForSale(id: string, time: number?): boolean
+	for _, spec in ShopCatalog.StyleRotation(time) do
+		if spec.Id == id then
+			return true
+		end
+	end
+	return false
 end
 
 return ShopCatalog

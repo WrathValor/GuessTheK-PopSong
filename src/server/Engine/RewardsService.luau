@@ -7,6 +7,8 @@
 --                         { Action = "ClaimBonus" }
 --                         { Action = "ClaimGroup" }
 -- Reply to the player:     { Message = "Result", Ok = bool, Text = string, Action, Coins = number? }
+--                          RedeemCode also sends Code and Rewards (RewardsCatalog.CodeRewards) so
+--                          the client can show the purchase reveal
 --
 -- RewardsService.Record(player, facts) is called by DuelService after each match to move the
 -- daily quest counters (facts: Correct, Win, Lost, Solo, Perfect; new songs from RecordNewSongs).
@@ -18,7 +20,9 @@ local GroupService = game:GetService("GroupService")
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 local Catalog = require(ReplicatedStorage.Constants.RewardsCatalog)
+local Currencies = require(ReplicatedStorage.Constants.Currencies)
 local Analytics = require(script.Parent.Analytics)
+local SeasonService = require(script.Parent.SeasonService)
 
 local RewardsRemote = Bridgenet.ReferenceBridge("RewardsRemote")
 
@@ -26,8 +30,12 @@ local RewardsService = {}
 
 local busy: { [Player]: boolean } = {}
 
-local function reply(player: Player, action: string, ok: boolean, text: string, coins: number?)
-	RewardsRemote:Fire(player, { Message = "Result", Ok = ok, Text = text, Action = action, Coins = coins })
+local function reply(player: Player, action: string, ok: boolean, text: string, coins: number?, extra: { [string]: any }?)
+	local packet = { Message = "Result", Ok = ok, Text = text, Action = action, Coins = coins }
+	for k, v in extra or {} do
+		packet[k] = v
+	end
+	RewardsRemote:Fire(player, packet)
 end
 
 -- New UTC day: the quest counters and claims start over. Safe to call any time.
@@ -100,6 +108,7 @@ local function claimQuest(player: Player, data, id)
 	end)
 	Analytics.Event(player, "QuestClaimed", quest.Reward, quest.Id)
 	Analytics.Economy(player, "Source", "Coins", quest.Reward, data.Currencies.Won.Get(), "Quest", "Quest") -- the quest is in QuestClaimed (SKUs are capped at 100)
+	SeasonService.Award(player, "Quest") -- season Stars too
 	reply(player, "ClaimQuest", true, `+{quest.Reward} coins`, quest.Reward)
 end
 
@@ -158,24 +167,72 @@ local function claimGroup(player: Player, data)
 	reply(player, "ClaimGroup", true, `+{g.Coins} coins, Group Exclusive stage + {g.Title} title`, g.Coins)
 end
 
--- a code from the shop's code box (Catalog.CODES): its coins, once per account
+-- the Inventory set each code item / style key goes into
+local CODE_SETS = { Stage = "Stages", Mic = "Mics", Banner = "Banners", Photocard = "Photocards" }
+
+-- one line for the toast / analytics: "+500 coins · 2 roll tickets · Pumpkin Mic"
+local function codeSummary(rewards: { any }): string
+	local parts = {}
+	for _, r in rewards do
+		if r.Kind == "Currency" then
+			local c = Currencies.Get(r.Key)
+			local name = if c then (if r.Amount == 1 then c.Name else c.Plural or c.Name) else r.Key
+			table.insert(parts, `+{r.Amount} {string.lower(name)}`)
+		else
+			table.insert(parts, r.Id)
+		end
+	end
+	return table.concat(parts, " · ")
+end
+
+-- a code from the shop's code box (Catalog.CODES): every reward it lists, once per account
 local function redeemCode(player: Player, data, packet)
 	local code = if type(packet.Code) == "string" then string.upper((packet.Code:gsub("%s", ""))) else ""
 	local entry = if #code > 0 and #code <= 30 then Catalog.CODES[code] else nil
-	if not entry or (entry.Expires and os.time() >= entry.Expires) then
+	if not entry then
 		return reply(player, "RedeemCode", false, "That code doesn't work")
+	end
+	if Catalog.CodeExpired(entry) then
+		return reply(player, "RedeemCode", false, "That code has expired")
 	end
 	local key = `Code:{code}`
 	if data.Rewards.Claimed.Has(key) then
 		return reply(player, "RedeemCode", false, "You've already used that code")
 	end
+	local rewards = Catalog.CodeRewards(entry)
+	if #rewards == 0 then
+		warn(`[RewardsService] code {code} has no rewards`)
+		return reply(player, "RedeemCode", false, "That code doesn't work")
+	end
 	PlayerData.Batch(player, function()
 		data.Rewards.Claimed.Add(key)
-		data.Currencies.Won.Increment(entry.Coins)
+		for _, r in rewards do
+			if r.Kind == "Currency" then
+				Currencies.Data(data, r.Key).Increment(r.Amount)
+			elseif r.Kind == "Title" then
+				if not data.Inventory.Titles.Has(r.Id) then
+					data.Inventory.Titles.Add(r.Id)
+				end
+				local tier = math.clamp(math.floor(tonumber(r.Tier) or 1), 1, 3)
+				if (data.Inventory.TitleTiers[r.Id].Get() or 0) < tier then
+					data.Inventory.TitleTiers[r.Id].Set(tier)
+				end
+			else
+				local set = data.Inventory[CODE_SETS[r.Key]]
+				if not set.Has(r.Id) then
+					set.Add(r.Id)
+				end
+			end
+		end
 	end)
-	Analytics.Event(player, "CodeRedeemed", entry.Coins, code)
-	Analytics.Economy(player, "Source", "Coins", entry.Coins, data.Currencies.Won.Get(), "Code", "Code")
-	reply(player, "RedeemCode", true, `Code redeemed: +{entry.Coins} coins`, entry.Coins)
+	local coins = entry.Coins or 0
+	Analytics.Event(player, "CodeRedeemed", coins, code)
+	for _, r in rewards do
+		if r.Kind == "Currency" then
+			Analytics.Economy(player, "Source", r.Key, r.Amount, Currencies.Data(data, r.Key).Get(), "Code", "Code")
+		end
+	end
+	reply(player, "RedeemCode", true, `Code redeemed: {codeSummary(rewards)}`, coins, { Code = code, Rewards = rewards })
 end
 
 local ACTIONS = {

@@ -138,6 +138,10 @@ function Inventory:_titles()
 					local tier = Cards.LEVELS[tiers[title] or 1] or "Normal"
 					item.Tier = tier
 					item.Rarity = tier -- the chip reads Normal / Gold / Rainbow (the Index shows the next step)
+				elseif tiers[title] then
+					-- a title given at a tier (Season Track: S0 Comeback, Rainbow)
+					item.Tier = Cards.LEVELS[tiers[title]] or "Normal"
+					item.Rarity = item.Tier
 				end
 				table.insert(list, item)
 			end

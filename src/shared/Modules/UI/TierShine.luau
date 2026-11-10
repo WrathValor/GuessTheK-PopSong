@@ -107,7 +107,11 @@ local function start()
 		local rb, gd = nil, nil
 		for gradient in gradients do
 			if gradient.Enabled and shown(gradient) then
-				if gradient:GetAttribute("Shine") == "Gold" then
+				local shine = gradient:GetAttribute("Shine")
+				if shine == "Static" then
+					continue -- painted once by its owner (a season title's holo foil): leave it
+				end
+				if shine == "Gold" then
 					gd = gd or goldOffset(t)
 					if gradient.Color ~= GOLD_BAND then
 						gradient.Color = GOLD_BAND

@@ -23,7 +23,7 @@ local BODY = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWei
 local BODY_BOLD = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.Bold)
 
 local CLOSE_ICON = "rbxassetid://118345756178429"
-local COIN = "rbxassetid://105055420801588" -- same coin as the HUD + shop
+local COIN = require(game:GetService("ReplicatedStorage").Constants.Currencies).Coins.Icon -- same coin as the HUD + shop
 local COIN_STACK = "rbxassetid://83386580979392" -- one thick coin, side-on (the shop's bundle art)
 local ATLAS = "rbxassetid://87950570350196" -- gtks_atlas0
 
@@ -143,7 +143,7 @@ end
 
 -- [[ Group reward card: the three rewards as small photocards (coins, the real group stage
 -- model via CosmeticView, the title tag), then the text and the Claim button ]]
-local COIN_ICON = "rbxassetid://105055420801588"
+local COIN_ICON = require(game:GetService("ReplicatedStorage").Constants.Currencies).Coins.Icon
 
 local function tile(parent: Instance, name: string, x: number, w: number, colour: Color3): Frame
 	local s = new("Frame", { Name = name .. "Shadow", Position = UDim2.fromOffset(x + 3, 12 + 3), Size = UDim2.fromOffset(w, 96), BackgroundColor3 = INK }, parent)

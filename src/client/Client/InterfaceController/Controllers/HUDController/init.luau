@@ -7,11 +7,13 @@ local TweenService = game:GetService("TweenService")
 local Janitor = require(ReplicatedStorage.Packages.janitor)
 local Promise = require(ReplicatedStorage.Packages.promise)
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
+local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Client
 local Levels = require(ReplicatedStorage.Modules.Levels)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
 local HUDConstants = require(ReplicatedStorage.Constants.HUDConstants)
+local Currencies = require(ReplicatedStorage.Constants.Currencies)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 
 local Effects = require(script.Effects)
@@ -65,6 +67,7 @@ type Self = typeof(setmetatable({} :: {
 	_interface: any,
 	_hud: any,
 	_janitor: any,
+	_closeWallet: (() -> ())?,
 }, HUDController))
 
 -- --------------------------------- Methods -------------------------------- --
@@ -94,6 +97,8 @@ function HUDController.Initialize(self: Self, interface: any)
 	self:_bindXP()
 	self:_bindCurrency()
 	self:_bindButtons()
+	self:_bindSeason()
+	self:_bindExtras()
 	self:_applyStatic()
 	-- looping eye-catchers: rainbow Shop outline, Quick Play sheen, Rewards badge hop
 	Effects.Start(hud, self._janitor, function(gui)
@@ -175,6 +180,87 @@ function HUDController._bindCurrency(self: Self)
 	end))
 end
 
+-- [[ Roll tickets / card upgrades: the coins wallet ]]
+
+-- While you hold any wallet currency (Constants/Currencies.Wallet: roll tickets, card upgrades)
+-- the coins card shows a "+n" tab (Coins.WalletTab); tapping it opens the Wallet card under it
+-- (a row each, hidden at 0). Tap a row to use it (WALLET_USE). Claiming one never opens anything.
+local WALLET_USE = {
+	Tickets = { "Roll", { Picker = true } }, -- Pick a Group
+	Upgrades = { "Index", { Upgrade = true } }, -- the Index's card picker
+}
+
+function HUDController._bindExtras(self: Self)
+	local topLeft = self._hud.TopLeft
+	local tab = topLeft.Coins:FindFirstChild("WalletTab")
+	local wallet = topLeft:FindFirstChild("Wallet")
+	if not tab or not wallet then
+		return
+	end
+	local shadow = topLeft:FindFirstChild("WalletShadow")
+	local sink = topLeft:FindFirstChild("WalletSink")
+	local open = false
+	local shown: { [string]: number } = {}
+	local function paint()
+		local total = 0
+		for _, currency in Currencies.Wallet do
+			local key = currency.Id
+			local n = Currencies.Count(LOCAL_PLAYER, key)
+			local row = wallet:FindFirstChild(key)
+			if not row then
+				continue -- not built yet (SeasonController/Build.HUDExtras)
+			end
+			row.Visible = n > 0
+			row.Count.Text = tostring(n)
+			total += n
+			if shown[key] and n > shown[key] then
+				Juice.Pop(tab, 0.25) -- a new one landed
+			end
+			shown[key] = n
+		end
+		if total == 0 then
+			open = false
+		end
+		tab.Visible = total > 0
+		tab.Count.Text = `+{total}`
+		tab.Chevron.Rotation = if open then 180 else 0
+		wallet.Visible = open
+		if shadow then
+			shadow.Visible = open
+		end
+		if sink then
+			sink.Visible = open -- swallows taps so the buttons under the wallet can't be pressed
+		end
+	end
+	local function setOpen(on: boolean)
+		open = on
+		paint()
+		if on then
+			Juice.Pop(wallet, 0.08)
+		end
+	end
+	paint()
+	for _, currency in Currencies.Wallet do
+		self._janitor:Add(LOCAL_PLAYER:GetAttributeChangedSignal(currency.Attribute):Connect(paint))
+		local row = wallet:FindFirstChild(currency.Id)
+		local use = WALLET_USE[currency.Id]
+		if row and use then
+			self._janitor:Add(row.Activated:Connect(function()
+				setOpen(false)
+				self:_open(use[1], use[2])
+			end))
+		end
+	end
+	self._janitor:Add(tab.Activated:Connect(function()
+		setOpen(not open)
+	end))
+	self._closeWallet = function()
+		if open then
+			setOpen(false)
+		end
+	end
+end
+
 -- [[ Buttons ]]
 
 function HUDController._open(self: Self, name: string, ...: any)
@@ -183,6 +269,52 @@ function HUDController._open(self: Self, name: string, ...: any)
 	else
 		warn(`HUD: "{name}" screen has no controller yet`)
 	end
+end
+
+-- the season card under Roll / UGC: season name, how much of it has gone, days left; opens
+-- Season. It shows no rank on purpose.
+function HUDController._bindSeason(self: Self)
+	local card = self._hud.TopLeft:FindFirstChild("Season")
+	if not card then
+		return
+	end
+	-- seasons off: no card, so the Season screen can't be opened
+	local shadow = self._hud.TopLeft:FindFirstChild("SeasonShadow")
+	card.Visible = SeasonConstants.ENABLED
+	if shadow then
+		shadow.Visible = SeasonConstants.ENABLED
+	end
+	if not SeasonConstants.ENABLED then
+		return
+	end
+	local function paint()
+		local season = SeasonConstants.Current()
+		local now = os.time()
+		if season.Ends <= 0 then
+			card.SeasonName.Text = "PRE-SEASON"
+			card.Bar.Fill.Size = UDim2.fromScale(0, 1)
+			card.Days.Text = "Season 1 soon"
+			return
+		end
+		local span = math.max(1, season.Ends - season.Starts)
+		local days = math.max(0, math.ceil((season.Ends - now) / 86400))
+		card.SeasonName.Text = `SEASON {string.gsub(season.Badge, "%D", "")}`
+		card.Bar.Fill.Size = UDim2.fromScale(math.clamp((now - season.Starts) / span, 0, 1), 1)
+		card.Days.Text = if days == 1 then "1 day left" else `{days} days left`
+	end
+	paint()
+	local ticker = task.spawn(function()
+		while true do
+			task.wait(60)
+			paint()
+		end
+	end)
+	self._janitor:Add(function()
+		task.cancel(ticker)
+	end, true)
+	self._janitor:Add(card.Activated:Connect(function()
+		self:_open("Season")
+	end))
 end
 
 function HUDController._bindButtons(self: Self)
@@ -295,6 +427,9 @@ end
 -- Resolves once the HUD has finished sliding out.
 function HUDController.Deactivate(self: Self)
 	self.State = "Inactive"
+	if self._closeWallet then
+		self._closeWallet() -- a menu opened: the wallet folds away
+	end
 	return self:_slide(false)
 end
 

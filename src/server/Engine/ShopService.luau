@@ -7,15 +7,20 @@
 -- ShopRemote requests: { Action = "BuySet" | "EquipSet", Id = setId }
 --                      { Action = "BuyItem" | "EquipItem", Kind = "Stage" | "Mic", Id = itemId }
 --                      { Action = "EquipTitle", Id = title ("" = default) }
+--                      { Action = "BuyStyle", Kind = "Set" | "Banner" | "Photocard", Id = bannerId }
+--                      { Action = "EquipStyle", Banner = id?, Photocard = id? }
 -- Reply to the player:  { Message = "Result", Ok = bool, Text = string, Action, Id, Kind }
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local MarketplaceService = game:GetService("MarketplaceService")
 
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 local ShopCatalog = require(ReplicatedStorage.Constants.ShopCatalog)
+local Currencies = require(ReplicatedStorage.Constants.Currencies)
+local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
 local Analytics = require(script.Parent.Analytics)
 local Collection = require(script.Parent.Collection)
 
@@ -43,20 +48,22 @@ local function reply(player: Player, packet, ok: boolean, text: string)
 		Action = packet.Action,
 		Id = packet.Id,
 		Kind = packet.Kind, -- BuyItem / EquipItem: "Stage" | "Mic" (the purchase reveal needs it)
+		Price = packet.Charged, -- BuyStyle: what it actually cost (finishing a set costs one half)
 	})
 end
 
 -- Takes `price` coins and runs `grant` in one batch. False (and nothing changes) if they can't afford it.
 -- transaction + sku go to the Economy dashboard (Constants/AnalyticsEvents.Transactions).
 local function spend(player: Player, data, price: number, grant: () -> (), transaction: string, sku: string): boolean
-	if data.Currencies.Won.Get() < price then
+	local coins = Currencies.Data(data, "Coins")
+	if coins.Get() < price then
 		return false
 	end
 	PlayerData.Batch(player, function()
-		data.Currencies.Won.Increment(-price)
+		coins.Increment(-price)
 		grant()
 	end)
-	Analytics.Economy(player, "Sink", "Coins", price, data.Currencies.Won.Get(), transaction, sku)
+	Analytics.Economy(player, "Sink", "Coins", price, coins.Get(), transaction, sku)
 	Analytics.Onboarding(player, "BoughtSomething")
 	return true
 end
@@ -162,7 +169,74 @@ local function equipTitle(player: Player, data, packet)
 	reply(player, packet, true, "Title equipped")
 end
 
+-- [[ Banners + photocards ]] (ShopCatalog.StyleRotation; the free three are everyone's)
+
+local STYLE = {
+	Banner = { Owned = "Banners", Worn = "Banner", Free = SeasonConstants.FREE_BANNERS },
+	Photocard = { Owned = "Photocards", Worn = "Photocard", Free = SeasonConstants.FREE_PHOTOCARDS },
+}
+
+local function ownsStyle(data, kind: string, id: string): boolean
+	local s = STYLE[kind]
+	return s.Free[id] == true or data.Inventory[s.Owned].Has(id)
+end
+
+-- Set = both halves, or just the one you're missing (at that half's price)
+local function buyStyle(player: Player, data, packet)
+	local id, kind = packet.Id, packet.Kind
+	local spec = type(id) == "string" and ShopCatalog.GetStyle(id)
+	if not spec or not (kind == "Set" or STYLE[kind]) then
+		return reply(player, packet, false, "That isn't in the shop")
+	end
+	if not ShopCatalog.StyleForSale(id) then
+		return reply(player, packet, false, "That has left the shop")
+	end
+	local want = {}
+	for _, half in { "Banner", "Photocard" } do
+		if (kind == "Set" or kind == half) and not ownsStyle(data, half, id) then
+			table.insert(want, half)
+		end
+	end
+	if #want == 0 then
+		return reply(player, packet, false, "You already own it")
+	end
+	local price = if #want == 2 then ShopCatalog.StylePrice(id, "Set") else ShopCatalog.StylePrice(id, want[1])
+	local ok = spend(player, data, price :: number, function()
+		for _, half in want do
+			data.Inventory[STYLE[half].Owned].Add(id)
+			data.Inventory[STYLE[half].Worn].Set(id) -- wear what you just bought
+		end
+	end, `ShopStyle{kind}`, `{kind}:{id}`)
+	local what = if #want == 2 then "set" elseif want[1] == "Banner" then "banner" else "photocard"
+	packet = table.clone(packet)
+	packet.Charged = if ok then price else nil
+	reply(player, packet, ok, if ok then `{spec.Name} {what} unlocked!` else "Not enough coins")
+end
+
+-- either or both; Studio owns everything while SeasonConstants.STUDIO_OWN_ALL is on
+local function equipStyle(player: Player, data, packet)
+	local studio = RunService:IsStudio() and SeasonConstants.STUDIO_OWN_ALL
+	for _, kind in { "Banner", "Photocard" } do
+		local id = packet[kind]
+		if id ~= nil then
+			if type(id) ~= "string" or not (studio or ownsStyle(data, kind, id)) then
+				return reply(player, packet, false, "You don't own that")
+			end
+		end
+	end
+	for _, kind in { "Banner", "Photocard" } do
+		local id = packet[kind]
+		if id then
+			data.Inventory[STYLE[kind].Worn].Set(id)
+			Analytics.Event(player, "Equip", 1, kind, id)
+		end
+	end
+	reply(player, packet, true, "Equipped")
+end
+
 local ACTIONS = {
+	BuyStyle = buyStyle,
+	EquipStyle = equipStyle,
 	BuySet = buySet,
 	EquipSet = equipSet,
 	BuyItem = buyItem,

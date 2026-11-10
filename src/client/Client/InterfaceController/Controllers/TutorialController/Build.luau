@@ -15,7 +15,7 @@ local MUTED = C("5C566B")
 local HEAD = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy)
 local BODY = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.ExtraBold)
 local BODY_BOLD = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.Bold)
-local COIN = "rbxassetid://105055420801588"
+local COIN = require(game:GetService("ReplicatedStorage").Constants.Currencies).Coins.Icon
 
 local Build = {}
 
