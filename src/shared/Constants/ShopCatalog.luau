@@ -32,6 +32,9 @@ ShopCatalog.Sets = {
 }
 
 ShopCatalog.SET_ROTATION_SECONDS = 2 * 60 * 60 -- a new set of 4 every 2 hours
+-- VIP Pass "early restocks": VIPs see (and can buy) the next lineup this long before everyone
+-- else. The current one stays buyable for them until it leaves (ShopService checks both).
+ShopCatalog.VIP_EARLY_SECONDS = 15 * 60
 ShopCatalog.SETS_PER_ROTATION = 4
 ShopCatalog.FEATURED_SECONDS = 7 * 24 * 60 * 60 -- the featured set changes weekly
 ShopCatalog.FEATURED_POOL = { "Encore", "FanMeet" } -- legendary sets that take turns being featured
@@ -87,6 +90,9 @@ ShopCatalog.Mics = {
 }
 -- reward-only stages (no Price, so never in the shop)
 table.insert(ShopCatalog.Stages, { Id = "GroupStage", Name = "Group Exclusive", Rarity = "Rare", Bg = "E8FFF0", Stage = "A7E9B8", Platform = "FFFFFF", Reward = "Group" })
+-- the VIP Pass's gold platform: given while the pass is owned (Engine/DataService)
+table.insert(ShopCatalog.Stages, { Id = "VIPGold", Name = "VIP Gold", Rarity = "Legendary", Bg = "FFF6D6", Stage = "F5C542", Platform = "FFE07A", Reward = "VIP" })
+ShopCatalog.VIP_STAGE = "VIPGold"
 -- Debut Pack only (ShopCatalog.DebutPack): never in the shop rotation
 table.insert(ShopCatalog.Stages, { Id = "DebutStage", Name = "Debut Stage", Rarity = "Epic", Bg = "FFE4EF", Stage = "B9A6FF", Platform = "FF9EC4", Reward = "Debut" })
 table.insert(ShopCatalog.Mics, { Id = "DebutMic", Name = "Debut Mic", Rarity = "Epic", Bg = "FFE4EF", Mic = "FF9EC4", Reward = "Debut" })
@@ -147,8 +153,8 @@ end
 
 -- The Debut Pack: a one-time starter bundle (developer product), shown near the top of the
 -- shop; once bought (Rewards.Claimed "Debut") it stays with a greyed "Bought" button.
--- Hidden while ProductId is 0. Items are
--- the tiles on its banner. Its stage + mic (the Debut set) exist only in this pack.
+-- Hidden while ProductId is 0. Items are the cards on its banner (Label big, Sub under it,
+-- Only = an "ONLY HERE" tag). Its stage + mic (the Debut set) exist only in this pack.
 ShopCatalog.DebutPack = {
 	Id = "Debut",
 	ProductId = 3729531904,
@@ -156,11 +162,60 @@ ShopCatalog.DebutPack = {
 	Stage = "DebutStage",
 	Mic = "DebutMic",
 	Items = {
-		{ Label = "x2,500", Colour = "FFE07A", Image = "rbxassetid://75882247530961" }, -- the 2,500 coin pile
-		{ Label = "Debut Stage", Colour = "9ED8F5", Kind = "Stage", Id = "DebutStage" },
-		{ Label = "Debut Mic", Colour = "A7E9B8", Kind = "Mic", Id = "DebutMic" },
+		{ Label = "2,500", Sub = "Coins", Colour = "FFE07A", Image = "rbxassetid://75882247530961" }, -- the 2,500 coin pile
+		{ Label = "Debut Stage", Sub = "Stage set", Colour = "9ED8F5", Kind = "Stage", Id = "DebutStage", Only = true },
+		{ Label = "Debut Mic", Sub = "Mic", Colour = "9ED8F5", Kind = "Mic", Id = "DebutMic", Only = true },
 	},
 }
+
+-- Bundles: Robux packs of roll tickets, card upgrades and coins ("Shop v3 · Bundles" board).
+-- Big = the featured one: drawn like the Debut Pack, at the very top of the shop; the rest
+-- are the shorter banners under the Debut Pack, in the "Bundles" section.
+-- Stage / Mic = a set only that bundle gives (their Reward is the bundle's Id). Limit = how
+-- many times one player can buy it (Rewards.Bundles counts them; the banner shows "n/Limit
+-- left"). Hidden behind "Soon" while ProductId is 0. Gradient = the banner's two colours.
+ShopCatalog.Bundles = {
+	{ Id = "Headliner", Name = "Headliner", Sub = "Spotlight Stage + Mic, only here", ProductId = 3730244515, Big = true, Limit = 1,
+		Tag = "FEATURED", TagColour = "FF5A4E", Gradient = { "D8F6F2", "FFE3DE" }, -- the Spotlight set's teal → coral
+		Stage = "SpotlightStage", Mic = "SpotlightMic", Tickets = 15, Upgrades = 10, Coins = 6000 },
+	{ Id = "WarmUp", Name = "Warm-up", Sub = "A few rolls to get going", ProductId = 3730244340, Limit = 2,
+		Gradient = { "F1ECFF", "FFFFFF" }, Tickets = 3, Upgrades = 1, Coins = 500 },
+	{ Id = "Practice", Name = "Practice", Sub = "Rolls + upgrades for your sets", ProductId = 3730244371, Limit = 2,
+		Tag = "POPULAR", TagColour = "FFE07A", Gradient = { "FFE4EF", "FFF6F3" }, Tickets = 6, Upgrades = 3, Coins = 1500 },
+	{ Id = "Comeback", Name = "Comeback", Sub = "Back in the game, fully stocked", ProductId = 3730244488, Limit = 2,
+		Gradient = { "E3F3FC", "F4FBFF" }, Tickets = 10, Upgrades = 6, Coins = 4000 },
+}
+-- the Headliner's set: only in that bundle, never in the shop rotation
+-- (a concert runway: teal LED strips, a coral centre line, a tile video wall, fan lightsticks)
+table.insert(ShopCatalog.Stages, { Id = "SpotlightStage", Name = "Spotlight Stage", Rarity = "Legendary", Bg = "E3FBF8", Stage = "2EC4B6", Platform = "FF6F59", Reward = "Headliner" })
+table.insert(ShopCatalog.Mics, { Id = "SpotlightMic", Name = "Spotlight Mic", Rarity = "Legendary", Bg = "E3FBF8", Mic = "2EC4B6", Reward = "Headliner" })
+
+function ShopCatalog.GetBundle(id: string)
+	for _, b in ShopCatalog.Bundles do
+		if b.Id == id then
+			return b
+		end
+	end
+	return nil
+end
+
+-- What a bundle's banner shows, in order: its stage + mic, then tickets, upgrades, coins.
+-- { Kind = "Stage" | "Mic" | "Tickets" | "Upgrades" | "Coins", Id?, Amount? }
+function ShopCatalog.BundleContents(bundle): { any }
+	local out = {}
+	if bundle.Stage then
+		table.insert(out, { Kind = "Stage", Id = bundle.Stage })
+	end
+	if bundle.Mic then
+		table.insert(out, { Kind = "Mic", Id = bundle.Mic })
+	end
+	for _, kind in { "Tickets", "Upgrades", "Coins" } do
+		if (bundle[kind] or 0) > 0 then
+			table.insert(out, { Kind = kind, Amount = bundle[kind] })
+		end
+	end
+	return out
+end
 
 ShopCatalog.Passes = {
 	{ Id = "DoubleCoins", Name = "2× Coins", Sub = "Double coins from every match, forever", GamePassId = 2063766272, Bg = "9ED8F5", Icon = "2×" },
@@ -200,6 +255,12 @@ function ShopCatalog.GetPass(id: string)
 		end
 	end
 	return nil
+end
+
+-- The time the shop's rotations are worked out for: now, or VIP_EARLY_SECONDS ahead for a VIP
+-- (so their restocks come early). Leave `time` off the rotation calls for everyone else.
+function ShopCatalog.ShopTime(vip: boolean?): number
+	return os.time() + (if vip then ShopCatalog.VIP_EARLY_SECONDS else 0)
 end
 
 -- Which rotation window `time` falls in, and when it ends.

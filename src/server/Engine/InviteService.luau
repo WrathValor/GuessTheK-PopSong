@@ -66,8 +66,8 @@ local function statusFor(sender: Player, target: Player): string
 	if DuelService.PlayerStage[target] then
 		return "InDuel"
 	end
-	if not SettingsService.AcceptsInvites(target) then
-		return "Off"
+	if not SettingsService.AcceptsInvitesFrom(target, sender) then
+		return "Off" -- invites off, or one of them has blocked the other
 	end
 	local until_ = cooldowns[sender] and cooldowns[sender][target.UserId]
 	if until_ and until_ > os.clock() then

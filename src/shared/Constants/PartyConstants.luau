@@ -18,6 +18,7 @@ return table.freeze({
 	COUNTDOWN = 5, -- seconds after the host presses START (anyone un-readying stops it)
 	INVITE_TIME = 20, -- an invite / a join request lasts this long
 	REQUEST_COOLDOWN = 20, -- a declined asker waits this long before asking the same host again
+	INVITE_COOLDOWN = 30, -- a host whose invite was declined waits this long to invite them again
 	ACTION_GAP = 0.2, -- spam guard on PartyRemote
 
 	-- coins: a stake roll (like a duel's, weighted to the low end) sets the pot, times the match

@@ -1,74 +1,136 @@
 --| Songs
--- The song library, one module per group, in a folder per company:
---   Songs/<Company>/<Group>.luau   e.g. Songs/HYBE/BTS.luau, Songs/YG/BLACKPINK.luau
--- The folder name is the song's Company. A group module returns:
---   Group       "BTS"                        shown as the artist on answers and cards
---   GroupType   "Boy" | "Girl" | "Co-ed" | "Solo"
---   Generation  "2nd" | "3rd" | "4th" | "5th"  wrong answers come from the same generation
---   Status      "Active" | "Hiatus" | "Disbanded"
---   Colour      "FF9EC4"  pastel hex: the group's card art + glow on the roll reveal
---   Gradient    ColorSequence of the group's real colours (official where they have one);
---               use it on a UIGradient. Optional: groups without one just have Colour
---   Songs       list of songs:
---     Name            "Dynamite"
---     Year            2020 (release year)
---     MusicId         audio asset (the snippet + reveal)
---     AnimationId     dance animation (Choreography mode)
---     PlaybackSpeed   playback speed the audio needs to sound right (default 1)
---     TimePosition    where the snippet starts, in the audio's own seconds (default: halfway)
---     ChorusPosition  where the reveal plays from (default: TimePosition)
---     Volume          only when it isn't 1
---     Draft = true    keeps a song out of the game (audio not checked yet)
--- New group: add a module to its company folder (make the folder for a new company).
--- Song Tuner (plugins/SongTuner) edits PlaybackSpeed/TimePosition/ChorusPosition/Volume in
--- these modules for you.
---
--- Every song is flattened into one pool with the group fields copied onto it, plus
--- Artist (= Group), Company and Id ("Name - Artist", unique; saved in player data, so
--- don't rename songs or groups once players own them).
+-- The song library as everything outside ServerScriptService sees it. Same API on both sides
+-- (All, GetById, GetAllSongs, Pick, GetWrongOptions, Public, …), so nothing that requires it
+-- has to care where it runs:
+--   • server: every song, clip assets included, from ServerScriptService.Songs (the group
+--     modules live there now: edit songs in src/server/Songs/<Company>/<Group>.luau).
+--     Songs.Clip(song) gives the assets a client needs to play one.
+--   • client: the public catalog only (Id, Name, Year, Artist, Company, GroupType,
+--     Generation, Status, Colour, Gradient). No MusicId / AnimationId / tuning, so an exploit
+--     can't match a round's clip to its answer. The server publishes it once, as the
+--     "Catalog" StringValue under this module; a song's audio comes from Modules/SongClips.
+
+--| Services
+
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+
+--| Variables
+
+local CATALOG = "Catalog" -- the StringValue under this module the server writes
+local CATALOG_WAIT = 30
 
 local Songs = {}
+
+--| Catalog
+-- JSON, one entry per group: { C = company, A = artist, T = group type, G = generation,
+-- S = status, K = colour, R = gradient { { time, hex }, … }, L = { { name, year }, … } }
+
+local function encodeGradient(gradient: ColorSequence?)
+	if typeof(gradient) ~= "ColorSequence" then
+		return nil
+	end
+	local keys = {}
+	for _, k in gradient.Keypoints do
+		table.insert(keys, { k.Time, k.Value:ToHex() })
+	end
+	return keys
+end
+
+local function decodeGradient(keys): ColorSequence?
+	if type(keys) ~= "table" or #keys < 2 then
+		return nil
+	end
+	local points = {}
+	for _, k in keys do
+		table.insert(points, ColorSequenceKeypoint.new(k[1], Color3.fromHex(k[2])))
+	end
+	return ColorSequence.new(points)
+end
+
+local function publish(entries)
+	local groups, order = {}, {}
+	for _, song in entries do
+		local key = `{song.Company}/{song.Artist}`
+		local group = groups[key]
+		if not group then
+			group = {
+				C = song.Company,
+				A = song.Artist,
+				T = song.GroupType,
+				G = song.Generation,
+				S = song.Status,
+				K = song.Colour,
+				R = encodeGradient(song.Gradient),
+				L = {},
+			}
+			groups[key] = group
+			table.insert(order, group)
+		end
+		table.insert(group.L, { song.Name, song.Year })
+	end
+	local value = script:FindFirstChild(CATALOG) or Instance.new("StringValue")
+	value.Name = CATALOG
+	value.Value = HttpService:JSONEncode(order)
+	value.Parent = script
+end
+
+local function readCatalog()
+	local value = script:WaitForChild(CATALOG, CATALOG_WAIT) :: StringValue?
+	if not value then
+		warn("[Songs] no song catalog from the server")
+		return {}
+	end
+	local ok, order = pcall(HttpService.JSONDecode, HttpService, value.Value)
+	if not ok or type(order) ~= "table" then
+		warn("[Songs] couldn't read the song catalog:", order)
+		return {}
+	end
+	local entries = {}
+	for _, group in order do
+		local gradient = decodeGradient(group.R)
+		for _, pair in group.L do
+			table.insert(entries, {
+				Id = `{pair[1]} - {group.A}`,
+				Name = pair[1],
+				Year = pair[2],
+				Artist = group.A,
+				Company = group.C,
+				GroupType = group.T,
+				Generation = group.G,
+				Status = group.S,
+				Colour = group.K,
+				Gradient = gradient,
+			})
+		end
+	end
+	return entries
+end
+
+--| Library
 
 local All = {}
 local ById = {}
 local ByGeneration = {}
 
-local function load(module: ModuleScript, company: string)
-	local ok, group = pcall(require, module)
-	if not ok or type(group) ~= "table" or type(group.Songs) ~= "table" then
-		warn(`[Songs] {module:GetFullName()} isn't a group module: {group}`)
-		return
+local entries
+-- (Edit mode counts as a client to RunService, but the command bar, plugins and the UI
+-- builders can read ServerScriptService there, so they get the full library too)
+if RunService:IsServer() or not RunService:IsRunning() then
+	local library = require(game:GetService("ServerScriptService"):WaitForChild("Songs"))
+	entries = library.Load()
+	Songs.Clip = library.Clip
+	-- (not in Edit: the command bar / Song Tuner mustn't leave a Catalog in the place)
+	if RunService:IsRunning() then
+		publish(entries)
 	end
-	local artist = group.Group or module.Name
-	for _, song in group.Songs do
-		if not song.Draft then
-			local entry = table.clone(song)
-			entry.Artist = artist
-			entry.Company = company
-			entry.GroupType = group.GroupType
-			entry.Generation = group.Generation
-			entry.Status = group.Status
-			entry.Colour = group.Colour
-			entry.Gradient = group.Gradient
-			entry.Id = `{song.Name} - {artist}`
-			if ById[entry.Id] then
-				warn(`[Songs] duplicate song {entry.Id} in {module:GetFullName()}`)
-			else
-				ById[entry.Id] = entry
-				table.insert(All, entry)
-			end
-		end
-	end
+else
+	entries = readCatalog()
 end
 
-for _, folder in script:GetChildren() do
-	if folder:IsA("Folder") then
-		for _, module in folder:GetChildren() do
-			if module:IsA("ModuleScript") then
-				load(module, folder.Name)
-			end
-		end
-	end
+for _, song in entries do
+	ById[song.Id] = song
+	table.insert(All, song)
 end
 
 table.sort(All, function(a, b)

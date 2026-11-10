@@ -86,6 +86,19 @@ local function onPlayerAdded(Player: Player)
     data.Player.Streak.Observe(function(streak: number)
         Player:SetAttribute("Streak", streak)
     end)
+    -- VIP Pass (ShopCatalog.Passes): the "VIP" attribute (the gold name tag, early restocks in
+    -- the shop) and its gold platform (ShopCatalog.VIP_STAGE), given while the pass is owned
+    data.GamePasses.Observe(function()
+        local vip = data.GamePasses.Has("VIP")
+        Player:SetAttribute("VIP", if vip then true else nil)
+        if vip then
+            task.defer(function()
+                if not data.Inventory.Stages.Has(ShopCatalog.VIP_STAGE) then
+                    data.Inventory.Stages.Add(ShopCatalog.VIP_STAGE)
+                end
+            end)
+        end
+    end)
     -- level titles: unlock every title the player's level has reached (also catches anyone
     -- who levelled up before titles existed)
     data.Player.XP.Observe(function(xp: number)
@@ -94,6 +107,11 @@ local function onPlayerAdded(Player: Player)
         for _, title in Levels.TitlesUpTo(level) do
             if title ~= HUDConstants.DEFAULT_TITLE and not data.Inventory.Titles.Has(title) then
                 data.Inventory.Titles.Add(title)
+            end
+            -- animated level titles (Levels.TITLE_TIERS: Legend is Rainbow)
+            local rank = Cards.RANK[Levels.TITLE_TIERS[title] or ""]
+            if rank and (data.Inventory.TitleTiers[title].Get() or 0) < rank then
+                data.Inventory.TitleTiers[title].Set(rank)
             end
         end
     end)

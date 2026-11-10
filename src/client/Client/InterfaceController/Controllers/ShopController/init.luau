@@ -1,6 +1,8 @@
 --| ShopController
 -- The shop (Interface.Frames.Shop, built in Studio from the "Shop v3" board): one scrolling
--- page under the usual header. Top to bottom: the featured set, the one-time Debut Pack, the
+-- page under the usual header. Top to bottom: the featured set, the Headliner (the featured
+-- bundle), "Bundles": the one-time Debut Pack then the other bundles (ShopCatalog.Bundles:
+-- tickets + upgrades + coins), the
 -- four stage sets in the rotation, the stages + mic stands in the rotation, the banners +
 -- photocards in the rotation (a set, or either half), roll tickets + card upgrades (Robux
 -- bundles, the "Rolls" section), the coin bundles, the passes and the code box. Fills everything from ShopCatalog + the player's data;
@@ -242,13 +244,32 @@ function Shop:_fillDebut()
 		return
 	end
 	local bought = owns(PlayerData.Rewards.Claimed, pack.Id)
-	local items = section.Face.Items
+	local face = section.Face
+	local items = face.Items
+	if face:FindFirstChild("Count") then
+		face.Count.Text = `{#pack.Items} ITEMS`
+	end
+	if face:FindFirstChild("Note") then
+		face.Note.Text = if bought then "0/1 left" else "1/1 left"
+	end
 	for i = 1, 4 do
-		local tile = items:FindFirstChild("Item" .. i)
+		-- (Item n is a tilted photocard slot: Shadow + Card; Plus n-1 sits before it)
+		local slot = items:FindFirstChild("Item" .. i)
 		local entry = pack.Items[i]
-		tile.Visible = entry ~= nil
+		slot.Visible = entry ~= nil
+		local plus = items:FindFirstChild("Plus" .. (i - 1))
+		if plus then
+			plus.Visible = entry ~= nil
+		end
+		local tile = slot:FindFirstChild("Card") or slot
+		if slot:FindFirstChild("Only") then
+			slot.Only.Visible = entry ~= nil and entry.Only == true
+		end
 		if entry then
 			tile.Label.Text = entry.Label
+			if tile:FindFirstChild("Sub") then
+				tile.Sub.Text = entry.Sub or ""
+			end
 			-- what's inside: a coin pile image, or the actual stage / mic model,
 			-- each on its own pastel tile (not the night card the other model cards use)
 			local art = tile.Art
@@ -263,6 +284,9 @@ function Shop:_fillDebut()
 				art.BackgroundColor3 = C(entry.Colour)
 				art.Pic.Image = entry.Image or ""
 				art.Pic.Visible = entry.Image ~= nil
+				-- (the coin pile: a touch bigger than its box, nudged up onto the coins)
+				art.Pic.AnchorPoint = Vector2.new(0.5, 0.56)
+				art.Pic.Size = UDim2.fromScale(1.1, 1.1)
 			end
 		end
 	end
@@ -273,9 +297,147 @@ function Shop:_fillDebut()
 	end
 end
 
+-- [[ Bundles ]] one banner from a ShopCatalog.Bundles entry (Build.AddBundles made them)
+local BUNDLE_KIND = { Tickets = "Roll tickets", Upgrades = "Card upgrades", Coins = "Coins" }
+local BUNDLE_ART = { Tickets = "DCD3FF", Upgrades = "9ED8F5", Coins = "FFE07A", Stage = "D8F6F2", Mic = "D8F6F2" } -- (the Spotlight set's teal)
+
+-- the shop's coin pile that fits an amount
+local function pileFor(amount: number): string
+	local best = ShopCatalog.CoinBundles[1].Pile
+	for _, b in ShopCatalog.CoinBundles do
+		if b.Amount <= amount and not b.Hidden then
+			best = b.Pile
+		end
+	end
+	return best
+end
+
+-- times this player bought a bundle (Rewards.Bundles)
+local function bundleBought(id: string): number
+	local ok, all = pcall(PlayerData.Rewards.Bundles.Get)
+	return if ok and type(all) == "table" then all[id] or 0 else 0
+end
+
+local function fillBundle(holder: Instance?, bundle)
+	if not holder then
+		return
+	end
+	holder.Visible = bundle ~= nil
+	if not bundle then
+		return
+	end
+	local face = holder.Face
+	face:SetAttribute("BundleId", bundle.Id)
+	face.Title.Text = bundle.Name
+	face.Sub.Text = bundle.Sub or ""
+	face.Tag.Visible = bundle.Tag ~= nil
+	face.Tag.Text = bundle.Tag or ""
+	face.Tag.BackgroundColor3 = C(bundle.TagColour or "FF9EC4")
+	local g = bundle.Gradient or { "FFFFFF", "FFFFFF" }
+	face.Tint.Color = ColorSequence.new(C(g[1]), C(g[2]))
+	local contents = ShopCatalog.BundleContents(bundle)
+	if face:FindFirstChild("Count") then
+		face.Count.Text = `{#contents} ITEMS`
+		-- big banner: the line + chip follow the title however many lines it takes (like the
+		-- Debut Pack's), and the block stays centred in the banner
+		local titleH = math.max(face.Title.TextBounds.Y, 30)
+		local subH = math.max(face.Sub.TextBounds.Y, 16)
+		local blockH = titleH + 6 + subH + 10 + face.Count.Size.Y.Offset
+		local top = math.floor((face.Size.Y.Offset - blockH) / 2)
+		face.Title.Position = UDim2.fromOffset(face.Title.Position.X.Offset, top)
+		face.Sub.Position = UDim2.fromOffset(face.Sub.Position.X.Offset, top + titleH + 6)
+		face.Count.Position = UDim2.fromOffset(face.Count.Position.X.Offset, top + titleH + 6 + subH + 10)
+	end
+	local ownsSet = true
+	for i = 1, 5 do
+		local slot = face.Items:FindFirstChild("Item" .. i)
+		if not slot then
+			break
+		end
+		local entry = contents[i]
+		slot.Visible = entry ~= nil
+		local plus = face.Items:FindFirstChild("Plus" .. (i - 1))
+		if plus then
+			plus.Visible = entry ~= nil
+		end
+		if entry then
+			local tile = slot.Card
+			local art = tile.Art
+			art.BackgroundColor3 = C(BUNDLE_ART[entry.Kind] or "FFFFFF")
+			local isItem = entry.Kind == "Stage" or entry.Kind == "Mic"
+			slot.Only.Visible = isItem
+			if isItem then
+				local item = ShopCatalog.GetItem(entry.Kind, entry.Id)
+				local mine = owns(PlayerData.Inventory[ITEM_OWNED[entry.Kind]], entry.Id)
+				ownsSet = ownsSet and mine
+				slot.Only.Text = if mine then "✓ OWNED" else "ONLY HERE"
+				slot.Only.BackgroundColor3 = if mine then MINT else C("FFE07A")
+				tile.Label.Text = entry.Kind -- "Stage" / "Mic"
+				tile.Sub.Text = if item then item.Name else ""
+				art.Pic.Visible = false
+				if art:GetAttribute("Shown") ~= entry.Id then
+					art:SetAttribute("Shown", entry.Id)
+					CosmeticView.Show(art, entry.Kind, entry.Id) -- the real model
+					local night = art:FindFirstChild("CardGradient")
+					if night then
+						night.Enabled = false
+					end
+				end
+			else
+				local coins = entry.Kind == "Coins"
+				tile.Label.Text = if coins then fmt(entry.Amount) else `×{entry.Amount}`
+				tile.Sub.Text = BUNDLE_KIND[entry.Kind]
+				art.Pic.Visible = true
+				art.Pic.Image = if coins then pileFor(entry.Amount) else Currencies.Get(entry.Kind).Icon
+				-- the coin pile sits low in its square image: a touch bigger, nudged up onto the coins
+				art.Pic.AnchorPoint = Vector2.new(0.5, if coins then 0.56 else 0.5)
+				art.Pic.Size = UDim2.fromScale(if coins then 1.1 else 0.8, if coins then 1.1 else 0.8)
+			end
+		end
+	end
+	-- purchase limit: "2/2 left", then Bought / Sold out
+	local limit = bundle.Limit or 1
+	local left = math.max(0, limit - bundleBought(bundle.Id))
+	face.Note.Text = `{left}/{limit} left`
+	if left <= 0 then
+		setButton(face.Buy, if limit == 1 then "Bought" else "Sold out", { Colour = GREY, Enabled = false })
+	else
+		setRobuxButton(face.Buy, "Product", bundle.ProductId)
+	end
+end
+
+function Shop:_fillBundles()
+	local scroll = self._scroll
+	local big, small = nil, {}
+	for _, b in ShopCatalog.Bundles do
+		if b.Big and not big then
+			big = b
+		elseif not b.Big then
+			table.insert(small, b)
+		end
+	end
+	fillBundle(scroll:FindFirstChild("Headliner"), big)
+	local list = scroll:FindFirstChild("Bundles")
+	if list then
+		for i = 1, 3 do
+			fillBundle(list:FindFirstChild("Bundle" .. i), small[i])
+		end
+	end
+end
+
+-- the time the rotations are shown for, and the restock chip: a VIP's restocks come early
+-- (ShopCatalog.ShopTime / VIP_EARLY_SECONDS)
+local function shopTime(): (number, string)
+	local vip = LOCAL_PLAYER:GetAttribute("VIP") == true
+	local t = ShopCatalog.ShopTime(vip)
+	local left = ShopCatalog.Countdown(select(2, ShopCatalog.RotationWindow(t)) - t)
+	return t, if vip then `VIP · restocks in {left}` else `Restocks in {left}`
+end
+
 function Shop:_fillSets()
-	self._scroll.SetsTitle.Chip.Text = `Restocks in {ShopCatalog.Countdown(select(2, ShopCatalog.RotationWindow()) - os.time())}`
-	local rotation = ShopCatalog.Rotation()
+	local t, chip = shopTime()
+	self._scroll.SetsTitle.Chip.Text = chip
+	local rotation = ShopCatalog.Rotation(t)
 	local sets = self._scroll.Sets
 	for i = 1, 4 do
 		local card = sets["Set" .. i]
@@ -303,7 +465,7 @@ end
 function Shop:_fillPieces()
 	local pieces = self._scroll.Pieces
 	for _, kind in { "Stage", "Mic" } do
-		local rotation = ShopCatalog.ItemRotation(kind)
+		local rotation = ShopCatalog.ItemRotation(kind, (shopTime()))
 		for i = 1, 4 do
 			local card = pieces[kind .. i]
 			local item = rotation[i]
@@ -385,8 +547,9 @@ function Shop:_fillStyle()
 	if not title or not section then
 		return -- not built yet (SeasonController/Build.ShopStyle)
 	end
-	title.Chip.Text = `Restocks in {ShopCatalog.Countdown(select(2, ShopCatalog.RotationWindow()) - os.time())}`
-	local rotation = ShopCatalog.StyleRotation()
+	local t, chip = shopTime()
+	title.Chip.Text = chip
+	local rotation = ShopCatalog.StyleRotation(t)
 	for i = 1, 4 do
 		local card = section["Style" .. i]
 		local spec = rotation[i]
@@ -525,6 +688,7 @@ function Shop:_refresh()
 	end
 	self:_fillFeatured()
 	self:_fillDebut()
+	self:_fillBundles()
 	self:_fillSets()
 	self:_fillPieces()
 	self:_fillStyle()
@@ -664,6 +828,28 @@ function Shop:Initialize(interface)
 		end
 		promptProduct(pack and pack.ProductId)
 	end))
+	-- bundles: whichever bundle the banner shows (fillBundle sets BundleId)
+	local bundleFaces = {}
+	if scroll:FindFirstChild("Headliner") then
+		table.insert(bundleFaces, scroll.Headliner.Face)
+	end
+	if scroll:FindFirstChild("Bundles") then
+		for i = 1, 3 do
+			local b = scroll.Bundles:FindFirstChild("Bundle" .. i)
+			if b then
+				table.insert(bundleFaces, b.Face)
+			end
+		end
+	end
+	for _, face in bundleFaces do
+		j:Add(face.Buy.Activated:Connect(function()
+			local bundle = ShopCatalog.GetBundle(face:GetAttribute("BundleId") or "")
+			if bundle and bundleBought(bundle.Id) >= (bundle.Limit or 1) then
+				return -- at its limit (the button reads Bought / Sold out)
+			end
+			promptProduct(bundle and bundle.ProductId)
+		end))
+	end
 	for i = 1, 5 do
 		j:Add(scroll.Coins.Face["Bundle" .. i].Buy.Activated:Connect(function()
 			local bundle = shownBundles()[i]
@@ -745,6 +931,7 @@ function Shop:Initialize(interface)
 		PlayerData.Inventory.Banner,
 		PlayerData.Inventory.Photocard,
 		PlayerData.Rewards.Claimed,
+		PlayerData.Rewards.Bundles,
 		PlayerData.GamePasses,
 	} do
 		j:Add(path.Observe(function()

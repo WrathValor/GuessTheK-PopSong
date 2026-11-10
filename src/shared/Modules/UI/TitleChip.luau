@@ -17,6 +17,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local TierShine = require(ReplicatedStorage.Modules.UI.TierShine)
+local Levels = require(ReplicatedStorage.Modules.Levels)
 local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
 
 local C = Color3.fromHex
@@ -180,7 +181,9 @@ function TitleChip.Set(chip: Instance, title: string?, tier: string?)
 	local level = if tier and TIER_COLOURS[tier] then tier else "Normal"
 	local label = chip:FindFirstChild("Title") :: TextLabel
 	label.Text = title or ""
-	TierShine.Apply(chip :: GuiObject, chip:FindFirstChild("Rainbow") :: UIGradient?, level, TIER_COLOURS[level])
+	-- a Normal level title wears its own colour (Levels.TITLE_COLOURS)
+	local colour = if level == "Normal" and title then Levels.TITLE_COLOURS[title] or TIER_COLOURS.Normal else TIER_COLOURS[level]
+	TierShine.Apply(chip :: GuiObject, chip:FindFirstChild("Rainbow") :: UIGradient?, level, colour)
 	;(chip :: GuiObject).Visible = title ~= nil and title ~= ""
 end
 
@@ -201,7 +204,10 @@ function TitleChip.Paint(label: TextLabel, title: string, tier: string?)
 	if line then
 		line.Color = if locked then LOCKED_LINE else INK
 	end
-	TierShine.Apply(label, gradient, if locked then nil else tier, if locked then LOCKED_BG else TIER_COLOURS[tier :: string])
+	local colour = if locked then LOCKED_BG
+		elseif tier == "Normal" then Levels.TITLE_COLOURS[title] or TIER_COLOURS.Normal
+		else TIER_COLOURS[tier :: string]
+	TierShine.Apply(label, gradient, if locked then nil else tier, colour)
 end
 
 return TitleChip

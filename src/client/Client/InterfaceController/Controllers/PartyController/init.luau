@@ -459,7 +459,12 @@ function Party:_renderInvite()
 			r.Sub.Text = `Lv {p.Level}{if p.Friend then " · friend" else ""} · {where}`
 			thumb(p.UserId, r.Avatar)
 			local b = r.Send
-			b.Text = if p.Status == "Open" then "Invite" elseif p.Status == "Sent" then "Sent ✓" elseif p.Status == "Here" then "Here" else "Busy"
+			b.Text = if p.Status == "Open" then "Invite"
+				elseif p.Status == "Sent" then "Sent ✓"
+				elseif p.Status == "Here" then "Here"
+				elseif p.Status == "Off" then "Invites off"
+				elseif p.Status == "Cooldown" then "Not now"
+				else "Busy"
 			b.BackgroundColor3 = if p.Status == "Open" then BLUE elseif p.Status == "Sent" then MINT else SAND
 			b.TextColor3 = if p.Status == "Open" or p.Status == "Sent" then INK else C("A39A8C")
 			b:SetAttribute("UserId", p.UserId)
@@ -976,9 +981,8 @@ function Party:_onPacket(packet)
 			Sub = `{packet.Title} · {if packet.Mode == "Duel" then "1v1 duel" else "Free-for-all"} · {packet.Count} / {packet.Spots} on the stage`,
 			Expires = packet.Expires,
 			Answer = function(accept)
-				if accept then
-					self:_send({ Action = "Answer", Stage = packet.Stage, Accept = true })
-				end
+				-- a no is sent too: the host can't re-invite straight away (PartyService)
+				self:_send({ Action = "Answer", Stage = packet.Stage, Accept = accept == true })
 			end,
 		})
 	elseif m == "InviteGone" then

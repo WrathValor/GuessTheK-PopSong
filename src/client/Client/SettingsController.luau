@@ -6,11 +6,29 @@
 --
 -- Preview(key, value) applies a volume straight away while a slider is dragged, before the
 -- server has saved it.
+--
+-- Also sends your Roblox block list to the server (SettingsRemote "Blocked") at join and
+-- whenever you block / unblock someone, so blocked players can't invite you (duels, parties).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local StarterGui = game:GetService("StarterGui")
 
+local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Client
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
+
+local SettingsRemote = Bridgenet.ReferenceBridge("SettingsRemote")
+local BLOCK_TRIES = 30 -- the core scripts can take a while to answer GetCore at join
+
+-- true once the block list was read (and sent)
+local function sendBlocked(): boolean
+	local ok, ids = pcall(StarterGui.GetCore, StarterGui, "GetBlockedUserIds")
+	if ok and type(ids) == "table" then
+		SettingsRemote:Fire({ Action = "Blocked", Ids = ids })
+		return true
+	end
+	return false
+end
 
 local SettingsController = {}
 
@@ -23,6 +41,20 @@ function SettingsController.Start()
 	end)
 	PlayerData.Settings.ClipVolume.Observe(function(volume: number)
 		Sounds.SetClipVolume(volume)
+	end)
+	task.spawn(function()
+		for _ = 1, BLOCK_TRIES do
+			if sendBlocked() then
+				break
+			end
+			task.wait(2)
+		end
+		for _, name in { "PlayerBlockedEvent", "PlayerUnblockedEvent" } do
+			local ok, event = pcall(StarterGui.GetCore, StarterGui, name)
+			if ok and typeof(event) == "Instance" and event:IsA("BindableEvent") then
+				event.Event:Connect(sendBlocked)
+			end
+		end
 	end)
 end
 

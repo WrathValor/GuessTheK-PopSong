@@ -1,0 +1,2126 @@
+{
+  "source": "Deezer Search API album cover URLs; Apple iTunes Search API fallback for HOT SAUCE (BABYMONSTER)",
+  "catalog_song_count": 353,
+  "downloaded": [
+    [
+      "Fire",
+      "2NE1",
+      "assets\\song_art\\Fire - 2NE1.jpg",
+      "already present"
+    ],
+    [
+      "Go Away",
+      "2NE1",
+      "assets\\song_art\\Go Away.jpg",
+      "already present"
+    ],
+    [
+      "I Am the Best",
+      "2NE1",
+      "assets\\song_art\\I Am the Best.jpg",
+      "already present"
+    ],
+    [
+      "I Don't Care",
+      "2NE1",
+      "assets\\song_art\\I Don't Care.jpg",
+      "already present"
+    ],
+    [
+      "Lonely",
+      "2NE1",
+      "assets\\song_art\\Lonely.jpg",
+      "already present"
+    ],
+    [
+      "Armageddon",
+      "aespa",
+      "assets\\song_art\\Armageddon.jpg",
+      "already present"
+    ],
+    [
+      "Black Mamba",
+      "aespa",
+      "assets\\song_art\\Black Mamba.jpg",
+      "already present"
+    ],
+    [
+      "KISS N TELL",
+      "aespa",
+      "assets\\song_art\\KISS N TELL.jpg",
+      "already present"
+    ],
+    [
+      "LEMONADE",
+      "aespa",
+      "assets\\song_art\\LEMONADE.jpg",
+      "already present"
+    ],
+    [
+      "Next Level",
+      "aespa",
+      "assets\\song_art\\Next Level.jpg",
+      "already present"
+    ],
+    [
+      "Supernova",
+      "aespa",
+      "assets\\song_art\\Supernova.jpg",
+      "already present"
+    ],
+    [
+      "Whiplash",
+      "aespa",
+      "assets\\song_art\\Whiplash.jpg",
+      "already present"
+    ],
+    [
+      "CRASH",
+      "ALLDAY PROJECT",
+      "assets\\song_art\\CRASH.jpg",
+      "already present"
+    ],
+    [
+      "FAMOUS",
+      "ALLDAY PROJECT",
+      "assets\\song_art\\FAMOUS.jpg",
+      "already present"
+    ],
+    [
+      "I DON'T BARGAIN",
+      "ALLDAY PROJECT",
+      "assets\\song_art\\I DON'T BARGAIN.jpg",
+      "already present"
+    ],
+    [
+      "LOOK AT ME",
+      "ALLDAY PROJECT",
+      "assets\\song_art\\LOOK AT ME.jpg",
+      "already present"
+    ],
+    [
+      "ONE MORE TIME",
+      "ALLDAY PROJECT",
+      "assets\\song_art\\ONE MORE TIME.jpg",
+      "already present"
+    ],
+    [
+      "TALK",
+      "ALLDAY PROJECT",
+      "assets\\song_art\\TALK.jpg",
+      "already present"
+    ],
+    [
+      "WICKED",
+      "ALLDAY PROJECT",
+      "assets\\song_art\\WICKED.jpg",
+      "already present"
+    ],
+    [
+      "YOU AND I",
+      "ALLDAY PROJECT",
+      "assets\\song_art\\YOU AND I.jpg",
+      "already present"
+    ],
+    [
+      "BAD",
+      "ATEEZ",
+      "assets\\song_art\\BAD.jpg",
+      "already present"
+    ],
+    [
+      "BOUNCY",
+      "ATEEZ",
+      "assets\\song_art\\BOUNCY.jpg",
+      "already present"
+    ],
+    [
+      "Crazy Form",
+      "ATEEZ",
+      "assets\\song_art\\Crazy Form.jpg",
+      "already present"
+    ],
+    [
+      "Guerrilla",
+      "ATEEZ",
+      "assets\\song_art\\Guerrilla.jpg",
+      "already present"
+    ],
+    [
+      "Ice on my Teeth",
+      "ATEEZ",
+      "assets\\song_art\\Ice on my Teeth.jpg",
+      "already present"
+    ],
+    [
+      "WORK",
+      "ATEEZ",
+      "assets\\song_art\\WORK.jpg",
+      "already present"
+    ],
+    [
+      "BATTER UP",
+      "BABYMONSTER",
+      "assets\\song_art\\BATTER UP.jpg",
+      "already present"
+    ],
+    [
+      "CLIK CLAK",
+      "BABYMONSTER",
+      "assets\\song_art\\CLIK CLAK.jpg",
+      "already present"
+    ],
+    [
+      "DRIP",
+      "BABYMONSTER",
+      "assets\\song_art\\DRIP.jpg",
+      "already present"
+    ],
+    [
+      "Forever",
+      "BABYMONSTER",
+      "assets\\song_art\\Forever.jpg",
+      "already present"
+    ],
+    [
+      "HOT SAUCE",
+      "BABYMONSTER",
+      "assets\\song_art\\HOT SAUCE.jpg",
+      "Apple iTunes Search API fallback"
+    ],
+    [
+      "LIKE THAT",
+      "BABYMONSTER",
+      "assets\\song_art\\LIKE THAT.jpg",
+      "already present"
+    ],
+    [
+      "PSYCHO",
+      "BABYMONSTER",
+      "assets\\song_art\\PSYCHO - BABYMONSTER.jpg",
+      "already present"
+    ],
+    [
+      "Really Like You",
+      "BABYMONSTER",
+      "assets\\song_art\\Really Like You.jpg",
+      "already present"
+    ],
+    [
+      "SHEESH",
+      "BABYMONSTER",
+      "assets\\song_art\\SHEESH.jpg",
+      "already present"
+    ],
+    [
+      "WE GO UP",
+      "BABYMONSTER",
+      "assets\\song_art\\WE GO UP.jpg",
+      "already present"
+    ],
+    [
+      "Bad Girl",
+      "BEAST",
+      "assets\\song_art\\Bad Girl.jpg",
+      "Beast Is The B2ST"
+    ],
+    [
+      "BREATH",
+      "BEAST",
+      "assets\\song_art\\BREATH.jpg",
+      "Mastermind"
+    ],
+    [
+      "On Rainy Days",
+      "BEAST",
+      "assets\\song_art\\On Rainy Days.jpg",
+      "On Rainy Days"
+    ],
+    [
+      "Shadow",
+      "BEAST",
+      "assets\\song_art\\Shadow.jpg",
+      "Hard to love, How to love"
+    ],
+    [
+      "Shock",
+      "BEAST",
+      "assets\\song_art\\Shock.jpg",
+      "Shock Of The New Era"
+    ],
+    [
+      "Love Options",
+      "BESTie",
+      "assets\\song_art\\Love Options.jpg",
+      "already present"
+    ],
+    [
+      "BAD BOY",
+      "BIGBANG",
+      "assets\\song_art\\BAD BOY - BIGBANG.jpg",
+      "already present"
+    ],
+    [
+      "BANG BANG BANG",
+      "BIGBANG",
+      "assets\\song_art\\BANG BANG BANG.jpg",
+      "already present"
+    ],
+    [
+      "BLUE",
+      "BIGBANG",
+      "assets\\song_art\\BLUE.jpg",
+      "already present"
+    ],
+    [
+      "FANTASTIC BABY",
+      "BIGBANG",
+      "assets\\song_art\\FANTASTIC BABY.jpg",
+      "already present"
+    ],
+    [
+      "LAST FAREWELL",
+      "BIGBANG",
+      "assets\\song_art\\LAST FAREWELL.jpg",
+      "already present"
+    ],
+    [
+      "LIES",
+      "BIGBANG",
+      "assets\\song_art\\LIES.jpg",
+      "already present"
+    ],
+    [
+      "LOSER",
+      "BIGBANG",
+      "assets\\song_art\\LOSER.jpg",
+      "already present"
+    ],
+    [
+      "Still Life",
+      "BIGBANG",
+      "assets\\song_art\\Still Life.jpg",
+      "already present"
+    ],
+    [
+      "TONIGHT",
+      "BIGBANG",
+      "assets\\song_art\\TONIGHT.jpg",
+      "already present"
+    ],
+    [
+      "As If It's Your Last",
+      "BLACKPINK",
+      "assets\\song_art\\As If It's Your Last.jpg",
+      "already present"
+    ],
+    [
+      "BOOMBAYAH",
+      "BLACKPINK",
+      "assets\\song_art\\BOOMBAYAH.jpg",
+      "already present"
+    ],
+    [
+      "DDU-DU DDU-DU",
+      "BLACKPINK",
+      "assets\\song_art\\DDU-DU DDU-DU.jpg",
+      "already present"
+    ],
+    [
+      "GO",
+      "BLACKPINK",
+      "assets\\song_art\\GO.jpg",
+      "already present"
+    ],
+    [
+      "How You Like That",
+      "BLACKPINK",
+      "assets\\song_art\\How You Like That.jpg",
+      "already present"
+    ],
+    [
+      "Kill This Love",
+      "BLACKPINK",
+      "assets\\song_art\\Kill This Love.jpg",
+      "already present"
+    ],
+    [
+      "Lovesick Girls",
+      "BLACKPINK",
+      "assets\\song_art\\Lovesick Girls.jpg",
+      "already present"
+    ],
+    [
+      "Pink Venom",
+      "BLACKPINK",
+      "assets\\song_art\\Pink Venom.jpg",
+      "already present"
+    ],
+    [
+      "WHISTLE",
+      "BLACKPINK",
+      "assets\\song_art\\WHISTLE.jpg",
+      "already present"
+    ],
+    [
+      "Beautiful Pain",
+      "BTOB",
+      "assets\\song_art\\Beautiful Pain.jpg",
+      "already present"
+    ],
+    [
+      "Beep Beep",
+      "BTOB",
+      "assets\\song_art\\Beep Beep.jpg",
+      "already present"
+    ],
+    [
+      "Missing You",
+      "BTOB",
+      "assets\\song_art\\Missing You.jpg",
+      "already present"
+    ],
+    [
+      "Movie",
+      "BTOB",
+      "assets\\song_art\\Movie.jpg",
+      "already present"
+    ],
+    [
+      "Wind and Wish",
+      "BTOB",
+      "assets\\song_art\\Wind and Wish.jpg",
+      "already present"
+    ],
+    [
+      "Airplane pt.2",
+      "BTS",
+      "assets\\song_art\\Airplane pt.2.jpg",
+      "already present"
+    ],
+    [
+      "Anpanman",
+      "BTS",
+      "assets\\song_art\\Anpanman.jpg",
+      "already present"
+    ],
+    [
+      "Best Of Me",
+      "BTS",
+      "assets\\song_art\\Best Of Me.jpg",
+      "already present"
+    ],
+    [
+      "Black Swan",
+      "BTS",
+      "assets\\song_art\\Black Swan.jpg",
+      "already present"
+    ],
+    [
+      "Boy With Luv",
+      "BTS",
+      "assets\\song_art\\Boy With Luv.jpg",
+      "already present"
+    ],
+    [
+      "Butter",
+      "BTS",
+      "assets\\song_art\\Butter.jpg",
+      "already present"
+    ],
+    [
+      "Converse High",
+      "BTS",
+      "assets\\song_art\\Converse High.jpg",
+      "already present"
+    ],
+    [
+      "Dynamite",
+      "BTS",
+      "assets\\song_art\\Dynamite.jpg",
+      "already present"
+    ],
+    [
+      "FAKE LOVE",
+      "BTS",
+      "assets\\song_art\\FAKE LOVE.jpg",
+      "already present"
+    ],
+    [
+      "Fire",
+      "BTS",
+      "assets\\song_art\\Fire - BTS.jpg",
+      "already present"
+    ],
+    [
+      "Mikrokosmos",
+      "BTS",
+      "assets\\song_art\\Mikrokosmos.jpg",
+      "already present"
+    ],
+    [
+      "Not Today",
+      "BTS",
+      "assets\\song_art\\Not Today.jpg",
+      "already present"
+    ],
+    [
+      "Permission to Dance",
+      "BTS",
+      "assets\\song_art\\Permission to Dance.jpg",
+      "already present"
+    ],
+    [
+      "RUN",
+      "BTS",
+      "assets\\song_art\\RUN.jpg",
+      "already present"
+    ],
+    [
+      "Spring Day",
+      "BTS",
+      "assets\\song_art\\Spring Day.jpg",
+      "already present"
+    ],
+    [
+      "ACAI",
+      "CORTIS",
+      "assets\\song_art\\ACAI.jpg",
+      "already present"
+    ],
+    [
+      "GO!",
+      "CORTIS",
+      "assets\\song_art\\GO!.jpg",
+      "already present"
+    ],
+    [
+      "JoyRide",
+      "CORTIS",
+      "assets\\song_art\\JoyRide.jpg",
+      "already present"
+    ],
+    [
+      "Mention Me",
+      "CORTIS",
+      "assets\\song_art\\Mention Me.jpg",
+      "already present"
+    ],
+    [
+      "MONEYMONEYMONEY",
+      "CORTIS",
+      "assets\\song_art\\MONEYMONEYMONEY.jpg",
+      "already present"
+    ],
+    [
+      "MOTION",
+      "CORTIS",
+      "assets\\song_art\\MOTION.jpg",
+      "already present"
+    ],
+    [
+      "REDRED",
+      "CORTIS",
+      "assets\\song_art\\REDRED.jpg",
+      "already present"
+    ],
+    [
+      "TNT",
+      "CORTIS",
+      "assets\\song_art\\TNT.jpg",
+      "already present"
+    ],
+    [
+      "What You Want",
+      "CORTIS",
+      "assets\\song_art\\What You Want.jpg",
+      "already present"
+    ],
+    [
+      "Bite Me",
+      "ENHYPEN",
+      "assets\\song_art\\Bite Me.jpg",
+      "already present"
+    ],
+    [
+      "Drunk-Dazed",
+      "ENHYPEN",
+      "assets\\song_art\\Drunk-Dazed.jpg",
+      "already present"
+    ],
+    [
+      "Fever",
+      "ENHYPEN",
+      "assets\\song_art\\Fever.jpg",
+      "already present"
+    ],
+    [
+      "Given-Taken",
+      "ENHYPEN",
+      "assets\\song_art\\Given-Taken.jpg",
+      "already present"
+    ],
+    [
+      "Go Big Or Go Home",
+      "ENHYPEN",
+      "assets\\song_art\\Go Big Or Go Home.jpg",
+      "already present"
+    ],
+    [
+      "Polaroid Love",
+      "ENHYPEN",
+      "assets\\song_art\\Polaroid Love.jpg",
+      "already present"
+    ],
+    [
+      "Sweet Venom",
+      "ENHYPEN",
+      "assets\\song_art\\Sweet Venom.jpg",
+      "already present"
+    ],
+    [
+      "Tamed-Dashed",
+      "ENHYPEN",
+      "assets\\song_art\\Tamed-Dashed.jpg",
+      "already present"
+    ],
+    [
+      "XO (Only If You Say Yes)",
+      "ENHYPEN",
+      "assets\\song_art\\XO (Only If You Say Yes).jpg",
+      "already present"
+    ],
+    [
+      "Growl",
+      "EXO",
+      "assets\\song_art\\Growl.jpg",
+      "already present"
+    ],
+    [
+      "Ko Ko Bop",
+      "EXO",
+      "assets\\song_art\\Ko Ko Bop.jpg",
+      "already present"
+    ],
+    [
+      "Lotto",
+      "EXO",
+      "assets\\song_art\\Lotto.jpg",
+      "already present"
+    ],
+    [
+      "Love Shot",
+      "EXO",
+      "assets\\song_art\\Love Shot.jpg",
+      "already present"
+    ],
+    [
+      "Monster",
+      "EXO",
+      "assets\\song_art\\Monster.jpg",
+      "already present"
+    ],
+    [
+      "Obsession",
+      "EXO",
+      "assets\\song_art\\Obsession.jpg",
+      "already present"
+    ],
+    [
+      "Power",
+      "EXO",
+      "assets\\song_art\\Power.jpg",
+      "already present"
+    ],
+    [
+      "Tempo",
+      "EXO",
+      "assets\\song_art\\Tempo.jpg",
+      "already present"
+    ],
+    [
+      "The Eve",
+      "EXO",
+      "assets\\song_art\\The Eve.jpg",
+      "already present"
+    ],
+    [
+      "FOREVER 1",
+      "Girls' Generation",
+      "assets\\song_art\\FOREVER 1.jpg",
+      "already present"
+    ],
+    [
+      "Gee",
+      "Girls' Generation",
+      "assets\\song_art\\Gee.jpg",
+      "already present"
+    ],
+    [
+      "Genie",
+      "Girls' Generation",
+      "assets\\song_art\\Genie.jpg",
+      "already present"
+    ],
+    [
+      "I Got a Boy",
+      "Girls' Generation",
+      "assets\\song_art\\I Got a Boy.jpg",
+      "already present"
+    ],
+    [
+      "Into the New World",
+      "Girls' Generation",
+      "assets\\song_art\\Into the New World.jpg",
+      "already present"
+    ],
+    [
+      "Lion Heart",
+      "Girls' Generation",
+      "assets\\song_art\\Lion Heart.jpg",
+      "already present"
+    ],
+    [
+      "Mr. Taxi",
+      "Girls' Generation",
+      "assets\\song_art\\Mr. Taxi.jpg",
+      "already present"
+    ],
+    [
+      "Mr.Mr.",
+      "Girls' Generation",
+      "assets\\song_art\\Mr.Mr.jpg",
+      "already present"
+    ],
+    [
+      "Oh!",
+      "Girls' Generation",
+      "assets\\song_art\\Oh!.jpg",
+      "already present"
+    ],
+    [
+      "Run Devil Run",
+      "Girls' Generation",
+      "assets\\song_art\\Run Devil Run.jpg",
+      "already present"
+    ],
+    [
+      "A",
+      "GOT7",
+      "assets\\song_art\\A.jpg",
+      "already present"
+    ],
+    [
+      "If You Do",
+      "GOT7",
+      "assets\\song_art\\If You Do.jpg",
+      "already present"
+    ],
+    [
+      "Never Ever",
+      "GOT7",
+      "assets\\song_art\\Never Ever.jpg",
+      "already present"
+    ],
+    [
+      "Stop stop it",
+      "GOT7",
+      "assets\\song_art\\Stop stop it.jpg",
+      "already present"
+    ],
+    [
+      "You Calling My Name",
+      "GOT7",
+      "assets\\song_art\\You Calling My Name.jpg",
+      "already present"
+    ],
+    [
+      "FOCUS",
+      "Hearts2Hearts",
+      "assets\\song_art\\FOCUS.jpg",
+      "already present"
+    ],
+    [
+      "Lemon Tang",
+      "Hearts2Hearts",
+      "assets\\song_art\\Lemon Tang.jpg",
+      "already present"
+    ],
+    [
+      "Moonride",
+      "Hearts2Hearts",
+      "assets\\song_art\\Moonride.jpg",
+      "already present"
+    ],
+    [
+      "RUDE!",
+      "Hearts2Hearts",
+      "assets\\song_art\\RUDE!.jpg",
+      "already present"
+    ],
+    [
+      "The Chase",
+      "Hearts2Hearts",
+      "assets\\song_art\\The Chase.jpg",
+      "already present"
+    ],
+    [
+      "Fate",
+      "i-dle",
+      "assets\\song_art\\Fate.jpg",
+      "already present"
+    ],
+    [
+      "Mono",
+      "i-dle",
+      "assets\\song_art\\Mono.jpg",
+      "already present"
+    ],
+    [
+      "Oh my god",
+      "i-dle",
+      "assets\\song_art\\Oh my god.jpg",
+      "already present"
+    ],
+    [
+      "Queencard",
+      "i-dle",
+      "assets\\song_art\\Queencard.jpg",
+      "already present"
+    ],
+    [
+      "Super Lady",
+      "i-dle",
+      "assets\\song_art\\Super Lady.jpg",
+      "already present"
+    ],
+    [
+      "BUT YOU",
+      "iKON",
+      "assets\\song_art\\BUT YOU.jpg",
+      "already present"
+    ],
+    [
+      "DUMB & DUMBER",
+      "iKON",
+      "assets\\song_art\\DUMB & DUMBER.jpg",
+      "already present"
+    ],
+    [
+      "GOODBYE ROAD",
+      "iKON",
+      "assets\\song_art\\GOODBYE ROAD.jpg",
+      "already present"
+    ],
+    [
+      "I'M OK",
+      "iKON",
+      "assets\\song_art\\I'M OK.jpg",
+      "already present"
+    ],
+    [
+      "KILLING ME",
+      "iKON",
+      "assets\\song_art\\KILLING ME.jpg",
+      "already present"
+    ],
+    [
+      "Love Scenario",
+      "iKON",
+      "assets\\song_art\\Love Scenario.jpg",
+      "already present"
+    ],
+    [
+      "MY TYPE",
+      "iKON",
+      "assets\\song_art\\MY TYPE.jpg",
+      "already present"
+    ],
+    [
+      "RHYTHM TA",
+      "iKON",
+      "assets\\song_art\\RHYTHM TA.jpg",
+      "already present"
+    ],
+    [
+      "Why Why Why",
+      "iKON",
+      "assets\\song_art\\Why Why Why.jpg",
+      "already present"
+    ],
+    [
+      "Almond Chocolate",
+      "ILLIT",
+      "assets\\song_art\\Almond Chocolate.jpg",
+      "already present"
+    ],
+    [
+      "Billyeoon Goyangi (Do the Dance)",
+      "ILLIT",
+      "assets\\song_art\\Billyeoon Goyangi (Do the Dance).jpg",
+      "already present"
+    ],
+    [
+      "Cherish (My Love)",
+      "ILLIT",
+      "assets\\song_art\\Cherish (My Love).jpg",
+      "already present"
+    ],
+    [
+      "It's Me",
+      "ILLIT",
+      "assets\\song_art\\It's Me.jpg",
+      "already present"
+    ],
+    [
+      "Jellyous",
+      "ILLIT",
+      "assets\\song_art\\Jellyous.jpg",
+      "already present"
+    ],
+    [
+      "Lucky Girl Syndrome",
+      "ILLIT",
+      "assets\\song_art\\Lucky Girl Syndrome.jpg",
+      "already present"
+    ],
+    [
+      "Magnetic",
+      "ILLIT",
+      "assets\\song_art\\Magnetic.jpg",
+      "already present"
+    ],
+    [
+      "My World",
+      "ILLIT",
+      "assets\\song_art\\My World.jpg",
+      "already present"
+    ],
+    [
+      "NOT CUTE ANYMORE",
+      "ILLIT",
+      "assets\\song_art\\NOT CUTE ANYMORE.jpg",
+      "already present"
+    ],
+    [
+      "Tick-Tack",
+      "ILLIT",
+      "assets\\song_art\\Tick-Tack.jpg",
+      "already present"
+    ],
+    [
+      "CAKE",
+      "ITZY",
+      "assets\\song_art\\CAKE.jpg",
+      "already present"
+    ],
+    [
+      "Cheshire",
+      "ITZY",
+      "assets\\song_art\\Cheshire.jpg",
+      "already present"
+    ],
+    [
+      "LOCO",
+      "ITZY",
+      "assets\\song_art\\LOCO.jpg",
+      "already present"
+    ],
+    [
+      "Mafia In The Morning",
+      "ITZY",
+      "assets\\song_art\\Mafia In The Morning.jpg",
+      "already present"
+    ],
+    [
+      "Mr. Vampire",
+      "ITZY",
+      "assets\\song_art\\Mr. Vampire.jpg",
+      "already present"
+    ],
+    [
+      "Not Shy",
+      "ITZY",
+      "assets\\song_art\\Not Shy.jpg",
+      "already present"
+    ],
+    [
+      "SNEAKERS",
+      "ITZY",
+      "assets\\song_art\\SNEAKERS.jpg",
+      "already present"
+    ],
+    [
+      "UNTOUCHABLE",
+      "ITZY",
+      "assets\\song_art\\UNTOUCHABLE.jpg",
+      "already present"
+    ],
+    [
+      "BBIBBI",
+      "IU",
+      "assets\\song_art\\BBIBBI.jpg",
+      "already present"
+    ],
+    [
+      "Blueming",
+      "IU",
+      "assets\\song_art\\Blueming.jpg",
+      "already present"
+    ],
+    [
+      "Can't Love You Anymore",
+      "IU",
+      "assets\\song_art\\Can't Love You Anymore.jpg",
+      "already present"
+    ],
+    [
+      "Celebrity",
+      "IU",
+      "assets\\song_art\\Celebrity.jpg",
+      "already present"
+    ],
+    [
+      "eight",
+      "IU",
+      "assets\\song_art\\eight.jpg",
+      "already present"
+    ],
+    [
+      "Good Day",
+      "IU",
+      "assets\\song_art\\Good Day.jpg",
+      "already present"
+    ],
+    [
+      "LILAC",
+      "IU",
+      "assets\\song_art\\LILAC.jpg",
+      "already present"
+    ],
+    [
+      "Love wins all",
+      "IU",
+      "assets\\song_art\\Love wins all.jpg",
+      "already present"
+    ],
+    [
+      "Palette",
+      "IU",
+      "assets\\song_art\\Palette.jpg",
+      "already present"
+    ],
+    [
+      "Through the Night",
+      "IU",
+      "assets\\song_art\\Through the Night.jpg",
+      "already present"
+    ],
+    [
+      "CRUMBS",
+      "IVE",
+      "assets\\song_art\\CRUMBS.jpg",
+      "already present"
+    ],
+    [
+      "Girls Girls Girls",
+      "IVE",
+      "assets\\song_art\\Girls Girls Girls.jpg",
+      "already present"
+    ],
+    [
+      "I AM",
+      "IVE",
+      "assets\\song_art\\I AM.jpg",
+      "already present"
+    ],
+    [
+      "Looks Can Kill",
+      "IVE",
+      "assets\\song_art\\Looks Can Kill.jpg",
+      "already present"
+    ],
+    [
+      "Mirror Mirror",
+      "IVE",
+      "assets\\song_art\\Mirror Mirror.jpg",
+      "already present"
+    ],
+    [
+      "Rebel Heart",
+      "IVE",
+      "assets\\song_art\\Rebel Heart.jpg",
+      "already present"
+    ],
+    [
+      "SNAKESKIN",
+      "IVE",
+      "assets\\song_art\\SNAKESKIN.jpg",
+      "already present"
+    ],
+    [
+      "404 (New Era)",
+      "KiiiKiii",
+      "assets\\song_art\\404 (New Era).jpg",
+      "already present"
+    ],
+    [
+      "Blue Hour",
+      "KiiiKiii",
+      "assets\\song_art\\Blue Hour - KiiiKiii.jpg",
+      "already present"
+    ],
+    [
+      "DANCING ALONE",
+      "KiiiKiii",
+      "assets\\song_art\\DANCING ALONE.jpg",
+      "already present"
+    ],
+    [
+      "Delulu",
+      "KiiiKiii",
+      "assets\\song_art\\Delulu.jpg",
+      "already present"
+    ],
+    [
+      "I DO ME",
+      "KiiiKiii",
+      "assets\\song_art\\I DO ME.jpg",
+      "already present"
+    ],
+    [
+      "Bad News",
+      "KISS OF LIFE",
+      "assets\\song_art\\Bad News.jpg",
+      "already present"
+    ],
+    [
+      "Bye My Neverland",
+      "KISS OF LIFE",
+      "assets\\song_art\\Bye My Neverland.jpg",
+      "already present"
+    ],
+    [
+      "Get Loud",
+      "KISS OF LIFE",
+      "assets\\song_art\\Get Loud.jpg",
+      "already present"
+    ],
+    [
+      "Igloo",
+      "KISS OF LIFE",
+      "assets\\song_art\\Igloo.jpg",
+      "already present"
+    ],
+    [
+      "Midas Touch",
+      "KISS OF LIFE",
+      "assets\\song_art\\Midas Touch.jpg",
+      "already present"
+    ],
+    [
+      "Nobody Knows",
+      "KISS OF LIFE",
+      "assets\\song_art\\Nobody Knows.jpg",
+      "already present"
+    ],
+    [
+      "Nothing",
+      "KISS OF LIFE",
+      "assets\\song_art\\Nothing.jpg",
+      "already present"
+    ],
+    [
+      "Sticky",
+      "KISS OF LIFE",
+      "assets\\song_art\\Sticky.jpg",
+      "already present"
+    ],
+    [
+      "ANTIFRAGILE",
+      "LE SSERAFIM",
+      "assets\\song_art\\ANTIFRAGILE.jpg",
+      "already present"
+    ],
+    [
+      "Blue Flame",
+      "LE SSERAFIM",
+      "assets\\song_art\\Blue Flame.jpg",
+      "already present"
+    ],
+    [
+      "Come Over",
+      "LE SSERAFIM",
+      "assets\\song_art\\Come Over.jpg",
+      "already present"
+    ],
+    [
+      "EASY",
+      "LE SSERAFIM",
+      "assets\\song_art\\EASY.jpg",
+      "already present"
+    ],
+    [
+      "FEARLESS",
+      "LE SSERAFIM",
+      "assets\\song_art\\FEARLESS.jpg",
+      "already present"
+    ],
+    [
+      "HOT",
+      "LE SSERAFIM",
+      "assets\\song_art\\HOT - LE SSERAFIM.jpg",
+      "already present"
+    ],
+    [
+      "Perfect Night",
+      "LE SSERAFIM",
+      "assets\\song_art\\Perfect Night.jpg",
+      "already present"
+    ],
+    [
+      "Smart",
+      "LE SSERAFIM",
+      "assets\\song_art\\Smart.jpg",
+      "already present"
+    ],
+    [
+      "Backseat",
+      "LNGSHOT",
+      "assets\\song_art\\Backseat.jpg",
+      "already present"
+    ],
+    [
+      "FaceTime",
+      "LNGSHOT",
+      "assets\\song_art\\FaceTime.jpg",
+      "already present"
+    ],
+    [
+      "Fire With Fire",
+      "LNGSHOT",
+      "assets\\song_art\\Fire With Fire.jpg",
+      "already present"
+    ],
+    [
+      "Masterpiece",
+      "LNGSHOT",
+      "assets\\song_art\\Masterpiece.jpg",
+      "already present"
+    ],
+    [
+      "Moonwalkin'",
+      "LNGSHOT",
+      "assets\\song_art\\Moonwalkin'.jpg",
+      "already present"
+    ],
+    [
+      "Never Let Go",
+      "LNGSHOT",
+      "assets\\song_art\\Never Let Go.jpg",
+      "already present"
+    ],
+    [
+      "Saucin'",
+      "LNGSHOT",
+      "assets\\song_art\\Saucin' - LNGSHOT.jpg",
+      "already present"
+    ],
+    [
+      "Vanilla Days",
+      "LNGSHOT",
+      "assets\\song_art\\Vanilla Days.jpg",
+      "already present"
+    ],
+    [
+      "BODY",
+      "MEOVV",
+      "assets\\song_art\\BODY.jpg",
+      "already present"
+    ],
+    [
+      "BURNING UP",
+      "MEOVV",
+      "assets\\song_art\\BURNING UP.jpg",
+      "already present"
+    ],
+    [
+      "DROP TOP",
+      "MEOVV",
+      "assets\\song_art\\DROP TOP.jpg",
+      "already present"
+    ],
+    [
+      "GO HARD",
+      "MEOVV",
+      "assets\\song_art\\GO HARD.jpg",
+      "already present"
+    ],
+    [
+      "HANDS UP",
+      "MEOVV",
+      "assets\\song_art\\HANDS UP.jpg",
+      "already present"
+    ],
+    [
+      "Hit 'Em",
+      "MEOVV",
+      "assets\\song_art\\Hit 'Em.jpg",
+      "already present"
+    ],
+    [
+      "In my hands",
+      "MEOVV",
+      "assets\\song_art\\In my hands.jpg",
+      "already present"
+    ],
+    [
+      "LIT RIGHT NOW",
+      "MEOVV",
+      "assets\\song_art\\LIT RIGHT NOW.jpg",
+      "already present"
+    ],
+    [
+      "MEOW",
+      "MEOVV",
+      "assets\\song_art\\MEOW.jpg",
+      "already present"
+    ],
+    [
+      "TOXIC",
+      "MEOVV",
+      "assets\\song_art\\TOXIC.jpg",
+      "already present"
+    ],
+    [
+      "BAAM",
+      "MOMOLAND",
+      "assets\\song_art\\BAAM.jpg",
+      "already present"
+    ],
+    [
+      "BBoom BBoom",
+      "MOMOLAND",
+      "assets\\song_art\\BBoom BBoom.jpg",
+      "already present"
+    ],
+    [
+      "Freeze!",
+      "MOMOLAND",
+      "assets\\song_art\\Freeze!.jpg",
+      "already present"
+    ],
+    [
+      "Thumbs Up",
+      "MOMOLAND",
+      "assets\\song_art\\Thumbs Up.jpg",
+      "already present"
+    ],
+    [
+      "Wrap Me In Plastic",
+      "MOMOLAND",
+      "assets\\song_art\\Wrap Me In Plastic.jpg",
+      "already present"
+    ],
+    [
+      "Alligator",
+      "MONSTA X",
+      "assets\\song_art\\Alligator.jpg",
+      "already present"
+    ],
+    [
+      "Beautiful",
+      "MONSTA X",
+      "assets\\song_art\\Beautiful.jpg",
+      "already present"
+    ],
+    [
+      "FOLLOW",
+      "MONSTA X",
+      "assets\\song_art\\FOLLOW.jpg",
+      "already present"
+    ],
+    [
+      "Jealousy",
+      "MONSTA X",
+      "assets\\song_art\\Jealousy.jpg",
+      "already present"
+    ],
+    [
+      "Love Killa",
+      "MONSTA X",
+      "assets\\song_art\\Love Killa.jpg",
+      "already present"
+    ],
+    [
+      "Rush Hour",
+      "MONSTA X",
+      "assets\\song_art\\Rush Hour.jpg",
+      "already present"
+    ],
+    [
+      "Attention",
+      "NewJeans",
+      "assets\\song_art\\Attention.jpg",
+      "already present"
+    ],
+    [
+      "Bubble Gum",
+      "NewJeans",
+      "assets\\song_art\\Bubble Gum.jpg",
+      "already present"
+    ],
+    [
+      "Cookie",
+      "NewJeans",
+      "assets\\song_art\\Cookie.jpg",
+      "already present"
+    ],
+    [
+      "Ditto",
+      "NewJeans",
+      "assets\\song_art\\Ditto.jpg",
+      "already present"
+    ],
+    [
+      "ETA",
+      "NewJeans",
+      "assets\\song_art\\ETA.jpg",
+      "already present"
+    ],
+    [
+      "How Sweet",
+      "NewJeans",
+      "assets\\song_art\\How Sweet.jpg",
+      "already present"
+    ],
+    [
+      "Hype Boy",
+      "NewJeans",
+      "assets\\song_art\\Hype Boy.jpg",
+      "already present"
+    ],
+    [
+      "OMG",
+      "NewJeans",
+      "assets\\song_art\\OMG.jpg",
+      "already present"
+    ],
+    [
+      "Super Shy",
+      "NewJeans",
+      "assets\\song_art\\Super Shy.jpg",
+      "already present"
+    ],
+    [
+      "Supernatural",
+      "NewJeans",
+      "assets\\song_art\\Supernatural.jpg",
+      "already present"
+    ],
+    [
+      "Beat-Boxer",
+      "NEXZ",
+      "assets\\song_art\\Beat-Boxer.jpg",
+      "already present"
+    ],
+    [
+      "Hellmate",
+      "NEXZ",
+      "assets\\song_art\\Hellmate.jpg",
+      "already present"
+    ],
+    [
+      "Mmchk",
+      "NEXZ",
+      "assets\\song_art\\Mmchk.jpg",
+      "already present"
+    ],
+    [
+      "Nallina",
+      "NEXZ",
+      "assets\\song_art\\Nallina.jpg",
+      "already present"
+    ],
+    [
+      "O-RLY?",
+      "NEXZ",
+      "assets\\song_art\\O-RLY_.jpg",
+      "already present"
+    ],
+    [
+      "One Bite",
+      "NEXZ",
+      "assets\\song_art\\One Bite.jpg",
+      "already present"
+    ],
+    [
+      "Ride the Vibe",
+      "NEXZ",
+      "assets\\song_art\\Ride the Vibe.jpg",
+      "already present"
+    ],
+    [
+      "SAUCIN'",
+      "NEXZ",
+      "assets\\song_art\\SAUCIN' - NEXZ.jpg",
+      "already present"
+    ],
+    [
+      "Blue Valentine",
+      "NMIXX",
+      "assets\\song_art\\Blue Valentine.jpg",
+      "already present"
+    ],
+    [
+      "DASH",
+      "NMIXX",
+      "assets\\song_art\\DASH.jpg",
+      "already present"
+    ],
+    [
+      "DICE",
+      "NMIXX",
+      "assets\\song_art\\DICE.jpg",
+      "already present"
+    ],
+    [
+      "KNOW ABOUT ME",
+      "NMIXX",
+      "assets\\song_art\\KNOW ABOUT ME.jpg",
+      "already present"
+    ],
+    [
+      "O.O",
+      "NMIXX",
+      "assets\\song_art\\O.O.jpg",
+      "already present"
+    ],
+    [
+      "Party O'Clock",
+      "NMIXX",
+      "assets\\song_art\\Party O'Clock.jpg",
+      "already present"
+    ],
+    [
+      "See that?",
+      "NMIXX",
+      "assets\\song_art\\See that_.jpg",
+      "already present"
+    ],
+    [
+      "Soñar (Breaker)",
+      "NMIXX",
+      "assets\\song_art\\Soñar (Breaker).jpg",
+      "already present"
+    ],
+    [
+      "Young, Dumb, Stupid",
+      "NMIXX",
+      "assets\\song_art\\Young, Dumb, Stupid.jpg",
+      "already present"
+    ],
+    [
+      "Bad Boy",
+      "Red Velvet",
+      "assets\\song_art\\Bad Boy - Red Velvet.jpg",
+      "already present"
+    ],
+    [
+      "Chill Kill",
+      "Red Velvet",
+      "assets\\song_art\\Chill Kill.jpg",
+      "already present"
+    ],
+    [
+      "Cosmic",
+      "Red Velvet",
+      "assets\\song_art\\Cosmic.jpg",
+      "already present"
+    ],
+    [
+      "Day 1",
+      "Red Velvet",
+      "assets\\song_art\\Day 1.jpg",
+      "already present"
+    ],
+    [
+      "Dumb Dumb",
+      "Red Velvet",
+      "assets\\song_art\\Dumb Dumb.jpg",
+      "already present"
+    ],
+    [
+      "Peek-A-Boo",
+      "Red Velvet",
+      "assets\\song_art\\Peek-A-Boo.jpg",
+      "already present"
+    ],
+    [
+      "Psycho",
+      "Red Velvet",
+      "assets\\song_art\\Psycho - Red Velvet.jpg",
+      "already present"
+    ],
+    [
+      "Red Flavor",
+      "Red Velvet",
+      "assets\\song_art\\Red Flavor.jpg",
+      "already present"
+    ],
+    [
+      "Russian Roulette",
+      "Red Velvet",
+      "assets\\song_art\\Russian Roulette.jpg",
+      "already present"
+    ],
+    [
+      "Surfin' Boy",
+      "Red Velvet",
+      "assets\\song_art\\Surfin' Boy.jpg",
+      "already present"
+    ],
+    [
+      "Boom Boom Bass",
+      "RIIZE",
+      "assets\\song_art\\Boom Boom Bass.jpg",
+      "already present"
+    ],
+    [
+      "Do your dance",
+      "RIIZE",
+      "assets\\song_art\\Do your dance.jpg",
+      "already present"
+    ],
+    [
+      "Fame",
+      "RIIZE",
+      "assets\\song_art\\Fame.jpg",
+      "already present"
+    ],
+    [
+      "Get A Guitar",
+      "RIIZE",
+      "assets\\song_art\\Get A Guitar.jpg",
+      "already present"
+    ],
+    [
+      "Impossible",
+      "RIIZE",
+      "assets\\song_art\\Impossible.jpg",
+      "already present"
+    ],
+    [
+      "Love 119",
+      "RIIZE",
+      "assets\\song_art\\Love 119.jpg",
+      "already present"
+    ],
+    [
+      "Odyssey",
+      "RIIZE",
+      "assets\\song_art\\Odyssey.jpg",
+      "already present"
+    ],
+    [
+      "Talk Saxy",
+      "RIIZE",
+      "assets\\song_art\\Talk Saxy.jpg",
+      "already present"
+    ],
+    [
+      "Adore U",
+      "SEVENTEEN",
+      "assets\\song_art\\Adore U.jpg",
+      "already present"
+    ],
+    [
+      "Don't Wanna Cry",
+      "SEVENTEEN",
+      "assets\\song_art\\Don't Wanna Cry.jpg",
+      "already present"
+    ],
+    [
+      "God of Music",
+      "SEVENTEEN",
+      "assets\\song_art\\God of Music.jpg",
+      "already present"
+    ],
+    [
+      "HOT",
+      "SEVENTEEN",
+      "assets\\song_art\\HOT - SEVENTEEN.jpg",
+      "already present"
+    ],
+    [
+      "Left & Right",
+      "SEVENTEEN",
+      "assets\\song_art\\Left & Right.jpg",
+      "already present"
+    ],
+    [
+      "MAESTRO",
+      "SEVENTEEN",
+      "assets\\song_art\\MAESTRO.jpg",
+      "already present"
+    ],
+    [
+      "Mansae",
+      "SEVENTEEN",
+      "assets\\song_art\\Mansae.jpg",
+      "already present"
+    ],
+    [
+      "Rock with you",
+      "SEVENTEEN",
+      "assets\\song_art\\Rock with you.jpg",
+      "already present"
+    ],
+    [
+      "Super",
+      "SEVENTEEN",
+      "assets\\song_art\\Super.jpg",
+      "already present"
+    ],
+    [
+      "VERY NICE",
+      "SEVENTEEN",
+      "assets\\song_art\\VERY NICE.jpg",
+      "already present"
+    ],
+    [
+      "1 of 1",
+      "SHINee",
+      "assets\\song_art\\1 of 1.jpg",
+      "already present"
+    ],
+    [
+      "Everybody",
+      "SHINee",
+      "assets\\song_art\\Everybody.jpg",
+      "already present"
+    ],
+    [
+      "Hello",
+      "SHINee",
+      "assets\\song_art\\Hello - SHINee.jpg",
+      "already present"
+    ],
+    [
+      "Lucifer",
+      "SHINee",
+      "assets\\song_art\\Lucifer.jpg",
+      "already present"
+    ],
+    [
+      "View",
+      "SHINee",
+      "assets\\song_art\\View.jpg",
+      "already present"
+    ],
+    [
+      "Back Door",
+      "Stray Kids",
+      "assets\\song_art\\Back Door.jpg",
+      "already present"
+    ],
+    [
+      "Chk Chk Boom",
+      "Stray Kids",
+      "assets\\song_art\\Chk Chk Boom.jpg",
+      "already present"
+    ],
+    [
+      "LALALALA",
+      "Stray Kids",
+      "assets\\song_art\\LALALALA.jpg",
+      "already present"
+    ],
+    [
+      "Social Path",
+      "Stray Kids",
+      "assets\\song_art\\Social Path.jpg",
+      "already present"
+    ],
+    [
+      "Thunderous",
+      "Stray Kids",
+      "assets\\song_art\\Thunderous.jpg",
+      "already present"
+    ],
+    [
+      "Mamacita",
+      "Super Junior",
+      "assets\\song_art\\Mamacita.jpg",
+      "already present"
+    ],
+    [
+      "Mr. Simple",
+      "Super Junior",
+      "assets\\song_art\\Mr. Simple.jpg",
+      "already present"
+    ],
+    [
+      "Sorry Sorry",
+      "Super Junior",
+      "assets\\song_art\\Sorry Sorry.jpg",
+      "already present"
+    ],
+    [
+      "U",
+      "Super Junior",
+      "assets\\song_art\\U.jpg",
+      "already present"
+    ],
+    [
+      "BONA BONA",
+      "TREASURE",
+      "assets\\song_art\\BONA BONA.jpg",
+      "already present"
+    ],
+    [
+      "DARARI",
+      "TREASURE",
+      "assets\\song_art\\DARARI.jpg",
+      "already present"
+    ],
+    [
+      "HELLO",
+      "TREASURE",
+      "assets\\song_art\\HELLO - TREASURE.jpg",
+      "already present"
+    ],
+    [
+      "I LOVE YOU",
+      "TREASURE",
+      "assets\\song_art\\I LOVE YOU.jpg",
+      "already present"
+    ],
+    [
+      "JIKJIN",
+      "TREASURE",
+      "assets\\song_art\\JIKJIN.jpg",
+      "already present"
+    ],
+    [
+      "MMM",
+      "TREASURE",
+      "assets\\song_art\\MMM.jpg",
+      "already present"
+    ],
+    [
+      "MOVE",
+      "TREASURE",
+      "assets\\song_art\\MOVE.jpg",
+      "already present"
+    ],
+    [
+      "MY TREASURE",
+      "TREASURE",
+      "assets\\song_art\\MY TREASURE.jpg",
+      "already present"
+    ],
+    [
+      "ABD",
+      "TUIDE",
+      "assets\\song_art\\ABD.jpg",
+      "already present"
+    ],
+    [
+      "Echo",
+      "TUIDE",
+      "assets\\song_art\\Echo.jpg",
+      "already present"
+    ],
+    [
+      "Flip-Flop Girl",
+      "TUIDE",
+      "assets\\song_art\\Flip-Flop Girl.jpg",
+      "already present"
+    ],
+    [
+      "GRLS",
+      "TUIDE",
+      "assets\\song_art\\GRLS.jpg",
+      "already present"
+    ],
+    [
+      "SUN KISS",
+      "TUIDE",
+      "assets\\song_art\\SUN KISS.jpg",
+      "already present"
+    ],
+    [
+      "Catch Me",
+      "TVXQ",
+      "assets\\song_art\\Catch Me.jpg",
+      "already present"
+    ],
+    [
+      "Mirotic",
+      "TVXQ",
+      "assets\\song_art\\Mirotic.jpg",
+      "already present"
+    ],
+    [
+      "Rising Sun",
+      "TVXQ",
+      "assets\\song_art\\Rising Sun.jpg",
+      "already present"
+    ],
+    [
+      "The Chance of Love",
+      "TVXQ",
+      "assets\\song_art\\The Chance of Love.jpg",
+      "already present"
+    ],
+    [
+      "Dance The Night Away",
+      "TWICE",
+      "assets\\song_art\\Dance The Night Away.jpg",
+      "already present"
+    ],
+    [
+      "Fancy",
+      "TWICE",
+      "assets\\song_art\\Fancy.jpg",
+      "already present"
+    ],
+    [
+      "I CAN'T STOP ME",
+      "TWICE",
+      "assets\\song_art\\I CAN'T STOP ME.jpg",
+      "already present"
+    ],
+    [
+      "Like OOH-AHH",
+      "TWICE",
+      "assets\\song_art\\Like OOH-AHH.jpg",
+      "already present"
+    ],
+    [
+      "Likey",
+      "TWICE",
+      "assets\\song_art\\Likey.jpg",
+      "already present"
+    ],
+    [
+      "MOONLIGHT SUNRISE",
+      "TWICE",
+      "assets\\song_art\\MOONLIGHT SUNRISE.jpg",
+      "already present"
+    ],
+    [
+      "ONE SPARK",
+      "TWICE",
+      "assets\\song_art\\ONE SPARK.jpg",
+      "already present"
+    ],
+    [
+      "Talk that Talk",
+      "TWICE",
+      "assets\\song_art\\Talk that Talk.jpg",
+      "already present"
+    ],
+    [
+      "The Feels",
+      "TWICE",
+      "assets\\song_art\\The Feels.jpg",
+      "already present"
+    ],
+    [
+      "YES or YES",
+      "TWICE",
+      "assets\\song_art\\YES or YES.jpg",
+      "already present"
+    ],
+    [
+      "0X1=LOVESONG",
+      "TXT",
+      "assets\\song_art\\0X1=LOVESONG.jpg",
+      "already present"
+    ],
+    [
+      "Blue Hour",
+      "TXT",
+      "assets\\song_art\\Blue Hour - TXT.jpg",
+      "already present"
+    ],
+    [
+      "Chasing That Feeling",
+      "TXT",
+      "assets\\song_art\\Chasing That Feeling.jpg",
+      "already present"
+    ],
+    [
+      "CROWN",
+      "TXT",
+      "assets\\song_art\\CROWN.jpg",
+      "already present"
+    ],
+    [
+      "Deja Vu",
+      "TXT",
+      "assets\\song_art\\Deja Vu.jpg",
+      "already present"
+    ],
+    [
+      "Good Boy Gone Bad",
+      "TXT",
+      "assets\\song_art\\Good Boy Gone Bad.jpg",
+      "already present"
+    ],
+    [
+      "LO$ER=LO♡ER",
+      "TXT",
+      "assets\\song_art\\LO$ER=LO♡ER.jpg",
+      "already present"
+    ],
+    [
+      "Over The Moon",
+      "TXT",
+      "assets\\song_art\\Over The Moon.jpg",
+      "already present"
+    ],
+    [
+      "Run Away",
+      "TXT",
+      "assets\\song_art\\Run Away.jpg",
+      "already present"
+    ],
+    [
+      "Stick With You",
+      "TXT",
+      "assets\\song_art\\Stick With You.jpg",
+      "already present"
+    ],
+    [
+      "Back",
+      "Wonder Girls",
+      "assets\\song_art\\Back.jpg",
+      "already present"
+    ],
+    [
+      "Be My Baby",
+      "Wonder Girls",
+      "assets\\song_art\\Be My Baby.jpg",
+      "already present"
+    ],
+    [
+      "I Feel You",
+      "Wonder Girls",
+      "assets\\song_art\\I Feel You.jpg",
+      "already present"
+    ],
+    [
+      "Irony",
+      "Wonder Girls",
+      "assets\\song_art\\Irony.jpg",
+      "already present"
+    ],
+    [
+      "Like Money",
+      "Wonder Girls",
+      "assets\\song_art\\Like Money.jpg",
+      "already present"
+    ],
+    [
+      "Nobody",
+      "Wonder Girls",
+      "assets\\song_art\\Nobody.jpg",
+      "already present"
+    ],
+    [
+      "Rewind",
+      "Wonder Girls",
+      "assets\\song_art\\Rewind.jpg",
+      "already present"
+    ],
+    [
+      "So Hot",
+      "Wonder Girls",
+      "assets\\song_art\\So Hot.jpg",
+      "already present"
+    ],
+    [
+      "Tell Me",
+      "Wonder Girls",
+      "assets\\song_art\\Tell Me.jpg",
+      "already present"
+    ],
+    [
+      "Why So Lonely",
+      "Wonder Girls",
+      "assets\\song_art\\Why So Lonely.jpg",
+      "already present"
+    ],
+    [
+      "Catch Catch",
+      "YENA",
+      "assets\\song_art\\Catch Catch.jpg",
+      "already present"
+    ],
+    [
+      "CRUSH",
+      "ZEROBASEONE",
+      "assets\\song_art\\CRUSH.jpg",
+      "already present"
+    ],
+    [
+      "Doctor! Doctor!",
+      "ZEROBASEONE",
+      "assets\\song_art\\Doctor! Doctor!.jpg",
+      "already present"
+    ],
+    [
+      "Feel the POP",
+      "ZEROBASEONE",
+      "assets\\song_art\\Feel the POP.jpg",
+      "already present"
+    ],
+    [
+      "GOOD SO BAD",
+      "ZEROBASEONE",
+      "assets\\song_art\\GOOD SO BAD.jpg",
+      "already present"
+    ],
+    [
+      "ICONIK",
+      "ZEROBASEONE",
+      "assets\\song_art\\ICONIK.jpg",
+      "already present"
+    ],
+    [
+      "In Bloom",
+      "ZEROBASEONE",
+      "assets\\song_art\\In Bloom.jpg",
+      "already present"
+    ],
+    [
+      "Insomnia",
+      "ZEROBASEONE",
+      "assets\\song_art\\Insomnia.jpg",
+      "already present"
+    ],
+    [
+      "SWEAT",
+      "ZEROBASEONE",
+      "assets\\song_art\\SWEAT.jpg",
+      "already present"
+    ],
+    [
+      "TOP 5",
+      "ZEROBASEONE",
+      "assets\\song_art\\TOP 5.jpg",
+      "already present"
+    ],
+    [
+      "YURA YURA",
+      "ZEROBASEONE",
+      "assets\\song_art\\YURA YURA.jpg",
+      "already present"
+    ]
+  ],
+  "missing": [],
+  "errors": []
+}

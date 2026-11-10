@@ -185,6 +185,7 @@ end
 -- While you hold any wallet currency (Constants/Currencies.Wallet: roll tickets, card upgrades)
 -- the coins card shows a "+n" tab (Coins.WalletTab); tapping it opens the Wallet card under it
 -- (a row each, hidden at 0). Tap a row to use it (WALLET_USE). Claiming one never opens anything.
+-- The card (and its shadow) is as tall as the rows showing; its top edge stays put.
 local WALLET_USE = {
 	Tickets = { "Roll", { Picker = true } }, -- Pick a Group
 	Upgrades = { "Index", { Upgrade = true } }, -- the Index's card picker
@@ -201,8 +202,28 @@ function HUDController._bindExtras(self: Self)
 	local sink = topLeft:FindFirstChild("WalletSink")
 	local open = false
 	local shown: { [string]: number } = {}
+	-- height = padding + header + one row per currency showing (from the Studio layout)
+	local list = wallet:FindFirstChildOfClass("UIListLayout")
+	local padding = wallet:FindFirstChildOfClass("UIPadding")
+	local header = wallet:FindFirstChild("Header")
+	local gap = if list then list.Padding.Offset else 4
+	local function fit(rows: { GuiObject })
+		local h = (if padding then padding.PaddingTop.Offset + padding.PaddingBottom.Offset else 0)
+			+ (if header then header.Size.Y.Offset else 0)
+		for _, row in rows do
+			h += gap + row.Size.Y.Offset
+		end
+		-- keep the top edge where it is (Juice.Pop may have centred the anchor)
+		local top = wallet.Position.Y.Offset - wallet.AnchorPoint.Y * wallet.Size.Y.Offset
+		wallet.Size = UDim2.new(wallet.Size.X.Scale, wallet.Size.X.Offset, 0, h)
+		wallet.Position = UDim2.new(wallet.Position.X.Scale, wallet.Position.X.Offset, wallet.Position.Y.Scale, top + wallet.AnchorPoint.Y * h)
+		if shadow then
+			shadow.Size = UDim2.new(shadow.Size.X.Scale, shadow.Size.X.Offset, 0, h)
+		end
+	end
 	local function paint()
 		local total = 0
+		local rows = {}
 		for _, currency in Currencies.Wallet do
 			local key = currency.Id
 			local n = Currencies.Count(LOCAL_PLAYER, key)
@@ -212,6 +233,9 @@ function HUDController._bindExtras(self: Self)
 			end
 			row.Visible = n > 0
 			row.Count.Text = tostring(n)
+			if n > 0 then
+				table.insert(rows, row)
+			end
 			total += n
 			if shown[key] and n > shown[key] then
 				Juice.Pop(tab, 0.25) -- a new one landed
@@ -221,6 +245,7 @@ function HUDController._bindExtras(self: Self)
 		if total == 0 then
 			open = false
 		end
+		fit(rows)
 		tab.Visible = total > 0
 		tab.Count.Text = `+{total}`
 		tab.Chevron.Rotation = if open then 180 else 0

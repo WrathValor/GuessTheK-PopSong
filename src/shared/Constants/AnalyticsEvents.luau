@@ -49,6 +49,9 @@ AnalyticsEvents.Custom = {
 	GroupRewardClaimed = {},
 	CodeRedeemed = { Fields = { "Code" } }, -- value: coins
 	SettingChanged = { Fields = { "Setting", "Value" } },
+	BadgeEarned = { Fields = { "Badge" } }, -- Constants/BadgeCatalog Key
+	QuestSwapped = { Fields = { "From", "To" } }, -- the daily quest swap
+	LevelRewardClaimed = { Fields = { "Level" } }, -- value: coins
 
 	-- [[ From the client ]]
 	ScreenOpened = { Fields = { "Screen" }, Client = true, Allowed = {
@@ -58,6 +61,10 @@ AnalyticsEvents.Custom = {
 		Tab = { "Featured", "Sets", "Items", "Songs", "UGC", "Coins" },
 	} },
 	SoloPickerOpened = { Client = true },
+	-- the Save Streak popup answered (value: the streak on offer); shown = ScreenOpened SaveStreak
+	SaveStreakOffer = { Fields = { "Result" }, Client = true, Allowed = {
+		Result = { "Bought", "Cancelled", "NoThanks" },
+	} },
 	GroupJoinPrompt = { Fields = { "Result" }, Client = true, Allowed = {
 		Result = { "Joined", "AlreadyMember", "Pending", "Cancelled", "Error" },
 	} },

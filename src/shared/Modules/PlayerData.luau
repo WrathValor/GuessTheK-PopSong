@@ -95,6 +95,33 @@ do
 	end
 end
 
+-- bundles: tickets + upgrades + coins, and the Headliner's stage + mic (ShopCatalog.Bundles)
+for _, bundle in ShopCatalog.Bundles do
+	if (bundle.ProductId or 0) > 0 then
+		Products[bundle.Id] = {
+			Id = bundle.ProductId,
+			Category = "Bundle",
+			Grant = function(data)
+				data.Rewards.Bundles[bundle.Id].Increment(1) -- (the shop stops at bundle.Limit)
+				for _, kind in { "Tickets", "Upgrades" } do
+					if (bundle[kind] or 0) > 0 then
+						Currencies.Data(data, kind).Increment(bundle[kind])
+					end
+				end
+				if (bundle.Coins or 0) > 0 then
+					data.Currencies.Won.Increment(bundle.Coins)
+				end
+				if bundle.Stage and not data.Inventory.Stages.Has(bundle.Stage) then
+					data.Inventory.Stages.Add(bundle.Stage)
+				end
+				if bundle.Mic and not data.Inventory.Mics.Has(bundle.Mic) then
+					data.Inventory.Mics.Add(bundle.Mic)
+				end
+			end,
+		}
+	end
+end
+
 --| Template
 
 return Scribe({
@@ -162,6 +189,7 @@ return Scribe({
 			DailyStreak = Count(), -- consecutive days claimed
 			LastDailyClaim = Count(), -- os.time() of the last daily claim (0 = never)
 			Claimed = Scribe.SetOf(Id(40)), -- one-off rewards already collected ("Group", codes…)
+			Bundles = Scribe.MapOf("string", Count(), { MaxKeys = 20, MaxKeyLength = 20 }), -- times each ShopCatalog.Bundles entry was bought
 			-- daily quests (Constants/RewardsCatalog): counters for QuestDay only, reset each UTC day
 			QuestDay = Count(),
 			Quest = {
@@ -175,6 +203,24 @@ return Scribe({
 				NewSongs = Count(),
 			},
 			QuestClaimed = Scribe.SetOf(Id(20)), -- quest Ids claimed today, plus "Bonus"
+			-- today's one quest swap (RewardsCatalog.DailyQuests): the quest swapped out and in
+			-- ("" = no swap yet today). Cleared with the day.
+			QuestSwapFrom = Id(20),
+			QuestSwapTo = Id(20),
+			-- weekly quests (RewardsCatalog.WeeklyFor): counters for QuestWeek only, reset Mondays
+			QuestWeek = Scribe.Int(0), -- (week numbers can be negative in theory; Count() can't)
+			WeekQuest = {
+				Correct = Count(),
+				Wins = Count(),
+				WinRun = Count(),
+				BestRun = Count(),
+				Duels = Count(),
+				Solo = Count(),
+				Perfect = Count(),
+				NewSongs = Count(),
+			},
+			WeekClaimed = Scribe.SetOf(Id(20)), -- weekly quest Ids claimed this week, plus "Bonus"
+			LevelClaimed = Scribe.SetOf(Id(8)), -- level rewards claimed (RewardsCatalog.LEVEL_REWARDS), as "5", "10"…
 		},
 
 		Settings = {

@@ -21,6 +21,7 @@ local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Client
 local Packs = require(ReplicatedStorage.Modules.Library.Packs)
 local Cards = require(ReplicatedStorage.Modules.Library.Cards)
 local TierShine = require(ReplicatedStorage.Modules.UI.TierShine)
+local Levels = require(ReplicatedStorage.Modules.Levels)
 local GroupArt = require(ReplicatedStorage.Modules.UI.GroupArt)
 local ShopCatalog = require(ReplicatedStorage.Constants.ShopCatalog)
 local CosmeticView = require(ReplicatedStorage.Modules.UI.CosmeticView)
@@ -258,7 +259,8 @@ function Inventory:_fillCard(holder: Frame, item)
 		art.TitleArt.Player.Text = Players.LocalPlayer.DisplayName
 		local chip = art.TitleArt.Chip
 		chip.Text = item.Name
-		TierShine.Apply(chip, chip.Rainbow, item.Tier, YELLOW) -- Gold shines, Rainbow scrolls
+		-- Gold shines, Rainbow scrolls; still level titles wear their colour (Levels.TITLE_COLOURS)
+		TierShine.Apply(chip, chip.Rainbow, item.Tier, Levels.TITLE_COLOURS[item.Name] or YELLOW)
 	else
 		-- three stacked photocards in the pack's colours, its initials on the front one
 		art.BackgroundColor3 = C("EFEAFF")

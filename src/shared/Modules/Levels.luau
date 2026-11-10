@@ -8,6 +8,12 @@
 --
 -- Level titles: reaching a level in TITLES unlocks that title (DataService grants it into
 -- Inventory.Titles; equip it in the Inventory). "Fan" is everyone's default.
+-- TITLE_TIERS: level titles that come animated (a title tier, Modules/UI/TierShine: "Gold"
+-- shines, "Rainbow" scrolls). DataService sets it in Inventory.TitleTiers with the title, so
+-- name tags, the profile and the Inventory all animate it.
+-- TITLE_COLOURS: the chip colour of each still level title (TitleChip, the Inventory, the
+-- Rewards cards, the "YOU GOT!" reveal). Warmer as you level, two titles per colour so each
+-- colour reads as a stage ("Level title colours" board). Fan keeps the default lilac.
 
 local BASE = 100
 local STEP = 150
@@ -28,6 +34,23 @@ Levels.TITLES = table.freeze({
 	{ Level = 65, Title = "Ace" },
 	{ Level = 80, Title = "Icon" },
 	{ Level = 100, Title = "Legend" },
+})
+
+Levels.TITLE_TIERS = table.freeze({
+	Icon = "Gold", -- level 80: the gold shine
+	Legend = "Rainbow", -- level 100
+})
+
+Levels.TITLE_COLOURS = table.freeze({
+	Trainee = Color3.fromHex("A7E9B8"), -- mint
+	Rookie = Color3.fromHex("A7E9B8"),
+	Idol = Color3.fromHex("9ED8F5"), -- blue
+	Maknae = Color3.fromHex("9ED8F5"),
+	Visual = Color3.fromHex("FF9EC4"), -- pink
+	Center = Color3.fromHex("FF9EC4"),
+	Leader = Color3.fromHex("FFB38A"), -- peach
+	Ace = Color3.fromHex("FFE07A"), -- yellow
+	Icon = Color3.fromHex("FFE07A"), -- (shows its Gold tier)
 })
 
 -- Every level title unlocked at `level` (lowest first).

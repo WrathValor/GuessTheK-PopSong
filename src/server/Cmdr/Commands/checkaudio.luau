@@ -10,41 +10,20 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SoundService = game:GetService("SoundService")
 local ContentProvider = game:GetService("ContentProvider")
 
+local SongClips = require(ReplicatedStorage.Modules.SongClips)
+
 local LOAD_TIMEOUT = 10 -- seconds per song
 local PARALLEL = 6
 
--- every song from the library modules (Songs/<Company>/<Group>), drafts included when asked
+-- every song from the library modules (Songs/<Company>/<Group>, server only), drafts included
+-- when asked: the server sends their clips to admins (Engine/SongService)
 local function allSongs(withDrafts: boolean)
-	local out = {}
-	local root = ReplicatedStorage.Modules.Library.Songs
-	for _, folder in root:GetChildren() do
-		if folder:IsA("Folder") then
-			for _, module in folder:GetChildren() do
-				if module:IsA("ModuleScript") then
-					local ok, group = pcall(require, module)
-					if ok and type(group) == "table" and type(group.Songs) == "table" then
-						for _, song in group.Songs do
-							if withDrafts or not song.Draft then
-								table.insert(out, {
-									Label = `{song.Name} - {group.Group or module.Name}`,
-									File = `{folder.Name}/{module.Name}`,
-									Song = song,
-								})
-							end
-						end
-					end
-				end
-			end
-		end
-	end
-	table.sort(out, function(a, b)
-		return a.Label < b.Label
-	end)
-	return out
+	local _, list = SongClips.All(withDrafts):await()
+	return list or {}
 end
 
 local function check(entry): (string?, string?)
-	local song = entry.Song
+	local song = entry.Clip
 	local id = song.MusicId
 	if type(id) ~= "string" or id == "" then
 		return "FAIL", "no MusicId"
@@ -104,8 +83,8 @@ local function run(context, withDrafts: boolean)
 				kind, why = "FAIL", `check errored: {kind}`
 			end
 			if kind then
-				local draft = if entry.Song.Draft then " [draft]" else ""
-				table.insert(results[kind], `{kind}  {entry.Label}{draft}  ({entry.File})  {why}  {entry.Song.MusicId or ""}`)
+				local draft = if entry.Draft then " [draft]" else ""
+				table.insert(results[kind], `{kind}  {entry.Label}{draft}  ({entry.File})  {why}  {entry.Clip.MusicId or ""}`)
 			end
 			done += 1
 		end

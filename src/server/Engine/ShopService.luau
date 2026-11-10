@@ -40,6 +40,11 @@ end
 
 local busy: { [Player]: boolean } = {}
 
+-- VIP Pass: the next rotation is buyable early (ShopCatalog.VIP_EARLY_SECONDS)
+local function vip(data): boolean
+	return data.GamePasses.Has("VIP") == true
+end
+
 local function reply(player: Player, packet, ok: boolean, text: string)
 	ShopRemote:Fire(player, {
 		Message = "Result",
@@ -78,7 +83,7 @@ local function buySet(player: Player, data, packet)
 	if data.Inventory.Sets.Has(set.Id) then
 		return reply(player, packet, false, "You already own it")
 	end
-	if not ShopCatalog.IsForSale(set.Id) then
+	if not (ShopCatalog.IsForSale(set.Id) or (vip(data) and ShopCatalog.IsForSale(set.Id, ShopCatalog.ShopTime(true)))) then
 		return reply(player, packet, false, "That set has left the shop")
 	end
 	local stage, mic = ShopCatalog.SetPieces(set)
@@ -135,7 +140,7 @@ local function buyItem(player: Player, data, packet)
 	if data.Inventory[paths.Owned].Has(item.Id) then
 		return reply(player, packet, false, "You already own it")
 	end
-	if not ShopCatalog.ItemForSale(packet.Kind, item.Id) then
+	if not (ShopCatalog.ItemForSale(packet.Kind, item.Id) or (vip(data) and ShopCatalog.ItemForSale(packet.Kind, item.Id, ShopCatalog.ShopTime(true)))) then
 		return reply(player, packet, false, "That item has left the shop")
 	end
 	local ok = spend(player, data, item.Price, function()
@@ -188,7 +193,7 @@ local function buyStyle(player: Player, data, packet)
 	if not spec or not (kind == "Set" or STYLE[kind]) then
 		return reply(player, packet, false, "That isn't in the shop")
 	end
-	if not ShopCatalog.StyleForSale(id) then
+	if not (ShopCatalog.StyleForSale(id) or (vip(data) and ShopCatalog.StyleForSale(id, ShopCatalog.ShopTime(true)))) then
 		return reply(player, packet, false, "That has left the shop")
 	end
 	local want = {}

@@ -20,6 +20,10 @@
 --   Leave · Ready { On } · Start · Settings { Mode?, Spots?, Boost?, FriendsOnly?, Spectators? }
 --   Pool { All = true } | { Groups = { name }, Out = { songId } } · InviteList · Invite { Target }
 --   Answer { Stage, Accept } (an invite) · Ask { Stage } · Request { UserId, Accept } (host)
+-- Invites follow the duel-invite rules (Engine/InviteService): only to players with invites on
+-- who haven't blocked the host (or been blocked), one standing invite per player, and a
+-- decline keeps the host from re-inviting them for INVITE_COOLDOWN. A blocked pair can't send
+-- join requests either.
 --   MakeHost { UserId } · Remove { UserId, Block } · Spectate { Stage } · StopWatching
 -- server → client ({ Message = … }):
 --   State { … }  (the whole lobby: see statePacket) · Left { Reason }
@@ -41,6 +45,7 @@ local Duels = require(script.Parent.DuelService.Duels)
 local Rewards = require(script.Parent.DuelService.Rewards)
 local StageCosmetics = require(script.Parent.DuelService.StageCosmetics)
 local Analytics = require(script.Parent.Analytics)
+local SettingsService = require(script.Parent.SettingsService)
 local Layout = require(script.Layout)
 local Sign = require(script.Sign)
 
@@ -63,6 +68,7 @@ PartyService.PlayerParty = {} :: { [Player]: any }
 local lastAction: { [Player]: number } = {}
 local watching: { [Player]: any } = {}
 local declined: { [string]: number } = {} -- "<host>:<asker>" → until
+local inviteDeclined: { [string]: number } = {} -- "<host>:<target>" → until (a declined invite)
 
 --| Helpers
 
@@ -709,6 +715,10 @@ local function inviteList(party, player: Player)
 			status = "Busy"
 		elseif party.Invited[other.UserId] and party.Invited[other.UserId] > os.clock() then
 			status = "Sent"
+		elseif not SettingsService.AcceptsInvitesFrom(other, player) then
+			status = "Off"
+		elseif (inviteDeclined[`{player.UserId}:{other.UserId}`] or 0) > os.clock() then
+			status = "Cooldown"
 		end
 		table.insert(list, {
 			UserId = other.UserId,
@@ -736,6 +746,17 @@ local function invite(party, player: Player, targetId: any)
 		toast(player, "They can't join right now")
 		return
 	end
+	if not SettingsService.AcceptsInvitesFrom(target, player) then
+		toast(player, `{target.DisplayName} has invites off`)
+		return
+	end
+	if (party.Invited[target.UserId] or 0) > os.clock() then
+		return -- already invited: one standing invite each
+	end
+	if (inviteDeclined[`{player.UserId}:{target.UserId}`] or 0) > os.clock() then
+		toast(player, `{target.DisplayName} said not now · try again in a bit`)
+		return
+	end
 	party.Blocked[target.UserId] = nil -- inviting someone lifts a block
 	party.Invited[target.UserId] = os.clock() + PartyConstants.INVITE_TIME
 	local okFriend, friend = pcall(target.IsFriendsWith, target, player.UserId)
@@ -757,10 +778,23 @@ end
 
 local function answerInvite(player: Player, stageName: any, accept: boolean)
 	local party = PartyService.Stages[stageName]
-	if not party or not accept then
+	if not party then
 		return
 	end
 	local until_ = party.Invited[player.UserId]
+	if not accept then
+		-- a no: the host can't re-invite them for a while, and hears about it
+		if until_ and until_ > os.clock() then
+			party.Invited[player.UserId] = nil
+			local who = host(party)
+			if who then
+				inviteDeclined[`{who.UserId}:{player.UserId}`] = os.clock() + PartyConstants.INVITE_COOLDOWN
+				toast(who, `{player.DisplayName} said not now`)
+				inviteList(party, who)
+			end
+		end
+		return
+	end
 	if not until_ or until_ < os.clock() then
 		PartyRemote:Fire(player, { Message = "InviteGone" })
 		return
@@ -774,6 +808,10 @@ local function ask(player: Player, stageName: any)
 	local party = PartyService.Stages[stageName]
 	local who = party and host(party)
 	if not who or PartyService.PlayerParty[player] then
+		return
+	end
+	if SettingsService.Blocks(who, player) then
+		toast(player, "This stage isn't taking requests")
 		return
 	end
 	local k = `{who.UserId}:{player.UserId}`

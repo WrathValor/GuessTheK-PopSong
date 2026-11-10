@@ -1,5 +1,6 @@
 --| Song Tuner (Studio plugin)
--- Pick a company tab, then a song from Library/Songs/<Company>/<Group>, play it, adjust its
+-- Pick a company tab, then a song from ServerScriptService.Songs/<Company>/<Group> (the song
+-- library is server only: src/server/Songs), play it, adjust its
 -- start (TimePosition), chorus (ChorusPosition), PlaybackSpeed and Volume while you listen,
 -- preview the tier lengths, then Save writes the values back into that song's entry in its
 -- group module.
@@ -7,13 +8,13 @@
 -- Install: right-click the SongTuner script in ServerStorage → "Save as Local Plugin…".
 
 local ContentProvider = game:GetService("ContentProvider")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
 local ScriptEditorService = game:GetService("ScriptEditorService")
 local ChangeHistoryService = game:GetService("ChangeHistoryService")
 local SoundService = game:GetService("SoundService")
 local RunService = game:GetService("RunService")
 
--- tabs = the company folders under Library/Songs (read when the widget opens; ↻ re-reads)
+-- tabs = the company folders under ServerScriptService.Songs (read when the widget opens; ↻ re-reads)
 local TIERS = { 0.1, 0.5, 2, 8, 15 }
 
 -- --------------------------------- Theme ---------------------------------- --
@@ -267,9 +268,7 @@ local function fmt(n: number): string
 end
 
 local function songsFolder(): Instance?
-	local lib = ReplicatedStorage:FindFirstChild("Modules")
-	lib = lib and lib:FindFirstChild("Library")
-	return lib and lib:FindFirstChild("Songs")
+	return ServerScriptService:FindFirstChild("Songs")
 end
 
 local function companyFolder(): Instance?
@@ -456,7 +455,7 @@ local function loadFile(name: string)
 	songs = {}
 	local folder = companyFolder()
 	if not folder then
-		setStatus(`Couldn't find Library.Songs.{name}`, BAD)
+		setStatus(`Couldn't find ServerScriptService.Songs.{name}`, BAD)
 		return
 	end
 	-- every song of every group in this company; each remembers its module + position

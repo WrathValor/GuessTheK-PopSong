@@ -8,6 +8,8 @@
 -- TOUCH_SCALE (a fixed-pixel tag covers far more of a small screen). Your own tag shows too, at SELF_SCALE: it
 -- sits in the middle of your screen, so full size would cover a lot of the view.
 -- Streak comes from the "Streak" player attribute, which DataService mirrors from PlayerData.
+-- VIP Pass owners (the "VIP" attribute) get a gold plate and the ★ VIP chip in front of their
+-- title: the chip is the ReplicatedStorage.Assets.VIPTag instance (made in Studio), cloned in.
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -17,6 +19,7 @@ local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 local TitleChip = require(ReplicatedStorage.Modules.UI.TitleChip)
 
 local LOCAL_PLAYER = Players.LocalPlayer
+local VIP_TAG = ReplicatedStorage:WaitForChild("Assets"):WaitForChild("VIPTag", 10) :: Frame?
 
 local C = Color3.fromHex
 local INK = C("1E1B2E")
@@ -117,6 +120,12 @@ local function refresh(player: Player)
 		return
 	end
 	bb.Enabled = not player:GetAttribute("InDuel")
+	local vip = player:GetAttribute("VIP") == true
+	local vipChip = bb.Plate.Face:FindFirstChild("VIP")
+	if vipChip then
+		vipChip.Visible = vip
+	end
+	bb.Plate.Face.BackgroundColor3 = if vip and VIP_TAG then VIP_TAG:GetAttribute("PlateColour") or WHITE else WHITE
 	local title = player:GetAttribute("Title")
 	local titleChip = bb.Plate.Face:FindFirstChild("Title")
 	if titleChip then
@@ -169,6 +178,14 @@ local function build(player: Player, character: Model)
 	}, plateFace)
 	plateFace:FindFirstChildOfClass("UIPadding").PaddingLeft = UDim.new(0, 8)
 	-- the title chip (shared/Modules/UI/TitleChip)
+	-- ★ VIP chip (VIP Pass), first in the row
+	if VIP_TAG then
+		local vipChip = VIP_TAG:Clone()
+		vipChip.Name = "VIP"
+		vipChip.LayoutOrder = 0
+		vipChip.Visible = false
+		vipChip.Parent = plateFace
+	end
 	local titleChip = TitleChip.new(plateFace, { Name = "Title", LayoutOrder = 1, Height = 20, TextSize = 13, Font = MULT_FONT, ZIndex = 3 })
 	titleChip.Visible = false
 	local nameLabel = label(plateFace, player.DisplayName, 17, PLATE_H)
@@ -234,6 +251,9 @@ local function track(player: Player)
 		refresh(player)
 	end)
 	player:GetAttributeChangedSignal("TitleTier"):Connect(function()
+		refresh(player)
+	end)
+	player:GetAttributeChangedSignal("VIP"):Connect(function()
 		refresh(player)
 	end)
 	player.CharacterAdded:Connect(function(character)

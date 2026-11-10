@@ -1,10 +1,19 @@
 --| Rewards UI builder
--- Builds Interface.Frames.Rewards from the "Rewards" design board: salmon header with a
--- "n ready to claim" chip, then one scrolling body with three sections:
---   Daily login  – streak chip, progress track with 7 dots, 7 day cards (coin stack, amount, button)
---   Daily quests – reset countdown, 3 quest cards (progress bar, reward, button), bonus bar
---   Group reward – the one-time group card
--- Run once in Studio (an existing frame is kept as ServerStorage.Rewards_Legacy);
+-- Builds Interface.Frames.Rewards from the "Rewards — Level rewards" + "Rewards — Quests" boards
+-- (Song Index Redesign canvas): salmon header with a "n ready to claim" chip, then one scrolling
+-- body of four sections, top to bottom (Content has a UIListLayout; RewardsController sizes the
+-- Quests section to its row count):
+--   Levels  – level chip + XP bar, ‹ page › + CLAIM ALL, a track with a node per card, six level
+--             cards (LV n, state chip, its one reward: art + amount, CLAIM / ✓ CLAIMED)
+--   Quests  – Daily | Weekly tabs (with ready badges), reset chip, up to 4 quest rows (icon tile,
+--             title + hint, progress bar, reward chips, CLAIM / ✓ CLAIMED / SWAP QUEST), bonus bar
+--   Daily   – daily login: streak chip, track with 7 dots, 7 shorter day cards
+--   Group   – the one-time group card
+-- Every picture is the game's own: the shop's coin pile, the currency icons (Constants/
+-- Currencies), the season icon sheet (SeasonConstants.ICONS) and the UI atlas (gtks_atlas0).
+-- Claim buttons follow the Season Track: mint CLAIM, cream ✓ CLAIMED, same size.
+-- Run once in Studio (an existing frame is kept as ServerStorage.Rewards_Legacy):
+--   require(<this module>).Build(game.StarterGui.Interface.Frames)
 -- RewardsController finds everything by name.
 
 local C = Color3.fromHex
@@ -22,19 +31,53 @@ local HEAD = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeigh
 local BODY = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.ExtraBold)
 local BODY_BOLD = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.Bold)
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Currencies = require(ReplicatedStorage.Constants.Currencies)
+local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
+local ShopCatalog = require(ReplicatedStorage.Constants.ShopCatalog)
+
 local CLOSE_ICON = "rbxassetid://118345756178429"
-local COIN = require(game:GetService("ReplicatedStorage").Constants.Currencies).Coins.Icon -- same coin as the HUD + shop
+local COIN = Currencies.Coins.Icon -- same coin as the HUD + shop
 local COIN_STACK = "rbxassetid://83386580979392" -- one thick coin, side-on (the shop's bundle art)
 local ATLAS = "rbxassetid://87950570350196" -- gtks_atlas0
+local LILAC = C("B9A6FF")
+local SAND = C("F3EEE5") -- ✓ CLAIMED buttons
 
 local Build = {}
 Build.DAYS = 7
-Build.QUESTS = 3
+Build.QUESTS = 3 -- daily quests
+Build.QUEST_ROWS = 4 -- rows built (weekly has 4)
+Build.LEVEL_CARDS = 6
+Build.ROW_H, Build.ROW_GAP = 78, 12
+Build.ATLAS = ATLAS
+-- the icons the controller paints with (all already in the game)
+Build.ICONS = {
+	Coins = COIN,
+	Tickets = Currencies.Tickets.Icon,
+	Upgrades = Currencies.Upgrades.Icon,
+	Pile = ShopCatalog.CoinBundles[2].Pile, -- the shop's coin pile (the Season Track's coin art)
+	Title = SeasonConstants.ICONS.Title,
+	Daily = SeasonConstants.ICONS.Daily,
+	Weekly = SeasonConstants.ICONS.Weekly,
+}
+-- quest icon per stat: a season icon, or a cell in the UI atlas ({ image, rect offset })
+Build.QUEST_ICONS = {
+	Correct = { SeasonConstants.ICONS.Correct },
+	Wins = { SeasonConstants.ICONS.Win },
+	BestRun = { SeasonConstants.ICONS.Streak },
+	Duels = { SeasonConstants.ICONS.Duel },
+	Solo = { SeasonConstants.ICONS.Solo },
+	Perfect = { SeasonConstants.ICONS.Perfect },
+	NewSongs = { ATLAS, Vector2.new(0, 200) }, -- i_cards
+}
+Build.QUEST_TILE = { Correct = "9ED8F5", Wins = "FFB38A", BestRun = "FFD2CE", Duels = "B9A6FF", Solo = "A7E9B8", Perfect = "FFE07A", NewSongs = "DCD3FF" }
+Build.REWARD_CHIP = { Coins = "FFE07A", Tickets = "FF9EC4", Upgrades = "A7E9B8" }
+Build.ART_BG = { Coins = "FFE07A", Tickets = "DCD3FF", Upgrades = "9ED8F5", Title = "CDEBFA" }
 -- each day card shows one pile of coins, one coin taller per day (2 on day 1 … 8 on day 7),
 -- each coin nudged a little left/right like the original design
 Build.MAX_STACKS = 8
 Build.DAY_STACKS = { 2, 3, 4, 5, 6, 7, 8 }
-Build.COIN_W, Build.COIN_H, Build.COIN_STEP = 58, 35, 12
+Build.COIN_W, Build.COIN_H, Build.COIN_STEP = 50, 30, 8
 
 local function new(className: string, props: { [string]: any }, parent: Instance?): any
 	local inst = Instance.new(className)
@@ -106,15 +149,6 @@ local function pill(parent: Instance, name: string, label: string, colour: Color
 	stroke(c, 2)
 	pad(c, 12)
 	return c
-end
-
--- a coin icon tucked into a reward chip's left padding
-local function coinChip(chip: TextLabel)
-	local p = chip:FindFirstChildOfClass("UIPadding")
-	if p then
-		p.PaddingLeft = UDim.new(0, 32)
-	end
-	new("ImageLabel", { Name = "Coin", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, -24, 0.5, 0), Size = UDim2.fromOffset(20, 20), BackgroundTransparency = 1, Image = COIN }, chip)
 end
 
 local function button(parent: Instance, name: string, pos: UDim2, size: UDim2, label: string): TextButton
@@ -205,6 +239,322 @@ function Build.GroupRewards(group: Instance)
 	text(group, "Sub", { Position = UDim2.fromOffset(tx, 62), Size = UDim2.new(1, -tx - 180, 0, 34), FontFace = BODY_BOLD, TextSize = 13, TextWrapped = true, TextYAlignment = Enum.TextYAlignment.Top, Text = "500 coins, the Group Exclusive stage and the Supporter title. Join our Roblox group, then claim. One time only." })
 end
 
+-- a reward chip: a pastel pill with the currency icon in its left padding (RewardsController
+-- sets the colour, icon and "+75")
+local function rewardChip(parent: Instance, name: string, order: number, h: number): TextLabel
+	local c = text(parent, name, {
+		LayoutOrder = order,
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, h),
+		BackgroundTransparency = 0,
+		BackgroundColor3 = YELLOW,
+		FontFace = HEAD,
+		TextSize = 14,
+		TextTruncate = Enum.TextTruncate.None,
+		Text = "+100",
+	})
+	corner(c, 10)
+	stroke(c, 2)
+	new("UIPadding", { PaddingLeft = UDim.new(0, h + 2), PaddingRight = UDim.new(0, 10) }, c)
+	new("ImageLabel", { Name = "Icon", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, -h + 4, 0.5, 0), Size = UDim2.fromOffset(h - 8, h - 8), BackgroundTransparency = 1, Image = COIN, ScaleType = Enum.ScaleType.Fit }, c)
+	return c
+end
+
+-- Season Track claim button: mint CLAIM; RewardsController turns it cream for ✓ CLAIMED
+local function claimButton(parent: Instance, name: string, pos: UDim2, size: UDim2): TextButton
+	local b = new("TextButton", {
+		Name = name,
+		Position = pos,
+		Size = size,
+		BackgroundColor3 = MINT,
+		FontFace = HEAD,
+		TextSize = 14,
+		TextColor3 = INK,
+		Text = "CLAIM",
+		AutoButtonColor = false,
+	}, parent)
+	corner(b, 9)
+	stroke(b, 3)
+	return b
+end
+
+local function smallChip(parent: Instance, name: string, pos: UDim2, h: number, colour: Color3, label: string, anchor: Vector2?): TextLabel
+	local c = text(parent, name, {
+		AnchorPoint = anchor or Vector2.zero,
+		Position = pos,
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, h),
+		BackgroundTransparency = 0,
+		BackgroundColor3 = colour,
+		TextSize = 11,
+		TextTruncate = Enum.TextTruncate.None,
+		Text = label,
+	})
+	corner(c, math.floor(h * 0.36))
+	stroke(c, 2)
+	pad(c, 7)
+	return c
+end
+
+local function section(content: Instance, name: string, order: number, h: number): Frame
+	return new("Frame", { Name = name, LayoutOrder = order, Size = UDim2.fromOffset(Build.W, h), BackgroundTransparency = 1 }, content)
+end
+
+Build.W = 980
+Build.LEVEL_W, Build.LEVEL_GAP, Build.LEVEL_H = 150, 16, 226
+
+-- [[ Level rewards ]]
+local function levelsSection(content: Instance)
+	local W = Build.W
+	local s = section(content, "Levels", 1, 78 + Build.LEVEL_H + 6 + 26)
+	local h = heading(s, "Heading", 0, "Level rewards")
+	h.Size = UDim2.fromOffset(560, 34)
+	local lv = pill(h, "LevelChip", "LV 1", YELLOW, 2)
+	lv.FontFace = HEAD
+	local xp = new("Frame", { Name = "XPBar", LayoutOrder = 3, Size = UDim2.fromOffset(150, 14), BackgroundColor3 = WHITE, ClipsDescendants = true }, h)
+	corner(xp, 7)
+	stroke(xp, 2)
+	local xf = new("Frame", { Name = "Fill", Size = UDim2.fromScale(0.4, 1), BackgroundColor3 = LILAC, BorderSizePixel = 0 }, xp)
+	corner(xf, 5)
+	text(h, "XPText", { LayoutOrder = 4, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 18), FontFace = BODY_BOLD, TextSize = 13, TextColor3 = MUTED, TextTruncate = Enum.TextTruncate.None, Text = "0 / 100 XP" })
+
+	local pager = new("Frame", { Name = "Pager", AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 0, 0, 0), Size = UDim2.fromOffset(420, 34), BackgroundTransparency = 1 }, s)
+	new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Right, VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, pager)
+	for i, spec in { { "Prev", "‹" }, { "Next", "›" } } do
+		local b = new("TextButton", { Name = spec[1], LayoutOrder = if i == 1 then 1 else 3, Size = UDim2.fromOffset(34, 32), BackgroundColor3 = WHITE, FontFace = HEAD, TextSize = 20, TextColor3 = INK, Text = spec[2], AutoButtonColor = false }, pager)
+		corner(b, 9)
+		stroke(b, 3)
+	end
+	text(pager, "Page", { LayoutOrder = 2, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 32), TextSize = 13, TextXAlignment = Enum.TextXAlignment.Center, TextTruncate = Enum.TextTruncate.None, Text = "Levels 2–12 · 1/5" })
+	local all = claimButton(pager, "ClaimAll", UDim2.new(), UDim2.fromOffset(124, 32))
+	all.LayoutOrder = 4
+	all.Text = "CLAIM ALL"
+	all.TextSize = 13
+
+	-- the track: a line through the card centres, a node per card
+	local cw, gap = Build.LEVEL_W, Build.LEVEL_GAP
+	local track = new("Frame", { Name = "Track", Position = UDim2.fromOffset(0, 44), Size = UDim2.fromOffset(W, 24), BackgroundTransparency = 1 }, s)
+	local line = new("Frame", { Name = "Line", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, cw / 2, 0.5, 0), Size = UDim2.new(1, -cw, 0, 8), BackgroundColor3 = WHITE }, track)
+	corner(line, 4)
+	stroke(line, 2)
+	local fill = new("Frame", { Name = "Fill", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, cw / 2, 0.5, 0), Size = UDim2.fromOffset(300, 8), BackgroundColor3 = LILAC }, track)
+	corner(fill, 4)
+	stroke(fill, 2)
+	for i = 1, Build.LEVEL_CARDS do
+		local n = new("Frame", { Name = "Node" .. i, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0, (i - 1) * (cw + gap) + cw / 2, 0.5, 0), Size = UDim2.fromOffset(18, 18), BackgroundColor3 = WHITE, ZIndex = 2 }, track)
+		corner(n, UDim.new(0.5, 0))
+		stroke(n, 3)
+	end
+
+	local cards = new("Frame", { Name = "Cards", Position = UDim2.fromOffset(0, 78), Size = UDim2.fromOffset(W, Build.LEVEL_H + 6), BackgroundTransparency = 1 }, s)
+	for i = 1, Build.LEVEL_CARDS do
+		local holder = new("Frame", { Name = "Card" .. i, Position = UDim2.fromOffset((i - 1) * (cw + gap), 0), Size = UDim2.fromOffset(cw, Build.LEVEL_H), BackgroundTransparency = 1 }, cards)
+		local sh = new("Frame", { Name = "Shadow", Position = UDim2.fromOffset(5, 5), Size = UDim2.fromScale(1, 1), BackgroundColor3 = INK, BorderSizePixel = 0, Visible = false }, holder)
+		corner(sh, 14)
+		local face = new("Frame", { Name = "Face", Size = UDim2.fromScale(1, 1), BackgroundColor3 = WHITE }, holder)
+		corner(face, 14)
+		stroke(face, 3)
+		text(face, "Number", { Position = UDim2.fromOffset(10, 8), Size = UDim2.fromOffset(60, 22), FontFace = HEAD, TextSize = 16, Text = "LV 2" })
+		smallChip(face, "State", UDim2.new(1, -8, 0, 9), 20, WHITE, "LOCKED", Vector2.new(1, 0))
+		local art = new("Frame", { Name = "Art", Position = UDim2.fromOffset(10, 38), Size = UDim2.new(1, -20, 0, 92), BackgroundColor3 = YELLOW, ClipsDescendants = true }, face)
+		corner(art, 10)
+		stroke(art, 3)
+		-- coins: the shop's coin pile (drawn big, anchored on the coins like the Season Track)
+		new("ImageLabel", { Name = "Pile", AnchorPoint = Vector2.new(0.5, 0.64), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(150, 150), BackgroundTransparency = 1, Image = Build.ICONS.Pile, ScaleType = Enum.ScaleType.Fit }, art)
+		-- tickets / upgrades: the currency icon
+		new("ImageLabel", { Name = "Icon", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(70, 70), BackgroundTransparency = 1, Image = Build.ICONS.Tickets, ScaleType = Enum.ScaleType.Fit, Visible = false }, art)
+		-- title levels: your name with the title chip under it, like the Inventory
+		local ta = new("Frame", { Name = "TitleArt", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Visible = false }, art)
+		text(ta, "Player", { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 0.5, -2), Size = UDim2.new(1, -10, 0, 20), TextSize = 15, TextXAlignment = Enum.TextXAlignment.Center, Text = "Player" })
+		local tc = text(ta, "Chip", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0.5, 3), AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 26), BackgroundTransparency = 0, BackgroundColor3 = YELLOW, TextSize = 15, TextXAlignment = Enum.TextXAlignment.Center, TextTruncate = Enum.TextTruncate.None, Text = "Rookie" })
+		corner(tc, 6)
+		stroke(tc, 2)
+		pad(tc, 8)
+		new("UIGradient", { Name = "Rainbow", Rotation = 20, Enabled = false }, tc) -- animated titles (TierShine)
+		text(face, "Amount", { Position = UDim2.fromOffset(10, 136), Size = UDim2.new(1, -20, 0, 24), FontFace = HEAD, TextSize = 20, Text = "50" })
+		text(face, "Kind", { Position = UDim2.fromOffset(10, 160), Size = UDim2.new(1, -20, 0, 16), TextSize = 13, TextColor3 = MUTED, Text = "coins" })
+		claimButton(face, "Claim", UDim2.new(0, 10, 1, -10 - 30), UDim2.new(1, -20, 0, 30))
+	end
+end
+
+-- [[ Quests ]]
+
+-- Places the rows + bonus for `rows` quests and sizes the section (RewardsController calls it
+-- when the tab changes: daily has 3, weekly 4).
+function Build.LayoutQuests(s: Instance, rows: number)
+	local rowsH = rows * Build.ROW_H + (rows - 1) * Build.ROW_GAP
+	for i = 1, Build.QUEST_ROWS do
+		local r = s.Rows:FindFirstChild("Row" .. i)
+		local sh = s.Rows:FindFirstChild("Row" .. i .. "Shadow")
+		if r then
+			r.Visible = i <= rows
+		end
+		if sh then
+			sh.Visible = i <= rows
+		end
+	end
+	s.Rows.Size = UDim2.fromOffset(Build.W, rowsH + 4)
+	s.Bonus.Position = UDim2.fromOffset(0, 46 + rowsH + 16)
+	s.Size = UDim2.fromOffset(Build.W, 46 + rowsH + 16 + 72 + 4 + 26)
+end
+
+local function questsSection(content: Instance)
+	local W = Build.W
+	local s = section(content, "Quests", 2, 400)
+	local h = heading(s, "Heading", 0, "Quests")
+	h.Size = UDim2.fromOffset(W, 34)
+	local tabs = new("Frame", { Name = "Tabs", LayoutOrder = 2, Size = UDim2.fromOffset(240, 34), BackgroundTransparency = 1 }, h)
+	row(tabs, 8)
+	for i, spec in { { "Daily", "DAILY" }, { "Weekly", "WEEKLY" } } do
+		local t = new("TextButton", { Name = spec[1], LayoutOrder = i, Size = UDim2.fromOffset(112, 34), BackgroundColor3 = if i == 1 then INK else WHITE, FontFace = HEAD, TextSize = 13, TextColor3 = if i == 1 then YELLOW else INK, Text = spec[2], AutoButtonColor = false }, tabs)
+		corner(t, 10)
+		stroke(t, 3)
+		new("UIPadding", { PaddingLeft = UDim.new(0, 30), PaddingRight = UDim.new(0, 8) }, t)
+		new("ImageLabel", { Name = "Icon", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, -24, 0.5, 0), Size = UDim2.fromOffset(20, 20), BackgroundTransparency = 1, Image = Build.ICONS[spec[1]], ScaleType = Enum.ScaleType.Fit }, t)
+		local badge = text(t, "Badge", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(1, 8, 0, 0), Size = UDim2.fromOffset(22, 22), BackgroundTransparency = 0, BackgroundColor3 = RED, TextColor3 = WHITE, FontFace = HEAD, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Center, Text = "1", ZIndex = 3, Visible = false })
+		corner(badge, UDim.new(0.5, 0))
+		stroke(badge, 2)
+	end
+	local reset = pill(h, "Reset", "Resets in 5h 18m", WHITE, 3)
+	corner(reset, 8)
+	text(h, "Note", { LayoutOrder = 4, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 18), FontFace = BODY_BOLD, TextSize = 12, TextColor3 = MUTED, TextTruncate = Enum.TextTruncate.None, Text = "One free swap a day." })
+
+	local RW = W - 4
+	local rows = new("Frame", { Name = "Rows", Position = UDim2.fromOffset(0, 46), Size = UDim2.fromOffset(W, 300), BackgroundTransparency = 1 }, s)
+	for i = 1, Build.QUEST_ROWS do
+		local r = card(rows, "Row" .. i, UDim2.fromOffset(0, (i - 1) * (Build.ROW_H + Build.ROW_GAP)), UDim2.fromOffset(RW, Build.ROW_H), WHITE, 14, 4, 3)
+		local tileF = new("Frame", { Name = "Tile", Position = UDim2.fromOffset(13, 12), Size = UDim2.fromOffset(54, 54), BackgroundColor3 = C("9ED8F5") }, r)
+		corner(tileF, 12)
+		stroke(tileF, 3)
+		new("ImageLabel", { Name = "Icon", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(38, 38), BackgroundTransparency = 1, Image = SeasonConstants.ICONS.Win, ScaleType = Enum.ScaleType.Fit }, tileF)
+		text(r, "QuestTitle", { Position = UDim2.fromOffset(82, 14), Size = UDim2.fromOffset(290, 24), FontFace = HEAD, TextSize = 16, Text = "Quest" })
+		text(r, "Hint", { Position = UDim2.fromOffset(82, 40), Size = UDim2.fromOffset(290, 18), FontFace = BODY_BOLD, TextSize = 13, TextColor3 = MUTED, Text = "Hint" })
+		-- bar, count and reward chips share the row's centre line
+		local bar = new("Frame", { Name = "Bar", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 390, 0.5, 0), Size = UDim2.fromOffset(186, 14), BackgroundColor3 = WHITE, ClipsDescendants = true }, r)
+		corner(bar, 7)
+		stroke(bar, 2)
+		local f = new("Frame", { Name = "Fill", Size = UDim2.fromScale(0.5, 1), BackgroundColor3 = RED, BorderSizePixel = 0 }, bar)
+		corner(f, 5)
+		text(r, "Progress", { AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 586, 0.5, 0), Size = UDim2.fromOffset(62, 20), TextSize = 14, Text = "1 / 2" })
+		local rewards = new("Frame", { Name = "Rewards", Position = UDim2.fromOffset(660, 0), Size = UDim2.fromOffset(164, Build.ROW_H), BackgroundTransparency = 1 }, r)
+		row(rewards, 8)
+		rewardChip(rewards, "Chip1", 1, 30)
+		rewardChip(rewards, "Chip2", 2, 30)
+		claimButton(r, "Claim", UDim2.new(1, -14 - 128, 0.5, -16), UDim2.fromOffset(128, 32))
+		local swap = new("TextButton", { Name = "Swap", Position = UDim2.new(1, -14 - 128, 0.5, -16), Size = UDim2.fromOffset(128, 32), BackgroundColor3 = WHITE, FontFace = BODY, TextSize = 13, TextColor3 = INK, Text = "SWAP QUEST", AutoButtonColor = false, Visible = false }, r)
+		corner(swap, 9)
+		stroke(swap, 3)
+	end
+
+	local bonus = new("Frame", { Name = "Bonus", Position = UDim2.fromOffset(0, 330), Size = UDim2.fromOffset(RW, 72), BackgroundColor3 = PALE }, s)
+	corner(bonus, 14)
+	stroke(bonus, 3)
+	text(bonus, "BonusTitle", { Position = UDim2.fromOffset(16, 12), Size = UDim2.fromOffset(420, 22), FontFace = HEAD, TextSize = 15, Text = "BONUS · finish all 3 quests" })
+	-- a pip per quest (filled as they're claimed), then "1 of 3 claimed"
+	local pipsF = new("Frame", { Name = "Pips", Position = UDim2.fromOffset(16, 40), Size = UDim2.fromOffset(420, 20), BackgroundTransparency = 1 }, bonus)
+	row(pipsF, 7)
+	for i = 1, Build.QUEST_ROWS do
+		local p = new("Frame", { Name = "Pip" .. i, LayoutOrder = i, Size = UDim2.fromOffset(14, 14), BackgroundColor3 = WHITE }, pipsF)
+		corner(p, UDim.new(0.5, 0))
+		stroke(p, 2)
+	end
+	local sub = text(pipsF, "Sub", { LayoutOrder = 10, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 20), FontFace = BODY_BOLD, TextSize = 13, TextColor3 = MUTED, TextTruncate = Enum.TextTruncate.None, Text = "1 of 3 claimed" })
+	new("UIPadding", { PaddingLeft = UDim.new(0, 4) }, sub)
+	local br = new("Frame", { Name = "Rewards", AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -14 - 128 - 14, 0, 0), Size = UDim2.fromOffset(260, 72), BackgroundTransparency = 1 }, bonus)
+	new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Right, VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, br)
+	rewardChip(br, "Chip1", 1, 30)
+	rewardChip(br, "Chip2", 2, 30)
+	claimButton(bonus, "Claim", UDim2.new(1, -14 - 128, 0.5, -16), UDim2.fromOffset(128, 32))
+
+	Build.LayoutQuests(s, Build.QUESTS)
+end
+
+-- [[ Daily login ]]
+local function dailySection(content: Instance)
+	local W = Build.W
+	local CH = 204
+	local s = section(content, "Daily", 3, 86 + CH + 4 + 26)
+	local dh = heading(s, "Heading", 0, "Daily login")
+	local streak = pill(dh, "Streak", "Streak: day 3", WHITE, 2)
+	streak.Size = UDim2.fromOffset(0, 30)
+	text(dh, "Note", { LayoutOrder = 3, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 18), FontFace = BODY_BOLD, TextSize = 12, TextColor3 = MUTED, TextTruncate = Enum.TextTruncate.None, Text = "Miss a day and it resets." })
+
+	local dayW = (W - 6 * 12) / Build.DAYS
+	local track = new("Frame", { Name = "Track", Position = UDim2.fromOffset(dayW / 2, 44 + 9), Size = UDim2.fromOffset(W - dayW, 12), BackgroundColor3 = WHITE, ClipsDescendants = true }, s)
+	corner(track, 6)
+	stroke(track, 2)
+	local fill = new("Frame", { Name = "Fill", Size = UDim2.fromScale(0.33, 1), BackgroundColor3 = RED, BorderSizePixel = 0 }, track)
+	corner(fill, 4)
+	local dots = new("Frame", { Name = "Dots", Position = UDim2.fromOffset(0, 44), Size = UDim2.fromOffset(W, 30), BackgroundTransparency = 1 }, s)
+	for i = 1, Build.DAYS do
+		local d = new("Frame", { Name = "Dot" .. i, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset((i - 1) * (dayW + 12) + dayW / 2, 15), Size = UDim2.fromOffset(24, 24), BackgroundColor3 = WHITE }, dots)
+		corner(d, UDim.new(0.5, 0))
+		stroke(d, 3)
+	end
+
+	local days = new("Frame", { Name = "Days", Position = UDim2.fromOffset(0, 86), Size = UDim2.fromOffset(W, CH + 6), BackgroundTransparency = 1 }, s)
+	for i = 1, Build.DAYS do
+		local x = (i - 1) * (dayW + 12)
+		local holder = new("Frame", { Name = "Day" .. i, Position = UDim2.fromOffset(x, 0), Size = UDim2.fromOffset(dayW - 4, CH), BackgroundTransparency = 1 }, days)
+		local glow = new("Frame", { Name = "Glow", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.new(1, 12, 1, 12), BackgroundColor3 = YELLOW, Visible = false }, holder)
+		corner(glow, 20)
+		local face = card(holder, "Face", UDim2.new(), UDim2.fromScale(1, 1), C("EDE4D4"), 16, 4, 3)
+		text(face, "DayLabel", { Position = UDim2.fromOffset(0, 10), Size = UDim2.new(1, 0, 0, 18), FontFace = HEAD, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Center, Text = `DAY {i}` })
+		local coins = new("Frame", { Name = "Coins", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 30), Size = UDim2.fromOffset(64, 88), BackgroundTransparency = 1 }, face)
+		for k = 1, Build.MAX_STACKS do
+			-- same wobble as the design's ovals: alternate 3px, every third coin back 3px
+			local cx = 7 + ((k - 1) % 2) * 3 - (if (k - 1) % 3 == 2 then 3 else 0)
+			new("ImageLabel", {
+				Name = "Stack" .. k,
+				Position = UDim2.new(0, cx, 1, -Build.COIN_H - (k - 1) * Build.COIN_STEP),
+				Size = UDim2.fromOffset(Build.COIN_W, Build.COIN_H),
+				BackgroundTransparency = 1,
+				Image = COIN_STACK, -- one thick coin, side-on
+				ScaleType = Enum.ScaleType.Fit,
+				ZIndex = k, -- higher coins draw on top
+				Visible = k <= Build.DAY_STACKS[i],
+			}, coins)
+		end
+		text(face, "Amount", { Position = UDim2.fromOffset(0, 120), Size = UDim2.new(1, 0, 0, 22), FontFace = HEAD, TextSize = 20, TextXAlignment = Enum.TextXAlignment.Center, Text = "50" })
+		local unit = new("Frame", { Name = "Unit", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 143), Size = UDim2.fromOffset(56, 14), BackgroundTransparency = 1 }, face)
+		new("ImageLabel", { Name = "Coin", Size = UDim2.fromOffset(14, 14), BackgroundTransparency = 1, Image = COIN }, unit)
+		text(unit, "Label", { Position = UDim2.fromOffset(18, 0), Size = UDim2.fromOffset(38, 14), TextSize = 12, Text = "coins" })
+		claimButton(face, "Claim", UDim2.new(0, 8, 1, -10 - 30), UDim2.new(1, -16, 0, 30))
+		if i == Build.DAYS then
+			local big = text(holder, "Big", {
+				AnchorPoint = Vector2.new(1, 0),
+				Position = UDim2.new(1, 10, 0, -14),
+				AutomaticSize = Enum.AutomaticSize.X,
+				Size = UDim2.fromOffset(0, 22),
+				BackgroundTransparency = 0,
+				BackgroundColor3 = RED,
+				TextSize = 11,
+				TextTruncate = Enum.TextTruncate.None,
+				Rotation = 8,
+				Text = "BIG!",
+				ZIndex = 10,
+			})
+			corner(big, 8)
+			stroke(big, 2)
+			pad(big, 7)
+		end
+	end
+end
+
+-- [[ Group reward ]]
+local function groupSection(content: Instance)
+	local W = Build.W
+	local s = section(content, "GroupReward", 4, 42 + 120 + 4 + 6)
+	heading(s, "Heading", 0, "Group reward")
+	local group = card(s, "Group", UDim2.fromOffset(0, 42), UDim2.fromOffset(W - 4, 120), MINT, 16, 4, 3)
+	Build.GroupRewards(group)
+	local gs = new("Frame", { Name = "ClaimShadow", Position = UDim2.new(1, -20 - 140 + 4, 0.5, -25 + 4), Size = UDim2.fromOffset(140, 50), BackgroundColor3 = RED }, group)
+	corner(gs, 12)
+	local gb = button(group, "Claim", UDim2.new(1, -20 - 140, 0.5, -25), UDim2.fromOffset(140, 50), "CLAIM")
+	gb.TextSize = 16
+	gb:FindFirstChildOfClass("UIStroke").Thickness = 3
+end
+
 function Build.Build(frames: Instance)
 	local old = frames:FindFirstChild("Rewards")
 	if old then
@@ -247,162 +597,28 @@ function Build.Build(frames: Instance)
 	stroke(close, 3)
 	new("ImageLabel", { Name = "Icon", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(16, 16), BackgroundTransparency = 1, Image = CLOSE_ICON }, close)
 
-	-- scrolling body
-	local CANVAS_H = 910
+	-- scrolling body: the sections stack in Content (UIListLayout); the canvas follows
 	local body = new("ScrollingFrame", {
 		Name = "Body",
 		Position = UDim2.fromOffset(0, 67),
 		Size = UDim2.new(1, 0, 1, -67),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
-		CanvasSize = UDim2.fromOffset(0, CANVAS_H),
+		CanvasSize = UDim2.new(),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
 		ScrollingDirection = Enum.ScrollingDirection.Y,
 		ScrollBarThickness = 10,
 		ScrollBarImageColor3 = INK,
 		VerticalScrollBarInset = Enum.ScrollBarInset.Always,
 	}, panel)
-	local W = PW - 6 - 44 - 10
-	local content = new("Frame", { Name = "Content", Position = UDim2.fromOffset(22, 0), Size = UDim2.fromOffset(W, CANVAS_H), BackgroundTransparency = 1 }, body)
+	local content = new("Frame", { Name = "Content", Position = UDim2.fromOffset(22, 0), Size = UDim2.fromOffset(Build.W, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1 }, body)
+	new("UIListLayout", { FillDirection = Enum.FillDirection.Vertical, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 0) }, content)
+	new("UIPadding", { PaddingTop = UDim.new(0, 18), PaddingBottom = UDim.new(0, 14) }, content)
 
-	-- [[ Daily login ]]
-	local dh = heading(content, "DailyHeading", 18, "Daily login")
-	local streak = pill(dh, "Streak", "Streak: day 3", WHITE, 2)
-	streak.Size = UDim2.fromOffset(0, 30)
-	text(dh, "Note", { LayoutOrder = 3, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 18), FontFace = BODY_BOLD, TextSize = 12, TextColor3 = MUTED, TextTruncate = Enum.TextTruncate.None, Text = "Miss a day and it resets." })
-
-	local dayW = (W - 6 * 12) / Build.DAYS
-	local track = new("Frame", { Name = "Track", Position = UDim2.fromOffset(dayW / 2, 62 + 9), Size = UDim2.fromOffset(W - dayW, 12), BackgroundColor3 = WHITE, ClipsDescendants = true }, content)
-	corner(track, 6)
-	stroke(track, 2)
-	local fill = new("Frame", { Name = "Fill", Size = UDim2.fromScale(0.33, 1), BackgroundColor3 = RED, BorderSizePixel = 0 }, track)
-	corner(fill, 4)
-	local dots = new("Frame", { Name = "Dots", Position = UDim2.fromOffset(0, 62), Size = UDim2.fromOffset(W, 30), BackgroundTransparency = 1 }, content)
-	for i = 1, Build.DAYS do
-		local d = new("Frame", { Name = "Dot" .. i, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset((i - 1) * (dayW + 12) + dayW / 2, 15), Size = UDim2.fromOffset(26, 26), BackgroundColor3 = WHITE }, dots)
-		corner(d, UDim.new(0.5, 0))
-		stroke(d, 3)
-	end
-
-	local days = new("Frame", { Name = "Days", Position = UDim2.fromOffset(0, 112), Size = UDim2.fromOffset(W, 300), BackgroundTransparency = 1 }, content)
-	for i = 1, Build.DAYS do
-		local x = (i - 1) * (dayW + 12)
-		local holder = new("Frame", { Name = "Day" .. i, Position = UDim2.fromOffset(x, 0), Size = UDim2.fromOffset(dayW - 4, 292), BackgroundTransparency = 1 }, days)
-		local glow = new("Frame", { Name = "Glow", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.new(1, 12, 1, 12), BackgroundColor3 = YELLOW, Visible = false }, holder)
-		corner(glow, 20)
-		local face = card(holder, "Face", UDim2.new(), UDim2.fromScale(1, 1), C("EDE4D4"), 16, 4, 3)
-		text(face, "DayLabel", { Position = UDim2.fromOffset(0, 12), Size = UDim2.new(1, 0, 0, 20), FontFace = HEAD, TextSize = 15, TextXAlignment = Enum.TextXAlignment.Center, Text = `DAY {i}` })
-		local coins = new("Frame", { Name = "Coins", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 40), Size = UDim2.fromOffset(80, 128), BackgroundTransparency = 1 }, face)
-		for k = 1, Build.MAX_STACKS do
-			-- same wobble as the design's ovals: alternate 4px, every third coin back 4px
-			local x = 11 + ((k - 1) % 2) * 4 - (if (k - 1) % 3 == 2 then 4 else 0)
-			new("ImageLabel", {
-				Name = "Stack" .. k,
-				Position = UDim2.new(0, x, 1, -Build.COIN_H - (k - 1) * Build.COIN_STEP),
-				Size = UDim2.fromOffset(Build.COIN_W, Build.COIN_H),
-				BackgroundTransparency = 1,
-				Image = COIN_STACK, -- one thick coin, side-on
-				ScaleType = Enum.ScaleType.Fit,
-				ZIndex = k, -- higher coins draw on top
-				Visible = k <= Build.DAY_STACKS[i],
-			}, coins)
-		end
-		text(face, "Amount", { Position = UDim2.fromOffset(0, 172), Size = UDim2.new(1, 0, 0, 28), FontFace = HEAD, TextSize = 24, TextXAlignment = Enum.TextXAlignment.Center, Text = "50" })
-		local unit = new("Frame", { Name = "Unit", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 200), Size = UDim2.fromOffset(60, 16), BackgroundTransparency = 1 }, face)
-		new("ImageLabel", { Name = "Coin", Position = UDim2.fromOffset(0, 0), Size = UDim2.fromOffset(16, 16), BackgroundTransparency = 1, Image = COIN }, unit)
-		text(unit, "Label", { Position = UDim2.fromOffset(20, 0), Size = UDim2.fromOffset(40, 16), TextSize = 12, Text = "coins" })
-		button(face, "Claim", UDim2.new(0, 10, 1, -12 - 40), UDim2.new(1, -20, 0, 40), "CLAIM!")
-		if i == Build.DAYS then
-			local big = text(holder, "Big", {
-				AnchorPoint = Vector2.new(1, 0),
-				Position = UDim2.new(1, 10, 0, -14),
-				AutomaticSize = Enum.AutomaticSize.X,
-				Size = UDim2.fromOffset(0, 22),
-				BackgroundTransparency = 0,
-				BackgroundColor3 = RED,
-				TextSize = 11,
-				TextTruncate = Enum.TextTruncate.None,
-				Rotation = 8,
-				Text = "BIG!",
-				ZIndex = 10,
-			})
-			corner(big, 8)
-			stroke(big, 2)
-			pad(big, 7)
-		end
-	end
-
-	-- [[ Daily quests ]]
-	local qy = 112 + 300 + 30
-	local qh = heading(content, "QuestHeading", qy, "Daily quests")
-	local reset = pill(qh, "Reset", "Resets in 5h 18m", WHITE, 2)
-	corner(reset, 8)
-	local qW = (W - 2 * 14) / Build.QUESTS
-	local QH = 124 -- quest card height
-	local quests = new("Frame", { Name = "Quests", Position = UDim2.fromOffset(0, qy + 42), Size = UDim2.fromOffset(W, QH + 4), BackgroundTransparency = 1 }, content)
-	for i = 1, Build.QUESTS do
-		local q = card(quests, "Quest" .. i, UDim2.fromOffset((i - 1) * (qW + 14), 0), UDim2.fromOffset(qW - 4, QH), C("9ED8F5"), 16, 4, 3)
-		-- title / progress bar / reward chip + a compact button on the right
-		-- progress count sits on the title row so the bar can run the full width (same right
-		-- edge as the button below)
-		text(q, "QuestTitle", { Position = UDim2.fromOffset(16, 14), Size = UDim2.new(1, -32 - 56, 0, 22), TextSize = 16, Text = "Quest" })
-		local bar = new("Frame", { Name = "Bar", Position = UDim2.fromOffset(16, 48), Size = UDim2.new(1, -32, 0, 14), BackgroundColor3 = WHITE, ClipsDescendants = true }, q)
-		corner(bar, 7)
-		stroke(bar, 2)
-		local f = new("Frame", { Name = "Fill", Size = UDim2.fromScale(0.5, 1), BackgroundColor3 = RED, BorderSizePixel = 0 }, bar)
-		corner(f, 5)
-		text(q, "Progress", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -16, 0, 15), Size = UDim2.fromOffset(52, 20), TextSize = 14, TextXAlignment = Enum.TextXAlignment.Right, Text = "1 / 2" })
-		local reward = text(q, "Reward", {
-			Position = UDim2.fromOffset(16, 76),
-			AutomaticSize = Enum.AutomaticSize.X,
-			Size = UDim2.fromOffset(0, 32),
-			BackgroundTransparency = 0,
-			BackgroundColor3 = YELLOW,
-			FontFace = HEAD,
-			TextSize = 15,
-			TextTruncate = Enum.TextTruncate.None,
-			Text = "+100",
-		})
-		corner(reward, 10)
-		stroke(reward, 2)
-		pad(reward, 10)
-		coinChip(reward)
-		local qb = button(q, "Claim", UDim2.new(1, -16 - 116, 0, 76), UDim2.fromOffset(116, 32), "CLAIM!")
-		qb.TextSize = 13
-	end
-	local bonus = new("Frame", { Name = "Bonus", Position = UDim2.fromOffset(0, qy + 42 + QH + 4 + 12), Size = UDim2.fromOffset(W - 4, 66), BackgroundColor3 = PALE }, content)
-	corner(bonus, 14)
-	stroke(bonus, 3)
-	text(bonus, "BonusTitle", { Position = UDim2.fromOffset(16, 12), Size = UDim2.fromOffset(500, 20), FontFace = HEAD, TextSize = 15, Text = "BONUS · finish all 3 quests" })
-	text(bonus, "Sub", { Position = UDim2.fromOffset(16, 34), Size = UDim2.fromOffset(500, 18), FontFace = BODY_BOLD, TextSize = 13, TextColor3 = MUTED, Text = "1 of 3 done" })
-	local br = text(bonus, "Reward", {
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -16 - 116 - 12, 0.5, 0),
-		AutomaticSize = Enum.AutomaticSize.X,
-		Size = UDim2.fromOffset(0, 32),
-		BackgroundTransparency = 0,
-		BackgroundColor3 = YELLOW,
-		FontFace = HEAD,
-		TextSize = 15,
-		TextTruncate = Enum.TextTruncate.None,
-		Text = "+150",
-	})
-	corner(br, 10)
-	stroke(br, 2)
-	pad(br, 10)
-	coinChip(br)
-	local bb = button(bonus, "Claim", UDim2.new(1, -16 - 116, 0.5, -16), UDim2.fromOffset(116, 32), "CLAIM!")
-	bb.TextSize = 13
-
-	-- [[ Group reward ]]
-	local gy = qy + 42 + QH + 4 + 12 + 66 + 30
-	heading(content, "GroupHeading", gy, "Group reward")
-	local group = card(content, "Group", UDim2.fromOffset(0, gy + 42), UDim2.fromOffset(W - 4, 120), MINT, 16, 4, 3)
-	Build.GroupRewards(group)
-	local gs = new("Frame", { Name = "ClaimShadow", Position = UDim2.new(1, -20 - 140 + 4, 0.5, -25 + 4), Size = UDim2.fromOffset(140, 50), BackgroundColor3 = RED }, group)
-	corner(gs, 12)
-	local gb = button(group, "Claim", UDim2.new(1, -20 - 140, 0.5, -25), UDim2.fromOffset(140, 50), "CLAIM")
-	gb.TextSize = 16
-	gb:FindFirstChildOfClass("UIStroke").Thickness = 3
+	levelsSection(content)
+	questsSection(content)
+	dailySection(content)
+	groupSection(content)
 
 	-- toast
 	local toast = text(root, "Toast", {
@@ -428,5 +644,4 @@ function Build.Build(frames: Instance)
 	return root
 end
 
-Build.ATLAS = ATLAS
 return Build

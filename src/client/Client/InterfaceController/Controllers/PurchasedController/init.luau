@@ -12,8 +12,13 @@
 --                     "Photocard", N } – a Season Track banner / photocard (EQUIP NOW puts it on)
 --   RewardsRemote reply { Message = "Result", Action = "RedeemCode", Ok = true, Code, Rewards }
 --                     – a shop code: everything it gave (RewardsCatalog.CodeRewards)
+--   RewardsRemote reply { Action = "ClaimLevel", All = true, Rewards, Titles, Levels } – level
+--                     rewards' CLAIM ALL: the currencies added up, then each title
+--   RewardsRemote reply { Action = "ClaimBonus", Scope, Rewards } – the daily / weekly quest bonus
 --   PromptProductPurchaseFinished – the Debut Pack (waits for Rewards.Claimed "Debut"), coin
---                     bundles and roll ticket / card upgrade bundles (ShopCatalog.RollBundles)
+--                     bundles, roll ticket / card upgrade bundles (ShopCatalog.RollBundles) and
+--                     (the mixed bundles, ShopCatalog.Bundles, show from Rewards.Bundles going up:
+--                     up to 5 cards, stage + mic first)
 --   PromptGamePassPurchaseFinished – passes (waits for GamePasses to have it)
 -- A second buy while one is showing waits its turn.
 
@@ -35,6 +40,8 @@ local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
 local SeasonArt = require(ReplicatedStorage.Modules.UI.SeasonArt)
 local ProfileBuild = require(script.Parent.ProfileController.Build)
 local CosmeticView = require(ReplicatedStorage.Modules.UI.CosmeticView)
+local TierShine = require(ReplicatedStorage.Modules.UI.TierShine)
+local Levels = require(ReplicatedStorage.Modules.Levels)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
@@ -115,8 +122,9 @@ local function currencyCard(id: string, amount: number)
 	}
 end
 
+-- titles: your name with the title chip under it, like the Inventory and the level reward cards
 local function titleCard(title: string)
-	return { Name = title, Kind = "Title", Colour = "FFE07A", Big = "Aa", Tag = "NEW", TagColour = "FF9EC4" }
+	return { Name = title, Kind = "Title", Colour = "CDEBFA", Title = title, Tag = "NEW", TagColour = "FF9EC4" }
 end
 
 local function itemCard(kind: string, id: string)
@@ -323,6 +331,59 @@ function Purchased:Initialize(interface)
 		})
 	end), "Disconnect")
 
+	-- Rewards screen: CLAIM ALL on level rewards, and the daily / weekly quest bonus
+	j:Add(RewardsRemote:Connect(function(packet)
+		if type(packet) ~= "table" or packet.Message ~= "Result" or not packet.Ok then
+			return
+		end
+		local all = packet.Action == "ClaimLevel" and packet.All == true
+		local bonus = packet.Action == "ClaimBonus"
+		if not all and not bonus then
+			return
+		end
+		local cards = {}
+		local reward = if type(packet.Rewards) == "table" then packet.Rewards else {}
+		for _, id in { "Coins", "Tickets", "Upgrades" } do
+			local n = reward[id]
+			if type(n) == "number" and n > 0 then
+				table.insert(cards, currencyCard(id, n))
+			end
+		end
+		-- titles fill whatever card slots are left (Show shows up to 4); the rest follow on
+		-- "NEW TITLES!" reveals, 4 at a time, queued after this one
+		local titles = if type(packet.Titles) == "table" then packet.Titles else {}
+		local overflow = {}
+		for _, title in titles do
+			if #cards < 4 then
+				table.insert(cards, titleCard(title))
+			else
+				table.insert(overflow, titleCard(title))
+			end
+		end
+		local sub = ""
+		if all and type(packet.Levels) == "table" and packet.Levels[1] then
+			local a, b = packet.Levels[1], packet.Levels[2] or packet.Levels[1]
+			sub = if a == b then `Level {a}` else `Levels {a}–{b}`
+		elseif bonus then
+			sub = if packet.Scope == "Weekly" then "Every weekly quest done" else "Every daily quest done"
+		end
+		local pages = 1 + math.ceil(#overflow / 4)
+		self:Show({
+			Banner = if all then "LEVEL REWARDS!" elseif packet.Scope == "Weekly" then "WEEKLY BONUS!" else "DAILY BONUS!",
+			Sub = if pages > 1 then `{sub} · 1 of {pages}` else sub,
+			Cards = cards,
+			Where = if #titles > 0 then "Added to your Inventory" else "Added to your wallet",
+		})
+		for i = 1, #overflow, 4 do
+			self:Show({
+				Banner = "NEW TITLES!",
+				Sub = `{sub} · {math.ceil(i / 4) + 1} of {pages}`,
+				Cards = table.move(overflow, i, math.min(i + 3, #overflow), 1, {}),
+				Where = "Added to your Inventory",
+			})
+		end
+	end), "Disconnect")
+
 	-- shop codes: everything the code gave
 	j:Add(RewardsRemote:Connect(function(packet)
 		if type(packet) ~= "table" or packet.Message ~= "Result" or packet.Action ~= "RedeemCode" or not packet.Ok then
@@ -428,6 +489,27 @@ function Purchased:Initialize(interface)
 		end
 	end))
 
+	-- bundles (ShopCatalog.Bundles): shown the moment the grant lands, from the purchase
+	-- counter (Rewards.Bundles). (Waiting on PromptProductPurchaseFinished and a currency going
+	-- up was slow: the grant is often already in by then, so it sat out the whole GRANT_WAIT.)
+	local bundleCounts: { [string]: number }? = nil -- nil until the first read: that's the baseline
+	j:Add(PlayerData.Rewards.Bundles.Observe(function(all)
+		if type(all) ~= "table" then
+			return -- not loaded yet: no baseline
+		end
+		local before = bundleCounts
+		bundleCounts = table.clone(all)
+		if not before then
+			return
+		end
+		for id, n in all do
+			local bundle = ShopCatalog.GetBundle(id)
+			if bundle and n > (before[id] or 0) then
+				self:_showBundle(bundle)
+			end
+		end
+	end))
+
 	-- Robux: passes
 	j:Add(MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, purchased)
 		if not purchased or player ~= LOCAL_PLAYER then
@@ -463,12 +545,39 @@ end
 
 -- ---------------------------------- Show ---------------------------------- --
 
+-- the "YOU GOT!" for a bundle: its stage + mic first, then the currencies (up to 5 cards)
+function Purchased:_showBundle(bundle)
+	local cards = {}
+	for _, entry in ShopCatalog.BundleContents(bundle) do
+		if entry.Kind == "Stage" or entry.Kind == "Mic" then
+			table.insert(cards, itemCard(entry.Kind, entry.Id))
+		else
+			table.insert(cards, currencyCard(entry.Kind, entry.Amount))
+		end
+	end
+	self:Show({
+		Banner = "YOU GOT!",
+		Sub = `{bundle.Name} bundle`,
+		Cards = cards,
+		Where = if bundle.Stage then "Added to your Inventory" else "Added to your wallet",
+		EquipText = if bundle.Stage then "EQUIP STAGE + MIC" else nil,
+		Equip = if bundle.Stage
+			then function()
+				ShopRemote:Fire({ Action = "EquipItem", Kind = "Stage", Id = bundle.Stage })
+				if bundle.Mic then
+					ShopRemote:Fire({ Action = "EquipItem", Kind = "Mic", Id = bundle.Mic })
+				end
+			end
+			else nil,
+	})
+end
+
 -- info = { Banner, Sub, Cards = { card? }, Where, EquipText?, Equip? }
--- card = { Name, Kind, Colour, Tag, TagColour, Model = { kind, id }? | Image? | Big? }
+-- card = { Name, Kind, Colour, Tag, TagColour, Model = { kind, id }? | Image? | Big? | Title? }
 function Purchased:Show(info)
 	-- drop missing cards (an id the catalog doesn't know), keep the order
 	local cards = {}
-	for i = 1, 4 do
+	for i = 1, 5 do
 		if info.Cards[i] then
 			table.insert(cards, info.Cards[i])
 		end
@@ -482,6 +591,7 @@ function Purchased:Show(info)
 		return
 	end
 	self._showing = info
+	self._shownAt = os.clock()
 	self.State = "Active"
 
 	local frame = self._frame
@@ -511,7 +621,8 @@ function Purchased:Show(info)
 		c.Visible = true
 		-- (the slot sits in the row's UIListLayout; Inner is what tilts and pops)
 		local inner = c.Inner
-		inner.Rotation = ({ -3, 1, 3, -1 })[i]
+		local TILTS = { -3, 1, 3, -1, 2 } -- (up to 5 cards: a bundle's stage + mic + 3 currencies)
+		inner.Rotation = TILTS[(i - 1) % #TILTS + 1]
 		local face = inner.Face
 		local art = face.Art
 		art.BackgroundColor3 = C(card.Colour)
@@ -521,8 +632,24 @@ function Purchased:Show(info)
 		face.Tag.BackgroundColor3 = C(card.TagColour or "B9A6FF")
 		art.Pic.Image = card.Image or ""
 		art.Pic.Visible = card.Image ~= nil
+		-- the coin pile art sits low in its square image: a touch bigger, nudged up onto the
+		-- coins (like the shop's cards); everything else fills 82% of the art
+		local coins = card.Kind == "Coins"
+		art.Pic.AnchorPoint = Vector2.new(0.5, if coins then 0.56 else 0.5)
+		art.Pic.Size = UDim2.fromScale(if coins then 1.12 else 0.82, if coins then 1.12 else 0.82)
 		art.Big.Text = card.Big or ""
 		art.Big.Visible = card.Big ~= nil
+		local titleArt = art:FindFirstChild("TitleArt")
+		if titleArt then
+			titleArt.Visible = card.Title ~= nil
+			if card.Title then
+				titleArt.Player.Text = LOCAL_PLAYER.DisplayName
+				local chip = titleArt.Chip
+				chip.Text = card.Title
+				-- Icon shines, Legend scrolls, the rest wear their colour (Levels.TITLE_COLOURS)
+				TierShine.Apply(chip, chip.Rainbow, Levels.TITLE_TIERS[card.Title], Levels.TITLE_COLOURS[card.Title] or C("FFE07A"))
+			end
+		end
 		c.Parent = frame.Items
 		if card.Style then
 			styleArt(art, card.Style[1], card.Style[2])
@@ -611,8 +738,13 @@ function Purchased:_confetti()
 	end
 end
 
-function Purchased:Hide()
+function Purchased:Hide(force: boolean?)
 	if not self._showing then
+		return
+	end
+	-- the tap that closed the last reveal (Nice + the scrim under it) must not also close the
+	-- next one in the queue the moment it appears
+	if not force and os.clock() - (self._shownAt or 0) < 0.4 then
 		return
 	end
 	self._showing = nil
@@ -636,7 +768,7 @@ function Purchased:Activate(info)
 end
 
 function Purchased:Deactivate()
-	self:Hide()
+	self:Hide(true)
 	return Promise.resolve()
 end
 

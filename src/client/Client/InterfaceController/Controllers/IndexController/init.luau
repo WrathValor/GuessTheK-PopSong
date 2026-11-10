@@ -66,6 +66,7 @@ local UITypes = require(ReplicatedStorage.Types.UITypes)
 
 local Build = require(script.Build)
 local Snippet = require(script.Parent.GameController.Snippet) -- plays a song from its TimePosition
+local SongClips = require(ReplicatedStorage.Modules.SongClips) -- the song's audio, from the server
 local BackgroundMusic = require(script.Parent.Parent.Parent.BackgroundMusic) -- Client/BackgroundMusic
 
 -- -------------------------------- Variables ------------------------------- --
@@ -809,10 +810,19 @@ function Index:_listen(i: number)
 	local same = self._playing and self._playing.Id == song.Id
 	self:_stopListening(0.25)
 	if not same then
-		local entry = Songs.GetById(song.Id) or song
-		if type(entry.MusicId) == "string" and entry.MusicId ~= "" then
+		-- the audio comes from the server (owned songs only); a newer tap or closing wins
+		local id = song.Id
+		self._wanted = id
+		SongClips.Get(id):andThen(function(entry)
+			if not entry or self._wanted ~= id or self.State == "Inactive" then
+				return
+			end
+			self._wanted = nil
+			if type(entry.MusicId) ~= "string" or entry.MusicId == "" then
+				return
+			end
 			local clip = Snippet.new(entry, "Song")
-			self._playing = { Id = song.Id, Clip = clip }
+			self._playing = { Id = id, Clip = clip }
 			if not self._ducked then
 				self._ducked = true
 				BackgroundMusic.Duck()
@@ -827,7 +837,8 @@ function Index:_listen(i: number)
 					end
 				end)
 			end
-		end
+			self:_refresh()
+		end)
 	end
 	Sounds.Play("Click")
 	Juice.Pop(self._frame.Panel.Content.Grid["Card" .. i], 0.08)
@@ -838,6 +849,7 @@ end
 function Index:_stopListening(fade: number)
 	local playing = self._playing
 	self._playing = nil
+	self._wanted = nil -- a clip still on its way won't start
 	self:_animateEq(false)
 	if playing then
 		playing.Clip:FadeAndDestroy(fade)

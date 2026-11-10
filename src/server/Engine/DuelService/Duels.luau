@@ -125,6 +125,9 @@ end
 --| Duels
 local Duels = {}
 Duels.__index = Duels
+-- set by Engine/ShutdownService when the server is closing: leaving then cancels a match (no
+-- result, no streak or stake change) instead of forfeiting it
+Duels.Halted = false
 Duels.StreakMultiplier = streakMultiplier
 Duels.ProfileOf = profileOf -- the invite cards show the same Level / Streak
 
@@ -585,19 +588,9 @@ function Duels:_playRound(round: number)
 		Theme = if self.Solo and self.Theme ~= Themes.DEFAULT and self.Theme ~= Themes.PACK
 			then Themes.Get(self.Theme).Name
 			else nil,
-		-- the client has to play the clip locally, so it gets the clip assets
-		Clip = {
-			MusicId = song.MusicId,
-			AnimationId = song.AnimationId,
-			-- playbackSpeed is the new field; Pitch is the old name for the same thing
-			PlaybackSpeed = song.playbackSpeed or song.PlaybackSpeed or song.Pitch or 1,
-			Volume = song.Volume or 1,
-			Start = song.Start or 0,
-			-- where the snippet starts on the sound's own timeline (what Studio's TimePosition shows)
-			TimePosition = song.TimePosition,
-			-- where the reveal plays the song from (sound timeline seconds)
-			ChorusPosition = song.ChorusPosition,
-		},
+		-- the client has to play the clip locally, so it gets this round's clip assets (only
+		-- this one: the library's audio ids stay on the server, see ServerScriptService.Songs)
+		Clip = SongLibrary.Clip(song),
 	})
 
 	-- the clock only starts once every player's clip has loaded (or LOAD_TIMEOUT passes),
@@ -791,6 +784,10 @@ end
 
 function Duels:Forfeit(player: Player)
 	if not self._running then
+		return
+	end
+	if Duels.Halted then
+		self:Destroy() -- the server is closing: nobody wins or loses this one
 		return
 	end
 	if self.Party then

@@ -1032,4 +1032,261 @@ function Build.AddRolls(frames: Instance)
 	return section
 end
 
+-- [[ Debut Pack banner ("Shop v3 · Debut Pack · A with a plain title", A1) ]]
+-- The title on the left ("Debut / Pack", a line under it, an "n ITEMS" chip), then the items
+-- as tilted photocards with "+" between (Item1–4: Shadow + Card with Art / Label / Sub and an
+-- "ONLY HERE" Only tag), then the Robux button with "One time only" under it. Rebuilds the
+-- inside of Scroll.Debut (keeps its place in the page). Run once in Studio, Edit mode:
+--   require(<this module>).DebutPack(game.StarterGui.Interface.Frames)
+Build.DEBUT_CARD_W, Build.DEBUT_CARD_H = 132, 166
+function Build.DebutPack(frames: Instance)
+	local section = frames.Shop.Panel.Scroll.Debut
+	local W, H = 941, 214
+	for _, child in section:GetChildren() do
+		child:Destroy()
+	end
+	section.Size = UDim2.new(1, 0, 0, 14 + H + 8)
+	local face = card(section, "Face", UDim2.fromOffset(0, 14), UDim2.fromOffset(W, H), WHITE, 16, 6, 3)
+	new("UIGradient", { Rotation = 10, Color = ColorSequence.new(C("FFE4EF"), C("FFF1B8")) }, face)
+
+	local tag = text(face, "Tag", {
+		Position = UDim2.fromOffset(16, -14),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, 22),
+		BackgroundTransparency = 0,
+		BackgroundColor3 = C("FF9EC4"),
+		FontFace = HEAD,
+		TextSize = 12,
+		TextTruncate = Enum.TextTruncate.None,
+		Rotation = -3,
+		ZIndex = 5,
+		Text = "ONE TIME · NEW PLAYERS",
+	})
+	corner(tag, 7)
+	stroke(tag, 3)
+	pad(tag, 10)
+
+	-- title block
+	text(face, "Title", { Position = UDim2.fromOffset(22, 40), Size = UDim2.fromOffset(190, 64), FontFace = HEAD, TextSize = 30, LineHeight = 0.95, TextYAlignment = Enum.TextYAlignment.Top, TextTruncate = Enum.TextTruncate.None, Text = "Debut\nPack" })
+	text(face, "Sub", { Position = UDim2.fromOffset(22, 110), Size = UDim2.fromOffset(180, 32), FontFace = BODY_BOLD, TextSize = 13, TextColor3 = MUTED, TextWrapped = true, TextYAlignment = Enum.TextYAlignment.Top, Text = "Everything to start your first duels" })
+	local count = text(face, "Count", {
+		Position = UDim2.fromOffset(22, 148),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, 24),
+		BackgroundTransparency = 0,
+		BackgroundColor3 = CREAM,
+		FontFace = HEAD,
+		TextSize = 11,
+		TextTruncate = Enum.TextTruncate.None,
+		Text = "3 ITEMS",
+	})
+	corner(count, 7)
+	stroke(count, 2)
+	pad(count, 9)
+
+	-- the items: photocards with a "+" between
+	local cw, ch = Build.DEBUT_CARD_W, Build.DEBUT_CARD_H
+	local items = new("Frame", { Name = "Items", Position = UDim2.fromOffset(224, 0), Size = UDim2.fromOffset(470, H), BackgroundTransparency = 1 }, face)
+	new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, items)
+	for i = 1, 4 do
+		if i > 1 then
+			text(items, "Plus" .. (i - 1), { LayoutOrder = i * 2 - 1, Size = UDim2.fromOffset(18, 30), FontFace = HEAD, TextSize = 22, TextXAlignment = Enum.TextXAlignment.Center, Text = "+" })
+		end
+		local slot = new("Frame", { Name = "Item" .. i, LayoutOrder = i * 2, Size = UDim2.fromOffset(cw + 4, ch + 4), BackgroundTransparency = 1, Rotation = ({ -3, 1.5, 3, -1.5 })[i] }, items)
+		local sh = new("Frame", { Name = "Shadow", Position = UDim2.fromOffset(4, 4), Size = UDim2.fromOffset(cw, ch), BackgroundColor3 = INK, BorderSizePixel = 0 }, slot)
+		corner(sh, 12)
+		local c = new("Frame", { Name = "Card", Size = UDim2.fromOffset(cw, ch), BackgroundColor3 = WHITE }, slot)
+		corner(c, 12)
+		stroke(c, 3)
+		local art = new("Frame", { Name = "Art", Position = UDim2.fromOffset(7, 7), Size = UDim2.fromOffset(cw - 14, 100), BackgroundColor3 = YELLOW, ClipsDescendants = true }, c)
+		corner(art, 8)
+		stroke(art, 3)
+		-- coins: the pile drawn big, anchored on the coins (CosmeticView fills stage / mic)
+		new("ImageLabel", { Name = "Pic", AnchorPoint = Vector2.new(0.5, 0.56), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(1.1, 1.1), BackgroundTransparency = 1, ScaleType = Enum.ScaleType.Fit, Image = "" }, art)
+		text(c, "Label", { Position = UDim2.fromOffset(4, 112), Size = UDim2.new(1, -8, 0, 24), FontFace = HEAD, TextSize = 16, TextXAlignment = Enum.TextXAlignment.Center, Text = "2,500" })
+		text(c, "Sub", { Position = UDim2.fromOffset(4, 136), Size = UDim2.new(1, -8, 0, 16), FontFace = BODY_BOLD, TextSize = 12, TextColor3 = MUTED, TextXAlignment = Enum.TextXAlignment.Center, Text = "Coins" })
+		local only = text(slot, "Only", {
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.fromOffset(cw + 8, 0),
+			AutomaticSize = Enum.AutomaticSize.X,
+			Size = UDim2.fromOffset(0, 20),
+			BackgroundTransparency = 0,
+			BackgroundColor3 = YELLOW,
+			FontFace = HEAD,
+			TextSize = 10,
+			TextTruncate = Enum.TextTruncate.None,
+			ZIndex = 4,
+			Visible = false,
+			Text = "ONLY HERE",
+		})
+		corner(only, 6)
+		stroke(only, 2)
+		pad(only, 7)
+	end
+
+	-- price + note
+	local bw, bh = 180, 56
+	priceButton(face, "Buy", UDim2.fromOffset(W - 24 - bw, H / 2 - bh / 2 - 12), UDim2.fromOffset(bw, bh), ICONS.Robux, 22, MINT, 3, 4)
+	text(face, "Note", { Position = UDim2.fromOffset(W - 24 - bw, H / 2 + bh / 2 - 4), Size = UDim2.fromOffset(bw, 18), FontFace = BODY_BOLD, TextSize = 12, TextColor3 = MUTED, TextXAlignment = Enum.TextXAlignment.Center, Text = "One time only" })
+	require(game:GetService("ReplicatedStorage").Modules.UI.CenterButtons).Apply(section)
+	return section
+end
+
+-- [[ Bundles ("Shop v3 · Bundles") ]]
+-- One banner: Face (+ FaceShadow) with Tag, Title, Sub, Count?, Items (Item1–n photocard slots
+-- with "+" between: Shadow + Card with Art / Label / Sub, and an Only tag), Buy (+ BuyShadow)
+-- and Note. Big = the Debut Pack's size (two-line title + count chip); otherwise the short one.
+local function bundleBanner(parent: Instance, name: string, order: number, big: boolean, slots: number): Frame
+	local W = 941
+	local H = if big then 214 else 118
+	local holder = new("Frame", { Name = name, LayoutOrder = order, Size = UDim2.new(1, 0, 0, 14 + H + 8), BackgroundTransparency = 1 }, parent)
+	local face = card(holder, "Face", UDim2.fromOffset(0, 14), UDim2.fromOffset(W, H), WHITE, 16, if big then 6 else 5, 3)
+	new("UIGradient", { Name = "Tint", Rotation = 10, Color = ColorSequence.new(C("FFF1B8"), C("FFE4EF")) }, face)
+
+	local tag = text(face, "Tag", {
+		Position = UDim2.fromOffset(16, -14),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, 22),
+		BackgroundTransparency = 0,
+		BackgroundColor3 = C("FF9EC4"),
+		FontFace = HEAD,
+		TextSize = 12,
+		TextTruncate = Enum.TextTruncate.None,
+		Rotation = -3,
+		ZIndex = 5,
+		Text = "BEST VALUE",
+	})
+	corner(tag, 7)
+	stroke(tag, 3)
+	pad(tag, 10)
+
+	local titleW = if big then 160 else 196
+	if big then
+		text(face, "Title", { Position = UDim2.fromOffset(22, 40), Size = UDim2.fromOffset(titleW, 64), FontFace = HEAD, TextSize = 30, LineHeight = 0.95, TextYAlignment = Enum.TextYAlignment.Top, TextTruncate = Enum.TextTruncate.None, TextWrapped = true, Text = "Headliner" })
+		text(face, "Sub", { Position = UDim2.fromOffset(22, 110), Size = UDim2.fromOffset(titleW - 6, 32), FontFace = BODY_BOLD, TextSize = 13, TextColor3 = MUTED, TextWrapped = true, TextYAlignment = Enum.TextYAlignment.Top, Text = "" })
+		local count = text(face, "Count", {
+			Position = UDim2.fromOffset(22, 148),
+			AutomaticSize = Enum.AutomaticSize.X,
+			Size = UDim2.fromOffset(0, 24),
+			BackgroundTransparency = 0,
+			BackgroundColor3 = CREAM,
+			FontFace = HEAD,
+			TextSize = 11,
+			TextTruncate = Enum.TextTruncate.None,
+			Text = "5 ITEMS",
+		})
+		corner(count, 7)
+		stroke(count, 2)
+		pad(count, 9)
+	else
+		text(face, "Title", { Position = UDim2.fromOffset(22, 34), Size = UDim2.fromOffset(titleW, 28), FontFace = HEAD, TextSize = 22, Text = "Bundle" })
+		text(face, "Sub", { Position = UDim2.fromOffset(22, 64), Size = UDim2.fromOffset(titleW, 32), FontFace = BODY_BOLD, TextSize = 12, TextColor3 = MUTED, TextWrapped = true, TextYAlignment = Enum.TextYAlignment.Top, Text = "" })
+	end
+
+	-- the contents
+	-- (big: five cards, as wide as they fit, so the art boxes stay near square)
+	local cw, ch = if big then 98 else 82, if big then 132 else 96
+	local bw, bh = if big then 150 else 160, if big then 56 else 48
+	local x0 = 22 + titleW + 6
+	local items = new("Frame", { Name = "Items", Position = UDim2.fromOffset(x0, 0), Size = UDim2.fromOffset(W - 24 - bw - 10 - x0, H), BackgroundTransparency = 1 }, face)
+	new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, if big then 3 else 4), SortOrder = Enum.SortOrder.LayoutOrder }, items)
+	for i = 1, slots do
+		if i > 1 then
+			text(items, "Plus" .. (i - 1), { LayoutOrder = i * 2 - 1, Size = UDim2.fromOffset(if big then 10 else 12, 24), FontFace = HEAD, TextSize = 18, TextXAlignment = Enum.TextXAlignment.Center, Text = "+" })
+		end
+		local slot = new("Frame", { Name = "Item" .. i, LayoutOrder = i * 2, Size = UDim2.fromOffset(cw + 3, ch + 3), BackgroundTransparency = 1 }, items)
+		local sh = new("Frame", { Name = "Shadow", Position = UDim2.fromOffset(3, 3), Size = UDim2.fromOffset(cw, ch), BackgroundColor3 = INK, BorderSizePixel = 0 }, slot)
+		corner(sh, 10)
+		local c = new("Frame", { Name = "Card", Size = UDim2.fromOffset(cw, ch), BackgroundColor3 = WHITE }, slot)
+		corner(c, 10)
+		stroke(c, if big then 3 else 2.5)
+		local artH = ch - (if big then 46 else 40)
+		local art = new("Frame", { Name = "Art", Position = UDim2.fromOffset(5, 5), Size = UDim2.fromOffset(cw - 10, artH), BackgroundColor3 = YELLOW, ClipsDescendants = true }, c)
+		corner(art, 7)
+		stroke(art, 2.5)
+		new("ImageLabel", { Name = "Pic", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(0.8, 0.8), BackgroundTransparency = 1, ScaleType = Enum.ScaleType.Fit, Image = "" }, art)
+		text(c, "Label", { Position = UDim2.fromOffset(3, artH + 7), Size = UDim2.new(1, -6, 0, if big then 19 else 17), FontFace = HEAD, TextSize = if big then 15 else 13, TextXAlignment = Enum.TextXAlignment.Center, Text = "×10" })
+		text(c, "Sub", { Position = UDim2.fromOffset(3, artH + (if big then 26 else 24)), Size = UDim2.new(1, -6, 0, 13), FontFace = BODY_BOLD, TextSize = if big then 11 else 10, TextColor3 = MUTED, TextXAlignment = Enum.TextXAlignment.Center, Text = "Roll tickets" })
+		local only = text(slot, "Only", {
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.fromOffset(cw + 6, 0),
+			AutomaticSize = Enum.AutomaticSize.X,
+			Size = UDim2.fromOffset(0, 18),
+			BackgroundTransparency = 0,
+			BackgroundColor3 = YELLOW,
+			FontFace = HEAD,
+			TextSize = 9,
+			TextTruncate = Enum.TextTruncate.None,
+			ZIndex = 4,
+			Visible = false,
+			Text = "ONLY HERE",
+		})
+		corner(only, 6)
+		stroke(only, 2)
+		pad(only, 6)
+	end
+
+	priceButton(face, "Buy", UDim2.fromOffset(W - 24 - bw, H / 2 - bh / 2 - (if big then 12 else 9)), UDim2.fromOffset(bw, bh), ICONS.Robux, if big then 22 else 19, MINT, 3, 4)
+	text(face, "Note", { Position = UDim2.fromOffset(W - 24 - bw, H / 2 + bh / 2 - (if big then 4 else 2)), Size = UDim2.fromOffset(bw, 16), FontFace = BODY_BOLD, TextSize = 11, TextColor3 = MUTED, TextXAlignment = Enum.TextXAlignment.Center, Text = "" })
+	return holder
+end
+
+-- Adds the bundles to the shop page. Top of the page, in order: the weekly Featured set,
+-- Scroll.Headliner (the big featured bundle), a "Bundles" heading, the Debut Pack, then
+-- Scroll.Bundles (Bundle1–3, the short banners). ShopController fills them from
+-- ShopCatalog.Bundles. Run once in Studio, Edit mode (safe to run again):
+--   require(<this module>).AddBundles(game.StarterGui.Interface.Frames)
+function Build.AddBundles(frames: Instance)
+	local scroll = frames.Shop.Panel.Scroll
+	local featured, debut = scroll.Featured, scroll.Debut
+	local old = scroll:FindFirstChild("Headliner")
+	local f = math.min(featured.LayoutOrder, if old then old.LayoutOrder else math.huge)
+	for _, n in { "Headliner", "BundlesTitle", "Bundles" } do
+		local x = scroll:FindFirstChild(n)
+		if x then
+			x:Destroy()
+		end
+	end
+
+	featured.LayoutOrder = f
+	local headliner = bundleBanner(scroll, "Headliner", f + 1, true, 5)
+	local title = scroll.SetsTitle:Clone()
+	title.Name = "BundlesTitle"
+	title.LayoutOrder = f + 2
+	title.Parent = scroll
+	title.Title.Text = "Bundles"
+	title.Chip.Visible = false
+	debut.LayoutOrder = f + 3
+	local list = new("Frame", { Name = "Bundles", LayoutOrder = f + 4, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1 }, scroll)
+	new("UIListLayout", { FillDirection = Enum.FillDirection.Vertical, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, list)
+	for i = 1, 3 do
+		bundleBanner(list, "Bundle" .. i, i, false, 3)
+	end
+
+	-- everything else keeps its order, after these five
+	local mine = { [headliner] = true, [featured] = true, [title] = true, [debut] = true, [list] = true }
+	local low = math.huge
+	for _, child in scroll:GetChildren() do
+		if child:IsA("GuiObject") and not mine[child] and child.LayoutOrder > f then
+			low = math.min(low, child.LayoutOrder)
+		end
+	end
+	if low < f + 5 then
+		for _, child in scroll:GetChildren() do
+			if child:IsA("GuiObject") and not mine[child] and child.LayoutOrder > f then
+				child.LayoutOrder += f + 5 - low
+			end
+		end
+	end
+	-- (centre the buttons inside each banner; the banner holders keep their size)
+	local CenterButtons = require(game:GetService("ReplicatedStorage").Modules.UI.CenterButtons)
+	CenterButtons.Apply(headliner.Face)
+	for _, b in list:GetChildren() do
+		if b:IsA("Frame") then
+			CenterButtons.Apply(b.Face)
+		end
+	end
+	return list
+end
+
 return Build

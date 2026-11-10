@@ -6,6 +6,10 @@
 --                          { Action = "SetInvites", Value = bool }
 --                          { Action = "Reset" }                 (volumes back to 1, invites on)
 --                          { Action = "SeenNews", Id = newsId } (clears the News button dot)
+--                          { Action = "Blocked", Ids = { userId } } (the player's Roblox block list,
+--                            sent by Client/SettingsController; kept in memory, never saved)
+-- Invites (Engine/InviteService duels, Engine/PartyService parties) ask AcceptsInvitesFrom:
+-- the target has invites on, and neither player has blocked the other on Roblox.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
@@ -18,11 +22,13 @@ local Analytics = require(script.Parent.Analytics)
 local SettingsRemote = Bridgenet.ReferenceBridge("SettingsRemote")
 
 local VOLUMES = { MusicVolume = true, SfxVolume = true, ClipVolume = true }
+local MAX_BLOCKED = 1000 -- ids kept per player's block list
 local MIN_GAP = 0.1 -- requests closer together than this are dropped (slider spam)
 
 local SettingsService = {}
 
 local last: { [Player]: number } = {}
+local blocked: { [Player]: { [number]: boolean } } = {} -- Roblox block lists, by player
 
 -- analytics: a slider sends many values while dragging, so only log where it settles
 local SETTLE = 2
@@ -42,6 +48,20 @@ local function logSetting(player: Player, key: string, value: string)
 end
 
 local function handle(player: Player, packet)
+	-- (the block list comes in at join, often before the player's data has loaded)
+	if packet.Action == "Blocked" then
+		if type(packet.Ids) == "table" then
+			local set, n = {}, 0
+			for _, id in packet.Ids do
+				if type(id) == "number" and id == math.floor(id) and n < MAX_BLOCKED then
+					set[id] = true
+					n += 1
+				end
+			end
+			blocked[player] = set
+		end
+		return
+	end
 	local data = PlayerData.Get(player)
 	if not data then
 		return
@@ -82,10 +102,22 @@ local function handle(player: Player, packet)
 	end
 end
 
--- For a future duel-invite system: may `target` be sent an invite?
+-- Has `target` got invites on? (Settings → Duel invites; covers duel and party invites)
 function SettingsService.AcceptsInvites(target: Player): boolean
-	local data = PlayerData.Get(target)
-	return data ~= nil and data.Settings.DuelInvites.Get() == true
+	-- (Get throws while the data is still loading: no invites until it has)
+	local ok, data = pcall(PlayerData.Get, target)
+	return ok and data ~= nil and data.Settings.DuelInvites.Get() == true
+end
+
+-- Has either player blocked the other on Roblox?
+function SettingsService.Blocks(a: Player, b: Player): boolean
+	local ofA, ofB = blocked[a], blocked[b]
+	return (ofA ~= nil and ofA[b.UserId] == true) or (ofB ~= nil and ofB[a.UserId] == true)
+end
+
+-- May `sender` send `target` an invite (or a join request)?
+function SettingsService.AcceptsInvitesFrom(target: Player, sender: Player): boolean
+	return SettingsService.AcceptsInvites(target) and not SettingsService.Blocks(target, sender)
 end
 
 function SettingsService.Start()
@@ -105,6 +137,7 @@ function SettingsService.Start()
 	Players.PlayerRemoving:Connect(function(player)
 		last[player] = nil
 		pendingLog[player] = nil
+		blocked[player] = nil
 	end)
 end
 

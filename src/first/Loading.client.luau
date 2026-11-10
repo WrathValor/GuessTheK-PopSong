@@ -161,10 +161,10 @@ text(tipChip, { Size = UDim2.fromScale(1, 1), FontFace = HEAD, TextSize = 10, Te
 local tipCount = text(tip, { Position = UDim2.fromOffset(54, 10), Size = UDim2.fromOffset(60, 18), TextSize = 12, TextColor3 = MUTED, Text = "1 / " .. #TIPS, TextXAlignment = Enum.TextXAlignment.Left })
 local tipText = text(tip, { Position = UDim2.fromOffset(12, 32), Size = UDim2.new(1, -24, 0, 44), FontFace = BODY_BOLD, TextSize = 14, TextWrapped = true, RichText = true, Text = TIPS[1], TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top })
 
--- skip (bottom left), shows after SKIP_AFTER
-local skipShadow = new("Frame", { Position = UDim2.fromOffset(31, 720 - 26 - 40 + 3), Size = UDim2.fromOffset(84, 40), BackgroundColor3 = INK, Visible = false }, canvas)
+-- skip: centred under the progress bar + step line, shows after SKIP_AFTER
+local skipShadow = new("Frame", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromOffset(640 + 3, 638 + 3), Size = UDim2.fromOffset(84, 38), BackgroundColor3 = INK, Visible = false }, canvas)
 corner(skipShadow, 10)
-local skip = new("TextButton", { Position = UDim2.fromOffset(28, 720 - 26 - 40), Size = UDim2.fromOffset(84, 40), BackgroundColor3 = WHITE, AutoButtonColor = true, FontFace = BODY, TextSize = 14, TextColor3 = INK, Text = "Skip", Visible = false }, canvas)
+local skip = new("TextButton", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromOffset(640, 638), Size = UDim2.fromOffset(84, 38), BackgroundColor3 = WHITE, AutoButtonColor = true, FontFace = BODY, TextSize = 14, TextColor3 = INK, Text = "Skip", Visible = false }, canvas)
 corner(skip, 10)
 stroke(skip, 3)
 

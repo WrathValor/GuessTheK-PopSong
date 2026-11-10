@@ -9,11 +9,12 @@
 -- Kinds (positions are fractions of the art; sizes are fractions of the art's width):
 --   Shine    a soft white glint sweeping across every few seconds
 --   Holo     a moving pastel-rainbow wash over the whole thing   { Alpha = 0.8 }
---   Sparkle  twinkling 4-point stars                              { At = { {x, y, size} }, Soft = soft white glints? }
+--   Sparkle  4-point stars that glint (pop + quarter turn) in turn                              { At = { {x, y, size} }, Soft = soft white glints? }
 --   Glow     soft coloured glows that pulse (Flicker = neon)       { At = { {x, y, size, hex} } }
 --   Rays     light rays turning slowly behind a shape             { At = {x, y, size}, Speed }
 --   Spin     an image turning in place (vinyl)                     { Image, At = { {x, y, size, deg/s} } }
---   Sway     an image breathing + rocking over its copy (flowers)  { At = { {image, x, y, size} } }
+--   Sway     an image breathing + rocking over its copy (flowers)  { At = { {image, x, y, size} }, Bounce = grow + shrink only? }
+--   Hop      images hopping in turn, left to right (letters)        { At = { {image, x, y, size} } }
 --   Confetti small pieces drifting down                            { Area = {x0, y0, x1, y1}, Count }
 --   Masked   a shape's fill animated under its outline              { Fill, Line, At = {x, y, size}, Mode }
 --            Fill = a white silhouette image, Line = its ink outline drawn on top;
@@ -131,6 +132,28 @@ local function image(parent: Instance, key: string, x: number, y: number, size: 
 	}, parent)
 end
 
+-- A sparkle's glint, p = 0..1 through one cycle → scale, opacity, rotation. It rests small
+-- and dim, pops bright past full size with a quarter turn, then settles (4-point stars look
+-- the same every 90°, so ending on 90 loops cleanly).
+local GLINT_TIME = 2.2
+local function ease(a: number, b: number, p: number): number
+	p = p * p * (3 - 2 * p)
+	return a + (b - a) * p
+end
+local function glint(p: number): (number, number, number)
+	if p < 0.6 then
+		return 0.5, 0.35, 0
+	elseif p < 0.72 then
+		local q = (p - 0.6) / 0.12
+		return ease(0.5, 1.35, q), ease(0.35, 1, q), ease(0, 45, q)
+	elseif p < 0.84 then
+		local q = (p - 0.72) / 0.12
+		return ease(1.35, 0.85, q), ease(1, 0.9, q), ease(45, 80, q)
+	end
+	local q = (p - 0.84) / 0.16
+	return ease(0.85, 0.5, q), ease(0.9, 0.35, q), ease(80, 90, q)
+end
+
 -- [[ Effects ]] each returns an update(t) or nil
 
 local BUILD = {}
@@ -179,14 +202,14 @@ function BUILD.Sparkle(_fx, art, z, _radius, spec)
 	local key = if spec.Soft then "SparkleSoft" else "Sparkle"
 	for i, at in spec.At do
 		local s = image(art, key, at[1], at[2], at[3], z + 1)
-		table.insert(list, { s, at[3], i * 1.7 })
+		table.insert(list, { s, at[3], i * 0.55 })
 	end
 	return function(t)
 		for _, item in list do
-			local a = 0.5 + 0.5 * math.sin(t * 2.6 + item[3])
-			item[1].Size = UDim2.fromScale(item[2] * (0.55 + 0.45 * a), item[2] * (0.55 + 0.45 * a))
-			item[1].ImageTransparency = 1 - (0.15 + 0.85 * a)
-			item[1].Rotation = a * 25
+			local scale, alpha, turn = glint(((t + item[3]) % GLINT_TIME) / GLINT_TIME)
+			item[1].Size = UDim2.fromScale(item[2] * scale, item[2] * scale)
+			item[1].ImageTransparency = 1 - alpha
+			item[1].Rotation = turn
 		end
 	end
 end
@@ -242,11 +265,47 @@ function BUILD.Sway(_fx, art, z, _radius, spec)
 	for i, at in spec.At do
 		table.insert(list, { image(art, at[1], at[2], at[3], at[4] * 1.06, z + 1), at[4] * 1.06, i * 2.1 })
 	end
+	if spec.Bounce then
+		-- in and out only, no rocking (never smaller than the copy in the art)
+		return function(t)
+			for _, item in list do
+				local s = item[2] * (1 + 0.09 * (0.5 + 0.5 * math.sin(t * 2.6 + item[3])))
+				item[1].Size = UDim2.fromScale(s, s)
+			end
+		end
+	end
 	return function(t)
 		for _, item in list do
 			local s = item[2] * (1 + 0.06 * math.sin(t * 2.2 + item[3]))
 			item[1].Size = UDim2.fromScale(s, s)
 			item[1].Rotation = 9 * math.sin(t * 1.4 + item[3])
+		end
+	end
+end
+
+-- letters hopping one after another, left to right, like a crowd cheering (Cheer Slogan).
+-- The letters aren't in the art, so nothing shows underneath when they're up.
+local HOP_TIME, HOP_GAP, HOP_HEIGHT = 2.4, 0.12, 0.067 -- s, s between letters, of the art's height
+function BUILD.Hop(_fx, art, z, _radius, spec)
+	local list = {}
+	for i, at in spec.At do
+		table.insert(list, { image(art, at[1], at[2], at[3], at[4], z + 1), at[2], at[3], (i - 1) * HOP_GAP })
+	end
+	return function(t)
+		for _, item in list do
+			local p = ((t - item[4]) % HOP_TIME) / HOP_TIME
+			local up, turn = 0, 0
+			if p < 0.1 then
+				local q = p / 0.1
+				up, turn = ease(0, 1, q), ease(0, -6, q)
+			elseif p < 0.2 then
+				local q = (p - 0.1) / 0.1
+				up, turn = ease(1, 0, q), ease(-6, 3, q)
+			elseif p < 0.3 then
+				turn = ease(3, 0, (p - 0.2) / 0.1)
+			end
+			item[1].Position = UDim2.fromScale(item[2], item[3] - HOP_HEIGHT * up)
+			item[1].Rotation = turn
 		end
 	end
 end

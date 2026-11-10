@@ -19,6 +19,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Songs = require(ReplicatedStorage.Modules.Library.Songs)
+local SongClips = require(ReplicatedStorage.Modules.SongClips) -- your song's audio, from the server
 
 local FADE_OUT = 0.8
 local FADE_IN = 1.5
@@ -114,13 +115,29 @@ local function speedOf(song): number
 	return if type(speed) == "number" and speed > 0 then speed else 1
 end
 
+local wanted: string? = nil -- the song SetSong was last asked for (its clip may still be on its way)
+
 -- id = a song id (your Rainbow card), or nil / "" for the playlist
 function BackgroundMusic.SetSong(id: string?)
 	local song = if id and id ~= "" then Songs.GetById(id) else nil
-	local musicId = song and song.MusicId
 	if mine and song and mine:GetAttribute("SongId") == song.Id then
 		return -- already playing it
 	end
+	wanted = song and song.Id
+	if not song then
+		BackgroundMusic._applySong(nil, nil)
+		return
+	end
+	SongClips.Get(song.Id):andThen(function(clip)
+		if wanted == song.Id then
+			BackgroundMusic._applySong(song, clip)
+		end
+	end)
+end
+
+-- swaps to `song` (with its clip from the server), or back to the playlist with no clip
+function BackgroundMusic._applySong(song, clip)
+	local musicId = clip and clip.MusicId
 	-- out with your previous song, if any
 	if mine then
 		local sound = mine
@@ -145,7 +162,7 @@ function BackgroundMusic.SetSong(id: string?)
 		local sound = Instance.new("Sound")
 		sound.Name = "MyBackgroundSong"
 		sound.SoundId = musicId
-		sound.PlaybackSpeed = speedOf(song)
+		sound.PlaybackSpeed = speedOf(clip)
 		sound.Looped = true
 		sound.Volume = 0
 		sound.SoundGroup = group

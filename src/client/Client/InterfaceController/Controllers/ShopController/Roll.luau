@@ -46,6 +46,7 @@ local GroupArt = require(ReplicatedStorage.Modules.UI.GroupArt)
 local Build = require(script.Parent.RollPage)
 local RollMotion = require(script.Parent.RollMotion)
 local Snippet = require(script.Parent.Parent.GameController.Snippet)
+local SongClips = require(ReplicatedStorage.Modules.SongClips) -- the pulled song's audio, from the server
 local BackgroundMusic = require(script.Parent.Parent.Parent.Parent.BackgroundMusic)
 
 local RollRemote = Bridgenet.ReferenceBridge("RollRemote")
@@ -203,21 +204,40 @@ end
 
 -- [[ The song ]]
 
--- Loads the song's audio now (so it's ready by the turn); _playChorus() then plays it.
+-- Loads the song's audio now (so it's ready by the turn); _playChorus() then plays it. The
+-- clip comes from the server (the pull is already yours); if the turn beat it, it plays then.
 function Roll:_loadChorus(song)
 	self:_stopChorus(0.2)
-	local entry = song and song.Id and Songs.GetById(song.Id)
-	if not entry or type(entry.MusicId) ~= "string" or entry.MusicId == "" then
+	local id = song and song.Id
+	if not id then
 		return
 	end
-	self._chorus = Snippet.new(entry, "Song")
+	self._chorusFor = id
+	SongClips.Get(id):andThen(function(entry)
+		if self._chorusFor ~= id or not entry or type(entry.MusicId) ~= "string" or entry.MusicId == "" then
+			return
+		end
+		self._chorus = Snippet.new(entry, "Song")
+		local pending = self._chorusPending
+		self._chorusPending = nil
+		if pending ~= nil then
+			self:_playChorus(pending)
+		end
+	end)
 end
 
 -- chorus = true (the roll made it Gold / Rainbow) plays from ChorusPosition, else from the
 -- snippet's TimePosition. It plays on until _stopChorus() or the song ends.
 function Roll:_playChorus(chorus: boolean?)
 	local clip = self._chorus
-	if not clip or clip._started then
+	if not clip then
+		-- still on its way from the server: play it as soon as it lands
+		if self._chorusFor then
+			self._chorusPending = chorus == true
+		end
+		return
+	end
+	if clip._started then
 		return
 	end
 	clip._started = true
@@ -239,6 +259,8 @@ end
 function Roll:_stopChorus(fade: number)
 	local clip = self._chorus
 	self._chorus = nil
+	self._chorusFor = nil -- a clip still on its way won't play
+	self._chorusPending = nil
 	if clip then
 		clip:FadeAndDestroy(fade)
 	end
