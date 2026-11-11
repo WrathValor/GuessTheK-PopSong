@@ -43,12 +43,12 @@ local LIBRARY = {
 
 	-- results
 	Win = { Id = 102844356541414, Volume = 0.55 },
-	Lose = { Id = 87193628501201, Volume = 0.5 },
+	Lose = { Id = 100291570059220, Volume = 0.5 },
 	Coins = { Id = 135483737426662, Volume = 0.55 },
 	Perfect = { Id = 134464238316794, Volume = 0.55 },
-	Revenge = { Id = 98800727577803, Volume = 0.55 }, -- the REVENGE! stamp slamming onto the results winner card
+	Encore = { Id = 126615573673174, Volume = 0.5 }, -- "Crowd Cheering": the ENCORE sign lights up before the final round
 	Rematch = { Id = 9119669160, Volume = 0.5 }, -- the Rematch button popping in at the end of the results reveal
-	PlayAgain = { Id = 123922570136163, Volume = 0.5 }, -- solo results: the Play again button bouncing in
+
 }
 
 -- Looping background music. Id = 0 means "not picked yet" and is skipped quietly.

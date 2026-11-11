@@ -49,11 +49,19 @@ local function take(): boolean
 	return true
 end
 
+-- Roblox rejects a whole event if a field holds , " or ' ("Girls' Generation" lost every
+-- RoundResult), so those are stripped and line breaks / tabs become spaces.
+local function clean(v: any): string
+	local text = string.gsub(tostring(v), "[,\"']", "")
+	text = string.gsub(text, "%s", " ")
+	return text
+end
+
 local function fields(...: any): { [string]: string }?
 	local out, any = {}, false
 	for i, v in { ... } do
 		if v ~= nil and i <= 3 then
-			out[FIELD_KEYS[i]] = string.sub(tostring(v), 1, MAX_FIELD)
+			out[FIELD_KEYS[i]] = string.sub(clean(v), 1, MAX_FIELD)
 			any = true
 		end
 	end
@@ -91,7 +99,7 @@ function Analytics.Economy(player: Player, flow: string, currency: string, amoun
 	end
 	local flowType = if flow == "Sink" then Enum.AnalyticsEconomyFlowType.Sink else Enum.AnalyticsEconomyFlowType.Source
 	debugPrint(player.Name, flow, currency, amount, "→", balance, transaction, sku)
-	pcall(AnalyticsService.LogEconomyEvent, AnalyticsService, player, flowType, currency, amount, math.max(0, balance), transaction, sku or transaction)
+	pcall(AnalyticsService.LogEconomyEvent, AnalyticsService, player, flowType, currency, amount, math.max(0, balance), clean(transaction), clean(sku or transaction))
 end
 
 -- Onboarding: each step once per player per server (Roblox ignores repeats anyway)

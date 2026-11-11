@@ -2,6 +2,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
+local ContentProvider = game:GetService("ContentProvider")
 -- --------------------------------- Imports -------------------------------- --
 
 local Janitor = require(ReplicatedStorage.Packages.janitor)
@@ -14,6 +15,8 @@ local UITypes = require(ReplicatedStorage.Types.UITypes)
 local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
 local TitleChip = require(ReplicatedStorage.Modules.UI.TitleChip)
+local SeasonArt = require(ReplicatedStorage.Modules.UI.SeasonArt)
+local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
 local SoloPicker = require(script.SoloPicker)
 local InvitePicker = require(script.InvitePicker)
 
@@ -25,6 +28,10 @@ local QueueRemote = Bridgenet.ReferenceBridge("QueueRemote")
 -- the panel shrinks to fit while only the Cancel button sits under the cards
 local PANEL_HEIGHT = 383
 local PANEL_HEIGHT_COUNTDOWN = 350
+-- solo practice starting: Invite / Play Solo hide, Leave moves up into their row (y 280,
+-- from 343) and the panel loses that row's height
+local PANEL_HEIGHT_SOLO = 320
+local LEAVE_Y, LEAVE_Y_SOLO = 343, 280
 local PANEL_TWEEN = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 -- walk-on (rival found): the queue card steps aside for a slim countdown pill
 local CHIP_LOCKED = Color3.fromHex("EDE4D4")
@@ -33,6 +40,23 @@ local ASIDE_X, ASIDE_Y = 1014, 360
 local ASIDE_TWEEN = TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
 local CHIP_ON = Color3.fromHex("FFE07A")
 local CHIP_OFF = Color3.fromHex("FFFFFF")
+
+-- --------------------------------- Helpers -------------------------------- --
+-- Starts downloading the pre-duel cards' images (both headshots at the size PreDuel asks for
+-- + both banners' art) while the "Starting soon" countdown runs, so the stake roll doesn't
+-- open on empty squares the first time a player sees it.
+local function preloadCards(players: { Player })
+	local assets = {}
+	for _, p in players do
+		table.insert(assets, `rbxthumb://type=AvatarHeadShot&id={p.UserId}&w=150&h=150`)
+		local _, _, bannerId = SeasonArt.Of(p)
+		local spec = SeasonConstants.Banner(bannerId)
+		if spec and spec.Art and spec.Art ~= "" then
+			table.insert(assets, spec.Art)
+		end
+	end
+	task.spawn(pcall, ContentProvider.PreloadAsync, ContentProvider, assets)
+end
 
 -- --------------------------------- Tables --------------------------------- --
 -- Reusable subcontroller class - NOT a concrete screen. Instantiate one of these per real
@@ -221,6 +245,32 @@ function QueueController:_hideAside()
 end
 
 -- the walk-on hides the queue card (its slim top pill has the countdown + Cancel instead)
+-- Solo practice starting: the button row goes, Leave takes its place and the panel shrinks.
+-- Off puts Leave and the panel back (Reset).
+function QueueController:_soloLayout(on: boolean)
+	local panel = self._frame:FindFirstChild("Panel")
+	if not panel then
+		return
+	end
+	for _, n in { "InvitePlayers", "InvitePlayersShadow", "PlaySolo", "PlaySoloShadow" } do
+		local inst = panel:FindFirstChild(n)
+		if inst then
+			inst.Visible = not on
+		end
+	end
+	local leave = panel:FindFirstChild("Leave")
+	if leave then
+		leave.Position = UDim2.new(leave.Position.X, UDim.new(0, if on then LEAVE_Y_SOLO else LEAVE_Y))
+	end
+	local height = if on then PANEL_HEIGHT_SOLO else PANEL_HEIGHT
+	for _, frame in { panel, self._frame:FindFirstChild("PanelShadow") } do
+		if frame and frame.Size.Y.Offset ~= height then
+			TweenService:Create(frame, PANEL_TWEEN, { Size = UDim2.fromOffset(frame.Size.X.Offset, height) }):Play()
+		end
+	end
+	self._soloLayoutOn = on
+end
+
 function QueueController:_compact(on: boolean)
 	for _, n in { "Panel", "PanelShadow" } do
 		local frame = self._frame:FindFirstChild(n)
@@ -340,6 +390,9 @@ function QueueController:Reset()
 	panel.Subtitle.Text = "Nobody's joined the other spot yet"
 	self._invite:Reset()
 	self._solo:Close(true)
+	if self._soloLayoutOn then
+		self:_soloLayout(false)
+	end
 	self:_setButtons(true)
 	self:UpdateOpponent(nil)
 end
@@ -356,14 +409,24 @@ function QueueController:UpdateOpponent(opponent: Player?)
 	local dashes = opponentAvatar:FindFirstChild("Dashes")
 
 	if opponent then
+		-- solo practice: the server puts you in the rival spot (you vs you)
+		local solo = opponent == LOCAL_PLAYER
 		if self._opponent ~= opponent then
+			preloadCards(if solo then { LOCAL_PLAYER } else { LOCAL_PLAYER, opponent })
+		end
+		if self._opponent ~= opponent and not solo then
 			Sounds.Play("RivalFound")
 		end
-		if opponent ~= LOCAL_PLAYER then
+		if not solo then
 			self._solo:Close() -- a rival joined while you were picking a theme
 			self._invite:Reset() -- or while you were inviting someone
 		end
-		if not self._rematch then
+		if solo then
+			panelFrame.Title.Text = "Solo practice"
+			panelFrame.Subtitle.Text = "Starting soon…"
+			-- Invite / Play Solo don't apply once it's starting (Leave stays as the way out)
+			self:_soloLayout(true)
+		elseif not self._rematch then
 			panelFrame.Title.Text = "Opponent found!"
 			panelFrame.Subtitle.Text = "Starting soon…"
 		end
@@ -388,6 +451,10 @@ function QueueController:UpdateOpponent(opponent: Player?)
 			dashes.Visible = true
 		end
 		opponentNameLabel.Text = "Open spot"
+		if self._soloLayoutOn then
+			-- a solo game ended or was cancelled: the full card comes back
+			self:_soloLayout(false)
+		end
 		if self._rematch then
 			-- the rival we were waiting on stepped off: back to an ordinary open queue
 			self._rematch = false

@@ -256,8 +256,14 @@ return Scribe({
 			Losses = Count(),
 			Draws = Count(),
 			SoloGames = Count(),
-			SoloBest = Count(), -- best solo practice score (7 rounds, not the tutorial)
+			SoloBest = Count(), -- legacy: best solo score on the old 10/7/5/2/1 scale (out of 70)
+			-- best solo practice score on the 6/5/4/2/1 + ENCORE scale (7 rounds, not the tutorial).
+			-- A fresh stat so old bests out of 70 don't sit out of reach.
+			SoloBest2 = Count(),
 			HighestStreak = Count(),
+			-- your all-time record against each rival, by their userId: "wins.losses.last5.time"
+			-- (Engine/RivalRecord keeps the 100 most recent)
+			Rivals = Scribe.MapOf("string", Scribe.String("", { MaxLength = 40 }), { MaxKeys = 110, MaxKeyLength = 20 }),
 			StreaksSaved = Count(),
 			CorrectAnswers = Count(),
 			PerfectGames = Count(),

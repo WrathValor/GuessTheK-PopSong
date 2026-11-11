@@ -289,6 +289,12 @@ end
 -- [[ Buttons ]]
 
 function HUDController._open(self: Self, name: string, ...: any)
+	-- the HUD is already on its way out (a screen like Queue is opening, e.g. you just stepped
+	-- on a stage): a click now would queue up behind it and replace it, leaving you on the
+	-- stage with only the HUD once that screen is closed
+	if self._interface.Mode ~= "Gameplay" then
+		return
+	end
 	if self._interface:GetController(name) then
 		self._interface:Open(name, ...)
 	else

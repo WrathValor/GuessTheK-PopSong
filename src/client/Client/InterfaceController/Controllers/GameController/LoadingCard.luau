@@ -332,11 +332,13 @@ function LoadingCard.new(gameFrame: Frame, playButton: GuiButton)
 end
 
 -- --------------------------------- States --------------------------------- --
-function LoadingCard:ShowLoading(round: number, mode: string?)
+-- `multiplier` > 1: the final ENCORE round (DuelConstants.FINAL_ROUND_MULTIPLIER)
+function LoadingCard:ShowLoading(round: number, mode: string?, multiplier: number?)
 	self._loading = true
-	self.TagLabel.Text = `ROUND {round}`
+	local encore = (multiplier or 1) > 1
+	self.TagLabel.Text = if encore then `ENCORE ×{multiplier}` else `ROUND {round}`
 	self.Title.Text = if mode == "Choreography" then "Loading dance…" else "Loading audio…"
-	self.Sub.Text = "Get ready — the round unlocks in a sec"
+	self.Sub.Text = if encore then "Final round — every point counts double" else "Get ready — the round unlocks in a sec"
 	self.Dim.Visible = true
 	TweenService:Create(self.Dim, FADE, { BackgroundTransparency = 0.72 }):Play()
 	self.Card.Visible = true

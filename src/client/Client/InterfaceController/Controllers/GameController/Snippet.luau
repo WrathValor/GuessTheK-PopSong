@@ -42,8 +42,15 @@ function Snippet.new(clip, mode: string, stageModel: Model?)
 		sound.SoundGroup = Sounds.ClipGroup() -- Settings → Song clips volume
 		sound.Parent = SoundService
 		self.Sound = sound
-		-- start downloading now so the first Play isn't spent loading
-		task.spawn(ContentProvider.PreloadAsync, ContentProvider, { sound })
+		-- start downloading now so the first Play isn't spent loading. A fetch failure (402: this
+		-- experience can't use the audio, or it's gone) won't fix itself, so it's flagged at once
+		task.spawn(function()
+			pcall(ContentProvider.PreloadAsync, ContentProvider, { sound }, function(_, status)
+				if status == Enum.AssetFetchStatus.Failure and not sound.IsLoaded then
+					self.Failed = "FetchFailed"
+				end
+			end)
+		end)
 	else
 		self:_makeRig()
 	end
@@ -138,7 +145,9 @@ function Snippet:_report(name: string, value: number?, reason: string?)
 	AnalyticsClient.Event(name, value, self.Clip.MusicId, reason)
 end
 
--- Waits (up to 5 s) for the audio to load. Returns false if it never did.
+-- Waits (up to 5 s) for the audio to load. Returns false if it never did, with `Failed` set:
+-- "FetchFailed" (the asset can't be fetched) or "NotLoaded" (still loading at the deadline).
+-- Fetch failures return straight away instead of sitting out the 5 s.
 function Snippet:_waitLoaded(): boolean
 	local sound = self.Sound
 	if not sound then
@@ -148,12 +157,13 @@ function Snippet:_waitLoaded(): boolean
 		return true
 	end
 	local deadline = os.clock() + 5
-	while not sound.IsLoaded and os.clock() < deadline and sound.Parent do
+	while not sound.IsLoaded and not self.Failed and os.clock() < deadline and sound.Parent do
 		task.wait()
 	end
 	if not sound.IsLoaded then
-		warn(`[Snippet] {sound.SoundId} didn't load (missing asset or no permission for this experience)`)
-		self:_report("ClipFailed", nil, "NotLoaded")
+		self.Failed = self.Failed or "NotLoaded"
+		warn(`[Snippet] {sound.SoundId} didn't load ({self.Failed}: missing asset or no permission for this experience)`)
+		self:_report("ClipFailed", nil, self.Failed)
 	else
 		self:_report("ClipLoadTime", os.clock() - self._createdAt)
 	end

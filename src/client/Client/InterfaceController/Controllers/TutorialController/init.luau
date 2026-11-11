@@ -38,11 +38,11 @@ local WELCOME_DELAY = 0.6 -- seconds after the loading screen goes before the We
 
 -- the coach marks, in the order they show
 local CLIP_TIPS = {
-	{ Spot = Tips.SPOTS.Clip, Tip = "1 / 3", Title = "Listen to the clip", Body = "Tap <b>▶</b> to hear a 0.5 second clip. Can't tell yet? Unlock a longer clip, but you'll score less: <b>10 → 7 → 5 → 2 → 1</b>." },
+	{ Spot = Tips.SPOTS.Clip, Tip = "1 / 3", Title = "Listen to the clip", Body = "Tap <b>▶</b> to hear a 0.1 second clip. Can't tell yet? Unlock a longer clip, but you'll score less: <b>6 → 5 → 4 → 2 → 1</b>." },
 	{ Spot = Tips.SPOTS.Answers, Tip = "2 / 3", Title = "Pick the song", Body = "Tap the song you think it is. Faster answers score more, and wrong answers score nothing, so don't rush blind!" },
 }
 local REVEAL_TIPS = {
-	{ Spot = Tips.SPOTS.Reveal, Tip = "3 / 3", Title = "The answer", Body = "Here's the song and what you scored. In a duel, the most points after 7 rounds wins the coins. 2 practice rounds to go!" },
+	{ Spot = Tips.SPOTS.Reveal, Tip = "3 / 3", Title = "The answer", Body = "Here's the song and what you scored. In a duel, the most points after 7 rounds wins the coins, and the last round, the <b>ENCORE</b>, counts double. 2 practice rounds to go!" },
 }
 
 -- ---------------------------------- Class --------------------------------- --

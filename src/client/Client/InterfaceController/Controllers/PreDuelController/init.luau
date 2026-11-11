@@ -47,6 +47,45 @@ function PreDuel.new()
 	return (self :: any) :: UITypes.Controller
 end
 
+-- the record chip on the stake card's bottom edge (packet.Record = { [userId] = { W, L, Last } })
+local PIP_WIN, PIP_LOSS = Color3.fromHex("A7E9B8"), Color3.fromHex("FFD2CE")
+function PreDuel:_fillRecord(packet, rival)
+	local f = self._frame
+	local chip = f:FindFirstChild("Record")
+	if not chip then
+		return
+	end
+	local show = not packet.Solo and not packet.Party and rival ~= nil
+	chip.Visible = show
+	local shadow = f:FindFirstChild("RecordShadow")
+	if shadow then
+		shadow.Visible = show
+	end
+	if not show then
+		return
+	end
+	local record = packet.Record and packet.Record[tostring(LOCAL_PLAYER.UserId)]
+	local name = string.upper(rival.Name or "your rival")
+	if record then
+		chip.Label.Text = `YOUR RECORD VS {name}`
+		chip.Score.Text = `{record.W} <font color="#8A8497">–</font> {record.L}`
+	else
+		chip.Label.Text = `VS {name}`
+		chip.Score.Text = "FIRST DUEL"
+	end
+	local last = record and record.Last or ""
+	chip.LastLabel.Visible = last ~= ""
+	for k = 1, 5 do
+		local pip = chip.Pips:FindFirstChild("P" .. k)
+		local r = last:sub(k, k)
+		if pip then
+			pip.Visible = r ~= ""
+			pip.Text = r
+			pip.BackgroundColor3 = if r == "W" then PIP_WIN else PIP_LOSS
+		end
+	end
+end
+
 function PreDuel:Initialize(interface)
 	self._interface = interface
 	self._frame = interface:ResolveFrame("Interface", "PreDuel")
@@ -256,24 +295,18 @@ function PreDuel:Setup(packet)
 	self:_fillPlayer(f.You, me)
 	self:_fillPlayer(f.Rival, rival)
 
-	-- rematch series chip under the VS: "REMATCH #3 · 2–1" (your wins first)
-	local seriesChip = f:FindFirstChild("Series")
-	if seriesChip then
-		local series = packet.Series
-		seriesChip.Visible = series ~= nil and not packet.Solo
-		if series then
-			local mine = series.Wins[tostring(LOCAL_PLAYER.UserId)] or 0
-			local theirs = rival and series.Wins[tostring(rival.UserId)] or 0
-			seriesChip.Label.Text = `REMATCH #{series.Game - 1} · {mine}–{theirs}`
-		end
-		local shadow = f:FindFirstChild("SeriesShadow")
-		if shadow then
-			shadow.Visible = seriesChip.Visible
-		end
-	end
+	-- your all-time record against this rival (Build.Record): "6 – 3" + the last five, or
+	-- FIRST DUEL. Duels only (not solo or Party)
+	self:_fillRecord(packet, rival)
 	f.VS.Visible = rival ~= nil
 	f.RivalFound.Visible = rival ~= nil
 	f.RivalFoundShadow.Visible = rival ~= nil
+	-- solo: the banner reads SOLO PRACTICE (RivalFound.SoloLabel) instead of RIVAL FOUND!
+	local soloLabel = f.RivalFound:FindFirstChild("SoloLabel")
+	if soloLabel then
+		soloLabel.Visible = packet.Solo == true
+		f.RivalFound.Label.Visible = packet.Solo ~= true
+	end
 	-- Party free-for-all: no "you vs rival" row (the whole stage is your rival)
 	if packet.Party and packet.Kind ~= "Duel" then
 		for _, n in { "You", "YouShadow", "Rival", "RivalShadow", "VS", "RivalFound", "RivalFoundShadow" } do

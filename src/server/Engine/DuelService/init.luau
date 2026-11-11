@@ -11,18 +11,13 @@ local Rewards = require(script.Rewards)
 local StageCosmetics = require(script.StageCosmetics)
 local StageStatus = require(script.StageStatus)
 local Analytics = require(script.Parent.Analytics)
+local RivalRecord = require(script.Parent.RivalRecord)
 local Themes = require(ReplicatedStorage.Modules.Library.Themes)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 
 --| Types
 
 type Slot = "A" | "B"
--- a running rematch series between two players (see seriesFor)
-type Series = {
-	Games: number, -- games finished in this series
-	Wins: { [string]: number }, -- userId -> wins
-	LastLoser: number?, -- userId who lost the last game (nil after a draw)
-}
 export type Stage = {
 	Name: string,
 	Model: Model,
@@ -33,7 +28,6 @@ export type Stage = {
 	SlotJanitors: { [Slot]: any },
 	Duel: any?,
 	Rematch: { [Player]: boolean },
-	Series: Series?,
 	Solo: boolean?,
 	Janitor: any,
 }
@@ -58,39 +52,6 @@ local played: { [Player]: boolean } = {}
 -- Rematch, step off or step on again). A rival who steps on meanwhile waits for them to
 -- accept instead of pulling them straight into a game.
 local onResults: { [Player]: boolean } = {}
-
--- rematch series, kept per pair of players rather than per stage, so stepping off and back
--- on against the same rival carries it on. It ends when either of them plays someone else
--- or leaves the game.
-local seriesByPair: { [string]: Series } = {}
-local seriesKey: { [Player]: string } = {}
-
-local function endSeries(key: string)
-	seriesByPair[key] = nil
-	for p, k in seriesKey do
-		if k == key then
-			seriesKey[p] = nil
-		end
-	end
-end
-
-local function seriesFor(a: Player, b: Player): Series
-	local x, y = a.UserId, b.UserId
-	if x > y then
-		x, y = y, x
-	end
-	local key = `{x}-{y}`
-	for _, p in { a, b } do
-		local old = seriesKey[p]
-		if old and old ~= key then
-			endSeries(old) -- playing someone else ends your last series
-		end
-	end
-	local series = seriesByPair[key] or { Games = 0, Wins = {}, LastLoser = nil }
-	seriesByPair[key] = series
-	seriesKey[a], seriesKey[b] = key, key
-	return series
-end
 
 local function newSession(player: Player): string
 	local id = `{player.UserId}-{os.time()}-{math.random(1000, 9999)}`
@@ -260,7 +221,6 @@ function leave(player: Player)
 	stage.SlotJanitors[slot]:Cleanup()
 	StageCosmetics.Apply(stage, slot, nil)
 	stage.Rematch = {}
-	stage.Series = nil -- the series itself lives on in seriesByPair
 	onResults[player] = nil
 
 	if stage.Duel then
@@ -310,25 +270,13 @@ local function onDuelEnded(stage: Stage, result)
 		stage.Duel = nil
 	end
 
-	-- rematch series: a win right after losing to this same rival is a Revenge win (Rewards
-	-- pays the bonus) – once per series, so trading wins back and forth can't farm it – then
-	-- the series score moves on
-	local series = stage.Series
-	if series and not result.Solo then
-		local winner = result.Winner
-		if winner and not result.Draw and series.LastLoser == winner.UserId and result.Leaver == nil and not series.RevengePaid then
-			result.Revenge = winner
-			series.RevengePaid = true
-		end
-		series.Games += 1
-		series.LastLoser = nil
-		if winner and not result.Draw then
-			local id = tostring(winner.UserId)
-			series.Wins[id] = (series.Wins[id] or 0) + 1
-			for _, p in (duel and duel.Players or {}) do
-				if p ~= winner then
-					series.LastLoser = p.UserId
-				end
+	-- all-time record against this rival (RivalRecord): 1v1 duels with a winner only; someone
+	-- leaving counts as a win for the one who stayed, like the result itself
+	local record = nil
+	if not result.Solo and not result.Tutorial and not result.Party and not result.Draw and result.Winner then
+		for _, p in (duel and duel.Players or {}) do
+			if p ~= result.Winner then
+				record = RivalRecord.Add(result.Winner, p)
 			end
 		end
 	end
@@ -351,9 +299,9 @@ local function onDuelEnded(stage: Stage, result)
 	for i, round in result.Rounds do
 		local picks = {}
 		for p, pick in round.Picks do
-			picks[k(p)] = { Correct = pick.Correct, Points = pick.Points, Picked = pick.Picked ~= nil }
+			picks[k(p)] = { Correct = pick.Correct, Points = pick.Points, Picked = pick.Picked ~= nil, Tier = pick.Tier }
 		end
-		rounds[i] = { Name = round.Song.Name, Artist = round.Song.Artist, Picks = picks }
+		rounds[i] = { Name = round.Song.Name, Artist = round.Song.Artist, Picks = picks, Multiplier = round.Multiplier }
 	end
 
 	local present = {}
@@ -378,7 +326,7 @@ local function onDuelEnded(stage: Stage, result)
 			Scores = scores,
 			Rounds = rounds,
 			Rewards = rewards,
-			Series = if series then { Games = series.Games, Wins = table.clone(series.Wins) } else nil,
+			Record = record, -- { [userId] = { W, L, Last, Delta } } vs the other player
 		})
 	end
 
@@ -509,14 +457,9 @@ function tryStart(stage: Stage, soloStage: boolean?, rematch: boolean?)
 
 	local duel = Duels.new(stage, a, b, soloStage)
 	stage.Duel = duel
-	-- rematch series: the same two players carry theirs on, however they got back here
-	if soloStage then
-		stage.Series = nil
-	elseif a and b then
-		stage.Series = seriesFor(a, b)
-	end
-	if stage.Series and stage.Series.Games > 0 then
-		duel.Series = { Game = stage.Series.Games + 1, Wins = table.clone(stage.Series.Wins) }
+	-- each player's record against the other, for the pre-duel chip
+	if a and b and not soloStage then
+		duel.Record = RivalRecord.Pair(a, b)
 	end
 	duel.Tutorial = soloStage == true and stage.Tutorial == true
 	stage.Tutorial = nil -- a rematch after the tutorial is ordinary solo practice
@@ -679,10 +622,6 @@ function DuelService.Start()
 
 	Players.PlayerRemoving:Connect(leave)
 	Players.PlayerRemoving:Connect(function(player)
-		local key = seriesKey[player]
-		if key then
-			endSeries(key)
-		end
 		onResults[player] = nil
 	end)
 	-- Request is a string, or { Request = "Solo", Theme, Mix } from the solo theme picker

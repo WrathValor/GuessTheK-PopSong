@@ -2,7 +2,7 @@
 -- Builds Interface.Frames.Inventory (the "Inventory redesign"): orange header, a category rail
 -- (Stages / Mic stands / Titles / Song packs with counts), a big heading + one-line description
 -- with Sort ⌄ and a ‹ 1 / 4 › pager, then a roomy 4 × 2 grid of item cards:
---   • stages + mics: the art, the name, a full-width Equip (green "✓ Equipped" when worn)
+--   • stages + mics: the art, the name, a full-width white Equip (soft mint "Equipped" when worn)
 --   • titles: your name with the title chip on a dark panel
 --   • song packs: stacked photocards with the pack's initials, a progress bar or "Complete ✓",
 --     and "Roll for more" on My Pack
@@ -229,9 +229,9 @@ function Build.Build(frames: Instance)
 		corner(fill, UDim.new(0.5, 0))
 		text(prog, "Count", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.new(0, 62, 1, 0), TextSize = 11, TextXAlignment = Enum.TextXAlignment.Right, Text = "8 / 15" })
 
-		local action = new("TextButton", { Name = "Action", Position = UDim2.new(0, 8, 1, -8 - 30), Size = UDim2.new(1, -16, 0, 30), BackgroundColor3 = WHITE, FontFace = BODY, TextSize = 13, TextColor3 = INK, Text = "Equip", AutoButtonColor = false }, face)
+		local action = new("TextButton", { Name = "Action", Position = UDim2.new(0, 8, 1, -8 - 30), Size = UDim2.new(1, -16, 0, 30), BackgroundColor3 = WHITE, FontFace = HEAD, TextSize = 13, TextColor3 = INK, Text = "Equip", AutoButtonColor = false }, face)
 		corner(action, 9)
-		stroke(action, 2, LINE)
+		stroke(action, 2, INK)
 	end
 	text(content, "Empty", { Position = UDim2.fromOffset(0, GY + 120), Size = UDim2.new(1, 0, 0, 40), FontFace = BODY_BOLD, TextSize = 15, TextColor3 = MUTED, TextXAlignment = Enum.TextXAlignment.Center, Text = "Nothing here yet", Visible = false })
 

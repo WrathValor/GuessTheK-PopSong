@@ -3,6 +3,9 @@
 --   • Packs    – sticker chip on the bottom edge of the stake card: "Packs ON · My Pack + HYBE
 --                Pack" (mint) or "Packs off · <rival> has none on" (grey). Hidden with no packs.
 --   • SoloPool – solo only, same spot: SONG POOL [Mix with all songs] [Only my pack]
+--   • Record   – your all-time record against this rival (board "Pre-duel · your record against
+--                this rival"), a sticker on the stake card's bottom edge: "YOUR RECORD VS X · 6 – 3"
+--                and the last five as W / L tiles; "FIRST DUEL" the first time. Build.Record.
 -- Run once in Studio (safe to run again); PreDuelController finds them by name.
 
 local C = Color3.fromHex
@@ -131,6 +134,61 @@ function Build.Build(frame: Instance)
 		stroke(b, 2)
 	end
 	return chip, pool
+end
+
+-- [[ Record chip ]] (replaces the old rematch-series chip, Series + SeriesShadow)
+--   require(<this module>).Record(game.StarterGui.Interface.Frames.PreDuel)
+Build.RECORD_W, Build.RECORD_H = 360, 48
+function Build.Record(frame: Instance)
+	for _, n in { "Record", "RecordShadow", "Series", "SeriesShadow" } do
+		local old = frame:FindFirstChild(n)
+		if old then
+			old:Destroy()
+		end
+	end
+	-- a sticker on the stake card's bottom edge (the top edge would cover the player cards)
+	local y = frame.Stake.Position.Y.Offset + frame.Stake.Size.Y.Offset + 18
+	local shadow = new("Frame", {
+		Name = "RecordShadow",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromOffset(644, y + 4),
+		Size = UDim2.fromOffset(Build.RECORD_W, Build.RECORD_H),
+		Rotation = 1.5,
+		BackgroundColor3 = INK,
+		Visible = false,
+		ZIndex = 4,
+	}, frame)
+	corner(shadow, 12)
+	local chip = new("Frame", {
+		Name = "Record",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromOffset(640, y),
+		Size = UDim2.fromOffset(Build.RECORD_W, Build.RECORD_H),
+		Rotation = 1.5,
+		BackgroundColor3 = WHITE,
+		Visible = false,
+		ZIndex = 5,
+	}, frame)
+	corner(chip, 12)
+	stroke(chip, 3)
+	local function label(name, props)
+		local l = new("TextLabel", { Name = name, BackgroundTransparency = 1, TextColor3 = INK, FontFace = BODY, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 6 }, chip)
+		for k, v in props do
+			(l :: any)[k] = v
+		end
+		return l
+	end
+	label("Label", { Position = UDim2.fromOffset(14, 5), Size = UDim2.fromOffset(210, 13), TextSize = 10, TextColor3 = C("4A4458"), Text = "YOUR RECORD VS RIVAL" })
+	label("Score", { Position = UDim2.fromOffset(14, 18), Size = UDim2.fromOffset(210, 24), FontFace = HEAD, TextSize = 20, RichText = true, Text = '6 <font color="#8A8497">–</font> 3' })
+	label("LastLabel", { Position = UDim2.fromOffset(228, 5), Size = UDim2.fromOffset(120, 13), TextSize = 10, TextColor3 = C("4A4458"), Text = "LAST 5" })
+	local pips = new("Frame", { Name = "Pips", Position = UDim2.fromOffset(228, 20), Size = UDim2.fromOffset(120, 20), BackgroundTransparency = 1, ZIndex = 6 }, chip)
+	new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, pips)
+	for k = 1, 5 do
+		local pip = new("TextLabel", { Name = "P" .. k, LayoutOrder = k, Size = UDim2.fromOffset(20, 20), BackgroundColor3 = MINT, TextColor3 = INK, FontFace = HEAD, TextSize = 11, Text = "W", ZIndex = 6 }, pips)
+		corner(pip, 6)
+		new("UIStroke", { Color = INK, Thickness = 2, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, pip)
+	end
+	return chip
 end
 
 return Build

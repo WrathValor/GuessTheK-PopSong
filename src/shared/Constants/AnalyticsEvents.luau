@@ -65,7 +65,6 @@ AnalyticsEvents.Custom = {
 
 	-- [[ Economy guards (DuelService/Rewards) ]]
 	RivalLimit = { Fields = { "Outcome" } }, -- coins halved by the same-rival guard; value: duels vs them today
-	RevengeWin = {}, -- the once-per-series Revenge bonus was paid
 
 	-- [[ From the client ]]
 	ScreenOpened = { Fields = { "Screen" }, Client = true, Allowed = {

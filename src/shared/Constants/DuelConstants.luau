@@ -17,6 +17,7 @@ return table.freeze({
 	ROUND_CAP = 20, -- a round never lasts longer than this
 	SOLO_CAP = 180, -- solo practice has no clock: this only ends a round someone walked away from
 	LOAD_TIMEOUT = 8, -- longest the round clock waits for players' clips to load
+	AUDIO_SWAPS = 2, -- Song mode: a clip that won't load (402 / missing) is swapped for another song, at most this many times a round
 	ANSWER_WINDOW = 10, -- after the first guess, everyone else has this long
 	REVEAL_TIME = 5, -- seconds the answer + song play between rounds
 	FIRST_CORRECT_BONUS = 1,
@@ -26,7 +27,20 @@ return table.freeze({
 		Song = table.freeze({ 0.1, 0.5, 2, 8, 15 }),
 		Choreography = table.freeze({ 0.5, 1, 3, 8, 15 }),
 	}),
-	TIER_POINTS = table.freeze({ 10, 7, 5, 2, 1 }),
+	-- points for a right answer by tier. Flat at the top on purpose: the 0.1 s tier used to pay
+	-- 10 (twice the 2 s tier), so a blind tap beat knowing the song and one lucky round decided
+	-- the game. Blind guessing at 0.1 s now averages 1.5 (¼ × 6), under knowing it at 8 s.
+	TIER_POINTS = table.freeze({ 6, 5, 4, 2, 1 }),
+	-- a wrong answer on these tiers costs points (tier → points lost, e.g. { [1] = 2, [2] = 2 }).
+	-- Off: wrong answers score 0, so scores never go below 0. The round UI only shows a cost
+	-- ("−2 if wrong") for tiers listed here. Never in the tutorial.
+	WRONG_PENALTY = table.freeze({}),
+	-- the last round ("ENCORE") counts this many times over, penalties included, so a game isn't
+	-- decided before it ends. Not in the tutorial.
+	FINAL_ROUND_MULTIPLIER = 2,
+	-- seconds the ENCORE sign (GameController/EncoreBanner) holds the stage before the final
+	-- round's clip starts loading
+	ENCORE_INTRO = 3.4,
 	MODES = table.freeze({ "Song", "Choreography" }),
 
 	-- stake roll: 30-130 coins, weighted to the low end (averages ~52)
@@ -55,12 +69,6 @@ return table.freeze({
 	OWNED_ROUNDS_MAX = 3,
 	OWNED_XP = 5, -- bonus XP for guessing a song you own (duels only)
 
-	-- rematch series: two players who keep pressing Rematch play a running series (shown on
-	-- the pre-duel + results screens). Winning a rematch right after losing to that same rival
-	-- is a Revenge win and pays this on top (before the 2× Coins pass).
-	REVENGE_COINS = 15,
-	REVENGE_XP = 25,
-	-- (Revenge pays once per rematch series, so trading wins back and forth can't farm it)
 
 	-- same-rival guard (stops two friends / an alt farming coins off each other): after this
 	-- many duels against the same rival in a UTC day, coins from them are halved

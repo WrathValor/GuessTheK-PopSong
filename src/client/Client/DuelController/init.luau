@@ -107,6 +107,8 @@ function DuelController.Start()
 			BackgroundMusic.Duck()
 			CameraController.Focus(packet.Mode, DuelController.Info)
 			InterfaceController:Open("Game", DuelController.Info, packet.Mode)
+		elseif message == "Encore" then
+			call("Game", "OnEncore", packet) -- the final round's ENCORE sign
 		elseif message == "Round" then
 			call("Game", "OnRound", packet)
 		elseif message == "RoundGo" then

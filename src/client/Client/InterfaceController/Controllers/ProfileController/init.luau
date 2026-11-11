@@ -174,7 +174,7 @@ function Profile:_paintStats()
 		-- the sixth tile: the season while seasons are on, Solo Best while they're off
 		Season = if SeasonConstants.ENABLED
 			then { `{commas(sp)} SP`, `{tierName(SeasonConstants.TierOf(sp))} · peak {tierName(SeasonConstants.TierOf(peak))}` }
-			else { commas(get(stats.SoloBest, 0)), "points in 7 rounds" },
+			else { commas(get(stats.SoloBest2, 0)), "points in 7 rounds" },
 	}
 	tiles.Season.Label.Text = if SeasonConstants.ENABLED then "SEASON" else "SOLO BEST"
 	for name, v in values do
@@ -314,7 +314,7 @@ function Profile:Initialize(interface)
 	local stats = PlayerData.Statistics
 	for _, path in {
 		PlayerData.Player.XP, PlayerData.Player.Streak, stats.Wins, stats.Duels, stats.HighestStreak,
-		stats.PerfectGames, stats.CorrectAnswers, stats.SoloBest, PlayerData.Inventory.Songs, PlayerData.Inventory.Copies,
+		stats.PerfectGames, stats.CorrectAnswers, stats.SoloBest2, PlayerData.Inventory.Songs, PlayerData.Inventory.Copies,
 	} do
 		j:Add(path.Observe(changed))
 	end

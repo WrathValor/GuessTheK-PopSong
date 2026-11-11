@@ -900,7 +900,8 @@ function Shop:Initialize(interface)
 			if not bought then
 				self:_toast(packet.Text or "")
 			end
-			if packet.Ok and packet.Action ~= "EquipSet" and packet.Action ~= "EquipItem" and packet.Action ~= "EquipStyle" then
+			-- equips chime too (stages, mics, sets, titles); styles already chime on the Banners click
+			if packet.Ok and packet.Action ~= "EquipStyle" then
 				Sounds.Play("Success")
 			elseif not packet.Ok then
 				Sounds.Play("Wrong")

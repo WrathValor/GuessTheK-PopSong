@@ -18,6 +18,10 @@ local Analytics = require(script.Parent.Parent.Analytics)
 --| Variables
 local QueueRemote = Bridgenet.ReferenceBridge("QueueRemote")
 local DuelRemote = Bridgenet.ReferenceBridge("DuelRemote")
+-- song ids whose audio failed to fetch on a client (402: this experience can't use it, or the
+-- asset is gone). Audio permissions are per experience, so they're skipped by every duel on
+-- this server from then on.
+local BrokenAudio = {} :: { [string]: boolean }
 
 --| Types
 export type Pick = {
@@ -28,7 +32,7 @@ export type Pick = {
 	First: boolean,
 	Time: number?,
 }
-export type RoundLog = { Song: any, Picks: { [Player]: Pick } }
+export type RoundLog = { Song: any, Picks: { [Player]: Pick }, Owners: any?, Multiplier: number? }
 export type Result = {
 	Winner: Player?,
 	Draw: boolean,
@@ -191,8 +195,7 @@ function Duels.new(stage, playerA: Player?, playerB: Player?, solo: boolean?, pa
 	self.Tutorial = false
 	self.RoundCount = DuelConstants.ROUNDS -- how many rounds this game plays
 	self.Cap = DuelConstants.ROUND_CAP
-	-- rematch series so far, { Game, Wins } (set by DuelService on a rematch, shown on PreDuel)
-	self.Series = nil :: any
+	self.Record = nil :: any -- { [userId] = record vs the other } (DuelService, RivalRecord)
 
 	self.Ended = Signal.new()
 	self._janitor = Janitor.new()
@@ -416,7 +419,7 @@ function Duels:_preDuel()
 		Chips = if self.Solo then stakes else nil, -- solo's lower table (nil: the duel strip)
 		Players = profiles,
 		Solo = self.Solo,
-		Series = self.Series,
+		Record = self.Record,
 		SpinTime = DuelConstants.STAKE_SPIN,
 		ModeVote = DuelConstants.MODE_VOTE,
 		VoteTime = if DuelConstants.MODE_VOTE then DuelConstants.VOTE_TIME else DuelConstants.PRE_DUEL_HOLD,
@@ -474,8 +477,156 @@ end
 
 -- [[ Rounds ]]
 
+-- the final round counts FINAL_ROUND_MULTIPLIER times over (not in the tutorial)
+function Duels:_multiplier(round: number): number
+	return if not self.Tutorial and round == self.RoundCount then DuelConstants.FINAL_ROUND_MULTIPLIER else 1
+end
+
+-- what each tier pays this round (+) and what a wrong answer on it costs (as a positive number)
+function Duels:_roundPoints(round: number): ({ number }, { number })
+	local mult = self:_multiplier(round)
+	local pays, costs = {}, {}
+	for i, p in DuelConstants.TIER_POINTS do
+		pays[i] = p * mult
+		costs[i] = if self.Tutorial then 0 else (DuelConstants.WRONG_PENALTY[i] or 0) * mult
+	end
+	return pays, costs
+end
+
 function Duels:_playRound(round: number)
 	self.RoundNumber = round
+	-- the final ENCORE round gets its own moment first: every client shows the neon sign with
+	-- what's at stake for them (scores + the most this round can pay), then the round starts
+	local mult = self:_multiplier(round)
+	if mult > 1 then
+		local scores = {}
+		for p, s in self.Scores do
+			scores[key(p)] = s
+		end
+		self:_fire({
+			Message = "Encore",
+			Multiplier = mult,
+			Scores = scores,
+			-- the top tier, plus the first-correct bonus where there's a rival to beat
+			Max = DuelConstants.TIER_POINTS[1] * mult + (if self.Solo then 0 else DuelConstants.FIRST_CORRECT_BONUS * mult),
+			Solo = self.Solo or nil,
+			Party = if self.Party then true else nil,
+		})
+		task.wait(DuelConstants.ENCORE_INTRO)
+		if not self._running then
+			return
+		end
+	end
+	-- a clip that won't load gets swapped for another song (Song mode, up to AUDIO_SWAPS times);
+	-- past that the round plays on as before
+	local swaps = 0
+	local state, owners
+	repeat
+		local canSwap = self.Mode == "Song" and swaps < DuelConstants.AUDIO_SWAPS
+		state, owners = self:_startRound(round, swaps > 0, canSwap)
+		if not state then
+			return
+		end
+		swaps += 1
+	until not (state.Failed and canSwap)
+	local song, per = state.Song, state.Per
+
+	-- wait until everyone has guessed, the answer window closes, or the cap is hit
+	while self._running do
+		task.wait(0.1)
+		local now = os.clock() - state.Start
+		local allIn = true
+		for _, info in per do
+			if not info.Picked then
+				allIn = false
+				break
+			end
+		end
+		if allIn or now >= self.Cap then
+			break
+		end
+		if state.FirstGuessAt and now >= state.FirstGuessAt + DuelConstants.ANSWER_WINDOW then
+			break
+		end
+	end
+	if not self._running then
+		return
+	end
+
+	-- score
+	self.Phase = "Reveal"
+	local picks: { [Player]: Pick } = {}
+	local publicPicks = {}
+	local pays, costs = self:_roundPoints(round)
+	for _, p in self.Players do
+		local info = per[p]
+		local points = 0
+		if info.Correct then
+			points = pays[info.Tier] or 0
+			if state.FirstCorrect == p then
+				points += DuelConstants.FIRST_CORRECT_BONUS * self:_multiplier(round)
+				self.Firsts[p] = (self.Firsts[p] or 0) + 1
+			end
+			self.CorrectTime[p] += info.Time or 0
+		elseif info.Picked and (costs[info.Tier] or 0) > 0 then
+			-- a wrong guess on an early tier costs points (can take a score below 0)
+			points = -costs[info.Tier]
+		end
+		self.Scores[p] += points
+		self.Stage.Model:SetAttribute(p.Name, self.Scores[p])
+		picks[p] = {
+			Picked = info.Picked,
+			Correct = info.Correct,
+			Points = points,
+			Tier = info.Tier,
+			First = state.FirstCorrect == p,
+			Time = info.Time,
+		}
+		local picked = info.Picked and SongLibrary.GetById(info.Picked)
+		publicPicks[key(p)] = {
+			Picked = picked and SongLibrary.Public(picked) or nil,
+			Correct = info.Correct,
+			Points = points,
+			Tier = info.Tier,
+			First = state.FirstCorrect == p,
+		}
+	end
+	table.insert(self.Rounds, { Song = song, Picks = picks, Owners = owners, Multiplier = self:_multiplier(round) })
+	self:_logRound(round, song, picks, owners)
+
+	local scores = {}
+	for p, s in self.Scores do
+		scores[key(p)] = s
+	end
+	local left = nil
+	if self.Party then
+		left = {}
+		for p in self.Left do
+			table.insert(left, p.UserId)
+		end
+	end
+	self:_fire({
+		Message = "RoundEnd",
+		Left = left,
+		Round = round,
+		Answer = SongLibrary.Public(song),
+		Picks = publicPicks,
+		Scores = scores,
+		Next = if round < self.RoundCount then self:_revealTime(round) else 0,
+		Tutorial = self.Tutorial or nil,
+		Multiplier = self:_multiplier(round),
+	})
+	task.wait(self:_revealTime(round))
+	self.Current = nil
+end
+
+-- Picks the round's song, sends it and waits for everyone's clip to load. Returns the round
+-- state (nil if the duel stopped). If a clip failed and `canSwap`, returns before RoundGo so
+-- _playRound can try another song; otherwise the round clock starts here.
+function Duels:_startRound(round: number, swapped: boolean, canSwap: boolean)
+	for id in BrokenAudio do
+		self.Used[id] = true -- every picker skips used songs
+	end
 	local song
 	if self.Tutorial then
 		-- well-known songs, in a random order
@@ -565,9 +716,12 @@ function Duels:_playRound(round: number)
 	for _, p in self.Players do
 		per[p] = { Tier = 1, Picked = nil, Correct = false, Time = nil }
 	end
+	self.Attempt = (self.Attempt or 0) + 1
 	local state = {
 		Song = song,
 		Per = per,
+		Attempt = self.Attempt, -- a late "Loaded" from a swapped-out song doesn't count
+		Failed = false, -- someone's clip failed to load
 		Loaded = {} :: { [Player]: boolean },
 		Start = os.clock(),
 		FirstGuessAt = nil :: number?,
@@ -576,14 +730,19 @@ function Duels:_playRound(round: number)
 	self.Current = state
 	self.Phase = "Loading" -- no guessing until everyone's clip has loaded
 
+	local pays, costs = self:_roundPoints(round)
 	self:_fire({
 		Message = "Round",
 		Round = round,
+		Attempt = state.Attempt,
+		Swapped = swapped or nil, -- the last song's clip wouldn't load
 		Rounds = self.RoundCount,
 		Tutorial = self.Tutorial or nil,
 		Mode = self.Mode,
 		Tiers = DuelConstants.TIERS[self.Mode],
-		Points = DuelConstants.TIER_POINTS,
+		Points = pays,
+		Penalty = costs, -- tier → points a wrong answer loses
+		Multiplier = self:_multiplier(round), -- 2 on the final ENCORE round
 		Options = publicOptions,
 		Cap = self.Cap,
 		OwnedTag = ownedTag,
@@ -606,100 +765,22 @@ function Duels:_playRound(round: number)
 				break
 			end
 		end
-		if all then
+		if all or (state.Failed and canSwap) then
 			break
 		end
 		task.wait(0.1)
 	end
 	if not self._running then
-		return
+		return nil
+	end
+	if state.Failed and canSwap then
+		return state, owners
 	end
 	state.Start = os.clock()
 	self.Phase = "Round"
 	self:_fire({ Message = "RoundGo", Round = round, Cap = self.Cap, Tutorial = self.Tutorial or nil })
 
-	-- wait until everyone has guessed, the answer window closes, or the cap is hit
-	while self._running do
-		task.wait(0.1)
-		local now = os.clock() - state.Start
-		local allIn = true
-		for _, info in per do
-			if not info.Picked then
-				allIn = false
-				break
-			end
-		end
-		if allIn or now >= self.Cap then
-			break
-		end
-		if state.FirstGuessAt and now >= state.FirstGuessAt + DuelConstants.ANSWER_WINDOW then
-			break
-		end
-	end
-	if not self._running then
-		return
-	end
-
-	-- score
-	self.Phase = "Reveal"
-	local picks: { [Player]: Pick } = {}
-	local publicPicks = {}
-	for _, p in self.Players do
-		local info = per[p]
-		local points = 0
-		if info.Correct then
-			points = DuelConstants.TIER_POINTS[info.Tier] or 0
-			if state.FirstCorrect == p then
-				points += DuelConstants.FIRST_CORRECT_BONUS
-				self.Firsts[p] = (self.Firsts[p] or 0) + 1
-			end
-			self.CorrectTime[p] += info.Time or 0
-		end
-		self.Scores[p] += points
-		self.Stage.Model:SetAttribute(p.Name, self.Scores[p])
-		picks[p] = {
-			Picked = info.Picked,
-			Correct = info.Correct,
-			Points = points,
-			Tier = info.Tier,
-			First = state.FirstCorrect == p,
-			Time = info.Time,
-		}
-		local picked = info.Picked and SongLibrary.GetById(info.Picked)
-		publicPicks[key(p)] = {
-			Picked = picked and SongLibrary.Public(picked) or nil,
-			Correct = info.Correct,
-			Points = points,
-			Tier = info.Tier,
-			First = state.FirstCorrect == p,
-		}
-	end
-	table.insert(self.Rounds, { Song = song, Picks = picks, Owners = owners })
-	self:_logRound(round, song, picks, owners)
-
-	local scores = {}
-	for p, s in self.Scores do
-		scores[key(p)] = s
-	end
-	local left = nil
-	if self.Party then
-		left = {}
-		for p in self.Left do
-			table.insert(left, p.UserId)
-		end
-	end
-	self:_fire({
-		Message = "RoundEnd",
-		Left = left,
-		Round = round,
-		Answer = SongLibrary.Public(song),
-		Picks = publicPicks,
-		Scores = scores,
-		Next = if round < self.RoundCount then self:_revealTime(round) else 0,
-		Tutorial = self.Tutorial or nil,
-	})
-	task.wait(self:_revealTime(round))
-	self.Current = nil
+	return state, owners
 end
 
 function Duels:_revealTime(round: number): number
@@ -743,8 +824,16 @@ function Duels:Action(player: Player, packet)
 		end
 	elseif action == "Loaded" and self.Phase == "Loading" then
 		local state = self.Current
-		if state and state.Per[player] and packet.Round == self.RoundNumber then
+		if state and state.Per[player] and packet.Round == self.RoundNumber and packet.Attempt == state.Attempt then
 			state.Loaded[player] = true
+			if packet.Failed then
+				state.Failed = true
+				-- a fetch failure (402 / gone) is the asset, not the player's connection
+				if packet.Failed == "FetchFailed" then
+					BrokenAudio[state.Song.Id] = true
+				end
+				warn(`[Duels] {state.Song.Id} didn't load for {player.Name} ({packet.Failed})`)
+			end
 		end
 	elseif action == "Unlock" and self.Phase == "Round" then
 		local info = self.Current and self.Current.Per[player]

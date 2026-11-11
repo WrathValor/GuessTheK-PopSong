@@ -58,10 +58,14 @@ function Scoreboard:Initialize(rounds: number)
 	self:UpdateRound(1)
 end
 
-function Scoreboard:UpdateRound(round: number)
+-- `multiplier` > 1: the final ENCORE round, so the caption reads "ENCORE ×2" instead of ROUND
+function Scoreboard:UpdateRound(round: number, multiplier: number?)
 	local panel = self.Frame.Panel
 	if panel:FindFirstChild("Round") then
 		panel.Round.Text = `{round}/{self.Rounds or 7}`
+	end
+	if panel:FindFirstChild("RoundLabel") then
+		panel.RoundLabel.Text = if (multiplier or 1) > 1 then `ENCORE ×{multiplier}` else "ROUND"
 	end
 	for _, pip in panel.Pips:GetChildren() do
 		local n = tonumber(pip.Name:match("%d+"))

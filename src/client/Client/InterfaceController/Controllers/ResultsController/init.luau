@@ -1,4 +1,7 @@
--- Match results: per-round table, totals, the winner card with what you earned, Rematch / Leave.
+-- Match results ("Match results · before seasons" board; Build.luau makes the frame): the
+-- per-round table, the total bar and your all-time record against this rival on the left;
+-- the winner's banner + photocard, what you earned (coins, XP, streak), your level and
+-- CONTINUE / REMATCH on the right.
 -- Solo practice swaps the copied "rival" for its own layout: a GUESSED AT column (how much of
 -- the clip you needed), a rank stamp and personal best, Play again and Find a rival.
 
@@ -22,6 +25,8 @@ local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
 local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 local Levels = require(ReplicatedStorage.Modules.Levels)
 local FavoritePrompt = require(script.Parent.Parent.Parent.FavoritePrompt) -- Client/FavoritePrompt
+local TitleChip = require(ReplicatedStorage.Modules.UI.TitleChip)
+local RewardsCatalog = require(ReplicatedStorage.Constants.RewardsCatalog)
 
 -- -------------------------------- Variables ------------------------------- --
 local LOCAL_PLAYER = Players.LocalPlayer
@@ -44,7 +49,7 @@ local GRADES = {
 	{ Letter = "C", Share = 0.3, Colour = C("A7E9B8") },
 	{ Letter = "D", Share = 0, Colour = C("B9A6FF") },
 }
--- total bar stickers: duel columns sit under YOU / RIVAL; solo's "49 / 70" is wider, at the end
+-- total bar stickers: duel columns sit under YOU / RIVAL; solo's "30 / 48" is wider, at the end
 local STICKER = {
 	You = { X = 513, Colour = C("FF8A80") },
 	Rival = { X = 585, Colour = C("B9A6FF") },
@@ -62,39 +67,110 @@ local function tierOf(points: number): number?
 	return nil
 end
 
-local function soloColour(points: number): Color3
-	return if points >= 7 then SOLO_FAST elseif points >= 5 then SOLO_MID elseif points > 0 then SOLO_SLOW else SOLO_MISS
+-- the tier a right answer came on (rounds carry it now; points alone can't say once the
+-- ENCORE round doubles them)
+local function pickTier(pick): number?
+	if not pick or not pick.Correct then
+		return nil
+	end
+	return pick.Tier or tierOf(pick.Points)
+end
+
+local function soloColour(pick): Color3
+	local tier = pickTier(pick)
+	return if not tier then SOLO_MISS elseif tier <= 2 then SOLO_FAST elseif tier == 3 then SOLO_MID else SOLO_SLOW
+end
+
+-- best possible score: the top tier every round, ENCORE rounds counted over
+local function maxScore(rounds): number
+	local max = 0
+	for _, round in rounds do
+		max += DuelConstants.TIER_POINTS[1] * (round.Multiplier or 1)
+	end
+	return max
+end
+
+local function signed(points: number): string
+	return if points > 0 then `+{points}` elseif points < 0 then `−{-points}` else "0"
 end
 
 local function seconds(s: number): string
 	return (if s < 1 then string.format("%.1f", s) else tostring(s)) .. " s"
 end
 
--- XP row: "XP  Lv n" and the bar (lilac = what you had, yellow = this match)
-local function fillXP(row, before: number?, gained: number)
-	local bar = row:FindFirstChild("Bar")
-	if not before or not bar then
-		row.Label.Text = "XP"
-		if bar then
-			bar.Visible = false
+-- the next level that pays a level reward, after `level` ("LV 10 · Rookie title")
+local function nextReward(level: number): string?
+	for _, r in RewardsCatalog.LEVEL_REWARDS do
+		if r.Level > level then
+			local what = if r.Reward.Title then `{r.Reward.Title} title` else RewardsCatalog.RewardText(r.Reward)
+			return `NEXT REWARD · LV {r.Level} · {what}`
 		end
+	end
+	return nil
+end
+
+-- the Level card: "Lv n", XP into the level, the bar (lilac = what you had, yellow = this
+-- match) and the next level reward
+local function fillLevel(card, before: number?, gained: number)
+	card.Source.Text = `+{gained} XP this match`
+	local bar = card.Bar
+	if not before then
+		local lv, into, need = Levels.FromXP(0)
+		card.Value.Text = `Lv {lv}`
+		card.Progress.Text = `{into} / {need} XP`
+		bar.Visible = false
 		return
 	end
 	local lvBefore, intoBefore, need = Levels.FromXP(before)
 	local lvAfter, intoAfter, needAfter = Levels.FromXP(before + gained)
-	row.Label.Text = `XP  <font color="#5C566B" size="12">Lv {lvAfter}</font>`
+	card.Value.Text = `Lv {lvAfter}`
+	card.Now.Text = `LEVEL {lvAfter}`
+	local maxed = lvAfter >= Levels.MAX_LEVEL
+	card.Progress.Text = if maxed then "MAX LEVEL" else `{intoAfter} / {needAfter} XP`
+	card.Next.Text = nextReward(lvAfter) or ""
 	local old, gain
 	if lvAfter > lvBefore then
 		old, gain = 0, intoAfter / needAfter
 	else
 		old, gain = intoBefore / need, (intoAfter - intoBefore) / need
 	end
+	if maxed then
+		old, gain = 1, 0
+	end
 	bar.Visible = true
 	-- both fills are rounded pills from the left: Gain runs to the new total behind Old, so only
 	-- its rounded right end shows past Old (no square ends, no notch where they meet)
 	bar.Old.Size = UDim2.fromScale(old, 1)
-	bar.Gain.Position = UDim2.fromScale(0, 0)
 	bar.Gain.Size = UDim2.fromScale(math.clamp(old + gain, 0, 1), 1)
+end
+
+-- the record strip under the total bar: your all-time record against this rival
+-- (record = { W, L, Last, Delta } from DuelService / RivalRecord; nil = hidden)
+local PIP = { W = C("A7E9B8"), L = C("FFD2CE") }
+local function fillRecord(strip, record, rivalName: string)
+	strip.Visible = record ~= nil
+	if not record then
+		return
+	end
+	strip.Label.Text = `VS {string.upper(rivalName)} · ALL TIME`
+	strip.Score.Text = `{record.W} <font color="#8A8497">–</font> {record.L}`
+	local won = record.Delta == "Win"
+	strip.Delta.Text = if won then "+1 WIN" else "+1 LOSS"
+	strip.Delta.BackgroundColor3 = if won then PIP.W else PIP.L
+	-- just after the score, however wide it is
+	strip.Delta.Position = UDim2.fromOffset(14 + strip.Score.TextBounds.X + 14, 33)
+	local last = record.Last or ""
+	for k = 1, 5 do
+		local pip = strip.Pips:FindFirstChild("P" .. k)
+		local r = last:sub(k, k)
+		if pip then
+			pip.Visible = r ~= ""
+			pip.Text = r
+			pip.BackgroundColor3 = PIP[r] or PIP.W
+			-- the newest (this match) a touch bigger
+			pip.Size = if k == #last then UDim2.fromOffset(23, 23) else UDim2.fromOffset(20, 20)
+		end
+	end
 end
 
 -- reveal timing: rows drop in one by one, then the totals, then the winner card
@@ -173,7 +249,7 @@ function Results:Show(packet, info)
 	self._solo = packet.Solo
 	self._wasDuel = not packet.Solo and not packet.Tutorial
 	self._staying = false
-	self._max = #packet.Rounds * DuelConstants.TIER_POINTS[1]
+	self._max = maxScore(packet.Rounds)
 	self._rematchRequested = false
 
 	local rivalKey
@@ -217,11 +293,11 @@ function Results:Show(packet, info)
 				local function cell(frame, pick)
 					frame.Visible = pick ~= nil
 					if pick then
-						frame.BackgroundColor3 = if solo then soloColour(pick.Points)
+						frame.BackgroundColor3 = if solo then soloColour(pick)
 							elseif pick.Correct then CELL.Correct
 							elseif pick.Picked then CELL.Wrong
 							else CELL.None
-						frame.Value.Text = if pick.Points > 0 then `+{pick.Points}` else "0"
+						frame.Value.Text = signed(pick.Points)
 					end
 				end
 				cell(row.You, mine)
@@ -229,14 +305,17 @@ function Results:Show(packet, info)
 
 				if solo then
 					-- how much of the clip you needed: lit pips up to that tier, then its length
-					local tier = mine and mine.Correct and tierOf(mine.Points) or nil
+					local tier = pickTier(mine)
 					for k = 1, 5 do
 						local pip = row.Clip.Pips:FindFirstChild(tostring(k))
 						if pip then
 							pip.BackgroundColor3 = if not tier then PIP_MISS elseif k <= tier then PIP_COLOURS[tier] else WHITE
 						end
 					end
-					row.Clip.Time.Text = if tier then seconds(ladder[tier]) else "Missed"
+					-- "Wrong" when you guessed and it wasn't it, "Missed" only when you never answered
+					row.Clip.Time.Text = (if tier then seconds(ladder[tier])
+						elseif mine and mine.Picked then "Wrong"
+						else "Missed") .. (if (round.Multiplier or 1) > 1 then ` · ×{round.Multiplier}` else "")
 					if tier then
 						correct += 1
 						if not fastest or tier < fastest then
@@ -289,7 +368,7 @@ function Results:Show(packet, info)
 
 	self:_season(packet)
 
-	-- winner card
+	-- winner card: their banner + photocard (yours on a draw or in solo), name, title
 	local winnerId = packet.Winner
 	local showId = winnerId or LOCAL_PLAYER.UserId
 	local name
@@ -303,35 +382,42 @@ function Results:Show(packet, info)
 		name = rivalName
 	end
 	w:FindFirstChild("Name").Text = name
-	-- points of the player on the card (yours on a draw or in solo)
-	local shownKey = tostring(showId)
-	if w:FindFirstChild("Points") then
-		w.Points.Value.Text = `{packet.Scores[shownKey] or 0} points`
+	w.Ribbon.Visible = not packet.Draw
+	w.Ribbon.Label.Text = if packet.Solo then "SOLO" else "WINNER"
+	local shown = Players:GetPlayerByUserId(showId) -- nil if they've already left
+	local _, _, bannerId, photocardId = SeasonArt.Of(shown)
+	SeasonArt.PaintBanner(w.Banner, bannerId)
+	SeasonArt.PaintPhotocard(w.Card, photocardId)
+	local title = shown and shown:GetAttribute("Title")
+	w.Title.Visible = type(title) == "string" and title ~= "" and not packet.Draw
+	if w.Title.Visible then
+		TitleChip.Paint(w.Title, title, shown:GetAttribute("TitleTier") or "Normal")
 	end
-	w.Ribbon.Visible = not packet.Solo and not packet.Draw
-	if w:FindFirstChild("RibbonShadow") then
-		w.RibbonShadow.Visible = w.Ribbon.Visible
-	end
+	w.Card.Photo.Thumbnail.Image = ""
 	task.spawn(function()
-		local ok, img = pcall(Players.GetUserThumbnailAsync, Players, showId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
+		local ok, img = pcall(Players.GetUserThumbnailAsync, Players, showId, Enum.ThumbnailType.AvatarBust, Enum.ThumbnailSize.Size150x150)
 		if ok then
-			w.Avatar.Thumbnail.Image = img
+			w.Card.Photo.Thumbnail.Image = img
 		end
 	end)
 
-	-- what I earned
+	-- what I earned: coins, XP, streak (solo: your score)
 	local mine = packet.Rewards[ME] or {}
-	w.Streak.Visible = not packet.Solo
-	w.Streak.Value.Text = if (mine.Streak or 0) > 0 then `{mine.Streak} win streak` else "Streak reset"
-	w.Coins.Visible = (mine.Coins or 0) > 0
 	w.Coins.Value.Text = `+{mine.Coins or 0}`
 	w.Coins.Detail.Text = mine.CoinsDetail or ""
 	w.XP.Value.Text = `+{mine.XP or 0}`
-	fillXP(w.XP, mine.XPBefore, mine.XP or 0)
+	if solo then
+		w.Streak.Label.Text = "SCORE"
+		w.Streak.Value.Text = `{myScore} / {self._max}`
+	else
+		w.Streak.Label.Text = "STREAK"
+		w.Streak.Value.Text = if (mine.Streak or 0) > 0 then `{mine.Streak} win{if mine.Streak == 1 then "" else "s"}` else "Reset"
+	end
+	fillLevel(w.Level, mine.XPBefore, mine.XP or 0)
 
 	-- solo: rank stamp, personal best and how far the next rank is
 	if solo and not packet.Tutorial then
-		local max = #packet.Rounds * DuelConstants.TIER_POINTS[1]
+		local max = maxScore(packet.Rounds)
 		local index = #GRADES
 		for i, grade in GRADES do
 			if myScore >= math.ceil(grade.Share * max) then
@@ -357,30 +443,19 @@ function Results:Show(packet, info)
 				else "first full run!"
 		end
 	end
-	-- level up: a chip in the XP row, and the title it unlocked under it
-	local levelChip = w.XP:FindFirstChild("LevelUp")
-	if levelChip then
-		levelChip.Visible = mine.LevelUp ~= nil
-		levelChip.Text = if mine.LevelUp then `LEVEL UP · Lv {mine.LevelUp}` else ""
+	-- LEVEL UP: the level, and what it unlocked (a title, or a level reward to claim)
+	local up = w.LevelUp
+	up.Visible = mine.LevelUp ~= nil
+	if mine.LevelUp then
+		up.Label.Text = `LEVEL UP · LV {mine.LevelUp}`
+		up.Note.Text = if mine.NewTitle then `New title: {mine.NewTitle}`
+			elseif RewardsCatalog.LevelReward(mine.LevelUp) then "Reward ready in Rewards"
+			else ""
 	end
-	local titleChip = w:FindFirstChild("NewTitle")
-	if titleChip then
-		titleChip.Visible = mine.NewTitle ~= nil
-		titleChip.Text = if mine.NewTitle then `New title unlocked: {mine.NewTitle}` else ""
-	end
-	-- rematch series score (from the second game on) and the Revenge! banner
-	local seriesChip = w:FindFirstChild("Series")
-	if seriesChip then
-		local series = packet.Series
-		seriesChip.Visible = series ~= nil and series.Games >= 2 and rivalKey ~= nil and not packet.Solo
-		if seriesChip.Visible then
-			seriesChip.Text = `SERIES {series.Wins[ME] or 0}–{series.Wins[rivalKey] or 0}`
-		end
-	end
-	local revenge = w:FindFirstChild("Revenge")
-	if revenge then
-		revenge.Visible = false -- popped in by _reveal with the winner card
-	end
+
+	-- your all-time record against this rival
+	local record = packet.Record and packet.Record[ME]
+	fillRecord(panel.Record, if solo or packet.Party or packet.Tutorial then nil else record, rivalName)
 
 	w.Rematch.Active = true
 	w.RematchNote.Visible = false
@@ -400,7 +475,10 @@ function Results:_season(packet)
 	if not bar then
 		return
 	end
-	-- seasons off: no Season bar (or its shadow)
+	-- seasons off: no Season bar (or its shadow); the Level card has its spot
+	local w = self._frame.Panel.Winner
+	w.Level.Visible = not SeasonConstants.ENABLED
+	w.LevelShadow.Visible = not SeasonConstants.ENABLED
 	bar.Visible = SeasonConstants.ENABLED
 	local barShadow = self._frame.Panel:FindFirstChild("SeasonShadow")
 	if barShadow then
@@ -486,12 +564,24 @@ function Results:_layout(solo: boolean, tutorial: boolean)
 	w.Best.Visible = false -- Show() turns it on once it knows the best
 	w.Rematch.Label.Visible = not solo
 	w.Rematch.SoloLabel.Visible = solo
+	-- the button row (centre-anchored, Build.button): duel CONTINUE · REMATCH; solo CONTINUE ·
+	-- FIND RIVAL · PLAY AGAIN
+	local row = if solo
+		then { Leave = { 20, 140 }, FindRival = { 170, 141 }, Rematch = { 321, 150 } }
+		else { Leave = { 20, 220 }, Rematch = { 251, 220 } }
 	w.FindRival.Visible = solo
-	w.Leave.Size = UDim2.fromOffset(if solo then 130 else 264, 42)
-	w.Leave.Position = UDim2.fromOffset(if solo then 217 else 150, 495)
+	w.FindRivalShadow.Visible = solo
+	for name, spot in row do
+		local b, sh = w[name], w[name .. "Shadow"]
+		local x, width = spot[1], spot[2]
+		b.Size = UDim2.fromOffset(width, 52)
+		b.Position = UDim2.fromOffset(x + width / 2, 590)
+		sh.Size = b.Size
+		sh.Position = b.Position + UDim2.fromOffset(4, 4)
+	end
 end
 
--- The You sticker in the total bar ("49 / 70" in solo, so the max reads at a glance)
+-- The You sticker in the total bar ("30 / 48" in solo, so the max reads at a glance)
 function Results:_setTotal(score: number)
 	local label = self._frame.Panel.Table.Total.You
 	if self._solo and self._max then
@@ -510,6 +600,7 @@ function Results:_reveal(packet, rivalKey: string?, mine)
 	local rows = panel.Table.Rows
 	local total = panel.Table.Total
 	local w = panel.Winner
+	local record = panel.Record
 
 	-- start state: rows and the winner card hidden, totals at 0
 	local shown = {}
@@ -529,6 +620,7 @@ function Results:_reveal(packet, rivalKey: string?, mine)
 		total.Rival.Text = "0"
 	end
 	scaleOf(w).Scale = 0
+	scaleOf(record).Scale = if record.Visible then 0 else 1
 
 	self._revealThread = task.spawn(function()
 		task.wait(REVEAL_DELAY)
@@ -560,7 +652,12 @@ function Results:_reveal(packet, rivalKey: string?, mine)
 		totalScale.Scale = 1.08
 		TweenService:Create(totalScale, POP, { Scale = 1 }):Play()
 		Sounds.Play("SpinLand")
-		task.wait(0.5)
+		task.wait(0.3)
+		-- then your record against them
+		if record.Visible then
+			TweenService:Create(scaleOf(record), POP, { Scale = 1 }):Play()
+		end
+		task.wait(0.2)
 
 		-- winner card
 		TweenService:Create(scaleOf(w), TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
@@ -577,25 +674,11 @@ function Results:_reveal(packet, rivalKey: string?, mine)
 		if mine.Perfect then
 			task.delay(1.5, Sounds.Play, "Perfect")
 		end
-		-- revenge win: the stamp slams on over the winner card, after the coins and before
-		-- the perfect sound so each gets its own beat
-		local revenge = w:FindFirstChild("Revenge")
-		if mine.Revenge and revenge then
-			task.delay(1.3, function()
-				revenge.Visible = true
-				local s = scaleOf(revenge)
-				s.Scale = 1.6
-				TweenService:Create(s, POP, { Scale = 1 }):Play()
-				Sounds.Play("Revenge")
-			end)
-		end
-
-		-- the Rematch button pops in with its own sound, after the coins / revenge / perfect beats
-		task.delay(if mine.Perfect then 2.1 elseif mine.Revenge then 1.9 else 1.5, function()
+		-- the Rematch button pops in with its own sound, after the coins / perfect beats
+		task.delay(if mine.Perfect then 2.1 else 1.5, function()
 			if self.State ~= "Inactive" and w.Rematch.Visible then
-				Juice.Pop(w.Rematch, 0.14)
+				Juice.Pop(w.Rematch, 0.2)
 				-- duel: the Rematch pop; solo: Play again's own bounce
-				Sounds.Play(if self._solo then "PlayAgain" else "Rematch")
 			end
 		end)
 

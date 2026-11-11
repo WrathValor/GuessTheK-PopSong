@@ -48,7 +48,6 @@ export type Earned = {
 	Streak: number,
 	StreakLost: number, -- streak the player just lost (0 if none), for the Save Streak offer
 	Perfect: boolean,
-	Revenge: boolean?, -- won a rematch right after losing to this rival (DuelService sets result.Revenge)
 	Outcome: "Win" | "Lose" | "Draw" | "Solo" | "Left",
 	Tutorial: boolean?, -- the tutorial's welcome gift was paid this time
 	LevelUp: number?, -- the new level, when this match levelled the player up
@@ -93,9 +92,6 @@ function Rewards._log(player: Player, data, result, earned: Earned, correct: num
 	end
 	if earned.LevelUp then
 		Analytics.Event(player, "LevelUp", earned.LevelUp, earned.NewTitle or "None")
-	end
-	if earned.Revenge then
-		Analytics.Event(player, "RevengeWin", 1)
 	end
 end
 
@@ -154,7 +150,7 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 			-- personal best (full 7-round runs only, so the tutorial can't set one)
 			if not result.Tutorial then
 				local score = result.Scores[player] or 0
-				earned.PrevBest = data.Statistics.SoloBest.Get()
+				earned.PrevBest = data.Statistics.SoloBest2.Get()
 				earned.NewBest = score > (earned.PrevBest :: number)
 			end
 			-- the first-join tutorial: a one-time welcome gift
@@ -201,14 +197,6 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 			earned.XP += DuelConstants.PERFECT_XP
 			earned.Coins += DuelConstants.PERFECT_COINS
 			earned.CoinsDetail ..= " + perfect"
-		end
-
-		-- revenge: won the rematch after losing the last game to this rival
-		if result.Revenge == player and earned.Outcome == "Win" then
-			earned.Revenge = true
-			earned.XP += DuelConstants.REVENGE_XP
-			earned.Coins += DuelConstants.REVENGE_COINS
-			earned.CoinsDetail ..= " + revenge"
 		end
 
 		-- same-rival guard (see `farmed` above)
@@ -265,7 +253,7 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 			if result.Solo then
 				data.Statistics.SoloGames.Increment(1)
 				if earned.NewBest then
-					data.Statistics.SoloBest.Set(result.Scores[player] or 0)
+					data.Statistics.SoloBest2.Set(math.max(0, result.Scores[player] or 0))
 				end
 			else
 				data.Statistics.Duels.Increment(1)

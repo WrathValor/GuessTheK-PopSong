@@ -23,6 +23,7 @@ local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 
 local REVEAL_FADE = 2 -- the reveal song fades out over the last this-many seconds
 local LoadingCard = require(script.LoadingCard)
+local EncoreBanner = require(script.EncoreBanner)
 local PackTag = require(script.PackTag)
 local RevealOwner = require(script.RevealOwner)
 
@@ -48,6 +49,15 @@ local ANSWER_LOOK = {
 -- pick chip colours in a duel: the scoreboard avatars (Game.Scoreboard You / Rival)
 local DUEL_CHIP = { You = C("FFD2CE"), Rival = C("DCD3FF") }
 -- check / cross icons in atlas 0
+-- reveal pick cards: the result line's colour follows the result (it used to keep the card's
+-- Studio colour, so a wrong answer on your card read green)
+-- the reveal's points sticker: mint for a score, pink when a wrong guess cost points
+local STICKER = { Plus = C("A7E9B8"), Minus = C("FFD2CE") }
+local RESULT_TEXT = {
+	Correct = C("166534"),
+	Wrong = C("B42318"),
+	None = C("8A8497"),
+}
 local MARK = {
 	Correct = { Bg = C("A7E9B8"), Rect = Vector2.new(300, 0) },
 	Wrong = { Bg = C("FFD2CE"), Rect = Vector2.new(500, 0) },
@@ -90,6 +100,7 @@ function Game:Initialize(interface)
 	ButtonScale.ApplyToDescendants(self._frame.Controls)
 	local controls = self._frame.Controls
 	self.Loader = LoadingCard.new(self._frame, controls.PlayButton)
+	self.Encore = EncoreBanner.new(self._frame)
 
 	self._janitor:Add(controls.PlayButton.Activated:Connect(function()
 		print{"hi"}
@@ -180,7 +191,16 @@ function Game:_dropSnippet()
 	end
 end
 
+-- The final round's ENCORE moment (./EncoreBanner): the server waits ENCORE_INTRO seconds
+-- after sending this before the round itself starts.
+function Game:OnEncore(packet)
+	self:_revealAnswers(false)
+	self._frame.Reveal.Visible = false
+	self.Encore:Play(packet)
+end
+
 function Game:OnRound(packet)
+	self.Encore:Hide()
 	self._round:Cleanup()
 	self:_dropSnippet()
 	local controls = self._frame.Controls
@@ -192,6 +212,8 @@ function Game:OnRound(packet)
 		Number = packet.Round,
 		Tiers = packet.Tiers,
 		Points = packet.Points,
+		Penalty = packet.Penalty or {}, -- tier → points a wrong answer loses
+		Multiplier = packet.Multiplier or 1,
 		Options = packet.Options,
 		Tier = 1,
 		Guessed = nil :: number?,
@@ -199,7 +221,7 @@ function Game:OnRound(packet)
 		OwnedTag = packet.OwnedTag, -- who owns the song: shown on the reveal (./RevealOwner)
 	}
 	self.Scoreboard.Rounds = packet.Rounds
-	self.Scoreboard:UpdateRound(packet.Round)
+	self.Scoreboard:UpdateRound(packet.Round, packet.Multiplier)
 	if self.FFA then
 		self.FFA.Rounds = packet.Rounds
 		self.FFA:UpdateRound(packet.Round)
@@ -213,7 +235,10 @@ function Game:OnRound(packet)
 	self.Snippet = snippet
 	controls.Interactable = false
 	self.Loader:HideReady()
-	self.Loader:ShowLoading(packet.Round, packet.Mode)
+	self.Loader:ShowLoading(packet.Round, packet.Mode, packet.Multiplier)
+	if packet.Swapped then
+		self.Loader:SetText("Loading audio…", "That clip wouldn't load, so here's another song")
+	end
 
 	for i = 1, 4 do
 		local answer = controls.Answers:FindFirstChild("Answer" .. i)
@@ -242,8 +267,12 @@ function Game:OnRound(packet)
 			return
 		end
 		round.Loaded = true
-		DuelRemote:Fire({ Action = "Loaded", Round = round.Number })
-		if round.Go then
+		-- Failed: the server swaps in another song (a new Round packet) or, out of swaps,
+		-- starts the round anyway
+		DuelRemote:Fire({ Action = "Loaded", Round = round.Number, Attempt = packet.Attempt, Failed = snippet.Failed })
+		if snippet.Failed and not round.Go then
+			self.Loader:SetText("Loading audio…", "That clip wouldn't load, finding another song")
+		elseif round.Go then
 			self:_unlockRound(round)
 		elseif not self.Solo then
 			self.Loader:SetText("Waiting for your rival…", "Your clip's ready — theirs is still loading")
@@ -303,7 +332,12 @@ function Game:_paintTiers()
 		local b = tiers:FindFirstChild("Tier" .. i)
 		if b and r then
 			b.Time.Text = fmt(r.Tiers[i])
-			b.Points.Text = `+{r.Points[i]}`
+			-- risky tiers also say what a wrong answer costs (Points is RichText in Studio);
+			-- only while that tier is still ahead of you
+			local cost = r.Penalty[i] or 0
+			b.Points.Text = if cost > 0 and i >= r.Tier
+				then `+{r.Points[i]}<br/><font size="10" color="#B42318">−{cost} if wrong</font>`
+				else `+{r.Points[i]}`
 			local look = if i == r.Tier then TIER_LOOK.Current elseif i < r.Tier then TIER_LOOK.Used elseif i == r.Tier + 1 then TIER_LOOK.Next else TIER_LOOK.Locked
 			b.BackgroundColor3 = look.Bg
 			b.Time.TextColor3 = look.Text
@@ -476,7 +510,8 @@ function Game:OnRoundEnd(packet)
 			return "No answer · 0 points"
 		end
 		if not pick.Correct then
-			return "Wrong · 0 points"
+			-- an early wrong guess costs points (DuelConstants.WRONG_PENALTY)
+			return if (pick.Points or 0) < 0 then `Wrong · −{-pick.Points} points` else "Wrong · 0 points"
 		end
 		local t = tiers and tiers[pick.Tier]
 		local s = `Correct on the {t and fmt(t) or "?"} tier`
@@ -487,14 +522,23 @@ function Game:OnRoundEnd(packet)
 	end
 	local tiers = r and r.Tiers
 
-	reveal.Points.Value.Text = `+{mine and mine.Points or 0}`
-	reveal.Points.Detail.Text = if mine and mine.Correct
-		then (if mine.First then `{mine.Points - 1} + first bonus` else `{mine.Points} points`)
-		else "No points this round"
+	local got = (mine and mine.Points or 0) + 0 -- (+ 0 turns a -0 into 0, never "+-0")
+	local mult = packet.Multiplier or 1
+	reveal.Points.Value.Text = if got < 0 then `−{-got}` else `+{got}`
+	reveal.Points.BackgroundColor3 = if got < 0 then STICKER.Minus else STICKER.Plus
+	-- the caption is narrow (124 px): ENCORE says so instead of the breakdown
+	reveal.Points.Detail.Text = if got == 0 then "No points this round"
+		elseif mult > 1 then `ENCORE ×{mult}`
+		elseif got < 0 then "Wrong too early"
+		elseif mine and mine.First then `{got - 1} + first bonus`
+		else `{got} points`
 
 	local function fillPick(card, pick, name)
 		card.Title.Text = if pick and pick.Picked then `{name} picked {pick.Picked.Name}` else `{name} didn't answer`
 		card.Result.Text = describe(pick, tiers)
+		card.Result.TextColor3 = if pick and pick.Correct then RESULT_TEXT.Correct
+			elseif pick and pick.Picked then RESULT_TEXT.Wrong
+			else RESULT_TEXT.None
 		local look = if pick and pick.Correct then MARK.Correct else MARK.Wrong
 		card.Mark.BackgroundColor3 = look.Bg
 		card.Mark.Icon.ImageRectOffset = look.Rect
@@ -630,6 +674,7 @@ function Game:Deactivate()
 	self:_revealAnswers(false)
 	self._frame.Controls.Interactable = true
 	self.Loader:HideAll()
+	self.Encore:Destroy()
 	self.Round = nil
 	return FrameTransition.Close(self._frame):andThen(function()
 		self._frame.Visible = false
@@ -641,6 +686,9 @@ end
 function Game:Destroy()
 	if self.Loader then
 		self.Loader:Destroy()
+	end
+	if self.Encore then
+		self.Encore:Destroy()
 	end
 	self._round:Destroy()
 	self._janitor:Destroy()

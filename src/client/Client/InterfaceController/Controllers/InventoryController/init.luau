@@ -2,7 +2,7 @@
 -- The inventory (Interface.Frames.Inventory, built by ./Build from the "Inventory redesign"):
 -- category rail on the left, a heading + description with Sort ⌄ and the pager, 8 cards a page.
 --   • Stages / Mic stands – Classic (always yours) + owned pieces (bought, or from a set);
---                            Equip (green "✓ Equipped" on the worn one)
+--                            white Equip (soft mint "Equipped" on the worn one)
 --   • Titles              – the default title + titles you own (never ones you don't): your
 --                            name with the chip in its tier colour (Gold shines, Rainbow scrolls)
 --   • Song packs          – My Pack ("Roll for more") + every company/group pack you own a song
@@ -42,9 +42,9 @@ local INK = C("1E1B2E")
 local WHITE = C("FFFFFF")
 local YELLOW = C("FFE07A")
 local NIGHT = C("2B2346")
-local LINE = C("DCD3C4") -- an Equip button's outline
 local GREEN = C("6FD08C")
 local EQUIP_GREEN = C("1E8A4A")
+local MINT = C("A7E9B8") -- the worn item's Equipped button (same soft green as the shop's EQUIP)
 
 local CATEGORIES = Build.CATEGORIES
 local PER_PAGE = Build.PER_PAGE
@@ -319,23 +319,23 @@ function Inventory:_fillCard(holder: Frame, item)
 	local equipped = item.Equipped == true
 	if kind == "Pack" then
 		action.Visible = item.Key == Packs.MY
-		action.Text = "Roll for more"
+		action.Text = "ROLL FOR MORE"
 		action.BackgroundColor3 = YELLOW
 		action.TextColor3 = INK
 		line.Color = INK
 		action.Active = true
 	else
 		action.Visible = true
-		action.Text = if equipped then "✓ Equipped" else "Equip"
-		action.BackgroundColor3 = if equipped then EQUIP_GREEN else WHITE
-		action.TextColor3 = if equipped then WHITE else INK
-		line.Color = if equipped then EQUIP_GREEN else LINE
+		action.Text = if equipped then "Equipped" else "Equip"
+		action.BackgroundColor3 = if equipped then MINT else WHITE
+		action.TextColor3 = INK
+		line.Color = INK
 		action.Active = not equipped
 	end
-	-- the worn card: green outline on a pale green card
+	-- the worn card: a pale mint card, ink outline + shadow like the rest
 	face.BackgroundColor3 = if equipped then C("EEF8EF") else WHITE
-	face:FindFirstChildOfClass("UIStroke").Color = if equipped then EQUIP_GREEN else INK
-	holder.Shadow.BackgroundColor3 = if equipped then EQUIP_GREEN else INK
+	face:FindFirstChildOfClass("UIStroke").Color = INK
+	holder.Shadow.BackgroundColor3 = INK
 end
 
 function Inventory:_refresh()
