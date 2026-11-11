@@ -14,6 +14,24 @@ local AnalyticsEvents = require(ReplicatedStorage.Constants.AnalyticsEvents)
 
 local Rewards = {}
 
+-- [[ Same-rival guard ]]
+-- duels between the same two players today (UTC), for DuelConstants.SAME_RIVAL_GAMES
+local rivalGames: { [string]: number } = {}
+local rivalDay = 0
+
+-- counts this duel and returns how many the pair has now played today
+local function countRivalGame(a: Player, b: Player): number
+	local day = math.floor(os.time() / 86400)
+	if day ~= rivalDay then
+		rivalDay = day
+		table.clear(rivalGames)
+	end
+	local x, y = a.UserId, b.UserId
+	local key = if x < y then `{x}:{y}` else `{y}:{x}`
+	rivalGames[key] = (rivalGames[key] or 0) + 1
+	return rivalGames[key]
+end
+
 local function streakMultiplier(streak: number): number
 	for _, row in DuelConstants.STREAK_MULTIPLIERS do
 		if streak >= row[1] then
@@ -76,6 +94,9 @@ function Rewards._log(player: Player, data, result, earned: Earned, correct: num
 	if earned.LevelUp then
 		Analytics.Event(player, "LevelUp", earned.LevelUp, earned.NewTitle or "None")
 	end
+	if earned.Revenge then
+		Analytics.Event(player, "RevengeWin", 1)
+	end
 end
 
 function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
@@ -83,6 +104,13 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 	-- Season Points: 1v1 duels only (solo, the tutorial and party matches aren't rated). Worked
 	-- out first, from both players' SP before the duel.
 	local rated = if result.Solo or result.Tutorial then {} else SeasonService.Rate(result, players)
+	-- same-rival guard: past SAME_RIVAL_GAMES duels today against this rival, coins halve and
+	-- wins stop growing the streak
+	local farmed, rivalCount = false, 0
+	if not result.Solo and not result.Tutorial and #players == 2 then
+		rivalCount = countRivalGame(players[1], players[2])
+		farmed = rivalCount > DuelConstants.SAME_RIVAL_GAMES
+	end
 	for _, player in players do
 		local ok, data = pcall(PlayerData.Get, player)
 		if not ok or not data then
@@ -119,9 +147,10 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 		}
 
 		if result.Solo then
-			-- solo practice pays the rolled stake as XP
+			-- solo practice pays the rolled stake as XP, a seventh of it per right answer (so
+			-- clicking through at random isn't worth more than a duel)
 			earned.Outcome = "Solo"
-			earned.XP = result.Stake
+			earned.XP = math.floor(result.Stake * correct / DuelConstants.ROUNDS + 0.5)
 			-- personal best (full 7-round runs only, so the tutorial can't set one)
 			if not result.Tutorial then
 				local score = result.Scores[player] or 0
@@ -146,7 +175,9 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 			earned.CoinsDetail = "Draw"
 		elseif result.Winner == player then
 			earned.Outcome = "Win"
-			earned.Streak += 1
+			if not farmed then
+				earned.Streak += 1
+			end
 			local mult = streakMultiplier(earned.Streak)
 			earned.XP += DuelConstants.XP_WIN
 			earned.Coins = math.floor(result.Stake * mult + 0.5)
@@ -178,6 +209,13 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 			earned.XP += DuelConstants.REVENGE_XP
 			earned.Coins += DuelConstants.REVENGE_COINS
 			earned.CoinsDetail ..= " + revenge"
+		end
+
+		-- same-rival guard (see `farmed` above)
+		if farmed and earned.Coins > 0 then
+			earned.Coins = math.floor(earned.Coins * DuelConstants.SAME_RIVAL_COIN_SCALE + 0.5)
+			earned.CoinsDetail ..= " · same rival ×½"
+			Analytics.Event(player, "RivalLimit", rivalCount, earned.Outcome)
 		end
 
 		-- AFK guard: no answer in any round = no coins (the base XP still counts)

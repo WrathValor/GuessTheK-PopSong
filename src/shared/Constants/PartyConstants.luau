@@ -23,11 +23,12 @@ return table.freeze({
 
 	-- coins: a stake roll (like a duel's, weighted to the low end) sets the pot, times the match
 	-- multiplier below; the reel shows the multiplied amounts. The pot is paid by placement.
-	-- These average about 88 before the multiplier.
-	STAKES = table.freeze({ 50, 80, 90, 120, 140, 160 }),
+	-- Same as a public duel's (average ~52 before the multiplier), so private rooms never pay
+	-- better than the public queue.
+	STAKES = table.freeze({ 30, 40, 50, 70, 90, 130 }),
 	STAKE_WEIGHTS = table.freeze({ 30, 25, 18, 12, 10, 5 }),
-	PAYOUT = table.freeze({ 1, 0.7, 0.5, 0.3, 0.3, 0.3 }), -- 1st … 6th (a 1v1 pays 1st and 2nd)
-	DUEL_PAYOUT = table.freeze({ 1, 0.3 }),
+	PAYOUT = table.freeze({ 1, 0.7, 0.5, 0.2, 0.2, 0.2 }), -- 1st … 6th (a 1v1 pays 1st and 2nd)
+	DUEL_PAYOUT = table.freeze({ 1, 0.2 }),
 	-- FFA multiplier by how many started the match; Normal Duel is 1.0
 	FFA_MULTIPLIER = table.freeze({ [3] = 1.2, [4] = 1.3, [5] = 1.4, [6] = 1.5 }),
 	CUSTOM_POOL_MULTIPLIER = 0.6, -- the host picked the songs (easy-song pools pay less)

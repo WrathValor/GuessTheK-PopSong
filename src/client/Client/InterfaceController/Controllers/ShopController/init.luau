@@ -410,7 +410,9 @@ function Shop:_fillBundles()
 	local scroll = self._scroll
 	local big, small = nil, {}
 	for _, b in ShopCatalog.Bundles do
-		if b.Big and not big then
+		if b.Hidden then
+			continue
+		elseif b.Big and not big then
 			big = b
 		elseif not b.Big then
 			table.insert(small, b)

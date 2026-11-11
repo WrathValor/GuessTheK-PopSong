@@ -23,18 +23,18 @@ ShopCatalog.Sets = {
 	{ Id = "Lightstick", Name = "Lightstick Set", Rarity = "Rare", Price = 1350, Bg = "E4F4FF", Stage = "9ED8F5", Platform = "FFE07A", Mic = "FFE07A" },
 	{ Id = "Neon", Name = "Neon Set", Rarity = "Rare", Price = 1350, Bg = "E8FBEE", Stage = "A7E9B8", Platform = "9ED8F5", Mic = "A7E9B8" },
 	{ Id = "CherryBlossom", Name = "Cherry Blossom Set", Rarity = "Rare", Price = 1350, Bg = "FFE4EF", Stage = "FFC9DD", Platform = "FFFFFF", Mic = "FF9EC4" },
-	{ Id = "Photocard", Name = "Photocard Set", Rarity = "Epic", Price = 2400, Bg = "EFEAFF", Stage = "B9A6FF", Platform = "FFD2CE", Mic = "FF9EC4" },
-	{ Id = "Hanbok", Name = "Hanbok Set", Rarity = "Epic", Price = 2400, Bg = "FFF0EE", Stage = "FFD2CE", Platform = "B9A6FF", Mic = "FF5A4E" },
-	{ Id = "Hologram", Name = "Hologram Set", Rarity = "Epic", Price = 2400, Bg = "E4F4FF", Stage = "C9F2FF", Platform = "B9A6FF", Mic = "9ED8F5" },
-	{ Id = "FanMeet", Name = "Fan-meet Booth", Rarity = "Legendary", Price = 4500, Bg = "FFF6D6", Stage = "FFE07A", Platform = "FF5A4E", Mic = "FF5A4E" },
-	{ Id = "Encore", Name = "Encore Stage Set", Rarity = "Legendary", Price = 4500, Bg = "3B2F63", Stage = "FF5A4E", Platform = "FFE07A", Mic = "FFE07A",
+	{ Id = "Photocard", Name = "Photocard Set", Rarity = "Epic", Price = 3000, Bg = "EFEAFF", Stage = "B9A6FF", Platform = "FFD2CE", Mic = "FF9EC4" },
+	{ Id = "Hanbok", Name = "Hanbok Set", Rarity = "Epic", Price = 3000, Bg = "FFF0EE", Stage = "FFD2CE", Platform = "B9A6FF", Mic = "FF5A4E" },
+	{ Id = "Hologram", Name = "Hologram Set", Rarity = "Epic", Price = 3000, Bg = "E4F4FF", Stage = "C9F2FF", Platform = "B9A6FF", Mic = "9ED8F5" },
+	{ Id = "FanMeet", Name = "Fan-meet Booth", Rarity = "Legendary", Price = 6000, Bg = "FFF6D6", Stage = "FFE07A", Platform = "FF5A4E", Mic = "FF5A4E" },
+	{ Id = "Encore", Name = "Encore Stage Set", Rarity = "Legendary", Price = 6000, Bg = "3B2F63", Stage = "FF5A4E", Platform = "FFE07A", Mic = "FFE07A",
 		Blurb = "Legendary stage skin, gold spotlight platform + mic" },
 }
 
-ShopCatalog.SET_ROTATION_SECONDS = 2 * 60 * 60 -- a new set of 4 every 2 hours
+ShopCatalog.SET_ROTATION_SECONDS = 6 * 60 * 60 -- a new lineup every 6 hours (sets, items, banners)
 -- VIP Pass "early restocks": VIPs see (and can buy) the next lineup this long before everyone
 -- else. The current one stays buyable for them until it leaves (ShopService checks both).
-ShopCatalog.VIP_EARLY_SECONDS = 15 * 60
+ShopCatalog.VIP_EARLY_SECONDS = 30 * 60
 ShopCatalog.SETS_PER_ROTATION = 4
 ShopCatalog.FEATURED_SECONDS = 7 * 24 * 60 * 60 -- the featured set changes weekly
 ShopCatalog.FEATURED_POOL = { "Encore", "FanMeet" } -- legendary sets that take turns being featured
@@ -66,9 +66,9 @@ ShopCatalog.Stages = {
 	{ Id = "HanRiver", Name = "Han River", Rarity = "Rare", Price = 900, Bg = "E4F4FF", Stage = "9ED8F5", Platform = "A7E9B8" },
 	{ Id = "SubwayLine", Name = "Subway Line", Rarity = "Rare", Price = 900, Bg = "F3F7FF", Stage = "C9C3DE", Platform = "3CB371" },
 	{ Id = "Aquarium", Name = "Aquarium", Rarity = "Rare", Price = 900, Bg = "E4F4FF", Stage = "9ED8F5", Platform = "F6E3B4" },
-	{ Id = "SunsetRooftop", Name = "Sunset Rooftop", Rarity = "Epic", Price = 1600, Bg = "FFF0E6", Stage = "FFB38A", Platform = "FF5A4E" },
-	{ Id = "Starlight", Name = "Starlight", Rarity = "Epic", Price = 1600, Bg = "2B2346", Stage = "B9A6FF", Platform = "FFE07A" },
-	{ Id = "AwardNight", Name = "Award Night", Rarity = "Epic", Price = 1600, Bg = "2B2346", Stage = "FF5A4E", Platform = "F5C542" },
+	{ Id = "SunsetRooftop", Name = "Sunset Rooftop", Rarity = "Epic", Price = 2000, Bg = "FFF0E6", Stage = "FFB38A", Platform = "FF5A4E" },
+	{ Id = "Starlight", Name = "Starlight", Rarity = "Epic", Price = 2000, Bg = "2B2346", Stage = "B9A6FF", Platform = "FFE07A" },
+	{ Id = "AwardNight", Name = "Award Night", Rarity = "Epic", Price = 2000, Bg = "2B2346", Stage = "FF5A4E", Platform = "F5C542" },
 }
 ShopCatalog.Mics = {
 	{ Id = "StudioClassic", Name = "Studio Classic", Rarity = "Common", Price = 150, Bg = "F3EBDD", Mic = "C9C3DE" },
@@ -84,9 +84,9 @@ ShopCatalog.Mics = {
 	{ Id = "Retro", Name = "Retro Mic", Rarity = "Rare", Price = 650, Bg = "FFF0E6", Mic = "FFB38A" },
 	{ Id = "Disco", Name = "Disco Mic", Rarity = "Rare", Price = 650, Bg = "EFEAFF", Mic = "E8E2F2" },
 	{ Id = "Planet", Name = "Planet Mic", Rarity = "Rare", Price = 650, Bg = "2B2346", Mic = "FFB38A" },
-	{ Id = "Crystal", Name = "Crystal Mic", Rarity = "Epic", Price = 1100, Bg = "EFEAFF", Mic = "B9A6FF" },
-	{ Id = "Gold", Name = "Golden Mic", Rarity = "Epic", Price = 1100, Bg = "2B2346", Mic = "FFE07A" },
-	{ Id = "Butterfly", Name = "Butterfly Mic", Rarity = "Epic", Price = 1100, Bg = "EFEAFF", Mic = "B9A6FF" },
+	{ Id = "Crystal", Name = "Crystal Mic", Rarity = "Epic", Price = 1400, Bg = "EFEAFF", Mic = "B9A6FF" },
+	{ Id = "Gold", Name = "Golden Mic", Rarity = "Epic", Price = 1400, Bg = "2B2346", Mic = "FFE07A" },
+	{ Id = "Butterfly", Name = "Butterfly Mic", Rarity = "Epic", Price = 1400, Bg = "EFEAFF", Mic = "B9A6FF" },
 }
 -- reward-only stages (no Price, so never in the shop)
 table.insert(ShopCatalog.Stages, { Id = "GroupStage", Name = "Group Exclusive", Rarity = "Rare", Bg = "E8FFF0", Stage = "A7E9B8", Platform = "FFFFFF", Reward = "Group" })
@@ -174,6 +174,7 @@ ShopCatalog.DebutPack = {
 -- Stage / Mic = a set only that bundle gives (their Reward is the bundle's Id). Limit = how
 -- many times one player can buy it (Rewards.Bundles counts them; the banner shows "n/Limit
 -- left"). Hidden behind "Soon" while ProductId is 0. Gradient = the banner's two colours.
+-- Hidden = off the shop (still grants, so a purchase already in flight pays out).
 ShopCatalog.Bundles = {
 	{ Id = "Headliner", Name = "Headliner", Sub = "Spotlight Stage + Mic, only here", ProductId = 3730244515, Big = true, Limit = 1,
 		Tag = "FEATURED", TagColour = "FF5A4E", Gradient = { "D8F6F2", "FFE3DE" }, -- the Spotlight set's teal → coral
@@ -182,7 +183,7 @@ ShopCatalog.Bundles = {
 		Gradient = { "F1ECFF", "FFFFFF" }, Tickets = 3, Upgrades = 1, Coins = 500 },
 	{ Id = "Practice", Name = "Practice", Sub = "Rolls + upgrades for your sets", ProductId = 3730244371, Limit = 2,
 		Tag = "POPULAR", TagColour = "FFE07A", Gradient = { "FFE4EF", "FFF6F3" }, Tickets = 6, Upgrades = 3, Coins = 1500 },
-	{ Id = "Comeback", Name = "Comeback", Sub = "Back in the game, fully stocked", ProductId = 3730244488, Limit = 2,
+	{ Id = "Comeback", Name = "Comeback", Sub = "Back in the game, fully stocked", ProductId = 3730244488, Limit = 2, Hidden = true,
 		Gradient = { "E3F3FC", "F4FBFF" }, Tickets = 10, Upgrades = 6, Coins = 4000 },
 }
 -- the Headliner's set: only in that bundle, never in the shop rotation
@@ -385,7 +386,7 @@ local SeasonConstants = require(script.Parent.SeasonConstants)
 ShopCatalog.STYLE_PER_ROTATION = 4
 ShopCatalog.STYLE_PRICES = table.freeze({
 	Regular = table.freeze({ Banner = 800, Photocard = 600, Set = 1200 }),
-	Animated = table.freeze({ Banner = 1500, Photocard = 1100, Set = 2200 }),
+	Animated = table.freeze({ Banner = 1800, Photocard = 1400, Set = 2800 }),
 })
 
 -- the shop's banner spec for `id` (nil if it isn't sold)

@@ -32,6 +32,9 @@ return table.freeze({
 	-- stake roll: 30-130 coins, weighted to the low end (averages ~52)
 	STAKES = table.freeze({ 30, 40, 50, 70, 90, 130 }),
 	STAKE_WEIGHTS = table.freeze({ 30, 25, 18, 12, 10, 5 }),
+	-- solo practice's stake (paid as XP, a seventh per right answer): about two thirds of a
+	-- duel's (averages ~34), so duels stay the better way to level. Same weights.
+	SOLO_STAKES = table.freeze({ 20, 25, 35, 45, 60, 90 }),
 
 	-- rewards
 	XP_CORRECT = 10,
@@ -50,13 +53,20 @@ return table.freeze({
 	-- have played an owned song, the rest of the game goes back to plain odds.
 	OWNED_WEIGHT = table.freeze({ Normal = 2, Gold = 3, Rainbow = 5 }),
 	OWNED_ROUNDS_MAX = 3,
-	OWNED_XP = 2, -- bonus XP for guessing a song you own (duels only)
+	OWNED_XP = 5, -- bonus XP for guessing a song you own (duels only)
 
 	-- rematch series: two players who keep pressing Rematch play a running series (shown on
 	-- the pre-duel + results screens). Winning a rematch right after losing to that same rival
 	-- is a Revenge win and pays this on top (before the 2× Coins pass).
 	REVENGE_COINS = 15,
 	REVENGE_XP = 25,
+	-- (Revenge pays once per rematch series, so trading wins back and forth can't farm it)
+
+	-- same-rival guard (stops two friends / an alt farming coins off each other): after this
+	-- many duels against the same rival in a UTC day, coins from them are halved
+	-- (SAME_RIVAL_COIN_SCALE) and a win no longer grows the win streak
+	SAME_RIVAL_GAMES = 3,
+	SAME_RIVAL_COIN_SCALE = 0.5,
 
 	-- Save Streak developer product. 0 = not set up yet (button is disabled).
 	SAVE_STREAK_PRODUCT_ID = 3726066704,

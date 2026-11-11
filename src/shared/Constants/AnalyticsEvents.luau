@@ -52,6 +52,20 @@ AnalyticsEvents.Custom = {
 	BadgeEarned = { Fields = { "Badge" } }, -- Constants/BadgeCatalog Key
 	QuestSwapped = { Fields = { "From", "To" } }, -- the daily quest swap
 	LevelRewardClaimed = { Fields = { "Level" } }, -- value: coins
+	-- a coin purchase in the shop (Engine/ShopService). value: the buyer's level. Kind Set /
+	-- Stage / Mic / Banner / Photocard / StyleSet; Rarity Common … Legendary, or Regular /
+	-- Animated for banners + photocards
+	ItemBought = { Fields = { "Kind", "Rarity", "Item" } },
+	-- the first stage / mic / set of a rarity a player has ever bought (value: their level), so
+	-- "how long until a first Legendary" is a chart
+	FirstOfRarity = { Fields = { "Rarity", "Kind" } },
+	-- a Robux purchase prompt closed (Engine/ShopService). Product = the catalog id
+	-- (Coins1000, Debut, Tickets5…); Kind Coins / Tickets / Upgrades / Bundle / Pass / Streak
+	RobuxPrompt = { Fields = { "Product", "Kind", "Result" } }, -- Result Bought / Cancelled
+
+	-- [[ Economy guards (DuelService/Rewards) ]]
+	RivalLimit = { Fields = { "Outcome" } }, -- coins halved by the same-rival guard; value: duels vs them today
+	RevengeWin = {}, -- the once-per-series Revenge bonus was paid
 
 	-- [[ From the client ]]
 	ScreenOpened = { Fields = { "Screen" }, Client = true, Allowed = {
@@ -80,8 +94,12 @@ AnalyticsEvents.Custom = {
 	UGCBought = { Fields = { "Item", "Kind" } }, -- value: Robux price
 }
 
--- Coins + XP are the "currencies" in the Economy dashboard (TransactionType + Sku below).
-AnalyticsEvents.Currencies = { Coins = "Coins", XP = "XP" }
+-- Coins + XP are the "currencies" in the Economy dashboard (TransactionType + Sku below), with
+-- Tickets + Upgrades from rewards and Robux bundles. Roblox keeps only 100 SKUs per experience,
+-- so SKUs are kinds, not items: shop sinks use the rarity ("Legendary", "Animated"), Robux
+-- sources the product kind ("CoinBundle"), the season track "Track". Per-item detail is in the
+-- ItemBought / RobuxPrompt events instead.
+AnalyticsEvents.Currencies = { Coins = "Coins", XP = "XP", Tickets = "Tickets", Upgrades = "Upgrades" }
 AnalyticsEvents.Transactions = {
 	-- sources
 	DuelWin = "DuelWin",
@@ -122,6 +140,8 @@ AnalyticsEvents.Onboarding = {
 AnalyticsEvents.Funnels = {
 	Duel = { "Queued", "Matched", "Round1", "Round4", "Round7", "Results", "Rematch" },
 	Solo = { "PickerOpened", "Started", "Round1", "Round7", "Results", "PlayedAgain" },
+	-- one per shop visit: opened the shop → a Robux prompt came up → bought (Engine/ShopService)
+	Robux = { "ShopOpened", "Prompted", "Bought" },
 }
 
 return AnalyticsEvents

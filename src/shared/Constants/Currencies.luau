@@ -52,7 +52,7 @@ Currencies.Tickets = table.freeze({
 	Attribute = "Tickets",
 	Path = table.freeze({ "Inventory", "Tickets" }),
 	Wallet = true, -- tap: Roll → Pick a Group
-	Robux = false,
+	Robux = true, -- sold in the shop's ticket bundles + Bundles
 } :: Currency)
 
 Currencies.Upgrades = table.freeze({

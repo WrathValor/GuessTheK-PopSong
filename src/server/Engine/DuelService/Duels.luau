@@ -355,12 +355,13 @@ end
 -- [[ Pre-duel: stake roll + mode vote ]]
 
 function Duels:_preDuel()
-	-- solo rolls a stake too; it pays out as XP instead of coins
-	self.Stake = rollStake()
+	-- solo rolls a stake too, from its own lower table; it pays out as XP instead of coins
+	local stakes = if self.Solo then DuelConstants.SOLO_STAKES else DuelConstants.STAKES
+	self.Stake = rollStake(stakes, DuelConstants.STAKE_WEIGHTS)
 
 	local reel = {}
 	for i = 1, 7 do
-		reel[i] = DuelConstants.STAKES[math.random(1, #DuelConstants.STAKES)]
+		reel[i] = stakes[math.random(1, #stakes)]
 	end
 	reel[4] = self.Stake -- the chip the pointer lands on
 
@@ -412,6 +413,7 @@ function Duels:_preDuel()
 		Packs = packsInfo,
 		Stake = self.Stake,
 		Reel = reel,
+		Chips = if self.Solo then stakes else nil, -- solo's lower table (nil: the duel strip)
 		Players = profiles,
 		Solo = self.Solo,
 		Series = self.Series,

@@ -303,7 +303,7 @@ local function claim(player: Player, data, packet)
 		end
 	end)
 	if spec.Kind == "Coins" then
-		Analytics.Economy(player, "Source", "Coins", spec.Amount or 0, data.Currencies.Won.Get(), "SeasonTrack", `Milestone:{n}`)
+		Analytics.Economy(player, "Source", "Coins", spec.Amount or 0, data.Currencies.Won.Get(), "SeasonTrack", "Track") -- (the milestone is in SeasonClaim; SKUs are capped at 100)
 	end
 	Analytics.Event(player, "SeasonClaim", n, spec.Kind)
 	reply(player, { Action = "Claim", Ok = true, Text = "Claimed!", N = n, Kind = spec.Kind, Amount = spec.Amount })

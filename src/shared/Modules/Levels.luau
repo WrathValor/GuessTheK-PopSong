@@ -2,9 +2,10 @@
 -- Player.XP is stored as a lifetime total. Level and progress are derived from it here so
 -- the curve can be retuned without migrating saved data.
 --
--- XP needed to go from level n to n+1 = BASE + STEP * (n - 1)
---   Lv1 -> 2: 100,  Lv7 -> 8: 1,000,  Lv20 -> 21: 2,950
--- Level 100 is the cap (742,500 XP in total).
+-- XP needed to go from level n to n+1 = BASE + STEP * (n - 1), never more than STEP_CAP
+--   Lv1 -> 2: 100,  Lv7 -> 8: 1,000,  Lv20 -> 21: 2,950,  Lv41+: 6,000 each (the cap)
+-- Level 100 is the cap (475,000 XP in total). The cap keeps late levels at ~4 hours of
+-- duels each instead of growing to ~10.
 --
 -- Level titles: reaching a level in TITLES unlocks that title (DataService grants it into
 -- Inventory.Titles; equip it in the Inventory). "Fan" is everyone's default.
@@ -17,6 +18,7 @@
 
 local BASE = 100
 local STEP = 150
+local STEP_CAP = 6000
 local MAX_LEVEL = 100
 
 local Levels = {}
@@ -75,7 +77,7 @@ function Levels.NextTitle(level: number): (string?, number?)
 end
 
 function Levels.XPToNext(level: number): number
-	return BASE + STEP * (level - 1)
+	return math.min(BASE + STEP * (level - 1), STEP_CAP)
 end
 
 -- Returns level, xp into the current level, xp needed for the next level.

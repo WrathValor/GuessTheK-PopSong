@@ -349,6 +349,10 @@ function Purchased:Initialize(interface)
 				table.insert(cards, currencyCard(id, n))
 			end
 		end
+		-- the daily bonus's XP: a lilac card with the XP star
+		if type(packet.XP) == "number" and packet.XP > 0 then
+			table.insert(cards, { Name = `+{packet.XP}`, Kind = "XP", Colour = "DCD3FF", Image = SeasonConstants.ICONS.XP, Tag = "XP", TagColour = "FFFFFF" })
+		end
 		-- titles fill whatever card slots are left (Show shows up to 4); the rest follow on
 		-- "NEW TITLES!" reveals, 4 at a time, queued after this one
 		local titles = if type(packet.Titles) == "table" then packet.Titles else {}

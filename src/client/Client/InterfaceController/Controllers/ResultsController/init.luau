@@ -89,9 +89,11 @@ local function fillXP(row, before: number?, gained: number)
 		old, gain = intoBefore / need, (intoAfter - intoBefore) / need
 	end
 	bar.Visible = true
+	-- both fills are rounded pills from the left: Gain runs to the new total behind Old, so only
+	-- its rounded right end shows past Old (no square ends, no notch where they meet)
 	bar.Old.Size = UDim2.fromScale(old, 1)
-	bar.Gain.Position = UDim2.fromScale(old, 0)
-	bar.Gain.Size = UDim2.fromScale(math.clamp(gain, 0, 1 - old), 1)
+	bar.Gain.Position = UDim2.fromScale(0, 0)
+	bar.Gain.Size = UDim2.fromScale(math.clamp(old + gain, 0, 1), 1)
 end
 
 -- reveal timing: rows drop in one by one, then the totals, then the winner card

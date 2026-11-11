@@ -684,8 +684,8 @@ end
 --           tickets", ROLL A GROUP) and Picker: a full-screen overlay with its own panel:
 --           company tabs (Tabs.Tab1..8), 12 group tiles (Grid.Tile1..12: Art + Initials, GroupName,
 --           Owned, Bar.Fill, Check), the pager, an Info line and the RollGroup button
---   Index – Header.Upgrade (UPGRADE ×n, beside ROLL SONGS), Header.UpgradeLeft ("1 left" next to
---           the title in upgrade mode) and Header.Confirm (UPGRADE THIS CARD, in ROLL SONGS' place);
+--   Index – Header.Upgrade (UPGRADE ×n, beside ROLL SONGS), Header.UpgradeLeft ("1 left", just left of
+--           the confirm button in upgrade mode) and Header.Confirm (UPGRADE THIS CARD, in ROLL SONGS' place);
 --           Content.Playing: the Now Playing bar (board "Rainbow cards · background music") that
 --           takes the footer's hint / title-progress spot left of the pager while a card plays:
 --           Eq bars, Kicker, SongName, SetBg (SET AS / USE DEFAULT MUSIC), Note, Stop (✕)
@@ -799,7 +799,8 @@ function Build.SeasonRewards(frames: Instance)
 	icon(up, "Icon", "Upgrade", UDim2.fromOffset(10, rh / 2), 28, Vector2.new(0, 0.5))
 	text(up, "Label", { Position = UDim2.fromOffset(42, 0), Size = UDim2.new(1, -48, 1, 0), FontFace = HEAD, TextSize = 15, TextXAlignment = Enum.TextXAlignment.Center, Text = "UPGRADE ×1" })
 	-- upgrade mode: "1 left" by the title, UPGRADE THIS CARD where ROLL SONGS was
-	local left = chip(ih, "UpgradeLeft", UDim2.fromOffset(380, 32), 30, WHITE, "1 left", 15, Vector2.new(0, 0.5))
+	-- (right next to UPGRADE THIS CARD, whose left edge is at 748)
+	local left = chip(ih, "UpgradeLeft", UDim2.fromOffset(736, 32), 30, WHITE, "1 left", 15, Vector2.new(1, 0.5))
 	left.FontFace = HEAD
 	chipIcon(left, "Upgrade", 22)
 	left.Visible = false

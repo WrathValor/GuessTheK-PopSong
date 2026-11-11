@@ -29,6 +29,8 @@ local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 local AnalyticsClient = require(ReplicatedStorage.Modules.AnalyticsClient)
 local CosmeticView = require(ReplicatedStorage.Modules.UI.CosmeticView)
+local TitleChip = require(ReplicatedStorage.Modules.UI.TitleChip)
+local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
 
 local Build = require(script.Build)
 
@@ -256,10 +258,11 @@ local function styleClaim(b: TextButton, state: "Ready" | "Claimed" | "Waiting",
 	end
 end
 
--- reward chips (Chip1, Chip2…) in `holder` from a reward table, with the currency icons
-local function paintChips(holder: Instance, reward)
-	local list = Catalog.RewardList(reward)
-	for i = 1, 2 do
+-- reward chips (Chip1, Chip2…) in `holder` from a reward table, with the currency icons;
+-- xp = the XP paid with it (daily quests + the daily bonus), its own lilac chip last
+local function paintChips(holder: Instance, reward, xp: number?)
+	local list = Catalog.RewardList(reward, xp)
+	for i = 1, 3 do
 		local chip = holder:FindFirstChild("Chip" .. i)
 		local r = list[i]
 		if chip then
@@ -526,7 +529,7 @@ function Rewards:_fillQuests()
 		row.Bar.Fill.Visible = q.Have > 0
 		row.Bar.Fill.BackgroundColor3 = if q.Done then C("3FBF6A") else C("FF5A4E")
 		row.Progress.Text = if q.Done then "Done!" else `{q.Have} / {quest.Need}`
-		paintChips(row.Rewards, quest.Reward)
+		paintChips(row.Rewards, quest.Reward, if weekly then 0 else Catalog.DAILY_QUEST_XP)
 		row.BackgroundColor3 = if q.Claimed then SAND else WHITE
 		local canSwap = not weekly and not swapUsed and not q.Done and not q.Claimed
 		row.Swap.Visible = canSwap
@@ -549,7 +552,7 @@ function Rewards:_fillQuests()
 		pip.BackgroundColor3 = if i <= claimedCount then C("3FBF6A") else WHITE
 	end
 	bonus.Pips.Sub.Text = `{claimedCount} of {#quests} claimed`
-	paintChips(bonus.Rewards, if weekly then Catalog.WEEKLY_BONUS else Catalog.BONUS)
+	paintChips(bonus.Rewards, if weekly then Catalog.WEEKLY_BONUS else Catalog.BONUS, if weekly then 0 else Catalog.DAILY_BONUS_XP)
 	if bonusClaimed then
 		styleClaim(bonus.Claim, "Claimed")
 	elseif claimedCount >= #quests then
@@ -595,12 +598,78 @@ function Rewards:_toast(message: string)
 	end
 	toast.Text = message
 	toast.Visible = true
+	local claim = self._frame:FindFirstChild("ClaimToast")
+	if claim then
+		claim.Visible = false
+	end
 	Juice.SlideIn(toast, 24)
 	self._toastToken = (self._toastToken or 0) + 1
 	local token = self._toastToken
 	task.delay(2.2, function()
 		if self._toastToken == token then
 			toast.Visible = false
+		end
+	end)
+end
+
+-- the claim toast (Build.ClaimToast) for a small claim: info = the server's Toast
+-- ({ Source, Items = { { Kind, Amount? , Name? } }, Streak? })
+local CLAIM_TOAST_TIME = 2.6
+function Rewards:_claimToast(info)
+	local holder = self._frame:FindFirstChild("ClaimToast")
+	if not holder then
+		return self:_toast("Claimed!")
+	end
+	local old = self._frame:FindFirstChild("Toast")
+	if old then
+		old.Visible = false
+	end
+	local face = holder.Face
+	face.Top.Source.Text = info.Source or ""
+	for _, child in face.Items:GetChildren() do
+		if child:IsA("GuiObject") then
+			child:Destroy()
+		end
+	end
+	for i, item in info.Items or {} do
+		local cell
+		if item.Kind == "Title" then
+			cell = face.TitleTemplate:Clone()
+			TitleChip.Paint(cell.Chip, item.Name, Levels.TITLE_TIERS[item.Name] or "Normal")
+		else
+			cell = face.ItemTemplate:Clone()
+			if item.Kind == "Stage" then
+				cell.Icon.Image = SeasonConstants.ICONS.Stage
+				cell.Amount.Text = item.Name or "Stage"
+				cell.Amount.TextSize = 13
+			else
+				cell.Icon.Image = Build.ICONS[item.Kind] or Build.ICONS.Coins
+				cell.Amount.Text = if item.Kind == "XP" then `+{item.Amount} XP` else `+{item.Amount}`
+			end
+		end
+		cell.Name = "Item" .. i
+		cell.LayoutOrder = i
+		cell.Visible = true
+		cell.Parent = face.Items
+	end
+	if info.Streak and info.Streak > 1 then
+		local pill = face.StreakTemplate:Clone()
+		pill.Name = "Streak"
+		pill.LayoutOrder = 99
+		pill.Days.Text = `{info.Streak} day streak`
+		pill.Visible = true
+		pill.Parent = face.Items
+	end
+	local bar = face.Timer
+	bar.Size = UDim2.new(1, -24, 0, 5)
+	holder.Visible = true
+	Juice.SlideIn(holder, 24)
+	TweenService:Create(bar, TweenInfo.new(CLAIM_TOAST_TIME, Enum.EasingStyle.Linear), { Size = UDim2.new(0, 0, 0, 5) }):Play()
+	self._toastToken = (self._toastToken or 0) + 1
+	local token = self._toastToken
+	task.delay(CLAIM_TOAST_TIME, function()
+		if self._toastToken == token then
+			holder.Visible = false
 		end
 	end)
 end
@@ -742,7 +811,12 @@ function Rewards:Initialize(interface)
 		-- CLAIM ALL and the quest bonuses get the "YOU GOT!" reveal (PurchasedController) instead
 		local revealed = packet.Ok and ((packet.Action == "ClaimLevel" and packet.All) or packet.Action == "ClaimBonus")
 		if self.State ~= "Inactive" and not revealed then
-			self:_toast(packet.Text or "")
+			-- the small claims (one quest, the daily login, one level, the group) get the claim toast
+			if packet.Ok and type(packet.Toast) == "table" then
+				self:_claimToast(packet.Toast)
+			else
+				self:_toast(packet.Text or "")
+			end
 		end
 	end), "Disconnect") -- BridgeNet2 connections have no Destroy
 

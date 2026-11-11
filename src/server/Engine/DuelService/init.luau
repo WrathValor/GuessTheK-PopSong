@@ -311,12 +311,14 @@ local function onDuelEnded(stage: Stage, result)
 	end
 
 	-- rematch series: a win right after losing to this same rival is a Revenge win (Rewards
-	-- pays the bonus), then the series score moves on
+	-- pays the bonus) – once per series, so trading wins back and forth can't farm it – then
+	-- the series score moves on
 	local series = stage.Series
 	if series and not result.Solo then
 		local winner = result.Winner
-		if winner and not result.Draw and series.LastLoser == winner.UserId and result.Leaver == nil then
+		if winner and not result.Draw and series.LastLoser == winner.UserId and result.Leaver == nil and not series.RevengePaid then
 			result.Revenge = winner
+			series.RevengePaid = true
 		end
 		series.Games += 1
 		series.LastLoser = nil

@@ -187,6 +187,7 @@ local function onClient(player: Player, packet)
 	end
 	if packet.Name == "ScreenOpened" and values[1] == "Shop" then
 		Analytics.Onboarding(player, "OpenedShop")
+		Analytics.Funnel(player, "Robux", Analytics.ShopSession(player, true), "ShopOpened")
 	end
 	if packet.Name == "SoloPickerOpened" then
 		Analytics.Funnel(player, "Solo", Analytics.SoloSession(player, true), "PickerOpened")
@@ -203,6 +204,15 @@ function Analytics.SoloSession(player: Player, new: boolean?): string
 	return soloSessions[player]
 end
 
+-- a shop visit's Robux funnel id: a new one each time the shop opens
+local shopSessions: { [Player]: string } = {}
+function Analytics.ShopSession(player: Player, new: boolean?): string
+	if new or not shopSessions[player] then
+		shopSessions[player] = `{player.UserId}-{os.time()}-{math.random(1000, 9999)}`
+	end
+	return shopSessions[player]
+end
+
 function Analytics.Start()
 	AnalyticsRemote:Connect(onClient)
 	Players.PlayerAdded:Connect(function(player)
@@ -215,6 +225,7 @@ function Analytics.Start()
 		onboarded[player] = nil
 		clientCount[player] = nil
 		soloSessions[player] = nil
+		shopSessions[player] = nil
 	end)
 end
 

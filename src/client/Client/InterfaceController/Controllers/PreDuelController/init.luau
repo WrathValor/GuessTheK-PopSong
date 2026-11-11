@@ -287,7 +287,7 @@ function PreDuel:Setup(packet)
 	f.Stake.Visible = true
 	f.StakeShadow.Visible = true
 	local party = packet.Party == true
-	f.Stake.Rule.Text = if solo then "Solo practice · win the stake as XP"
+	f.Stake.Rule.Text = if solo then "Solo practice · right answers win the stake as XP"
 		elseif party and packet.Kind == "Duel" then "Pot paid by place · 1st 100% · 2nd 30%"
 		elseif party then "Pot paid by place · 1st 100% · 2nd 70% · 3rd 50%"
 		else "Winner takes it · loser gets 10"

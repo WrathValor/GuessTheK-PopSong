@@ -12,7 +12,10 @@
 --                         { Action = "ClaimGroup" }
 -- Reply to the player:     { Message = "Result", Ok = bool, Text = string, Action, Coins = number? }
 --   ClaimLevel adds { All, Rewards, Titles, Levels = { first, last } }; ClaimBonus adds
---   { Scope, Rewards }. PurchasedController shows Claim All and the bonuses as a reveal.
+--   { Scope, Rewards, XP }. PurchasedController shows Claim All and the bonuses as a reveal.
+--   The small claims (ClaimDaily, ClaimQuest, one ClaimLevel, ClaimGroup) add Toast =
+--   { Source = "Quest · Win 3 duels", Items = { { Kind = "Coins", Amount } | { Kind = "Stage" |
+--   "Title", Name } }, Streak = n? } for the Rewards screen's claim toast.
 --                          RedeemCode also sends Code and Rewards (RewardsCatalog.CodeRewards) so
 --                          the client can show the purchase reveal
 --
@@ -131,7 +134,9 @@ local function claimDaily(player: Player, data)
 	Analytics.Event(player, "DailyClaimed", coins, `Day{index}`)
 	Analytics.Economy(player, "Source", "Coins", coins, data.Currencies.Won.Get(), "DailyReward", "DailyReward") -- the day is in DailyClaimed
 	Analytics.Onboarding(player, "ClaimedDaily")
-	reply(player, "ClaimDaily", true, `Day {index}: +{coins} coins`, coins)
+	reply(player, "ClaimDaily", true, `Day {index}: +{coins} coins`, coins, {
+		Toast = { Source = `Daily login · Day {index}`, Items = { { Kind = "Coins", Amount = coins } }, Streak = nextStreak },
+	})
 end
 
 local function claimQuest(player: Player, data, id, scope: string)
@@ -156,14 +161,24 @@ local function claimQuest(player: Player, data, id, scope: string)
 	if counters[quest.Stat].Get() < quest.Need then
 		return reply(player, "ClaimQuest", false, "Not finished yet")
 	end
+	local xp = if scope == "Daily" then Catalog.DAILY_QUEST_XP else 0
 	PlayerData.Batch(player, function()
 		claimed.Add(quest.Id)
 		grant(data, quest.Reward)
+		if xp > 0 then
+			data.Player.XP.Increment(xp)
+		end
 	end)
+	if xp > 0 then
+		Analytics.Economy(player, "Source", "XP", xp, data.Player.XP.Get(), "Quest", "DailyQuest")
+	end
 	Analytics.Event(player, "QuestClaimed", quest.Reward.Coins or 0, quest.Id)
 	logReward(player, data, quest.Reward, "Quest", scope .. "Quest") -- the quest is in QuestClaimed (SKUs are capped at 100)
 	SeasonService.Award(player, "Quest") -- season Stars too
-	reply(player, "ClaimQuest", true, Catalog.RewardText(quest.Reward), quest.Reward.Coins, { Scope = scope })
+	reply(player, "ClaimQuest", true, Catalog.RewardText(quest.Reward), quest.Reward.Coins, {
+		Scope = scope,
+		Toast = { Source = `Quest · {quest.Title}`, Items = Catalog.RewardList(quest.Reward, xp) },
+	})
 end
 
 local function claimBonus(player: Player, data, scope: string)
@@ -180,13 +195,20 @@ local function claimBonus(player: Player, data, scope: string)
 		return reply(player, "ClaimBonus", false, `Claim all {#list} quests first`)
 	end
 	local reward = if scope == "Weekly" then Catalog.WEEKLY_BONUS else Catalog.BONUS
+	local xp = if scope == "Daily" then Catalog.DAILY_BONUS_XP else 0
 	PlayerData.Batch(player, function()
 		claimed.Add("Bonus")
 		grant(data, reward)
+		if xp > 0 then
+			data.Player.XP.Increment(xp)
+		end
 	end)
+	if xp > 0 then
+		Analytics.Economy(player, "Source", "XP", xp, data.Player.XP.Get(), "QuestBonus", "DailyBonus")
+	end
 	Analytics.Event(player, "QuestBonusClaimed", reward.Coins or 0)
 	logReward(player, data, reward, "QuestBonus", scope .. "Bonus")
-	reply(player, "ClaimBonus", true, `Bonus: {Catalog.RewardText(reward)}`, reward.Coins, { Scope = scope, Rewards = reward })
+	reply(player, "ClaimBonus", true, `Bonus: {Catalog.RewardText(reward)}`, reward.Coins, { Scope = scope, Rewards = reward, XP = xp })
 end
 
 -- one daily quest a day can be swapped for another that isn't on the list (not one that's
@@ -277,8 +299,14 @@ local function claimLevels(player: Player, data, only: number?)
 		table.remove(parts, 1)
 	end
 	table.move(titles, 1, #titles, #parts + 1, parts)
-	-- All / Rewards / Titles / Levels: Claim All shows the "YOU GOT!" reveal (PurchasedController)
+	-- All / Rewards / Titles / Levels: Claim All shows the "YOU GOT!" reveal (PurchasedController);
+	-- one level gets the claim toast
+	local items = Catalog.RewardList(total)
+	for _, name in titleNames do
+		table.insert(items, { Kind = "Title", Name = name })
+	end
 	reply(player, "ClaimLevel", true, what .. table.concat(parts, " · "), total.Coins, {
+		Toast = if only then { Source = `Level {due[1].Level} reward`, Items = items } else nil,
 		All = only == nil,
 		Rewards = total,
 		Titles = titleNames,
@@ -318,7 +346,12 @@ local function claimGroup(player: Player, data)
 	end)
 	Analytics.Event(player, "GroupRewardClaimed", g.Coins)
 	Analytics.Economy(player, "Source", "Coins", g.Coins, data.Currencies.Won.Get(), "GroupReward", "GroupReward")
-	reply(player, "ClaimGroup", true, `+{g.Coins} coins, Group Exclusive stage + {g.Title} title`, g.Coins)
+	reply(player, "ClaimGroup", true, `+{g.Coins} coins, Group Exclusive stage + {g.Title} title`, g.Coins, {
+		Toast = {
+			Source = "Group reward",
+			Items = { { Kind = "Coins", Amount = g.Coins }, { Kind = "Stage", Name = "Group Exclusive" }, { Kind = "Title", Name = g.Title } },
+		},
+	})
 end
 
 -- the Inventory set each code item / style key goes into

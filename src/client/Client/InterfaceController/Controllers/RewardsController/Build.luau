@@ -57,6 +57,7 @@ Build.ICONS = {
 	Upgrades = Currencies.Upgrades.Icon,
 	Pile = ShopCatalog.CoinBundles[2].Pile, -- the shop's coin pile (the Season Track's coin art)
 	Title = SeasonConstants.ICONS.Title,
+	XP = SeasonConstants.ICONS.XP,
 	Daily = SeasonConstants.ICONS.Daily,
 	Weekly = SeasonConstants.ICONS.Weekly,
 }
@@ -71,7 +72,7 @@ Build.QUEST_ICONS = {
 	NewSongs = { ATLAS, Vector2.new(0, 200) }, -- i_cards
 }
 Build.QUEST_TILE = { Correct = "9ED8F5", Wins = "FFB38A", BestRun = "FFD2CE", Duels = "B9A6FF", Solo = "A7E9B8", Perfect = "FFE07A", NewSongs = "DCD3FF" }
-Build.REWARD_CHIP = { Coins = "FFE07A", Tickets = "FF9EC4", Upgrades = "A7E9B8" }
+Build.REWARD_CHIP = { Coins = "FFE07A", Tickets = "FF9EC4", Upgrades = "A7E9B8", XP = "DCD3FF" }
 Build.ART_BG = { Coins = "FFE07A", Tickets = "DCD3FF", Upgrades = "9ED8F5", Title = "CDEBFA" }
 -- each day card shows one pile of coins, one coin taller per day (2 on day 1 … 8 on day 7),
 -- each coin nudged a little left/right like the original design
@@ -394,7 +395,10 @@ function Build.LayoutQuests(s: Instance, rows: number)
 		end
 	end
 	s.Rows.Size = UDim2.fromOffset(Build.W, rowsH + 4)
-	s.Bonus.Position = UDim2.fromOffset(0, 46 + rowsH + 16)
+	-- (anchor-aware: the claim punch re-anchors the bar to its centre, Rewards.settle)
+	local bonus = s.Bonus
+	local a, size = bonus.AnchorPoint, bonus.Size
+	bonus.Position = UDim2.new(size.X.Scale * a.X, size.X.Offset * a.X, size.Y.Scale * a.Y, 46 + rowsH + 16 + size.Y.Offset * a.Y)
 	s.Size = UDim2.fromOffset(Build.W, 46 + rowsH + 16 + 72 + 4 + 26)
 end
 
@@ -464,6 +468,7 @@ local function questsSection(content: Instance)
 	new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Right, VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, br)
 	rewardChip(br, "Chip1", 1, 30)
 	rewardChip(br, "Chip2", 2, 30)
+	rewardChip(br, "Chip3", 3, 30) -- (the daily bonus: coins, an upgrade + XP)
 	claimButton(bonus, "Claim", UDim2.new(1, -14 - 128, 0.5, -16), UDim2.fromOffset(128, 32))
 
 	Build.LayoutQuests(s, Build.QUESTS)
@@ -555,6 +560,90 @@ local function groupSection(content: Instance)
 	gb:FindFirstChildOfClass("UIStroke").Thickness = 3
 end
 
+-- The claim toast ("Claim toast · 3 options" board, option A): a white strip at the bottom with a
+-- mint tick, "Claimed!" + where it came from, every reward with its icon, and a pink bar that
+-- runs out. The small claims use it (one quest, the daily login, one level, the group reward).
+-- Items holds the rewards; the controller clones ItemTemplate / TitleTemplate / StreakTemplate.
+-- Safe to run again on a built frame:
+--   require(<this module>).ClaimToast(game.StarterGui.Interface.Frames.Rewards)
+Build.TOAST_W, Build.TOAST_H = 460, 74
+function Build.ClaimToast(root: Instance)
+	local old = root:FindFirstChild("ClaimToast")
+	if old then
+		old:Destroy()
+	end
+	local holder = new("Frame", {
+		Name = "ClaimToast",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.fromOffset(640, 700),
+		Size = UDim2.fromOffset(Build.TOAST_W, Build.TOAST_H),
+		BackgroundTransparency = 1,
+		Visible = false,
+		ZIndex = 20,
+	}, root)
+	local shadow = new("Frame", { Name = "Shadow", Position = UDim2.fromOffset(5, 5), Size = UDim2.fromScale(1, 1), BackgroundColor3 = INK, BorderSizePixel = 0, ZIndex = 20 }, holder)
+	corner(shadow, 16)
+	local face = new("Frame", { Name = "Face", Size = UDim2.fromScale(1, 1), BackgroundColor3 = WHITE, BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 21 }, holder)
+	corner(face, 16)
+	stroke(face, 3)
+
+	local tick = new("Frame", { Name = "Tick", Position = UDim2.fromOffset(12, 13), Size = UDim2.fromOffset(44, 44), BackgroundColor3 = MINT, ZIndex = 22 }, face)
+	corner(tick, UDim.new(0.5, 0))
+	stroke(tick, 3)
+	text(tick, "Mark", { Size = UDim2.fromScale(1, 1), FontFace = HEAD, TextSize = 22, Text = "✓", TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 23 })
+
+	local top = new("Frame", { Name = "Top", Position = UDim2.fromOffset(68, 9), Size = UDim2.fromOffset(Build.TOAST_W - 82, 20), BackgroundTransparency = 1, ZIndex = 22 }, face)
+	row(top, 8)
+	text(top, "Title", { LayoutOrder = 1, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 20), FontFace = HEAD, TextSize = 15, Text = "Claimed!", TextTruncate = Enum.TextTruncate.None, ZIndex = 22 })
+	text(top, "Source", { LayoutOrder = 2, Size = UDim2.new(1, -90, 0, 20), FontFace = BODY_BOLD, TextSize = 13, TextColor3 = MUTED, Text = "Quest · Win 3 duels", ZIndex = 22 })
+
+	local items = new("Frame", { Name = "Items", Position = UDim2.fromOffset(68, 33), Size = UDim2.fromOffset(Build.TOAST_W - 82, 26), BackgroundTransparency = 1, ZIndex = 22 }, face)
+	row(items, 12)
+
+	-- a currency or stage: icon + "+150" (or the stage's name)
+	local item = new("Frame", { Name = "ItemTemplate", AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 26), BackgroundTransparency = 1, Visible = false, ZIndex = 22 }, face)
+	row(item, 5)
+	new("ImageLabel", { Name = "Icon", LayoutOrder = 1, Size = UDim2.fromOffset(22, 22), BackgroundTransparency = 1, Image = COIN, ScaleType = Enum.ScaleType.Fit, ZIndex = 22 }, item)
+	text(item, "Amount", { LayoutOrder = 2, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 22), FontFace = HEAD, TextSize = 15, Text = "+150", TextTruncate = Enum.TextTruncate.None, ZIndex = 22 })
+
+	-- a title: "TITLE" + the chip (TitleChip.Paint colours it)
+	local title = new("Frame", { Name = "TitleTemplate", AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 26), BackgroundTransparency = 1, Visible = false, ZIndex = 22 }, face)
+	row(title, 5)
+	text(title, "Label", { LayoutOrder = 1, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 22), FontFace = BODY, TextSize = 11, TextColor3 = MUTED, Text = "TITLE", TextTruncate = Enum.TextTruncate.None, ZIndex = 22 })
+	local chip = text(title, "Chip", {
+		LayoutOrder = 2,
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, 24),
+		BackgroundTransparency = 0,
+		BackgroundColor3 = MINT,
+		FontFace = HEAD,
+		TextSize = 12,
+		Text = "Rookie",
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextTruncate = Enum.TextTruncate.None,
+		ZIndex = 22,
+	})
+	corner(chip, 8)
+	stroke(chip, 2)
+	pad(chip, 9)
+	new("UIGradient", { Name = "Rainbow", Enabled = false }, chip)
+
+	-- the daily login's streak pill
+	local streak = new("Frame", { Name = "StreakTemplate", AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 24), BackgroundColor3 = C("FFE4D0"), Visible = false, ZIndex = 22 }, face)
+	corner(streak, UDim.new(0.5, 0))
+	stroke(streak, 2)
+	pad(streak, 8)
+	row(streak, 4)
+	new("ImageLabel", { Name = "Icon", LayoutOrder = 1, Size = UDim2.fromOffset(16, 16), BackgroundTransparency = 1, Image = SeasonConstants.ICONS.Streak, ScaleType = Enum.ScaleType.Fit, ZIndex = 23 }, streak)
+	text(streak, "Days", { LayoutOrder = 2, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 20), FontFace = BODY, TextSize = 12, Text = "4 day streak", TextTruncate = Enum.TextTruncate.None, ZIndex = 23 })
+
+	-- the bar that runs out while it's up: a rounded pill inside the card (ClipsDescendants
+	-- doesn't follow the card's round corners, so it can't run edge to edge)
+	local bar = new("Frame", { Name = "Timer", AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 12, 1, -6), Size = UDim2.new(1, -24, 0, 5), BackgroundColor3 = C("FF9EC4"), BorderSizePixel = 0, ZIndex = 22 }, face)
+	corner(bar, UDim.new(0.5, 0))
+	return holder
+end
+
 function Build.Build(frames: Instance)
 	local old = frames:FindFirstChild("Rewards")
 	if old then
@@ -638,6 +727,7 @@ function Build.Build(frames: Instance)
 	})
 	corner(toast, 10)
 	pad(toast, 16)
+	Build.ClaimToast(root)
 
 	root.Parent = frames
 	require(game:GetService("ReplicatedStorage").Modules.UI.CenterButtons).Apply(root)

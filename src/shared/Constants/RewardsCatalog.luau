@@ -57,7 +57,11 @@ RewardsCatalog.QUEST_STATS = table.freeze({ "Correct", "Wins", "WinRun", "BestRu
 RewardsCatalog.QUESTS_PER_DAY = 3
 RewardsCatalog.WEEKLY_PER_WEEK = 4
 RewardsCatalog.QUEST_COLOURS = table.freeze({ "9ED8F5", "FFB38A", "B9A6FF" })
-RewardsCatalog.BONUS = table.freeze({ Coins = 150, Upgrades = 1 }) -- all daily quests claimed
+RewardsCatalog.BONUS = table.freeze({ Coins = 100, Upgrades = 1 }) -- all daily quests claimed
+-- XP paid on top of a daily quest's Reward / the daily BONUS (kept out of the reward tables,
+-- which are currencies only; RewardsService adds it to Player.XP)
+RewardsCatalog.DAILY_QUEST_XP = 25
+RewardsCatalog.DAILY_BONUS_XP = 75
 RewardsCatalog.WEEKLY_BONUS = table.freeze({ Coins = 400, Tickets = 2 }) -- all weekly quests claimed
 
 -- Level rewards: each level here pays its one Reward once (claimed on the Rewards screen).
@@ -394,13 +398,17 @@ end
 local REWARD_ORDER = { "Coins", "Tickets", "Upgrades" }
 
 -- { { Kind = "Coins", Amount = 75 }, … } in display order
-function RewardsCatalog.RewardList(reward): { { Kind: string, Amount: number } }
+-- xp = XP paid with it (DAILY_QUEST_XP / DAILY_BONUS_XP), listed last as { Kind = "XP" }
+function RewardsCatalog.RewardList(reward, xp: number?): { { Kind: string, Amount: number } }
 	local out = {}
 	for _, kind in REWARD_ORDER do
 		local n = reward and reward[kind]
 		if type(n) == "number" and n > 0 then
 			table.insert(out, { Kind = kind, Amount = n })
 		end
+	end
+	if xp and xp > 0 then
+		table.insert(out, { Kind = "XP", Amount = xp })
 	end
 	return out
 end

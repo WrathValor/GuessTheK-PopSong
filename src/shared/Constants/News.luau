@@ -62,7 +62,7 @@ return table.freeze({
 			Id = "2026-11-20-shop",
 			Date = "20 Nov",
 			Title = "The shop is open",
-			Body = "Stage sets and items rotate every 2 hours. Grab song packs for your faves and group UGC.",
+			Body = "Stage sets and items rotate every 6 hours. Grab song packs for your faves and group UGC.",
 			Tag = "SHOP",
 			Colour = "A7E9B8",
 			Glyph = "★",

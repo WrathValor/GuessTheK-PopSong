@@ -21,6 +21,8 @@ local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 local ShopCatalog = require(ReplicatedStorage.Constants.ShopCatalog)
 local Currencies = require(ReplicatedStorage.Constants.Currencies)
 local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
+local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
+local Levels = require(ReplicatedStorage.Modules.Levels)
 local Analytics = require(script.Parent.Analytics)
 local Collection = require(script.Parent.Collection)
 
@@ -57,6 +59,30 @@ local function reply(player: Player, packet, ok: boolean, text: string)
 	})
 end
 
+-- [[ Analytics ]]
+
+-- does the player already own a stage / mic (a set's pieces count) of this rarity?
+local function ownsRarity(data, rarity: string): boolean
+	for _, kind in { "Stage", "Mic" } do
+		for _, id in data.Inventory[if kind == "Stage" then "Stages" else "Mics"].Get() or {} do
+			local item = ShopCatalog.GetItem(kind, id)
+			if item and item.Rarity == rarity then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+-- a coin purchase went through: ItemBought (value = level), plus FirstOfRarity when `first`
+local function logBought(player: Player, data, kind: string, rarity: string, id: string, first: boolean?)
+	local level = (Levels.FromXP(data.Player.XP.Get()))
+	Analytics.Event(player, "ItemBought", level, kind, rarity, id)
+	if first then
+		Analytics.Event(player, "FirstOfRarity", level, rarity, kind)
+	end
+end
+
 -- Takes `price` coins and runs `grant` in one batch. False (and nothing changes) if they can't afford it.
 -- transaction + sku go to the Economy dashboard (Constants/AnalyticsEvents.Transactions).
 local function spend(player: Player, data, price: number, grant: () -> (), transaction: string, sku: string): boolean
@@ -87,6 +113,7 @@ local function buySet(player: Player, data, packet)
 		return reply(player, packet, false, "That set has left the shop")
 	end
 	local stage, mic = ShopCatalog.SetPieces(set)
+	local first = not ownsRarity(data, set.Rarity)
 	local ok = spend(player, data, set.Price, function()
 		data.Inventory.Sets.Add(set.Id)
 		-- a set unlocks its own stage + mic; wear both straight away
@@ -99,7 +126,10 @@ local function buySet(player: Player, data, packet)
 		data.Inventory.EquippedSet.Set(set.Id)
 		data.Inventory.EquippedStage.Set(stage.Id)
 		data.Inventory.EquippedMic.Set(mic.Id)
-	end, "ShopSet", set.Id)
+	end, "ShopSet", set.Rarity)
+	if ok then
+		logBought(player, data, "Set", set.Rarity, set.Id, first)
+	end
 	reply(player, packet, ok, if ok then `{set.Name} unlocked!` else "Not enough coins")
 end
 
@@ -143,10 +173,14 @@ local function buyItem(player: Player, data, packet)
 	if not (ShopCatalog.ItemForSale(packet.Kind, item.Id) or (vip(data) and ShopCatalog.ItemForSale(packet.Kind, item.Id, ShopCatalog.ShopTime(true)))) then
 		return reply(player, packet, false, "That item has left the shop")
 	end
+	local first = not ownsRarity(data, item.Rarity)
 	local ok = spend(player, data, item.Price, function()
 		data.Inventory[paths.Owned].Add(item.Id)
 		data.Inventory[paths.Equipped].Set(item.Id)
-	end, `Shop{packet.Kind}`, `{packet.Kind}:{item.Id}`)
+	end, `Shop{packet.Kind}`, item.Rarity)
+	if ok then
+		logBought(player, data, packet.Kind, item.Rarity, item.Id, first)
+	end
 	reply(player, packet, ok, if ok then `{item.Name} unlocked!` else "Not enough coins")
 end
 
@@ -211,7 +245,10 @@ local function buyStyle(player: Player, data, packet)
 			data.Inventory[STYLE[half].Owned].Add(id)
 			data.Inventory[STYLE[half].Worn].Set(id) -- wear what you just bought
 		end
-	end, `ShopStyle{kind}`, `{kind}:{id}`)
+	end, `ShopStyle{kind}`, if spec.Animated then "Animated" else "Regular")
+	if ok then
+		logBought(player, data, if kind == "Set" then "StyleSet" else kind, if spec.Animated then "Animated" else "Regular", id)
+	end
 	local what = if #want == 2 then "set" elseif want[1] == "Banner" then "banner" else "photocard"
 	packet = table.clone(packet)
 	packet.Charged = if ok then price else nil
@@ -274,6 +311,54 @@ end
 -- also used by the Cmdr testing commands (givesong / givepack)
 ShopService.CheckPacksComplete = checkPacksComplete
 
+-- [[ Robux analytics ]]
+-- productId → { Key, Kind, Sku, Coins?, Tickets?, Upgrades? } for every Robux product
+local robuxProducts: { [number]: any } = {}
+for _, b in ShopCatalog.CoinBundles do
+	robuxProducts[b.ProductId] = { Key = b.Id, Kind = "Coins", Sku = "CoinBundle", Coins = b.Amount }
+end
+for _, b in ShopCatalog.RollBundles do
+	robuxProducts[b.ProductId] = { Key = b.Id, Kind = b.Currency, Sku = `{b.Currency}Bundle`, [b.Currency] = b.Amount }
+end
+if ShopCatalog.DebutPack then
+	local d = ShopCatalog.DebutPack
+	robuxProducts[d.ProductId] = { Key = d.Id, Kind = "Bundle", Sku = "DebutPack", Coins = d.Coins }
+end
+for _, b in ShopCatalog.Bundles do
+	robuxProducts[b.ProductId] = { Key = b.Id, Kind = "Bundle", Sku = "Bundle", Coins = b.Coins, Tickets = b.Tickets, Upgrades = b.Upgrades }
+end
+if (DuelConstants.SAVE_STREAK_PRODUCT_ID or 0) > 0 then
+	robuxProducts[DuelConstants.SAVE_STREAK_PRODUCT_ID] = { Key = "SaveStreak", Kind = "Streak", Sku = "SaveStreak" }
+end
+robuxProducts[0] = nil
+
+-- a Robux prompt closed: the Robux funnel, RobuxPrompt, and (bought) the currencies it adds as
+-- Economy sources. Balances are read a moment later, once Scribe has granted.
+local function logRobuxPrompt(player: Player, key: string, kind: string, purchased: boolean, product)
+	local session = Analytics.ShopSession(player)
+	Analytics.Funnel(player, "Robux", session, "Prompted")
+	Analytics.Event(player, "RobuxPrompt", 1, key, kind, if purchased then "Bought" else "Cancelled")
+	if not purchased then
+		return
+	end
+	Analytics.Funnel(player, "Robux", session, "Bought")
+	if not product then
+		return
+	end
+	task.delay(3, function()
+		local ok, data = pcall(PlayerData.Get, player)
+		if not ok or not data then
+			return
+		end
+		for _, currency in { "Coins", "Tickets", "Upgrades" } do
+			local amount = product[currency]
+			if amount and amount > 0 then
+				Analytics.Economy(player, "Source", currency, amount, Currencies.Data(data, currency).Get(), "RobuxBundle", product.Sku)
+			end
+		end
+	end)
+end
+
 function ShopService.Start()
 	ShopRemote:Connect(function(player: Player, packet)
 		if type(packet) ~= "table" or busy[player] then
@@ -294,13 +379,24 @@ function ShopService.Start()
 	end)
 
 	MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, gamePassId, purchased)
-		if not purchased then
-			return
-		end
 		for _, pass in ShopCatalog.Passes do
 			if pass.GamePassId == gamePassId then
-				grantPass(player, pass.Id)
+				logRobuxPrompt(player, pass.Id, "Pass", purchased, nil)
+				if purchased then
+					grantPass(player, pass.Id)
+				end
 			end
+		end
+	end)
+
+	-- Robux products: analytics only. Granting is Scribe's receipt handling (PlayerData
+	-- Products); this only hears that Roblox finished the prompt, so it can never get in the
+	-- way of a purchase.
+	MarketplaceService.PromptProductPurchaseFinished:Connect(function(userId, productId, purchased)
+		local player = Players:GetPlayerByUserId(userId)
+		local product = robuxProducts[productId]
+		if player and product then
+			logRobuxPrompt(player, product.Key, product.Kind, purchased, product)
 		end
 	end)
 

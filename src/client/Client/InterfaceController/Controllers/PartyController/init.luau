@@ -56,9 +56,10 @@ local AV = { C("FFD2CE"), C("DCD3FF"), C("C8EFD6"), C("CDEBFA"), C("FFE9A8"), C(
 local MEDAL = { C("FFE07A"), C("E6E2EE"), C("F2C3A0"), C("FBF7F0"), C("FBF7F0"), C("FBF7F0") }
 local ORDINAL = { "1st", "2nd", "3rd", "4th", "5th", "6th" }
 local PAGES = { "Lobby", "Settings", "Invite", "Player", "Songs", "Prompt", "Results", "Watch" }
--- the lobby's own cards sit on the right (their right edge at ASIDE_RIGHT) while you're on the
--- stage, so the camera's circle of the ring (CameraController.PartyPan) shows everyone's spot
-local ASIDE = { Lobby = true, Settings = true, Invite = true, Player = true, Songs = true }
+-- pages that step over to the right (their right edge at ASIDE_RIGHT) while you're on the
+-- stage. None now: a card blocks part of the ring wherever it goes, so every page stays in the
+-- middle like the rest of the game's screens. Add a page here to send it aside again.
+local ASIDE = {}
 local ASIDE_RIGHT = 1250
 local FLIP_OUT = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 local FLIP_IN = TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
