@@ -6,6 +6,7 @@
 --                          { Action = "SetInvites", Value = bool }
 --                          { Action = "Reset" }                 (volumes back to 1, invites on)
 --                          { Action = "SeenNews", Id = newsId } (clears the News button dot)
+--                          { Action = "FavoritePrompted" }       (the one-time favourite prompt was shown)
 --                          { Action = "Blocked", Ids = { userId } } (the player's Roblox block list,
 --                            sent by Client/SettingsController; kept in memory, never saved)
 -- Invites (Engine/InviteService duels, Engine/PartyService parties) ask AcceptsInvitesFrom:
@@ -93,6 +94,10 @@ local function handle(player: Player, packet)
 		if settings.TutorialDone.Get() ~= true then
 			settings.TutorialDone.Set(true)
 			logSetting(player, "Tutorial", "Skipped")
+		end
+	elseif action == "FavoritePrompted" then
+		if settings.FavoritePrompted.Get() ~= true then
+			settings.FavoritePrompted.Set(true)
 		end
 	elseif action == "SeenNews" then
 		local newest = News.Entries[1]

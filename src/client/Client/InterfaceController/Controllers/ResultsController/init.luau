@@ -21,6 +21,7 @@ local SeasonArt = require(ReplicatedStorage.Modules.UI.SeasonArt)
 local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
 local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 local Levels = require(ReplicatedStorage.Modules.Levels)
+local FavoritePrompt = require(script.Parent.Parent.Parent.FavoritePrompt) -- Client/FavoritePrompt
 
 -- -------------------------------- Variables ------------------------------- --
 local LOCAL_PLAYER = Players.LocalPlayer
@@ -147,6 +148,7 @@ function Results:Initialize(interface)
 		-- duels: wait for the rival on the queue screen. The request stays open there (leaving
 		-- the stage drops it), so closing this screen mustn't cancel it.
 		self._rematchRequested = false
+		self._staying = true -- another duel is coming: no favourite prompt yet
 		self._interface:Open("Queue")
 		local queue = self._interface:GetController("Queue")
 		if queue then
@@ -169,6 +171,8 @@ function Results:Show(packet, info)
 	local panel = self._frame.Panel
 	local w = panel.Winner
 	self._solo = packet.Solo
+	self._wasDuel = not packet.Solo and not packet.Tutorial
+	self._staying = false
 	self._max = #packet.Rounds * DuelConstants.TIER_POINTS[1]
 	self._rematchRequested = false
 
@@ -658,9 +662,15 @@ function Results:Deactivate()
 		pcall(task.cancel, self._revealThread)
 		self._revealThread = nil
 	end
+	-- after a real duel (not solo or the tutorial), once ever: ask them to favourite the game
+	local askFavourite = self._wasDuel and not self._staying
+	self._wasDuel = false
 	return FrameTransition.Close(self._frame):andThen(function()
 		self._frame.Visible = false
 		self.State = "Inactive"
+		if askFavourite then
+			FavoritePrompt.Try()
+		end
 	end)
 end
 

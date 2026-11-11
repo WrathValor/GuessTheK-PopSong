@@ -4,6 +4,10 @@
 -- badge whose condition holds and that they don't have yet is given. Badges with Id = 0
 -- aren't made yet and are skipped. Each badge is checked against Roblox at most once per player
 -- per server (UserHasBadgeAsync), and a failed award is retried on the next change.
+--
+-- BadgeRemote, server → client: { Message = "Earned", UserId, Name, Badge, Blurb }
+-- Sent to everyone in the server when a badge is given (Client/BadgeChat posts it in chat).
+-- Debut goes only to the player who earned it, so joins don't fill the chat.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
@@ -13,8 +17,12 @@ local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 local BadgeCatalog = require(ReplicatedStorage.Constants.BadgeCatalog)
 local Levels = require(ReplicatedStorage.Modules.Levels)
 local Analytics = require(script.Parent.Analytics)
+local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
+
+local BadgeRemote = Bridgenet.ReferenceBridge("BadgeRemote")
 
 local CHECK_DELAY = 1 -- seconds to gather a burst of stat changes into one check
+local PRIVATE = { Welcome = true } -- badges only the earner hears about
 
 -- each badge's condition, from the player's data
 local EARNED: { [string]: (any) -> boolean } = {
@@ -70,6 +78,14 @@ local function check(player: Player)
 				if okAward and awarded then
 					owned[badge.Key] = true
 					Analytics.Event(player, "BadgeEarned", 1, badge.Key)
+					local packet = {
+						Message = "Earned",
+						UserId = player.UserId,
+						Name = player.DisplayName,
+						Badge = badge.Name,
+						Blurb = badge.Blurb,
+					}
+					BadgeRemote:Fire(if PRIVATE[badge.Key] then player else Bridgenet.AllPlayers(), packet)
 				else
 					warn(`[Badges] couldn't award {badge.Key} to {player.Name}:`, awarded)
 				end

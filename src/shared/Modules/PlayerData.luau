@@ -234,6 +234,7 @@ return Scribe({
 			-- the last solo theme picked on the queue card (Modules/Library/Themes ids)
 			SoloTheme = Scribe.String("All", { MaxLength = 12 }),
 			TutorialDone = false, -- finished or skipped the first-join tutorial
+			FavoritePrompted = false, -- shown the one-time "favourite the game" prompt (Client/FavoritePrompt)
 		},
 
 		GamePasses = Scribe.SetOf(Id(32)),
