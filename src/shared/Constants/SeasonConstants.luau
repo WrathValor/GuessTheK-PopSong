@@ -147,10 +147,13 @@ function SeasonConstants.TierOf(sp: number)
 	if not nextTier then
 		return { Tier = tier, Index = index, Division = "", Label = string.upper(tier.Name), Pips = 3, Next = nil, Floor = tier.Min, Progress = 1 }
 	end
+	-- division floors, rounded once so the division, Floor and Next always agree (a span that
+	-- isn't a whole number, like Rookie's 133.3, used to leave you a division behind at Next)
 	local span = (nextTier.Min - tier.Min) / 3
-	local step = math.clamp(math.floor((sp - tier.Min) / span), 0, 2)
-	local floor = math.floor(tier.Min + span * step + 0.5)
-	local nextAt = if step == 2 then nextTier.Min else math.floor(tier.Min + span * (step + 1) + 0.5)
+	local floors = { tier.Min, math.floor(tier.Min + span + 0.5), math.floor(tier.Min + span * 2 + 0.5) }
+	local step = if sp >= floors[3] then 2 elseif sp >= floors[2] then 1 else 0
+	local floor = floors[step + 1]
+	local nextAt = if step == 2 then nextTier.Min else floors[step + 2]
 	local division = DIVISIONS[step + 1]
 	return {
 		Tier = tier,
@@ -159,7 +162,11 @@ function SeasonConstants.TierOf(sp: number)
 		Label = `{string.upper(tier.Name)} {division}`,
 		Pips = step + 1,
 		Next = nextAt,
-		NextLabel = if step == 2 then `{string.upper(nextTier.Name)} III` else `{string.upper(tier.Name)} {DIVISIONS[step + 2]}`,
+		-- the top tier (Legend) has no divisions, so it's just its name
+		NextLabel = if step < 2
+			then `{string.upper(tier.Name)} {DIVISIONS[step + 2]}`
+			elseif tiers[index + 2] then `{string.upper(nextTier.Name)} III`
+			else string.upper(nextTier.Name),
 		Floor = floor,
 		Progress = math.clamp((sp - floor) / math.max(1, nextAt - floor), 0, 1),
 	}

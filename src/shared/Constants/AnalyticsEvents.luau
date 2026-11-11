@@ -126,21 +126,27 @@ AnalyticsEvents.Transactions = {
 	RollRefund = "RollRefund", -- source: coins back for duplicates
 }
 
--- Funnels (10 max). Onboarding uses Roblox's own onboarding funnel.
+-- Funnels (10 max). Onboarding uses Roblox's own onboarding funnel: once per player, and
+-- logging a step marks every step before it as done, so it only holds the first-game path,
+-- in the order everyone walks it. Things that can happen at any time (opening the shop,
+-- buying, the daily claim, rolling) stay out of it: they'd tick the earlier steps for players
+-- who never played. They have their own events (ScreenOpened, Economy, DailyClaimed, SongRolled).
 AnalyticsEvents.Onboarding = {
 	"Joined",
 	"SteppedOnStage",
 	"AnsweredRound",
-	"FinishedGame",
-	"OpenedShop",
-	"BoughtSomething",
-	"ClaimedDaily",
+	"FinishedGame", -- any game: the tutorial, solo practice or a duel
+	"FinishedRealDuel", -- a game against real players (a 1v1 or a party), not solo / tutorial
+	"WonRealDuel",
 }
 AnalyticsEvents.Funnels = {
 	Duel = { "Queued", "Matched", "Round1", "Round4", "Round7", "Results", "Rematch" },
 	Solo = { "PickerOpened", "Started", "Round1", "Round7", "Results", "PlayedAgain" },
 	-- one per shop visit: opened the shop → a Robux prompt came up → bought (Engine/ShopService)
 	Robux = { "ShopOpened", "Prompted", "Bought" },
+	-- the first-join tutorial, one session per player (their UserId). Skipping it is the
+	-- "Tutorial" "Skipped" setting event (SettingsService).
+	Tutorial = { "Started", "Finished" },
 }
 
 return AnalyticsEvents

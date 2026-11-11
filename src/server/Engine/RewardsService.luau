@@ -133,7 +133,6 @@ local function claimDaily(player: Player, data)
 	end)
 	Analytics.Event(player, "DailyClaimed", coins, `Day{index}`)
 	Analytics.Economy(player, "Source", "Coins", coins, data.Currencies.Won.Get(), "DailyReward", "DailyReward") -- the day is in DailyClaimed
-	Analytics.Onboarding(player, "ClaimedDaily")
 	reply(player, "ClaimDaily", true, `Day {index}: +{coins} coins`, coins, {
 		Toast = { Source = `Daily login · Day {index}`, Items = { { Kind = "Coins", Amount = coins } }, Streak = nextStreak },
 	})

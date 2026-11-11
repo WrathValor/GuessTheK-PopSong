@@ -194,7 +194,6 @@ local function onClient(player: Player, packet)
 		value = nil
 	end
 	if packet.Name == "ScreenOpened" and values[1] == "Shop" then
-		Analytics.Onboarding(player, "OpenedShop")
 		Analytics.Funnel(player, "Robux", Analytics.ShopSession(player, true), "ShopOpened")
 	end
 	if packet.Name == "SoloPickerOpened" then

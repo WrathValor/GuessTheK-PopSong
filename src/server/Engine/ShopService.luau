@@ -95,7 +95,6 @@ local function spend(player: Player, data, price: number, grant: () -> (), trans
 		grant()
 	end)
 	Analytics.Economy(player, "Sink", "Coins", price, coins.Get(), transaction, sku)
-	Analytics.Onboarding(player, "BoughtSomething")
 	return true
 end
 

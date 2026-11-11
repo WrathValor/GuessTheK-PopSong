@@ -12,6 +12,8 @@ local StageCosmetics = require(script.StageCosmetics)
 local StageStatus = require(script.StageStatus)
 local Analytics = require(script.Parent.Analytics)
 local RivalRecord = require(script.Parent.RivalRecord)
+local StreetScreens = require(script.Parent.StreetScreens)
+local StreetScreensConstants = require(ReplicatedStorage.Constants.StreetScreens)
 local Themes = require(ReplicatedStorage.Modules.Library.Themes)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 
@@ -284,6 +286,27 @@ local function onDuelEnded(stage: Stage, result)
 	-- everyone who played, including someone who left mid-duel (they still lose their streak)
 	local players = table.clone(duel and duel.Players or {})
 	local earned = Rewards.Apply(result, players)
+
+	-- the street screens: wins + streaks for the jumbotron, and an ENCORE comeback if the
+	-- winner was behind going into the final round
+	if not result.Solo and not result.Tutorial then
+		for p, e in earned do
+			if e.Outcome == "Win" then
+				StreetScreens.Win(p, e.Streak)
+			end
+		end
+		local before = result.EncoreScores
+		if before and result.Winner and not result.Party and not result.Forfeit then
+			for _, p in players do
+				if p ~= result.Winner then
+					local behind = (before[p] or 0) - (before[result.Winner] or 0)
+					if behind >= StreetScreensConstants.COMEBACK_MIN then
+						StreetScreens.Comeback(result.Winner, behind)
+					end
+				end
+			end
+		end
+	end
 
 	local function k(p: Player)
 		return tostring(p.UserId)

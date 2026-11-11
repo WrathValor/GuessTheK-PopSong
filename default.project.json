@@ -15,6 +15,14 @@
     "ServerScriptService": {
       "$path": "src/server"
     },
+    "ServerStorage": {
+      "DevPackages": {
+        "$path": "DevPackages"
+      },
+      "Tests": {
+        "$path": "tests"
+      }
+    },
     "ReplicatedFirst": {
       "$path": "src/first"
     },

@@ -11,6 +11,7 @@ local DailyQuests = require(script.Parent.Parent.RewardsService) -- Engine/Rewar
 local SeasonService = require(script.Parent.Parent.SeasonService) -- Engine/SeasonService
 local Analytics = require(script.Parent.Parent.Analytics) -- Engine/Analytics
 local AnalyticsEvents = require(ReplicatedStorage.Constants.AnalyticsEvents)
+local Scoring = require(script.Parent.Scoring) -- the duel maths (tests/Scoring.spec)
 
 local Rewards = {}
 
@@ -30,15 +31,6 @@ local function countRivalGame(a: Player, b: Player): number
 	local key = if x < y then `{x}:{y}` else `{y}:{x}`
 	rivalGames[key] = (rivalGames[key] or 0) + 1
 	return rivalGames[key]
-end
-
-local function streakMultiplier(streak: number): number
-	for _, row in DuelConstants.STREAK_MULTIPLIERS do
-		if streak >= row[1] then
-			return row[2]
-		end
-	end
-	return 1
 end
 
 export type Earned = {
@@ -70,6 +62,15 @@ function Rewards._log(player: Player, data, result, earned: Earned, correct: num
 	local tx = OUTCOME_TX[earned.Outcome] or TX.Solo
 	Analytics.Event(player, "GameFinished", correct, earned.Outcome, mode, if result.Packs then "On" else "Off")
 	Analytics.Onboarding(player, "FinishedGame")
+	if not result.Solo and not result.Tutorial then
+		Analytics.Onboarding(player, "FinishedRealDuel")
+		if earned.Outcome == "Win" then
+			Analytics.Onboarding(player, "WonRealDuel")
+		end
+	end
+	if earned.Tutorial then
+		Analytics.Funnel(player, "Tutorial", tostring(player.UserId), "Finished")
+	end
 	local session = result.Sessions and result.Sessions[player]
 	if session then
 		Analytics.Funnel(player, if result.Solo then "Solo" else "Duel", session, "Results")
@@ -105,7 +106,7 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 	local farmed, rivalCount = false, 0
 	if not result.Solo and not result.Tutorial and #players == 2 then
 		rivalCount = countRivalGame(players[1], players[2])
-		farmed = rivalCount > DuelConstants.SAME_RIVAL_GAMES
+		farmed = Scoring.IsFarmed(rivalCount)
 	end
 	for _, player in players do
 		local ok, data = pcall(PlayerData.Get, player)
@@ -130,7 +131,7 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 				end
 			end
 		end
-		local perfect = correct == DuelConstants.ROUNDS and fastCorrect == DuelConstants.ROUNDS
+		local perfect = Scoring.IsPerfect(correct, fastCorrect)
 
 		local earned: Earned = {
 			XP = correct * DuelConstants.XP_CORRECT,
@@ -174,9 +175,9 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 			if not farmed then
 				earned.Streak += 1
 			end
-			local mult = streakMultiplier(earned.Streak)
+			local coins, mult = Scoring.WinCoins(result.Stake, earned.Streak)
 			earned.XP += DuelConstants.XP_WIN
-			earned.Coins = math.floor(result.Stake * mult + 0.5)
+			earned.Coins = coins
 			earned.CoinsDetail = if mult > 1 then `{result.Stake} × {mult}` else `{result.Stake} stake`
 		else
 			earned.Outcome = "Lose"
@@ -201,7 +202,7 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 
 		-- same-rival guard (see `farmed` above)
 		if farmed and earned.Coins > 0 then
-			earned.Coins = math.floor(earned.Coins * DuelConstants.SAME_RIVAL_COIN_SCALE + 0.5)
+			earned.Coins = Scoring.RivalCoins(earned.Coins)
 			earned.CoinsDetail ..= " · same rival ×½"
 			Analytics.Event(player, "RivalLimit", rivalCount, earned.Outcome)
 		end

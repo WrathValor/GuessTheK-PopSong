@@ -185,7 +185,6 @@ function UGCService.Start()
 			return
 		end
 		Analytics.Event(player, "UGCBought", item.Price, item.Name, item.Kind)
-		Analytics.Onboarding(player, "BoughtSomething")
 		UGCRemote:Fire(player, { Message = "Bought", Id = assetId })
 	end)
 	task.spawn(function()

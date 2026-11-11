@@ -33,6 +33,7 @@ local Cards = require(ReplicatedStorage.Modules.Library.Cards)
 local Analytics = require(script.Parent.Analytics)
 local RewardsService = require(script.Parent.RewardsService)
 local Collection = require(script.Parent.Collection)
+local StreetScreens = require(script.Parent.StreetScreens)
 local Packs = require(ReplicatedStorage.Modules.Library.Packs)
 
 local RollRemote = Bridgenet.ReferenceBridge("RollRemote")
@@ -156,6 +157,13 @@ local function roll(player: Player, count: number, groupId: string?)
 		data.Inventory.DupesInRow.Set(dupes)
 	end)
 	busy[player] = nil
+
+	-- the street screens: Gold / Rainbow pulls go on the gacha ticker (Rainbow on the jumbotron)
+	for _, pull in pulls do
+		if (pull.New or pull.LevelUp) and (pull.Level == "Gold" or pull.Level == "Rainbow") then
+			StreetScreens.Pull(player, pull.Song.Name, pull.Level)
+		end
+	end
 
 	-- titles: check the sets these songs are in now, so the reveal can show what changed
 	local rolled = {}

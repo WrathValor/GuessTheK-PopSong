@@ -14,6 +14,7 @@ local Cards = require(ReplicatedStorage.Modules.Library.Cards)
 local Levels = require(ReplicatedStorage.Modules.Levels)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 local Analytics = require(script.Parent.Parent.Analytics)
+local Scoring = require(script.Parent.Scoring)
 
 --| Variables
 local QueueRemote = Bridgenet.ReferenceBridge("QueueRemote")
@@ -51,32 +52,9 @@ local function key(player: Player): string
 	return tostring(player.UserId)
 end
 
--- a weighted pick from `stakes` (defaults to the duel table)
-local function rollStake(stakes: { number }?, weights: { number }?): number
-	stakes = stakes or DuelConstants.STAKES
-	weights = weights or DuelConstants.STAKE_WEIGHTS
-	local total = 0
-	for _, w in weights :: { number } do
-		total += w
-	end
-	local r = math.random() * total
-	for i, w in weights :: { number } do
-		r -= w
-		if r <= 0 then
-			return (stakes :: { number })[i]
-		end
-	end
-	return (stakes :: { number })[1]
-end
-
-local function streakMultiplier(streak: number): number
-	for _, row in DuelConstants.STREAK_MULTIPLIERS do
-		if streak >= row[1] then
-			return row[2]
-		end
-	end
-	return 1
-end
+-- the duel maths lives in Scoring (tested in tests/Scoring.spec)
+local rollStake = Scoring.RollStake
+local streakMultiplier = Scoring.StreakMultiplier
 
 local function profileOf(player: Player)
 	local ok, data = pcall(PlayerData.Get, player)
@@ -257,6 +235,9 @@ function Duels:Start()
 			-- the round + results screens read the players from this; the client skips the
 			-- stake-roll screen for a tutorial
 			self:_fire({ Message = "PreDuel", Tutorial = true, Solo = true, Stake = 0, Players = profiles, Packs = { On = false, Names = {} } })
+			for _, p in self.Players do
+				Analytics.Funnel(p, "Tutorial", tostring(p.UserId), "Started")
+			end
 		else
 			self:_preDuel()
 		end
@@ -479,18 +460,12 @@ end
 
 -- the final round counts FINAL_ROUND_MULTIPLIER times over (not in the tutorial)
 function Duels:_multiplier(round: number): number
-	return if not self.Tutorial and round == self.RoundCount then DuelConstants.FINAL_ROUND_MULTIPLIER else 1
+	return Scoring.RoundMultiplier(round, self.RoundCount, self.Tutorial)
 end
 
 -- what each tier pays this round (+) and what a wrong answer on it costs (as a positive number)
 function Duels:_roundPoints(round: number): ({ number }, { number })
-	local mult = self:_multiplier(round)
-	local pays, costs = {}, {}
-	for i, p in DuelConstants.TIER_POINTS do
-		pays[i] = p * mult
-		costs[i] = if self.Tutorial then 0 else (DuelConstants.WRONG_PENALTY[i] or 0) * mult
-	end
-	return pays, costs
+	return Scoring.RoundPoints(self:_multiplier(round), self.Tutorial)
 end
 
 function Duels:_playRound(round: number)
@@ -512,6 +487,8 @@ function Duels:_playRound(round: number)
 			Solo = self.Solo or nil,
 			Party = if self.Party then true else nil,
 		})
+		-- the scores going into the ENCORE, so a comeback can be spotted (StreetScreens)
+		self.EncoreScores = table.clone(self.Scores)
 		task.wait(DuelConstants.ENCORE_INTRO)
 		if not self._running then
 			return
@@ -557,20 +534,16 @@ function Duels:_playRound(round: number)
 	self.Phase = "Reveal"
 	local picks: { [Player]: Pick } = {}
 	local publicPicks = {}
-	local pays, costs = self:_roundPoints(round)
+	local mult = self:_multiplier(round)
 	for _, p in self.Players do
 		local info = per[p]
-		local points = 0
+		-- a wrong guess on a penalised tier costs points (Scoring.PickPoints)
+		local points = Scoring.PickPoints(info.Correct, info.Picked ~= nil, info.Tier, state.FirstCorrect == p, mult, self.Tutorial)
 		if info.Correct then
-			points = pays[info.Tier] or 0
 			if state.FirstCorrect == p then
-				points += DuelConstants.FIRST_CORRECT_BONUS * self:_multiplier(round)
 				self.Firsts[p] = (self.Firsts[p] or 0) + 1
 			end
 			self.CorrectTime[p] += info.Time or 0
-		elseif info.Picked and (costs[info.Tier] or 0) > 0 then
-			-- a wrong guess on an early tier costs points (can take a score below 0)
-			points = -costs[info.Tier]
 		end
 		self.Scores[p] += points
 		self.Stage.Model:SetAttribute(p.Name, self.Scores[p])
@@ -910,19 +883,11 @@ end
 -- to their correct answers (faster wins a tie), then whoever left (last).
 function Duels:Placement(): { Player }
 	local list = table.clone(self.Everyone)
+	local function placing(p: Player): Scoring.Placing
+		return { Left = self.Left[p] == true, Score = self.Scores[p] or 0, Time = self.CorrectTime[p] or 0, UserId = p.UserId }
+	end
 	table.sort(list, function(a, b)
-		if (self.Left[a] == true) ~= (self.Left[b] == true) then
-			return not self.Left[a]
-		end
-		local sa, sb = self.Scores[a] or 0, self.Scores[b] or 0
-		if sa ~= sb then
-			return sa > sb
-		end
-		local ta, tb = self.CorrectTime[a] or 0, self.CorrectTime[b] or 0
-		if ta ~= tb then
-			return ta < tb
-		end
-		return a.UserId < b.UserId
+		return Scoring.PlacedBefore(placing(a), placing(b))
 	end)
 	return list
 end
@@ -951,14 +916,12 @@ function Duels:_finish(winner: Player?, forfeit: boolean, leaver: Player?)
 		winner = winner or placement[1]
 	elseif not winner and not self.Solo and self.Slots.A and self.Slots.B then
 		local a, b = self.Slots.A, self.Slots.B
-		local sa, sb = self.Scores[a], self.Scores[b]
-		if sa ~= sb then
-			winner = if sa > sb then a else b
-		elseif self.CorrectTime[a] ~= self.CorrectTime[b] and sa > 0 then
-			-- tie on points: faster correct answers overall wins
-			winner = if self.CorrectTime[a] < self.CorrectTime[b] then a else b
-		else
+		-- more points wins; a tie on points goes to the faster correct answers (Scoring.Decide)
+		local outcome = Scoring.Decide(self.Scores[a], self.Scores[b], self.CorrectTime[a], self.CorrectTime[b])
+		if outcome == "Draw" then
 			draw = true
+		else
+			winner = if outcome == "A" then a else b
 		end
 	end
 
@@ -968,6 +931,7 @@ function Duels:_finish(winner: Player?, forfeit: boolean, leaver: Player?)
 		Forfeit = forfeit,
 		Leaver = leaver,
 		Scores = self.Scores,
+		EncoreScores = self.EncoreScores, -- scores before the final ENCORE round (nil if it never came)
 		Rounds = self.Rounds,
 		Stake = self.Stake,
 		StakeRoll = self.StakeRoll, -- party: the rolled amount before the multiplier
