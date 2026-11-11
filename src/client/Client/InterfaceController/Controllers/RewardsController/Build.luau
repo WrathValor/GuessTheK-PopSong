@@ -70,8 +70,9 @@ Build.QUEST_ICONS = {
 	Solo = { SeasonConstants.ICONS.Solo },
 	Perfect = { SeasonConstants.ICONS.Perfect },
 	NewSongs = { ATLAS, Vector2.new(0, 200) }, -- i_cards
+	DailySong = { SeasonConstants.ICONS.Daily }, -- (until it has its own icon)
 }
-Build.QUEST_TILE = { Correct = "9ED8F5", Wins = "FFB38A", BestRun = "FFD2CE", Duels = "B9A6FF", Solo = "A7E9B8", Perfect = "FFE07A", NewSongs = "DCD3FF" }
+Build.QUEST_TILE = { Correct = "9ED8F5", Wins = "FFB38A", BestRun = "FFD2CE", Duels = "B9A6FF", Solo = "A7E9B8", Perfect = "FFE07A", NewSongs = "DCD3FF", DailySong = "FF9EC4" }
 Build.REWARD_CHIP = { Coins = "FFE07A", Tickets = "FF9EC4", Upgrades = "A7E9B8", XP = "DCD3FF" }
 Build.ART_BG = { Coins = "FFE07A", Tickets = "DCD3FF", Upgrades = "9ED8F5", Title = "CDEBFA" }
 -- each day card shows one pile of coins, one coin taller per day (2 on day 1 … 8 on day 7),

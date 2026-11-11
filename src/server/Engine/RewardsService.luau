@@ -464,6 +464,20 @@ function RewardsService.RecordNewSongs(player: Player, count: number)
 	end)
 end
 
+-- A solved Daily Song (Engine/DailySongService) counts toward the "Daily Song" quests.
+-- Call it outside any other Batch.
+function RewardsService.RecordDailySong(player: Player)
+	local data = PlayerData.Get(player)
+	if not data then
+		return
+	end
+	PlayerData.Batch(player, function()
+		roll(data, os.time())
+		data.Rewards.Quest.DailySong.Increment(1)
+		data.Rewards.WeekQuest.DailySong.Increment(1)
+	end)
+end
+
 -- one match's facts into one set of counters (daily or weekly)
 local function bump(q, facts)
 	if (facts.Correct or 0) > 0 then

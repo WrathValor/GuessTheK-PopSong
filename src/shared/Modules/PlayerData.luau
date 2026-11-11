@@ -13,6 +13,7 @@ local Scribe = require(ReplicatedStorage.Packages.scribe)
 local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 local ShopCatalog = require(ReplicatedStorage.Constants.ShopCatalog)
 local Currencies = require(ReplicatedStorage.Constants.Currencies)
+local DataMigrations = require(script.Parent.DataMigrations)
 
 --| Helpers
 
@@ -201,6 +202,7 @@ return Scribe({
 				Solo = Count(),
 				Perfect = Count(),
 				NewSongs = Count(),
+				DailySong = Count(), -- Daily Songs solved
 			},
 			QuestClaimed = Scribe.SetOf(Id(20)), -- quest Ids claimed today, plus "Bonus"
 			-- today's one quest swap (RewardsCatalog.DailyQuests): the quest swapped out and in
@@ -218,9 +220,24 @@ return Scribe({
 				Solo = Count(),
 				Perfect = Count(),
 				NewSongs = Count(),
+				DailySong = Count(), -- Daily Songs solved this week
 			},
 			WeekClaimed = Scribe.SetOf(Id(20)), -- weekly quest Ids claimed this week, plus "Bonus"
 			LevelClaimed = Scribe.SetOf(Id(8)), -- level rewards claimed (RewardsCatalog.LEVEL_REWARDS), as "5", "10"…
+		},
+
+		-- the Daily Song (Engine/DailySongService): today's play, kept for Day only, and the streak.
+		-- The answer itself is never saved here, only what was guessed.
+		DailySong = {
+			Day = Count(), -- UTC day (RewardsCatalog.Day) the play below is for (0 = never played)
+			Guesses = Scribe.ArrayOf(Id(80), { MaxItems = 5 }), -- song Ids guessed in order, "" = a skip
+			Solved = false,
+			Done = false, -- solved, or out of tries
+			Streak = Count(), -- days solved in a row (DailySongService shows 0 once a day is missed)
+			Best = Count(), -- longest streak
+			LastSolved = Count(), -- UTC day last solved (0 = never)
+			Played = Count(), -- days finished, all time
+			Wins = Count(), -- days solved, all time
 		},
 
 		Settings = {
@@ -282,6 +299,8 @@ return Scribe({
 		MostAnswers = { Stat = "Statistics.CorrectAnswers", Replicate = true, Limit = 100 }, -- all time
 		TopFans = { Stat = "Player.XP", Replicate = true, Limit = 100 }, -- shown as a level (Modules/Levels)
 	},
+	-- one-off fixes to old saves, run once per profile on load (Modules/DataMigrations)
+	Migrations = DataMigrations,
 	ProfileStoreIndex = "PlayerData", -- required: your DataStore name
 	ProfileKeyPrefix = "PLAYER_",
 	Mode = "Live",

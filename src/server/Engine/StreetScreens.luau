@@ -7,6 +7,8 @@
 --   Top         the most wins on this server since it started
 --   Pulls       the last Gold / Rainbow card pulls (the gacha machine's ticker)
 --   Merch       the merch pop-up's featured UGC item
+--   Daily       today's Daily Song number + how everyone did, and yesterday's answer
+--               (Engine/DailySongService.Today; never today's song)
 -- Other services report moments with StreetScreens.Win / .Pull / .Comeback.
 
 local HttpService = game:GetService("HttpService")
@@ -117,6 +119,15 @@ local function loadNewSongs()
 	end
 end
 
+local function daily()
+	local ok, DailySongService = pcall(require, script.Parent.DailySongService)
+	if not ok then
+		return nil
+	end
+	local ok2, today = pcall(DailySongService.Today)
+	return if ok2 then today else nil
+end
+
 local function publish()
 	if #newSongs == 0 then
 		loadNewSongs()
@@ -128,6 +139,7 @@ local function publish()
 		Top = topWins(),
 		Pulls = pulls,
 		Merch = merch(),
+		Daily = daily(),
 	}
 	local json = HttpService:JSONEncode(feed)
 	if json ~= lastJson then

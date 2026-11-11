@@ -22,6 +22,7 @@ AnalyticsEvents.Custom = {
 	StreakLost = { Fields = { "Streak" } }, -- value: the streak that was lost
 	LevelUp = { Fields = { "Title" } }, -- value: new level
 	OwnedRound = { Fields = { "Whose" } }, -- a round played a song someone in the game owns
+	DailySong = { Fields = { "Result", "Try" } }, -- a finished Daily Song. value: tries used; Result Solved / Missed
 
 	-- [[ Queue ]]
 	QueueJoined = { Fields = { "Stage", "How" } },

@@ -6,7 +6,9 @@
 --     SLIDE_SECONDS: LIVE NOW · IN THE SHOP NOW · SERVER HIGHLIGHTS · TOP ON THIS SERVER.
 --     IN THE SHOP NOW flips through the shop's 6-hour rotation a page at a time
 --     (SHOP_PAGE_SECONDS each): stage sets → photocards → mics → stages, each card showing the
---     real thing (CosmeticView 3D models, the photocard skin with your avatar).
+--     real thing (CosmeticView 3D models, the photocard skin with your avatar). DAILY SONG
+--     shows today's chart and doubles as the reminder: its subtitle is yours (not played /
+--     solved in n / missed), and it jumps to the front once if you haven't played today.
 --     Slides with nothing to show are skipped.
 --   • Walk-up machines scattered round the map (Blender models), each with a screen and a
 --     prompt that opens its frame:
@@ -19,6 +21,9 @@
 --       Merch      (Map.StreetMachines.Merch) this week's featured UGC item     → UGC
 --       PhotoBooth (Map.StreetMachines.PhotoBooth) YOUR card: photo, title, level, stats
 --                  (each player sees their own)                                → Profile
+--       Daily Song (Map.DailySongBooth, the listening booth on the south paving by the spawn)
+--                  the jukebox Screen: today's number, % solved and YOUR squares
+--                  (from DailySongRemote's State)                              → DailySong
 -- All the UI is built in Studio; this only fills it in, switches slides and adds the prompts.
 
 local Players = game:GetService("Players")
@@ -51,6 +56,7 @@ local SLIDES = {
 	{ Frame = "SlideShop", Tag = "IN THE SHOP NOW" },
 	{ Frame = "SlideHighlights", Tag = "SERVER HIGHLIGHTS", Heading = "Big moments on this server", Sub = "Comebacks, big pulls and win streaks, as they happen" },
 	{ Frame = "SlideTop", Tag = "TOP ON THIS SERVER", Heading = "Most wins on this server", Sub = "Win duels to get your card up here" },
+	{ Frame = "SlideDaily", Tag = "DAILY SONG" }, -- heading + subtitle from the feed (_titles)
 }
 -- IN THE SHOP NOW pages: what's in this rotation, which art frame on the card shows it
 -- (Art / ArtCard / ArtMic / ArtStage – each keeps its own 3D view, so flipping is free)
@@ -112,6 +118,8 @@ function Jumbo:_has(i: number): boolean
 		return #ShopCatalog.Rotation(ShopCatalog.ShopTime()) > 0
 	elseif i == 3 then
 		return f.Highlights ~= nil and #f.Highlights > 0
+	elseif i == 5 then
+		return f.Daily ~= nil
 	end
 	return f.Top ~= nil and #f.Top > 0
 end
@@ -129,6 +137,33 @@ function Jumbo:_titles(i: number): (string, string)
 		local _, windowEnd = ShopCatalog.RotationWindow(t)
 		return SHOP_PAGES[self.Page].Heading,
 			`Restocks in {ShopCatalog.Countdown(windowEnd - t)} · open the Shop to grab one`
+	elseif i == 5 then
+		local d = self.Feed.Daily
+		if not d then
+			return "", ""
+		end
+		local stats = d.Stats or {}
+		local total = stats.Total or 0
+		local solved = total - (stats.Missed or 0)
+		local heading = if total > 0
+			then `Daily Song #{d.Number}: {math.floor(solved / total * 100 + 0.5)}% solved today`
+			else `Daily Song #{d.Number}: be the first to solve it`
+		-- the subtitle is yours: the reminder to go and play (there's no HUD button)
+		local me = self.Daily
+		local sub
+		if me and me.Solved then
+			sub = `You got it in {#me.Guesses} · back tomorrow for #{d.Number + 1}`
+		elseif me and me.Done then
+			sub = "You missed today's · a new song tomorrow"
+		elseif me and #(me.Guesses or {}) > 0 then
+			sub = `You're on try {#me.Guesses + 1} of 5 · finish it at the listening booth by the spawn`
+		else
+			sub = "You haven't played yet · the listening booth is by the spawn"
+		end
+		if d.Yesterday then
+			sub ..= ` · yesterday's was {d.Yesterday}`
+		end
+		return heading, sub
 	end
 	return SLIDES[i].Heading, SLIDES[i].Sub
 end
@@ -250,7 +285,36 @@ function Jumbo:_fillTop()
 	end
 end
 
+-- DAILY SONG: today's number on the card and how everyone did (no song: it's still going)
+function Jumbo:_fillDaily()
+	local d = self.Feed.Daily
+	local s = self.Content:FindFirstChild("SlideDaily")
+	if not d or not s then
+		return
+	end
+	s.Card.Number.Text = `#{d.Number}`
+	local stats = d.Stats or {}
+	local tries = stats.Tries or {}
+	local counts = {}
+	for i = 1, 5 do
+		counts[i] = tries[i] or 0
+	end
+	counts[6] = stats.Missed or 0
+	local most, total = 1, math.max(stats.Total or 0, 0)
+	for _, c in counts do
+		most = math.max(most, c)
+	end
+	for i = 1, 6 do
+		local row = s.Chart:FindFirstChild("Row" .. i)
+		if row then
+			row.Track.Bar.Size = UDim2.fromScale(math.max(counts[i] / most, 0.03), 1)
+			row.Pct.Text = if total > 0 then `{math.floor(counts[i] / total * 100 + 0.5)}%` else "–"
+		end
+	end
+end
+
 function Jumbo:Refresh()
+	self:_fillDaily()
 	self:_fillLive()
 	self:_fillShop()
 	self:_fillHighlights()
@@ -281,6 +345,19 @@ function Jumbo:Next()
 			self:Show(i)
 			return
 		end
+	end
+end
+
+-- your Daily Song state (DailySongRemote "State"): the slide's subtitle, and the first time
+-- each day it arrives unplayed, the slide jumps to the front as a reminder
+function Jumbo:SetDaily(state)
+	self.Daily = state
+	local unplayed = not state.Done and #(state.Guesses or {}) == 0
+	if unplayed and self.RemindedDay ~= state.Day and self:_has(5) then
+		self.RemindedDay = state.Day
+		self:Show(5)
+	elseif self.Index == 5 then
+		self.Heading.Text, self.Subtitle.Text = self:_titles(5)
 	end
 end
 
@@ -503,6 +580,55 @@ local function booth(machine: Model)
 	LOCAL_PLAYER:GetAttributeChangedSignal("Title"):Connect(paint)
 end
 
+-- [[ Daily Song booth ]]
+
+local DailySongRemote = Bridgenet.ReferenceBridge("DailySongRemote")
+local MARK_FILL = { Wrong = C("FF9EC4"), Skip = C("CFC5B3"), Right = C("A7E9B8") }
+
+-- the listening booth: E on the jukebox opens the Daily Song screen, and its Screen shows
+-- today's number, how many have solved it and YOUR squares. Your state also drives the
+-- jumbotron's reminder (Jumbo:SetDaily).
+local function dailyBooth(map: Instance, jumbo)
+	local booth = map:WaitForChild("DailySongBooth", 10)
+	if booth and booth:FindFirstChild("Jukebox") then
+		prompt(booth.Jukebox, "Play today's song", "Daily Song", "DailySong")
+	end
+	local gui = booth and booth:FindFirstChild("Screen") and booth.Screen:FindFirstChildOfClass("SurfaceGui")
+	local function paint(state)
+		if not gui then
+			return
+		end
+		local root = gui.Root
+		root.Mystery.Number.Text = `#{state.Number}`
+		local stats = state.Stats or {}
+		local total = stats.Total or 0
+		local solved = total - (stats.Missed or 0)
+		local info = root.Info
+		info.Solved.Text = if total > 0 then `{math.floor(solved / total * 100 + 0.5)}% solved` else "New today"
+		local n = #(state.Guesses or {})
+		info.Sub.Text = if state.Solved then `You got it in {n}!`
+			elseif state.Done then "Back tomorrow for a new one"
+			elseif n > 0 then `Try {n + 1} of 5 · press E`
+			else "5 tries · press E to play"
+		for i = 1, 5 do
+			local q = info.Squares["Square" .. i]
+			local g = state.Guesses and state.Guesses[i]
+			q.BackgroundTransparency = if g then 0 else 1
+			q.BackgroundColor3 = if g then MARK_FILL[g.Kind] or C("FFFFFF") else C("1E1B2E")
+		end
+	end
+	DailySongRemote:Connect(function(packet)
+		if type(packet) == "table" and packet.Message == "State" then
+			paint(packet)
+			if jumbo then
+				jumbo:SetDaily(packet)
+			end
+		end
+	end)
+	-- ask for today's state now: the map can load after DailySongController's first ask
+	DailySongRemote:Fire({ Action = "Open" })
+end
+
 -- [[ Start ]]
 
 function StreetScreens.Start()
@@ -536,6 +662,8 @@ function StreetScreens.Start()
 		end
 		screen:GetAttributeChangedSignal("Feed"):Connect(read)
 		read()
+
+		task.spawn(dailyBooth, map, jumbo)
 
 		-- the walk-up machines (each one optional: a missing machine just isn't wired)
 		task.spawn(function()

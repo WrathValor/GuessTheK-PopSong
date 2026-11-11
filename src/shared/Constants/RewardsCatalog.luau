@@ -52,8 +52,9 @@ RewardsCatalog.WEEKLY_POOL = table.freeze({
 	{ Id = "W_Wins15", Stat = "Wins", Need = 15, Reward = { Coins = 200 }, Title = "Win 15 duels", Hint = "1v1 or a Party Stage win" },
 	{ Id = "W_Duels25", Stat = "Duels", Need = 25, Reward = { Coins = 150, Tickets = 1 }, Title = "Play 25 duels", Hint = "Win or lose" },
 	{ Id = "W_Solo10", Stat = "Solo", Need = 10, Reward = { Coins = 150 }, Title = "Finish 10 solo games", Hint = "Any theme" },
+	{ Id = "W_Daily5", Stat = "DailySong", Need = 5, Reward = { Coins = 150, Tickets = 1 }, Title = "Solve the Daily Song 5 times", Hint = "One song a day, any try" },
 })
-RewardsCatalog.QUEST_STATS = table.freeze({ "Correct", "Wins", "WinRun", "BestRun", "Duels", "Solo", "Perfect", "NewSongs" })
+RewardsCatalog.QUEST_STATS = table.freeze({ "Correct", "Wins", "WinRun", "BestRun", "Duels", "Solo", "Perfect", "NewSongs", "DailySong" })
 RewardsCatalog.QUESTS_PER_DAY = 3
 RewardsCatalog.WEEKLY_PER_WEEK = 4
 RewardsCatalog.QUEST_COLOURS = table.freeze({ "9ED8F5", "FFB38A", "B9A6FF" })
