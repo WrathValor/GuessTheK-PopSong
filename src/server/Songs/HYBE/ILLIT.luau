@@ -14,6 +14,7 @@ return {
 			Name = "Cherish (My Love)",
 			Year = 2024,
 			MusicId = "rbxassetid://121809648593290",
+			Volume = 1.65,
 			AnimationId = "rbxassetid://85675749638822",
 			PlaybackSpeed = 0.87,
 			TimePosition = 12,
@@ -23,6 +24,7 @@ return {
 			Name = "Lucky Girl Syndrome",
 			Year = 2024,
 			MusicId = "rbxassetid://109282848379218",
+			Volume = 1.3,
 			AnimationId = "rbxassetid://18611947869",
 			PlaybackSpeed = 0.55,
 			TimePosition = 1,
@@ -32,6 +34,7 @@ return {
 			Name = "Magnetic",
 			Year = 2024,
 			MusicId = "rbxassetid://70835332883904",
+			Volume = 0.8,
 			AnimationId = "rbxassetid://17561394757",
 			PlaybackSpeed = 0.88,
 			TimePosition = 2,
@@ -41,6 +44,7 @@ return {
 			Name = "Tick-Tack",
 			Year = 2024,
 			MusicId = "rbxassetid://123083306259484",
+			Volume = 0.85,
 			AnimationId = "rbxassetid://98191446038543",
 			PlaybackSpeed = 0.55,
 			TimePosition = 11,
@@ -50,6 +54,7 @@ return {
 			Name = "Almond Chocolate",
 			Year = 2025,
 			MusicId = "rbxassetid://107331259885621", -- TODO
+			Volume = 1.4,
 			AnimationId = "", -- TODO
 			PlaybackSpeed = 0.65,
 			TimePosition = 2,
@@ -59,6 +64,7 @@ return {
 			Name = "Jellyous",
 			Year = 2025,
 			MusicId = "rbxassetid://110073490368352", -- TODO
+			Volume = 0.85,
 			AnimationId = "", -- TODO
 			PlaybackSpeed = 0.83,
 			TimePosition = 9,
@@ -68,6 +74,7 @@ return {
 			Name = "NOT CUTE ANYMORE",
 			Year = 2025,
 			MusicId = "rbxassetid://112606591771632", -- TODO
+			Volume = 1.1,
 			AnimationId = "", -- TODO
 			PlaybackSpeed = 0.72,
 			TimePosition = 2,
@@ -77,6 +84,7 @@ return {
 			Name = "It's Me",
 			Year = 2026,
 			MusicId = "rbxassetid://83407117010159", -- TODO
+			Volume = 0.75,
 			AnimationId = "", -- TODO
 			PlaybackSpeed = 0.83,
 			TimePosition = 2,

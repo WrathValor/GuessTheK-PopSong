@@ -74,6 +74,7 @@ return {
 			Name = "Delulu",
 			Year = 2026,
 			MusicId = "rbxassetid://76516477302437",
+			Volume = 0.7,
 			PlaybackSpeed = 0.92,
 			TimePosition = 3,
 			ChorusPosition = 40,

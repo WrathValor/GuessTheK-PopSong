@@ -33,7 +33,7 @@
 -- don't rename songs or groups once players own them).
 --
 -- Songs.Load()            every live song (drafts left out), full entries, sorted by Id
--- Songs.Raw(withDrafts)   { Label, File, Draft, Clip } per song, for the checkaudio command
+-- Songs.Raw(withDrafts)   { Label, Name, File, Draft, Clip } per song, for checkaudio + tools
 -- Songs.Clip(song)        the clip assets a client needs to play a song (rounds, previews)
 
 local Songs = {}
@@ -124,6 +124,7 @@ function Songs.Raw(withDrafts: boolean?)
 				if withDrafts or not song.Draft then
 					table.insert(out, {
 						Label = `{song.Name} - {group.Group or entry.Module.Name}`,
+						Name = song.Name,
 						File = `{entry.Company}/{entry.Module.Name}`,
 						Draft = song.Draft == true,
 						Clip = Songs.Clip(song),

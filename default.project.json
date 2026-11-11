@@ -21,6 +21,9 @@
       },
       "Tests": {
         "$path": "tests"
+      },
+      "Tools": {
+        "$path": "tools"
       }
     },
     "ReplicatedFirst": {

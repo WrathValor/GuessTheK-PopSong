@@ -14,6 +14,7 @@ return {
 			Name = "Catch Catch",
 			Year = 2026,
 			MusicId = "rbxassetid://97778832287551",
+			Volume = 0.85,
 			PlaybackSpeed = 0.98,
 			TimePosition = 0,
 			ChorusPosition = 62.2,

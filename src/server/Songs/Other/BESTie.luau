@@ -14,6 +14,7 @@ return {
 			Name = "Love Options",
 			Year = 2013,
 			MusicId = "rbxassetid://116329344199698",
+			Volume = 0.85,
 			PlaybackSpeed = 0.61,
 			TimePosition = 5,
 			ChorusPosition = 48.4,
