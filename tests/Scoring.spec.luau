@@ -185,6 +185,38 @@ describe("perfect game", function()
 	end)
 end)
 
+describe("suspect game", function()
+	local N = DuelConstants.SUSPECT_ROUNDS
+	local function game(n: number, time: number, tier: number?, correct: boolean?)
+		local picks = {}
+		for i = 1, ROUNDS do
+			picks[i] = if i <= n
+				then { Correct = correct ~= false, Tier = tier or 1, Time = time }
+				else { Correct = false, Tier = 3, Time = 4 }
+		end
+		return picks
+	end
+	local fast = DuelConstants.SUSPECT_INSTANT / 2
+	local slow = DuelConstants.SUSPECT_SLOW + 1
+	local human = (DuelConstants.SUSPECT_INSTANT + DuelConstants.SUSPECT_SLOW) / 2
+
+	it("flags SUSPECT_ROUNDS instant right answers on tier 1", function()
+		expect({ Scoring.Suspect(game(N, fast)) }).toEqual({ "Instant", N })
+		expect((Scoring.Suspect(game(N - 1, fast)))).toBe(nil)
+	end)
+
+	it("flags SUSPECT_ROUNDS slow right answers on tier 1", function()
+		expect({ Scoring.Suspect(game(N, slow)) }).toEqual({ "Slow", N })
+	end)
+
+	it("leaves ordinary play alone", function()
+		expect((Scoring.Suspect(game(ROUNDS, human)))).toBe(nil) -- a strong player at human speed
+		expect((Scoring.Suspect(game(ROUNDS, slow, 2)))).toBe(nil) -- unlocked a longer tier
+		expect((Scoring.Suspect(game(ROUNDS, fast, 1, false)))).toBe(nil) -- fast but wrong
+		expect((Scoring.Suspect({}))).toBe(nil)
+	end)
+end)
+
 describe("same-rival guard", function()
 	it("starts after SAME_RIVAL_GAMES duels with the same rival in a day", function()
 		expect(Scoring.IsFarmed(DuelConstants.SAME_RIVAL_GAMES)).toBe(false)

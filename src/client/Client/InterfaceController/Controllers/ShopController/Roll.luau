@@ -304,7 +304,8 @@ function Roll:_fill()
 	left.Odds.Text.Text = if fresh <= 0
 		then `You own all {total} songs, so every roll adds a copy to one of them.`
 		else `Every roll is 1 of all {total} songs, each equally likely. You own {owned}, so a <b>{fresh} in {total}</b> chance ({math.floor(fresh / total * 100 + 0.5)}%) of a new song.`
-	left.Levels.Text.Text = `A duplicate is a copy: {RollConstants.GOLD_COPIES} copies make a <b>Gold</b> card, {RollConstants.RAINBOW_COPIES} a <b>Rainbow</b> one. Higher cards come up more in your duels. Each duplicate gives {RollConstants.DUPLICATE_REFUND} coins back.`
+	-- why to chase Rainbow: OWNED_WEIGHT (duels), Profile.BgMusic (Rainbow only), set titles (Engine/Collection)
+	left.Levels.Text.Text = `{RollConstants.GOLD_COPIES} copies make a <b>Gold</b> card, {RollConstants.RAINBOW_COPIES} a <b>Rainbow</b>. Rainbow cards show up most in your duels, can play as your background music, and a full Rainbow set earns a Rainbow title. Each duplicate gives {RollConstants.DUPLICATE_REFUND} coins back.`
 
 	local stage = page.Stage
 	local allowed = self:_allowed()

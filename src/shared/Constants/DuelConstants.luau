@@ -18,6 +18,13 @@ return table.freeze({
 	SOLO_CAP = 180, -- solo practice has no clock: this only ends a round someone walked away from
 	LOAD_TIMEOUT = 8, -- longest the round clock waits for players' clips to load
 	AUDIO_SWAPS = 2, -- Song mode: a clip that won't load (402 / missing) is swapped for another song, at most this many times a round
+	-- a clip only counts as broken when every player in the round says theirs failed, so one
+	-- player can't reroll a song they don't know. Each player's "mine failed" is believed this
+	-- many times a game; past that they're treated as loaded.
+	AUDIO_FAIL_REPORTS = 3,
+	-- a song is skipped by the whole server once this many different players couldn't fetch it
+	-- (one player alone can't take songs out of everyone's pool)
+	BROKEN_AUDIO_REPORTS = 2,
 	ANSWER_WINDOW = 10, -- after the first guess, everyone else has this long
 	REVEAL_TIME = 5, -- seconds the answer + song play between rounds
 	FIRST_CORRECT_BONUS = 1,
@@ -75,6 +82,21 @@ return table.freeze({
 	-- (SAME_RIVAL_COIN_SCALE) and a win no longer grows the win streak
 	SAME_RIVAL_GAMES = 3,
 	SAME_RIVAL_COIN_SCALE = 0.5,
+
+	-- suspect games (Scoring.Suspect; flagged in DuelService/Rewards, nothing is taken away).
+	-- The client plays the clip itself, so the server can't stop a modified client hearing more
+	-- than its tier or matching the clip to its answer. What it can see: SUSPECT_ROUNDS or more
+	-- right answers on the 0.1 s tier in one duel that all came faster than a person can read
+	-- four options ("Instant"), or all after sitting on that tier long enough to have heard a
+	-- longer one ("Slow").
+	SUSPECT_ROUNDS = 5,
+	SUSPECT_INSTANT = 1, -- seconds: right on tier 1 sooner than this
+	SUSPECT_SLOW = 5, -- seconds: right on tier 1 after at least this long
+
+	-- ghost recordings (Engine/GhostRecorder): finished 1v1 duels saved for a future ghost
+	-- opponent. Recording only; nothing in the game reads or shows them yet.
+	GHOST_RECORDING = true,
+	GHOST_MIN_ANSWERS = 4, -- rounds a player must have answered for their side to be kept
 
 	-- Save Streak developer product. 0 = not set up yet (button is disabled).
 	SAVE_STREAK_PRODUCT_ID = 3726066704,

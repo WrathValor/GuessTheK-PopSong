@@ -285,6 +285,7 @@ return Scribe({
 			CorrectAnswers = Count(),
 			PerfectGames = Count(),
 			CoinsEarned = Count(), -- lifetime coins from duels
+			SuspectGames = Count(), -- duels flagged by Scoring.Suspect (DuelConstants.SUSPECT_*); nothing reads it but the stats command
 		},
 	},
 	Products = if next(Products) then Products else nil,

@@ -65,6 +65,7 @@ AnalyticsEvents.Custom = {
 	RobuxPrompt = { Fields = { "Product", "Kind", "Result" } }, -- Result Bought / Cancelled
 
 	-- [[ Economy guards (DuelService/Rewards) ]]
+	SuspectGame = { Fields = { "Pattern" } }, -- Scoring.Suspect flagged a duel (Instant / Slow); value: rounds that fit
 	RivalLimit = { Fields = { "Outcome" } }, -- coins halved by the same-rival guard; value: duels vs them today
 
 	-- [[ From the client ]]

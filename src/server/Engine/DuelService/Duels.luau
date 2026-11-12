@@ -23,6 +23,9 @@ local DuelRemote = Bridgenet.ReferenceBridge("DuelRemote")
 -- asset is gone). Audio permissions are per experience, so they're skipped by every duel on
 -- this server from then on.
 local BrokenAudio = {} :: { [string]: boolean }
+-- who couldn't fetch each song (song id → userIds): it joins BrokenAudio once
+-- DuelConstants.BROKEN_AUDIO_REPORTS different players have said so
+local BrokenReports = {} :: { [string]: { [number]: boolean } }
 
 --| Types
 export type Pick = {
@@ -133,6 +136,7 @@ function Duels.new(stage, playerA: Player?, playerB: Player?, solo: boolean?, pa
 	self.Everyone = {} :: { Player } -- everyone who started (party: leavers stay in here)
 	self.Left = {} :: { [Player]: boolean }
 	self.Firsts = {} :: { [Player]: number } -- rounds each player answered correctly first
+	self.FailReports = {} :: { [Player]: number } -- "my clip failed" reports this game (AUDIO_FAIL_REPORTS)
 
 	local starters = { playerA, playerB }
 	if party then
@@ -694,7 +698,8 @@ function Duels:_startRound(round: number, swapped: boolean, canSwap: boolean)
 		Song = song,
 		Per = per,
 		Attempt = self.Attempt, -- a late "Loaded" from a swapped-out song doesn't count
-		Failed = false, -- someone's clip failed to load
+		Failed = false, -- every player's clip failed to load (set once they've all reported)
+		FailedBy = {} :: { [Player]: string }, -- whose clip failed, and why
 		Loaded = {} :: { [Player]: boolean },
 		Start = os.clock(),
 		FirstGuessAt = nil :: number?,
@@ -738,7 +743,8 @@ function Duels:_startRound(round: number, swapped: boolean, canSwap: boolean)
 				break
 			end
 		end
-		if all or (state.Failed and canSwap) then
+		if all then
+			state.Failed = self:_allFailed(state)
 			break
 		end
 		task.wait(0.1)
@@ -754,6 +760,21 @@ function Duels:_startRound(round: number, swapped: boolean, canSwap: boolean)
 	self:_fire({ Message = "RoundGo", Round = round, Cap = self.Cap, Tutorial = self.Tutorial or nil })
 
 	return state, owners
+end
+
+-- A clip is broken (worth swapping the song for) only if it failed for every player still here.
+-- One player's report is their connection, or them trying to reroll a song they don't know.
+function Duels:_allFailed(state): boolean
+	local any = false
+	for _, p in self.Players do
+		if p.Parent then
+			if not state.FailedBy[p] then
+				return false
+			end
+			any = true
+		end
+	end
+	return any
 end
 
 function Duels:_revealTime(round: number): number
@@ -797,15 +818,33 @@ function Duels:Action(player: Player, packet)
 		end
 	elseif action == "Loaded" and self.Phase == "Loading" then
 		local state = self.Current
-		if state and state.Per[player] and packet.Round == self.RoundNumber and packet.Attempt == state.Attempt then
+		if state and state.Per[player] and not state.Loaded[player] and packet.Round == self.RoundNumber and packet.Attempt == state.Attempt then
 			state.Loaded[player] = true
-			if packet.Failed then
-				state.Failed = true
-				-- a fetch failure (402 / gone) is the asset, not the player's connection
-				if packet.Failed == "FetchFailed" then
-					BrokenAudio[state.Song.Id] = true
+			local failed = packet.Failed
+			if failed == "FetchFailed" or failed == "NotLoaded" then
+				-- believed AUDIO_FAIL_REPORTS times a game; the song is only swapped if it failed
+				-- for everyone (_allFailed)
+				local reports = (self.FailReports[player] or 0) + 1
+				self.FailReports[player] = reports
+				if reports <= DuelConstants.AUDIO_FAIL_REPORTS then
+					state.FailedBy[player] = failed
+					-- a fetch failure (402 / gone) is the asset, not the player's connection: once
+					-- enough different players have hit it, every duel on this server skips it
+					if failed == "FetchFailed" then
+						local id = state.Song.Id
+						local by = BrokenReports[id] or {}
+						BrokenReports[id] = by
+						by[player.UserId] = true
+						local count = 0
+						for _ in by do
+							count += 1
+						end
+						if count >= DuelConstants.BROKEN_AUDIO_REPORTS then
+							BrokenAudio[id] = true
+						end
+					end
 				end
-				warn(`[Duels] {state.Song.Id} didn't load for {player.Name} ({packet.Failed})`)
+				warn(`[Duels] {state.Song.Id} didn't load for {player.Name} ({failed}, report {reports} this game)`)
 			end
 		end
 	elseif action == "Unlock" and self.Phase == "Round" then

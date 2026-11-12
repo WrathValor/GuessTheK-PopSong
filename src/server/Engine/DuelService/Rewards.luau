@@ -133,6 +133,19 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 		end
 		local perfect = Scoring.IsPerfect(correct, fastCorrect)
 
+		-- suspect game (Scoring.Suspect): duels only. Flagged, never punished: it counts on the
+		-- player's save (Statistics.SuspectGames, shown by the stats command) and in analytics.
+		local suspect, suspectRounds = nil, 0
+		if not result.Solo and not result.Tutorial then
+			local mine = {}
+			for _, round in result.Rounds do
+				if round.Picks[player] then
+					table.insert(mine, round.Picks[player])
+				end
+			end
+			suspect, suspectRounds = Scoring.Suspect(mine)
+		end
+
 		local earned: Earned = {
 			XP = correct * DuelConstants.XP_CORRECT,
 			Coins = 0,
@@ -251,6 +264,9 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 			if earned.Perfect then
 				data.Statistics.PerfectGames.Increment(1)
 			end
+			if suspect then
+				data.Statistics.SuspectGames.Increment(1)
+			end
 			if result.Solo then
 				data.Statistics.SoloGames.Increment(1)
 				if earned.NewBest then
@@ -276,6 +292,10 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 
 		out[player] = earned
 		Rewards._log(player, data, result, earned, correct)
+		if suspect then
+			Analytics.Event(player, "SuspectGame", suspectRounds, suspect)
+			warn(`[Rewards] suspect game: {player.Name} ({player.UserId}) {suspect} ×{suspectRounds}`)
+		end
 
 		-- season Stars (Engine/SeasonService): a duel played (+ won), or a solo game; with the SP
 		-- the duel moved, for the results screen's Season bar

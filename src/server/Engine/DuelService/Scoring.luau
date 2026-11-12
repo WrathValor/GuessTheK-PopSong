@@ -6,7 +6,7 @@
 --   • what each tier pays and costs, and one answer's points
 --   • who wins a 1v1, and the Party Stage placement order
 --   • the stake roll, the win-streak multiplier and a win's coins
---   • the perfect-game check and the same-rival guard
+--   • the perfect-game check, the same-rival guard and the suspect-game check
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -124,6 +124,27 @@ end
 
 function Scoring.RivalCoins(coins: number): number
 	return math.floor(coins * DuelConstants.SAME_RIVAL_COIN_SCALE + 0.5)
+end
+
+-- a game's answers that look like a modified client (DuelConstants.SUSPECT_*): "Instant" or
+-- "Slow" and how many rounds fit, or nil. picks = one player's { Correct, Tier, Time } per round.
+function Scoring.Suspect(picks: { { Correct: boolean, Tier: number, Time: number? } }): (string?, number)
+	local instant, slow = 0, 0
+	for _, pick in picks do
+		if pick.Correct and pick.Tier == 1 and pick.Time then
+			if pick.Time < DuelConstants.SUSPECT_INSTANT then
+				instant += 1
+			elseif pick.Time >= DuelConstants.SUSPECT_SLOW then
+				slow += 1
+			end
+		end
+	end
+	if instant >= DuelConstants.SUSPECT_ROUNDS then
+		return "Instant", instant
+	elseif slow >= DuelConstants.SUSPECT_ROUNDS then
+		return "Slow", slow
+	end
+	return nil, 0
 end
 
 return table.freeze(Scoring)

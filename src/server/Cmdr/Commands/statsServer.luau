@@ -12,6 +12,7 @@ return function(_, player)
 			`sets {inv.Sets.Count()} · stages {inv.Stages.Count()} · mics {inv.Mics.Count()} · wearing {inv.EquippedStage.Get()} / {inv.EquippedMic.Get()}`,
 			`songs {inv.Songs.Count()} · packs {inv.Packs.Count()}`,
 			`titles {inv.Titles.Count()} · title "{inv.Title.Get()}" · daily streak {data.Rewards.DailyStreak.Get()}`,
+			`duels {data.Statistics.Duels.Get()} · wins {data.Statistics.Wins.Get()} · suspect games {data.Statistics.SuspectGames.Get()}`,
 		}, "\n")
 	end)
 end

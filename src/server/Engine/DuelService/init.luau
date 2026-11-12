@@ -12,6 +12,7 @@ local StageCosmetics = require(script.StageCosmetics)
 local StageStatus = require(script.StageStatus)
 local Analytics = require(script.Parent.Analytics)
 local RivalRecord = require(script.Parent.RivalRecord)
+local GhostRecorder = require(script.Parent.GhostRecorder)
 local StreetScreens = require(script.Parent.StreetScreens)
 local StreetScreensConstants = require(ReplicatedStorage.Constants.StreetScreens)
 local Themes = require(ReplicatedStorage.Modules.Library.Themes)
@@ -286,6 +287,7 @@ local function onDuelEnded(stage: Stage, result)
 	-- everyone who played, including someone who left mid-duel (they still lose their streak)
 	local players = table.clone(duel and duel.Players or {})
 	local earned = Rewards.Apply(result, players)
+	GhostRecorder.Record(result, players) -- for a future ghost opponent (nothing shows in game)
 
 	-- the street screens: wins + streaks for the jumbotron, and an ENCORE comeback if the
 	-- winner was behind going into the final round
