@@ -3,7 +3,7 @@
 -- fast at first and easing out, overshoots a hair and settles on the rolled stake. The
 -- landing chip turns yellow and grows into the design's big chip, then the result row counts up.
 -- Big stakes get more: the second-highest stake → "BIG STAKE!" sticker, flash + shake; the top one → "JACKPOT!", confetti,
--- a rainbow chip and a bigger shake.
+-- a rainbow chip and a second confetti burst. (Kept gentle: the panel is wide, so shakes are light.)
 --
 -- Built on top of Stake.Reel at run time (nothing to build in Studio): the Studio chips are
 -- hidden while the strip spins and shown again, filled with the real reel, when it lands.
@@ -31,6 +31,7 @@ local SMALL = Vector2.new(74, 52)
 local BIG = Vector2.new(96, 62)
 local TRAVEL_CHIPS = 26 -- how many chips scroll past before it lands
 local OVERSHOOT = 16 -- px past the target before settling back
+local SHAKE = 0.3 -- Juice.Shake strength for the stake panel on a big stake / jackpot
 
 -- how much fuss a stake gets. `chips` (Party Stages: multiplied amounts) moves the bar to
 -- that table's top two chips, so a ×1.5 pot isn't a jackpot every time.
@@ -129,7 +130,7 @@ local function sticker(parent: GuiObject, text: string, colour: Color3, x: numbe
 	new("UICorner", { CornerRadius = UDim.new(0, 9) }, s)
 	new("UIStroke", { Color = INK, Thickness = 3, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, s)
 	new("UIPadding", { PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10) }, s)
-	local scale = new("UIScale", { Scale = 2.2 }, s)
+	local scale = new("UIScale", { Scale = 1.6 }, s)
 	s.TextTransparency = 1
 	s.BackgroundTransparency = 1
 	TweenService:Create(scale, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
@@ -266,7 +267,7 @@ function StakeReel.Spin(stake: Frame, reelValues: { number }, spinTime: number, 
 	spin:Destroy()
 	window:Destroy()
 	local big = chips.Chip4
-	Juice.Pop(big, if tier == 2 then 0.3 elseif tier == 1 then 0.2 else 0.1)
+	Juice.Pop(big, if tier == 2 then 0.18 elseif tier == 1 then 0.14 else 0.1)
 
 	-- result row counts up
 	result.Visible = true
@@ -278,7 +279,8 @@ function StakeReel.Spin(stake: Frame, reelValues: { number }, spinTime: number, 
 	if tier >= 1 then
 		local origin = Vector2.new(reel.Position.X.Offset + centreX, reel.Position.Y.Offset + reel.Size.Y.Offset / 2)
 		sticker(stake, if tier == 2 then "JACKPOT!" else "BIG STAKE!", if tier == 2 then C("FF9EC4") else YELLOW, origin.X + 110)
-		Juice.Shake(stake)
+		-- (the stake panel is wide: a full-strength 6° wobble swings its ends ~30px)
+		Juice.Shake(stake, SHAKE)
 		Sounds.Play("Coins", { Pitch = if tier == 2 then 1.1 else 1 })
 		-- flash: the reel border goes white for a beat
 		local stroke = reel:FindFirstChildOfClass("UIStroke")
@@ -299,7 +301,6 @@ function StakeReel.Spin(stake: Frame, reelValues: { number }, spinTime: number, 
 		task.delay(0.35, function()
 			if stake.Parent then
 				confetti(stake, Vector2.new(reel.Position.X.Offset + centreX, reel.Position.Y.Offset + reel.Size.Y.Offset / 2), 20)
-				Juice.Shake(stake)
 			end
 		end)
 	end

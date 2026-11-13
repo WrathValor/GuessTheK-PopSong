@@ -52,9 +52,10 @@ function DuelController.Start()
 				CameraController.Reset()
 			end
 		elseif message == "LeftQueue" then
-			-- leaving can happen from the queue or the results screen
+			-- leaving can happen from the queue or the results screen, or mid-game (a reset
+			-- character forfeits: no End packet comes to the one who left)
 			local active = InterfaceController.ActiveController
-			if active and (active.Name == "Queue" or active.Name == "Results") then
+			if active and (active.Name == "Queue" or active.Name == "Results" or active.Name == "PreDuel" or active.Name == "Game") then
 				InterfaceController:Close()
 			end
 			call("SaveStreak", "Hide")
@@ -82,6 +83,15 @@ function DuelController.Start()
 			end
 		elseif message == "RematchWaiting" then
 			call("Queue", "ShowRematch") -- stepped back on: the rival is still on their results
+		elseif message == "NoStages" then
+			-- every stage is taken (Quick Play), or every tutorial lane and stage (the tutorial:
+			-- its Welcome comes back so they can try again or skip)
+			Sounds.Play("Wrong")
+			if packet.Tutorial then
+				InterfaceController:Open("Tutorial", "Welcome")
+			else
+				call("HUD", "Toast", "All stages are busy, try again in a moment")
+			end
 		end
 	end)
 

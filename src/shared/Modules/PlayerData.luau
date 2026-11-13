@@ -252,6 +252,7 @@ return Scribe({
 			SoloTheme = Scribe.String("All", { MaxLength = 12 }),
 			TutorialDone = false, -- finished or skipped the first-join tutorial
 			FavoritePrompted = false, -- shown the one-time "favourite the game" prompt (Client/FavoritePrompt)
+			Hints = Scribe.SetOf(Id(16)), -- one-time hints already seen: lobby nudges ("Money", "Rewards") + screen guides ("Guide…")
 		},
 
 		GamePasses = Scribe.SetOf(Id(32)),
@@ -302,7 +303,7 @@ return Scribe({
 	},
 	-- one-off fixes to old saves, run once per profile on load (Modules/DataMigrations)
 	Migrations = DataMigrations,
-	ProfileStoreIndex = "PlayerData", -- required: your DataStore name
+	ProfileStoreIndex = "PlayerDataV2", -- required: your DataStore name
 	ProfileKeyPrefix = "PLAYER_",
 	Mode = "Live",
 })

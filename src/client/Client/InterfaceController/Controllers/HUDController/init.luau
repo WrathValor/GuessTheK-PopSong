@@ -13,10 +13,12 @@ local Levels = require(ReplicatedStorage.Modules.Levels)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
 local HUDConstants = require(ReplicatedStorage.Constants.HUDConstants)
+local PadBinds = require(ReplicatedStorage.Modules.UI.PadBinds)
 local Currencies = require(ReplicatedStorage.Constants.Currencies)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 
 local Effects = require(script.Effects)
+local Nudges = require(script.Nudges)
 
 -- -------------------------------- Variables ------------------------------- --
 local LOCAL_PLAYER = Players.LocalPlayer
@@ -51,6 +53,29 @@ local function commas(n: number): string
 		formatted, k = formatted:gsub("^(-?%d+)(%d%d%d)", "%1,%2")
 	until k == 0
 	return formatted
+end
+
+-- Coins / wins on the HUD cards: commas up to 99,999, then short ("123K", "1.01M", "12.5B"),
+-- so it never runs under the coins card's + button. Rounds down, so 999,999 is "999K",
+-- never "1000K".
+local SHORT_UNITS = { { 1e12, "T" }, { 1e9, "B" }, { 1e6, "M" }, { 1e3, "K" } }
+local function short(n: number): string
+	n = math.floor(n)
+	if n < 100000 then
+		return commas(n)
+	end
+	for _, unit in SHORT_UNITS do
+		if n >= unit[1] then
+			local hundredths = n // (unit[1] / 100) -- whole-number maths: no 1.01 → "1.00"
+			if hundredths >= 10000 then
+				return `{hundredths // 100}{unit[2]}`
+			elseif hundredths >= 1000 then
+				return `{hundredths // 100}.{(hundredths // 10) % 10}{unit[2]}`
+			end
+			return string.format("%d.%02d%s", hundredths // 100, hundredths % 100, unit[2])
+		end
+	end
+	return commas(n)
 end
 
 -- --------------------------------- Tables --------------------------------- --
@@ -100,6 +125,9 @@ function HUDController.Initialize(self: Self, interface: any)
 	self:_bindSeason()
 	self:_bindExtras()
 	self:_applyStatic()
+	-- one-time lobby hints: Roll / Shop once you can afford something, Rewards once one's earned
+	self._nudges = Nudges.new(hud, self._janitor)
+	self._nudges:RewardsEarned(self._rewardsEarned or 0)
 	-- looping eye-catchers: rainbow Shop outline, Quick Play sheen, Rewards badge hop
 	Effects.Start(hud, self._janitor, function(gui)
 		Juice.Pop(gui, 0.18)
@@ -155,10 +183,10 @@ function HUDController._bindCurrency(self: Self)
 		local old = shown[key]
 		shown[key] = value
 		if old == nil or old == value then
-			label.Text = commas(value)
+			label.Text = short(value)
 			return
 		end
-		Juice.CountUp(label, old, value, commas)
+		Juice.CountUp(label, old, value, short)
 		Juice.Pop(card, if value > old then 0.1 else 0.05)
 	end
 
@@ -296,6 +324,9 @@ function HUDController._open(self: Self, name: string, ...: any)
 		return
 	end
 	if self._interface:GetController(name) then
+		if self._nudges then
+			self._nudges:Opened(name)
+		end
 		self._interface:Open(name, ...)
 	else
 		warn(`HUD: "{name}" screen has no controller yet`)
@@ -391,16 +422,41 @@ function HUDController._applyStatic(self: Self)
 	self:SetRewardsBadge(self._rewardsBadge or 0)
 end
 
--- Number of unclaimed rewards on the Rewards tile; 0 hides the badge.
-function HUDController.SetRewardsBadge(self: Self, count: number)
+-- Number of unclaimed rewards on the Rewards tile; 0 hides the badge. `earned`: how many of
+-- them are level rewards / quests (the Rewards nudge waits for one of those).
+function HUDController.SetRewardsBadge(self: Self, count: number, earned: number?)
 	-- RewardsController can call this before the HUD has initialised: keep it for then
 	self._rewardsBadge = count
+	if earned ~= nil then
+		self._rewardsEarned = earned
+	end
+	if self._nudges and self._rewardsEarned then
+		self._nudges:RewardsEarned(self._rewardsEarned)
+	end
 	if not self._hud then
 		return
 	end
 	local badge = self._hud.Menu.Tiles.Rewards.Badge
 	badge.Visible = count > 0
 	badge.Value.Text = if count > 9 then "9+" else tostring(count)
+end
+
+-- A short line over Quick Play (HUD.Menu.Toast), e.g. every stage is busy.
+function HUDController.Toast(self: Self, message: string)
+	local toast = self._hud and self._hud.Menu:FindFirstChild("Toast") :: TextLabel?
+	if not toast then
+		return
+	end
+	toast.Text = message
+	toast.Visible = true
+	Juice.SlideIn(toast, 24)
+	self._toastToken = (self._toastToken or 0) + 1
+	local token = self._toastToken
+	task.delay(2.6, function()
+		if self._toastToken == token then
+			toast.Visible = false
+		end
+	end)
 end
 
 -- [[ Lifecycle ]]
@@ -450,14 +506,45 @@ function HUDController._slide(self: Self, show: boolean): any
 	end
 end
 
+-- Controller shortcuts in the lobby (Modules/UI/PadBinds): Y Quick Play, RB Shop, D-pad
+-- ← Profile, ↑ Index, → Inventory, ↓ Rewards. A, B and X stay free: A jumps and X is the stage
+-- prompt. Bound while the HUD is up.
+function HUDController._bindPad(self: Self)
+	if self._unpad then
+		return
+	end
+	local menu = self._hud.Menu
+	local tiles = menu.Tiles
+	local function open(name: string)
+		return function()
+			self:_open(name)
+		end
+	end
+	self._unpad = PadBinds.Bind("HUD", {
+		{ Key = Enum.KeyCode.ButtonY, Chip = menu.QuickPlay, Run = function()
+			QueueRemote:Fire("QuickPlay")
+		end },
+		{ Key = Enum.KeyCode.ButtonR1, Chip = tiles.Shop, Run = open("Shop") },
+		{ Key = Enum.KeyCode.DPadLeft, Chip = tiles.Profile, Run = open("Profile") },
+		{ Key = Enum.KeyCode.DPadUp, Chip = tiles.Index, Run = open("Index") },
+		{ Key = Enum.KeyCode.DPadRight, Chip = tiles.Inventory, Run = open("Inventory") },
+		{ Key = Enum.KeyCode.DPadDown, Chip = tiles.Rewards, Run = open("Rewards") },
+	})
+end
+
 function HUDController.Activate(self: Self)
 	self.State = "Active"
+	self:_bindPad()
 	return self:_slide(true)
 end
 
 -- Resolves once the HUD has finished sliding out.
 function HUDController.Deactivate(self: Self)
 	self.State = "Inactive"
+	if self._unpad then
+		self._unpad()
+		self._unpad = nil
+	end
 	if self._closeWallet then
 		self._closeWallet() -- a menu opened: the wallet folds away
 	end

@@ -5,6 +5,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
+local ContextActionService = game:GetService("ContextActionService")
 
 -- --------------------------------- Imports -------------------------------- --
 local Janitor = require(ReplicatedStorage.Packages.janitor)
@@ -24,6 +25,7 @@ local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 local REVEAL_FADE = 2 -- the reveal song fades out over the last this-many seconds
 local LoadingCard = require(script.LoadingCard)
 local EncoreBanner = require(script.EncoreBanner)
+local PadBinds = require(ReplicatedStorage.Modules.UI.PadBinds)
 local PackTag = require(script.PackTag)
 local RevealOwner = require(script.RevealOwner)
 
@@ -67,6 +69,16 @@ local function fmt(seconds: number): string
 	return if seconds < 1 then `{seconds}s` else `{math.floor(seconds)}s`
 end
 
+-- Controller: A / B / X / Y pick answers 1–4 (left to right), LB plays the clip, RB skips to
+-- the next snippet. Bound above the jump button only while the round screen is up, so A
+-- doesn't make you hop on the stage. While a controller is in use each answer's badge shows
+-- its button and Play / Skip show their bumper (Studio: AnswerN.Badge.PadIcon,
+-- PlayButton.PadIcon, Skip.PadIcon; drawn by Modules/UI/PadBinds).
+local PAD_ACTION = "GamePad"
+local PAD_ANSWERS = { Enum.KeyCode.ButtonA, Enum.KeyCode.ButtonB, Enum.KeyCode.ButtonX, Enum.KeyCode.ButtonY }
+local PAD_PLAY = Enum.KeyCode.ButtonL1
+local PAD_SKIP = Enum.KeyCode.ButtonR1
+
 -- --------------------------------- Class ---------------------------------- --
 local Game = {}
 Game.__index = Game
@@ -103,15 +115,10 @@ function Game:Initialize(interface)
 	self.Encore = EncoreBanner.new(self._frame)
 
 	self._janitor:Add(controls.PlayButton.Activated:Connect(function()
-		print{"hi"}
 		self:_play()
 	end))
 	self._janitor:Add(controls.Skip.Activated:Connect(function()
-		local r = self.Round
-		if r and r.Tier < #r.Tiers then
-			self:_unlock(r.Tier + 1)
-			self:_play()
-		end
+		self:_skip()
 	end))
 	for i = 1, 5 do
 		local tier = controls.Tiers:FindFirstChild("Tier" .. i)
@@ -135,6 +142,12 @@ function Game:Initialize(interface)
 			end))
 		end
 	end
+
+	-- controller button icons, swapped in while a controller is the last thing used
+	self._janitor:Add(UserInputService.LastInputTypeChanged:Connect(function()
+		self:_paintPad()
+	end))
+	self:_paintPad()
 end
 
 -- [[ Setup for a duel ]]
@@ -249,11 +262,11 @@ function Game:OnRound(packet)
 				answer.Title.Text = opt.Name
 				answer.Artist.Text = opt.Artist
 				answer.BackgroundColor3 = ANSWER_LOOK.Idle
-				answer.Badge.Number.Text = tostring(i)
 				answer.AutoButtonColor = false
 			end
 		end
 	end
+	self:_paintPad() -- the badges' numbers (or controller letters)
 	controls.RivalAnswered.Visible = false
 	controls.Timer.Visible = false
 	self:_paintTiers()
@@ -368,6 +381,47 @@ function Game:_unlock(tier: number)
 	r.Tier = tier
 	DuelRemote:Fire({ Action = "Unlock", Tier = tier })
 	self:_paintTiers()
+end
+
+function Game:_skip()
+	local r = self.Round
+	if r and r.Tier < #r.Tiers then
+		self:_unlock(r.Tier + 1)
+		self:_play()
+	end
+end
+
+-- [[ Controller ]]
+
+function Game:_padInput(_, state: Enum.UserInputState, input: InputObject)
+	if state == Enum.UserInputState.Begin then
+		local answer = table.find(PAD_ANSWERS, input.KeyCode)
+		if answer then
+			self:_guess(answer)
+		elseif input.KeyCode == PAD_PLAY then
+			self:_play()
+		elseif input.KeyCode == PAD_SKIP then
+			self:_skip()
+		end
+	end
+	return Enum.ContextActionResult.Sink
+end
+
+function Game:_paintPad()
+	local pad = PadBinds.UsingPad()
+	local controls = self._frame.Controls
+	for i, key in PAD_ANSWERS do
+		local answer = controls.Answers:FindFirstChild("Answer" .. i)
+		local badge = answer and answer:FindFirstChild("Badge")
+		local number = badge and badge:FindFirstChild("Number")
+		if number then
+			number.Text = tostring(i)
+			PadBinds.Paint(badge:FindFirstChild("PadIcon"), key, pad)
+			number.Visible = not pad
+		end
+	end
+	PadBinds.Paint(controls.PlayButton:FindFirstChild("PadIcon"), PAD_PLAY, pad)
+	PadBinds.Paint(controls.Skip:FindFirstChild("PadIcon"), PAD_SKIP, pad)
 end
 
 function Game:_play()
@@ -654,6 +708,10 @@ end
 
 function Game:Activate(info, mode)
 	self:_setupDuel(info, mode)
+	ContextActionService:BindActionAtPriority(PAD_ACTION, function(...)
+		return self:_padInput(...)
+	end, false, Enum.ContextActionPriority.High.Value, PAD_PLAY, PAD_SKIP, table.unpack(PAD_ANSWERS))
+	self:_paintPad()
 	if self.State == "Active" or self.State == "Activating" then
 		return Promise.resolve()
 	end
@@ -669,6 +727,7 @@ function Game:Deactivate()
 		return Promise.resolve()
 	end
 	self.State = "Deactivating"
+	ContextActionService:UnbindAction(PAD_ACTION)
 	self._round:Cleanup()
 	self:_dropSnippet()
 	self:_revealAnswers(false)

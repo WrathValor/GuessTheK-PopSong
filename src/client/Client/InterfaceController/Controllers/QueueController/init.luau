@@ -14,6 +14,7 @@ local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
+local PadBinds = require(ReplicatedStorage.Modules.UI.PadBinds)
 local TitleChip = require(ReplicatedStorage.Modules.UI.TitleChip)
 local SeasonArt = require(ReplicatedStorage.Modules.UI.SeasonArt)
 local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
@@ -545,10 +546,47 @@ function QueueController.Activate(self: typeof(QueueController.new({} :: UITypes
 
 	self.State = "Activating"
 	self._frame.Visible = true
+	self:_bindPad()
 
 	return FrameTransition.Open(self._frame):andThen(function()
 		self.State = "Active"
 	end)
+end
+
+-- Controller: B backs out (Modules/UI/PadBinds): closes the solo / invite picker if one's
+-- open, else cancels the intermission countdown, else leaves the stage.
+function QueueController:_bindPad()
+	if self._unpad then
+		return
+	end
+	local frame = self._frame
+	local panel = frame.Panel
+	local solo, invite = frame:FindFirstChild("Solo"), frame:FindFirstChild("Invite")
+	self._unpad = PadBinds.Bind("Queue", {
+		{ Key = Enum.KeyCode.ButtonB, Chip = solo and solo:FindFirstChild("Back"), When = function()
+			return self._solo ~= nil and self._solo.IsOpen
+		end, Run = function()
+			self._solo:Close()
+		end },
+		{ Key = Enum.KeyCode.ButtonB, Chip = invite and invite:FindFirstChild("Back"), When = function()
+			return self._invite ~= nil and self._invite.IsOpen
+		end, Run = function()
+			self._invite:Close()
+		end },
+		{ Key = Enum.KeyCode.ButtonB, Chip = panel:FindFirstChild("Cancel"), When = function()
+			local cancel = panel:FindFirstChild("Cancel")
+			return self._countdown ~= nil and not self._cancelLocked and cancel ~= nil and cancel.Visible
+		end, Run = function()
+			self:_setCancel(false)
+			QueueRemote:Fire("Leave")
+		end },
+		{ Key = Enum.KeyCode.ButtonB, Chip = panel:FindFirstChild("Leave"), When = function()
+			local leave = panel:FindFirstChild("Leave")
+			return leave ~= nil and leave.Visible
+		end, Run = function()
+			QueueRemote:Fire("Leave")
+		end },
+	})
 end
 
 function QueueController.Deactivate(self: typeof(QueueController.new({} :: UITypes.ControllerConfig)))
@@ -557,6 +595,10 @@ function QueueController.Deactivate(self: typeof(QueueController.new({} :: UITyp
 	end
 
 	self.State = "Deactivating"
+	if self._unpad then
+		self._unpad()
+		self._unpad = nil
+	end
 
 	return FrameTransition.Close(self._frame):andThen(function()
 		self._frame.Visible = false

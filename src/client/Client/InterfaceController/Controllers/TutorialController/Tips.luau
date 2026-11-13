@@ -3,12 +3,16 @@
 -- except for one part of the round screen (outlined in dashed yellow), and a cream speech
 -- bubble explains it. "Got it" moves on; "Skip tutorial" hides the tips for good. Drawn in
 -- Interface.Frames (so it scales with the 1280×720 canvas) above everything else; the lit
--- part stays clickable.
+-- part stays clickable. With a controller, A is "Got it" and Y "Skip tutorial" while a tip is up
+-- (bound above the round's answer buttons, Modules/UI/PadBinds), and a step's PadBody is shown
+-- instead of its Body: {LB} {RB} {A} {B} {X} {Y} in it become the pad's own button names.
 --   local tips = Tips.new(frames, onSkip)
---   tips:Show(steps)   – steps: { { Spot = Rect, Title, Body, Tip = "1 / 3" }, … } in order
+--   tips:Show(steps)   – steps: { { Spot = Rect, Title, Body, PadBody?, Tip = "1 / 3" }, … } in order
 --   tips:Hide()
 
-local Sounds = require(game:GetService("ReplicatedStorage").Modules.Sounds)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Sounds = require(ReplicatedStorage.Modules.Sounds)
+local PadBinds = require(ReplicatedStorage.Modules.UI.PadBinds)
 
 local C = Color3.fromHex
 local INK = C("1E1B2E")
@@ -20,6 +24,10 @@ local HEAD = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeigh
 local BODY = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.ExtraBold)
 local BODY_BOLD = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.Bold)
 local Z = 200
+local PAD_NAMES = {
+	LB = Enum.KeyCode.ButtonL1, RB = Enum.KeyCode.ButtonR1,
+	A = Enum.KeyCode.ButtonA, B = Enum.KeyCode.ButtonB, X = Enum.KeyCode.ButtonX, Y = Enum.KeyCode.ButtonY,
+}
 local DIM = 0.4 -- background transparency of the dimmed parts
 
 local Tips = {}
@@ -76,14 +84,27 @@ function Tips.new(frames: Instance, onSkip: () -> ())
 	local arrow = new("TextLabel", { Name = "Arrow", Size = UDim2.fromOffset(30, 20), BackgroundTransparency = 1, FontFace = HEAD, TextSize = 26, TextColor3 = INK, Text = "▼", ZIndex = Z + 4 }, root)
 	self._bubble, self._shadow, self._arrow = bubble, shadow, arrow
 
+	-- controller icons: A just left of Got it, Y just right of Skip tutorial (PadBinds paints them)
+	local function padIcon(parent: GuiObject, position: UDim2)
+		new("ImageLabel", { Name = "PadIcon", AnchorPoint = Vector2.new(0.5, 0.5), Position = position, Size = UDim2.fromOffset(28, 28),
+			BackgroundTransparency = 1, ScaleType = Enum.ScaleType.Fit, Visible = false, ZIndex = Z + 6 }, parent)
+	end
+	padIcon(got, UDim2.new(0, -20, 0.5, 0))
+	padIcon(skip, UDim2.new(0, 104, 0.5, 0))
+	self._got, self._skip = got, skip
+
 	got.Activated:Connect(function()
 		self:_next()
 	end)
 	skip.Activated:Connect(function()
-		self:Hide()
-		self._onSkip()
+		self:_skipAll()
 	end)
 	return self
+end
+
+function Tips:_skipAll()
+	self:Hide()
+	self._onSkip()
 end
 
 function Tips:_spot(r: Rect)
@@ -114,9 +135,24 @@ function Tips:_render()
 	end
 	self._bubble.Tag.Text = `TIP {step.Tip}`
 	self._bubble.Title.Text = step.Title
-	self._bubble.Body.Text = step.Body
+	self._bubble.Body.Text = if step.PadBody and PadBinds.UsingPad()
+		then (string.gsub(step.PadBody, "{(%w+)}", function(name)
+			local key = PAD_NAMES[name]
+			return if key then PadBinds.Label(key) else name
+		end))
+		else step.Body
 	self:_spot(step.Spot)
 	self._root.Visible = true
+	if not self._unpad then
+		self._unpad = PadBinds.Bind("TutorialTips", {
+			{ Key = Enum.KeyCode.ButtonA, Chip = self._got, Run = function()
+				self:_next()
+			end },
+			{ Key = Enum.KeyCode.ButtonY, Chip = self._skip, Run = function()
+				self:_skipAll()
+			end },
+		})
+	end
 	Sounds.Play("Notify", { Volume = 0.75 }) -- the Welcome card's chime, a bit louder
 end
 
@@ -134,6 +170,10 @@ end
 function Tips:Hide()
 	self._steps = nil
 	self._root.Visible = false
+	if self._unpad then
+		self._unpad()
+		self._unpad = nil
+	end
 end
 
 function Tips:Destroy()

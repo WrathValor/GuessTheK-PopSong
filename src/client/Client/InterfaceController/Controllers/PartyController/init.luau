@@ -24,6 +24,7 @@ local Promise = require(ReplicatedStorage.Packages.promise)
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
+local PadBinds = require(ReplicatedStorage.Modules.UI.PadBinds)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 local PartyConstants = require(ReplicatedStorage.Constants.PartyConstants)
@@ -33,6 +34,7 @@ local GroupArt = require(ReplicatedStorage.Modules.UI.GroupArt)
 local Build = require(script.Build)
 local InviteToast = require(script.Parent.Parent.Parent.InviteToast) -- Client/InviteToast: party invites use the duel toast
 local CameraController = require(script.Parent.Parent.Parent.CameraController) -- Client/CameraController: the lobby pan
+local ScreenGuide = require(script.Parent.Parent.ScreenGuide) -- first-time walkthroughs for the lobby, Settings + Pick songs
 
 local LOCAL_PLAYER = Players.LocalPlayer
 local PartyRemote = Bridgenet.ReferenceBridge("PartyRemote")
@@ -199,6 +201,20 @@ function Party:_show(page: string)
 			f.Flip.Scale = 0.7
 			TweenService:Create(f.Flip, FLIP_IN, { Scale = 1 }):Play()
 		end
+		-- the first time you see this page: its walkthrough (ScreenGuide/Guides). Host or
+		-- guest is checked again when it shows.
+		local key = if page == "Lobby" and self.InParty
+			then (if self:_isHost() then "PartyHost" else "PartyGuest")
+			elseif page == "Settings" then "PartySettings"
+			elseif page == "Songs" then "PartySongs"
+			else nil
+		if key then
+			ScreenGuide.Opened(key, self, {})
+		end
+	end
+	-- a different page: any walkthrough on the old one is over
+	if from ~= page then
+		ScreenGuide.Closed(self.Name)
 	end
 	self:_render()
 	local current = frame:FindFirstChild(from)
@@ -1338,19 +1354,21 @@ function Party:Initialize(interface)
 		end
 	end)
 
-	-- results
+	-- results (also Y / B on a controller: see PadBack and Activate)
 	local results = frame.Results
-	on(results.Back, function()
+	self._resultsBack = function()
 		if self.InParty then
 			self:_show("Lobby")
 		else
 			self._interface:Close("Party")
 		end
-	end)
-	on(results.Leave, function()
+	end
+	self._resultsLeave = function()
 		self:_send({ Action = "Leave" })
 		self._interface:Close("Party")
-	end)
+	end
+	on(results.Back, self._resultsBack)
+	on(results.Leave, self._resultsLeave)
 
 	-- watch
 	on(frame.Watch.Stop, function()
@@ -1363,6 +1381,27 @@ function Party:Initialize(interface)
 			self:_onPacket(packet)
 		end
 	end), "Disconnect")
+end
+
+-- [[ Controller ]]
+-- B (InterfaceController asks PadBack before closing anything): the sub-pages go back a step
+-- (Invite / Player / Settings → Lobby, Pick songs → Settings) and Results leaves the stage. On
+-- the lobby B does nothing, so a stray press can't drop you off the stage. Y on Results is Back
+-- to stage. The B icons are PadIcons with PadBack on each Back / Done / Leave button.
+local PAD_BACK_TO = { Invite = "Lobby", Player = "Lobby", Settings = "Lobby", Songs = "Settings" }
+
+function Party:PadBack(): boolean
+	local to = PAD_BACK_TO[self._page]
+	if to then
+		Sounds.Play("Click")
+		self:_show(to)
+		return true
+	elseif self._page == "Results" then
+		Sounds.Play("Click")
+		self._resultsLeave()
+		return true
+	end
+	return false -- the lobby (and the prompt / watch cards): the card has no Close, so B does nothing
 end
 
 function Party:Activate(page: string?)
@@ -1382,6 +1421,16 @@ function Party:Activate(page: string?)
 	self._page = ""
 	self:_show(page or (if self.InParty then "Lobby" else "Prompt"))
 	self.State = "Active"
+	if not self._unpad then
+		self._unpad = PadBinds.Bind("Party", {
+			{ Key = Enum.KeyCode.ButtonY, Chip = self._frame.Results.Back, When = function()
+				return self._page == "Results"
+			end, Run = function()
+				Sounds.Play("Click")
+				self._resultsBack()
+			end },
+		})
+	end
 	return Promise.resolve()
 end
 
@@ -1392,6 +1441,10 @@ function Party:Deactivate()
 	self.State = "Inactive"
 	self._frame.Visible = false
 	self:_countdownLoop(false)
+	if self._unpad then
+		self._unpad()
+		self._unpad = nil
+	end
 	-- still on the stage (Escape, or a menu opened over it): the card comes back once nothing
 	-- else is open, unless a match took over
 	task.delay(0.5, function()

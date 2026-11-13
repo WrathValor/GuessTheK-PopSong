@@ -167,7 +167,8 @@ function Rewards:_updateBadge()
 	local count = self:_readyCount()
 	local hud = self._interface and self._interface:GetController("HUD")
 	if hud and hud.SetRewardsBadge then
-		hud:SetRewardsBadge(count)
+		-- (level rewards + quests: what the HUD's one-time Rewards nudge waits for)
+		hud:SetRewardsBadge(count, self:_questsReady("Daily") + self:_questsReady("Weekly") + self:_levelsReady())
 	end
 	if self._frame then
 		local chip = self._frame.Panel.Header.TitleRow.Ready

@@ -2,6 +2,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
+local GuiService = game:GetService("GuiService")
 
 -- --------------------------------- Imports -------------------------------- --
 
@@ -12,6 +13,8 @@ local UITypes = require(ReplicatedStorage.Types.UITypes)
 local AnalyticsClient = require(ReplicatedStorage.Modules.AnalyticsClient)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local FitText = require(ReplicatedStorage.Modules.UI.FitText)
+local PadBinds = require(ReplicatedStorage.Modules.UI.PadBinds)
+local ScreenGuide = require(script.ScreenGuide)
 
 -- --------------------------------- Tables --------------------------------- --
 -- screens that log "ScreenOpened" (Constants/AnalyticsEvents ScreenOpened.Allowed)
@@ -21,6 +24,27 @@ for _, screen in require(ReplicatedStorage.Constants.AnalyticsEvents).Custom.Scr
 end
 -- frames that open without the "Open" sound (the HUD, the round screen and the victory shot have their own)
 local SILENT_OPEN = { HUD = true, Game = true, Victory = true }
+-- Controller: when a menu opens (or a controller is picked up while one is open) its first
+-- button is selected, so A works straight away; a controller can name a better one with
+-- :PadFocus(). B closes menus that have a Close button, like Escape. These screens get no
+-- selection: they handle the controller themselves (Game) or have nothing to press.
+local NO_PAD_FOCUS = { Game = true, Victory = true }
+-- The menus' Close buttons (and back buttons inside a menu, like the Roll picker's X or the
+-- Index's ‹ BACK) show B instead of their X while a controller is in use: each has a PadIcon
+-- with a PadBack attribute, over the button's "Icon" if it has one. A controller with a step to
+-- back out of first gets B before the menu closes: Controller:PadBack() -> true if it handled it.
+local backIcons: { GuiObject } = {}
+
+local function paintBackIcons()
+	local pad = string.sub(UserInputService:GetLastInputType().Name, 1, 7) == "Gamepad"
+	for _, icon in backIcons do
+		local x = icon.Parent and icon.Parent:FindFirstChild("Icon")
+		PadBinds.Paint(icon, Enum.KeyCode.ButtonB, pad)
+		if x then
+			x.Visible = not pad
+		end
+	end
+end
 local Interface = {}
 type Self = typeof(Interface)
 
@@ -43,6 +67,34 @@ local Transitioning = false
 local ModeBlockers = {}
 local PendingOpen: { Name: string, Args: { [number]: any, n: number } }? = nil
 local StateJanitor = Janitor.new()
+
+-- --------------------------------- Helpers -------------------------------- --
+
+local function usingPad(): boolean
+	return string.sub(UserInputService:GetLastInputType().Name, 1, 7) == "Gamepad"
+end
+
+-- `gui` and every parent up to `root` are visible
+local function shown(gui: Instance, root: Instance): boolean
+	local at: Instance? = gui
+	while at and at ~= root do
+		if at:IsA("GuiObject") and not at.Visible then
+			return false
+		end
+		at = at.Parent
+	end
+	return at == root
+end
+
+-- the menu's own visible Close button, if it has one
+local function closeButton(frame: Instance): GuiButton?
+	for _, d in frame:GetDescendants() do
+		if d.Name == "Close" and d:IsA("GuiButton") and shown(d, frame) then
+			return d
+		end
+	end
+	return nil
+end
 
 -- --------------------------------- Methods -------------------------------- --
 
@@ -75,6 +127,37 @@ function Interface.ResolveFrame(self: Self, screenGuiName: string, frameName: st
 	local frame = screenGui.Frames:WaitForChild(frameName)
 
 	return frame :: Frame
+end
+
+-- Selects the open menu's first button when a controller is in use (see NO_PAD_FOCUS).
+function Interface._padFocus(self: Self)
+	local controller = self.ActiveController
+	if not controller or NO_PAD_FOCUS[controller.Name] or not usingPad() then
+		return
+	end
+	local frame = controller._frame
+	if not frame or not frame.Visible then
+		return
+	end
+	local selected = GuiService.SelectedObject
+	if selected and selected:IsDescendantOf(frame) then
+		return
+	end
+	local focus = if controller.PadFocus then controller:PadFocus() else nil
+	if focus then
+		GuiService.SelectedObject = focus
+	else
+		GuiService:Select(frame)
+	end
+end
+
+-- Drops the selection if it's inside a menu that just closed.
+local function clearPadFocus(controller)
+	local selected = GuiService.SelectedObject
+	local frame = controller and controller._frame
+	if selected and frame and selected:IsDescendantOf(frame) then
+		GuiService.SelectedObject = nil
+	end
 end
 
 local function finishTransition(self: Self)
@@ -114,6 +197,10 @@ function Interface.Open(self: Self, name: string, ...: any)
 
 	local args = table.pack(...)
 	local previous = if controller.Exclusive then self.ActiveController else nil
+	clearPadFocus(previous)
+	if previous then
+		ScreenGuide.Closed(previous.Name)
+	end
 	local closePrevious = if previous then previous:Deactivate() else nil
 
 	-- switch mode first; the frame waits for anything that blocked (the HUD sliding out)
@@ -147,6 +234,9 @@ function Interface.Open(self: Self, name: string, ...: any)
 		:andThen(function()
 			if controller.Exclusive then
 				self.ActiveController = controller
+				self:_padFocus()
+				-- the first time this screen opens: its walkthrough (ScreenGuide/Guides)
+				ScreenGuide.Opened(name, controller, args)
 			end
 
 			finishTransition(self)
@@ -169,6 +259,8 @@ function Interface.Close(self: Self, name: string?)
 	end
 
 	Transitioning = true
+	clearPadFocus(controller)
+	ScreenGuide.Closed(controller.Name)
 
 	-- bring the HUD back while the menu closes
 	if self.ActiveController == controller then
@@ -213,6 +305,7 @@ function Interface.Start(self: Self)
 	for _, controller in pairs(self.Controllers) do
 		controller:Initialize(self)
 	end
+	ScreenGuide.Init(self)
 
 	-- shrink text and chip rows that would overflow their boxes (mostly on phones, where the
 	-- canvas is scaled right down); watches UI the controllers build later too
@@ -227,12 +320,45 @@ function Interface.Start(self: Self)
 	--self:Open("HUD")
 
 	StateJanitor:Add(UserInputService.InputBegan:Connect(function(input: InputObject, processed: boolean)
+		-- B closes a menu that has a Close button (checked even if processed: with a button
+		-- selected, Roblox also uses B to leave the selection)
+		if input.KeyCode == Enum.KeyCode.ButtonB then
+			local active = self.ActiveController
+			if active and active.PadBack and active:PadBack() then
+				return
+			end
+			if active and active._frame and closeButton(active._frame) then
+				self:Close()
+			end
+			return
+		end
 		if processed then
 			return
 		end
 
 		if input.KeyCode == Enum.KeyCode.Escape and self.ActiveController then
 			self:Close()
+		end
+	end))
+
+	-- the Close / back buttons that show B (see paintBackIcons)
+	if interfaceGui then
+		for _, d in interfaceGui.Frames:GetDescendants() do
+			if d.Name == "PadIcon" and d:GetAttribute("PadBack") then
+				table.insert(backIcons, d)
+			end
+		end
+	end
+	paintBackIcons()
+
+	-- picking up a controller with a menu open selects its first button; going back to the
+	-- mouse / touch drops the selection box
+	StateJanitor:Add(UserInputService.LastInputTypeChanged:Connect(function()
+		paintBackIcons()
+		if usingPad() then
+			self:_padFocus()
+		elseif GuiService.SelectedObject then
+			GuiService.SelectedObject = nil
 		end
 	end))
 end

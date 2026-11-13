@@ -871,6 +871,17 @@ function Index:_back()
 	end
 end
 
+-- controller B (InterfaceController): picking showcase cards, it goes ‹ BACK to the Profile
+-- like the header button, instead of closing the Index
+function Index:PadBack(): boolean
+	local back = self._frame.Panel.Header.Showcase
+	if self._pick and back.Visible then
+		self:_back()
+		return true
+	end
+	return false
+end
+
 -- The bars only move when the number changes: they grow from empty when the Index opens and
 -- glide to the new value when you pick another row or group.
 function Index:_animate(fromEmpty: boolean?)

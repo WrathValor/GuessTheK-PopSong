@@ -18,6 +18,7 @@ local FrameTransition = require(ReplicatedStorage.Modules.UI.Animations.FrameTra
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local FitPanel = require(ReplicatedStorage.Modules.UI.FitPanel)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
+local PadBinds = require(ReplicatedStorage.Modules.UI.PadBinds)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 local SeasonArt = require(ReplicatedStorage.Modules.UI.SeasonArt)
@@ -212,7 +213,8 @@ function Results:Initialize(interface)
 	ButtonScale.ApplyToDescendants(self._frame)
 	FitPanel.Watch(self._frame, self._janitor) -- bigger panel on phones, like the Shop
 	local w = self._frame.Panel.Winner
-	self._janitor:Add(w.Rematch.Activated:Connect(function()
+	-- Rematch / Leave run from the controller too (Y / B, see Activate)
+	local function rematch()
 		DuelRemote:Fire({ Action = "Rematch" })
 		if self._solo then
 			self._rematchRequested = true
@@ -230,11 +232,14 @@ function Results:Initialize(interface)
 		if queue then
 			queue:ShowRematch()
 		end
-	end))
-	self._janitor:Add(w.Leave.Activated:Connect(function()
+	end
+	local function leave()
 		QueueRemote:Fire("Leave")
 		self._interface:Close(self.Name)
-	end))
+	end
+	self._rematch, self._leave = rematch, leave
+	self._janitor:Add(w.Rematch.Activated:Connect(rematch))
+	self._janitor:Add(w.Leave.Activated:Connect(leave))
 	-- solo: step off and go find a real duel (the nearest stage with someone waiting)
 	self._janitor:Add(w.FindRival.Activated:Connect(function()
 		QueueRemote:Fire("Leave")
@@ -727,6 +732,16 @@ function Results:Activate(packet, info)
 	end
 	self.State = "Activating"
 	self._frame.Visible = true
+	-- controller: Y Rematch / Play again, B Leave (Modules/UI/PadBinds)
+	local w = self._frame.Panel.Winner
+	self._unpad = PadBinds.Bind("Results", {
+		{ Key = Enum.KeyCode.ButtonY, Chip = w.Rematch, When = function()
+			return w.Rematch.Visible and w.Rematch.Active
+		end, Run = self._rematch },
+		{ Key = Enum.KeyCode.ButtonB, Chip = w.Leave, When = function()
+			return w.Leave.Visible
+		end, Run = self._leave },
+	})
 	return FrameTransition.Open(self._frame):andThen(function()
 		self.State = "Active"
 	end)
@@ -737,6 +752,10 @@ function Results:Deactivate()
 		return Promise.resolve()
 	end
 	self.State = "Deactivating"
+	if self._unpad then
+		self._unpad()
+		self._unpad = nil
+	end
 	if self._rematchRequested then
 		DuelRemote:Fire({ Action = "CancelRematch" })
 		self._rematchRequested = false

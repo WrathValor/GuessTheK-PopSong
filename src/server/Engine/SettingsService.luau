@@ -7,6 +7,7 @@
 --                          { Action = "Reset" }                 (volumes back to 1, invites on)
 --                          { Action = "SeenNews", Id = newsId } (clears the News button dot)
 --                          { Action = "FavoritePrompted" }       (the one-time favourite prompt was shown)
+--                          { Action = "HintSeen", Id = "Money" | "Rewards" | "Guide…" } (a nudge or a screen guide: HINTS)
 --                          { Action = "Blocked", Ids = { userId } } (the player's Roblox block list,
 --                            sent by Client/SettingsController; kept in memory, never saved)
 -- Invites (Engine/InviteService duels, Engine/PartyService parties) ask AcceptsInvitesFrom:
@@ -18,6 +19,19 @@ local Players = game:GetService("Players")
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 local News = require(ReplicatedStorage.Constants.News)
+
+-- the one-time hints a player can mark seen: lobby nudges (HUDController/Nudges) and
+-- first-open screen guides (InterfaceController/ScreenGuide/Guides)
+local HINTS = {
+	Money = true,
+	Rewards = true,
+	GuideRoll = true,
+	GuideDaily = true,
+	GuidePartyHost = true,
+	GuidePartyGuest = true,
+	GuidePartySet = true,
+	GuidePartySongs = true,
+}
 local Analytics = require(script.Parent.Analytics)
 
 local SettingsRemote = Bridgenet.ReferenceBridge("SettingsRemote")
@@ -98,6 +112,10 @@ local function handle(player: Player, packet)
 	elseif action == "FavoritePrompted" then
 		if settings.FavoritePrompted.Get() ~= true then
 			settings.FavoritePrompted.Set(true)
+		end
+	elseif action == "HintSeen" then
+		if HINTS[packet.Id] and not settings.Hints.Has(packet.Id) then
+			settings.Hints.Add(packet.Id)
 		end
 	elseif action == "SeenNews" then
 		local newest = News.Entries[1]

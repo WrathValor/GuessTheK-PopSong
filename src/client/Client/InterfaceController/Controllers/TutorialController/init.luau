@@ -38,8 +38,10 @@ local WELCOME_DELAY = 0.6 -- seconds after the loading screen goes before the We
 
 -- the coach marks, in the order they show
 local CLIP_TIPS = {
-	{ Spot = Tips.SPOTS.Clip, Tip = "1 / 3", Title = "Listen to the clip", Body = "Tap <b>▶</b> to hear a 0.1 second clip. Can't tell yet? Unlock a longer clip, but you'll score less: <b>6 → 5 → 4 → 2 → 1</b>." },
-	{ Spot = Tips.SPOTS.Answers, Tip = "2 / 3", Title = "Pick the song", Body = "Tap the song you think it is. Faster answers score more, and wrong answers score nothing, so don't rush blind!" },
+	{ Spot = Tips.SPOTS.Clip, Tip = "1 / 3", Title = "Listen to the clip", Body = "Tap <b>▶</b> to hear a 0.1 second clip. Can't tell yet? Unlock a longer clip, but you'll score less: <b>6 → 5 → 4 → 2 → 1</b>.",
+		PadBody = "Press <b>{LB}</b> to hear a 0.1 second clip. Can't tell yet? <b>{RB}</b> unlocks a longer clip, but you'll score less: <b>6 → 5 → 4 → 2 → 1</b>." },
+	{ Spot = Tips.SPOTS.Answers, Tip = "2 / 3", Title = "Pick the song", Body = "Tap the song you think it is. Faster answers score more, and wrong answers score nothing, so don't rush blind!",
+		PadBody = "Press the song's button (<b>{A} {B} {X} {Y}</b>). Faster answers score more, and wrong answers score nothing, so don't rush blind!" },
 }
 local REVEAL_TIPS = {
 	{ Spot = Tips.SPOTS.Reveal, Tip = "3 / 3", Title = "The answer", Body = "Here's the song and what you scored. In a duel, the most points after 7 rounds wins the coins, and the last round, the <b>ENCORE</b>, counts double. 2 practice rounds to go!" },
@@ -126,6 +128,12 @@ function Tutorial:Initialize(interface)
 		elseif packet.Message == "RoundEnd" and packet.Round == 1 and not self._tipsSkipped then
 			self._tips:Show(REVEAL_TIPS)
 		elseif packet.Message == "RoundEnd" or packet.Message == "End" then
+			self._tips:Hide()
+		end
+	end), "Disconnect")
+	-- stepped off mid-tutorial (no End packet comes then): take the tips down too
+	j:Add(QueueRemote:Connect(function(packet)
+		if type(packet) == "table" and packet.Message == "LeftQueue" then
 			self._tips:Hide()
 		end
 	end), "Disconnect")

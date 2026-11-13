@@ -5,7 +5,7 @@
 -- (ReplicatedStorage.Assets.PromptTemplate); this sets every prompt to Style = Custom and
 -- clones the template onto the prompt's part while Roblox says it's in range.
 --   Keyboard: the prompt's key (E, or F for View Profile)
---   Gamepad:  the button's own icon, on a blue key
+--   Gamepad:  the button in the game's ink controller icons (Modules/UI/PadBinds), on a blue key
 --   Touch:    TAP on a mint key, and the whole pill is the button
 -- It pops in, gives a little squeeze when used and pops out. Prompts with a HoldDuration fill
 -- the key pink while held (none use one today). The template has AlwaysOnTop off (with it on
@@ -16,6 +16,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ProximityPromptService = game:GetService("ProximityPromptService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+
+local PadBinds = require(ReplicatedStorage.Modules.UI.PadBinds)
 
 local LOCAL_PLAYER = Players.LocalPlayer
 local C = Color3.fromHex
@@ -50,13 +52,10 @@ local function paintKey(gui: BillboardGui, prompt: ProximityPrompt, inputType: E
 	letter.Visible, icon.Visible = true, false
 	letter.TextSize = 16
 	if inputType == Enum.ProximityPromptInputType.Gamepad then
-		local ok, image = pcall(UserInputService.GetImageForKeyCode, UserInputService, prompt.GamepadKeyCode)
-		if ok and image and image ~= "" then
-			icon.Image = image
-			icon.Visible, letter.Visible = true, false
-		else
-			letter.Text = string.gsub(prompt.GamepadKeyCode.Name, "^Button", "")
-		end
+		-- (PadBinds leaves the icon hidden for a button it has no picture of: the name shows instead)
+		PadBinds.Paint(icon, prompt.GamepadKeyCode, true)
+		letter.Visible = not icon.Visible
+		letter.Text = PadBinds.Label(prompt.GamepadKeyCode)
 	elseif inputType == Enum.ProximityPromptInputType.Touch then
 		letter.Text = "TAP"
 		letter.TextSize = 10

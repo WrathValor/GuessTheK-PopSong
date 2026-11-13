@@ -68,11 +68,11 @@ function RollController:_balance()
 		balance.Amount.Text = fmt(coins)
 	end
 	self._shownCoins = coins
-	-- the ticket counter sits left of the coins while you have any
+	-- the ticket counter sits left of the coins, always (0 too: the Roll guide points at it)
 	local tickets = self._frame.Panel.Header:FindFirstChild("Tickets")
 	if tickets then
 		local n = Currencies.Count(Players.LocalPlayer, "Tickets")
-		tickets.Visible = n > 0
+		tickets.Visible = true
 		tickets.Amount.Text = tostring(n)
 		task.defer(function()
 			local panelScale = self._frame.Panel.AbsoluteSize.X / self._frame.Panel.Size.X.Offset
@@ -153,6 +153,15 @@ function RollController:Activate(opts: any?)
 	return FrameTransition.Open(self._frame):andThen(function()
 		self.State = "Active"
 	end)
+end
+
+-- controller B (InterfaceController): closes the group picker first, if it's open
+function RollController:PadBack(): boolean
+	if self._picker and self._picker:IsOpen() then
+		self._picker:Close()
+		return true
+	end
+	return false
 end
 
 function RollController:Deactivate()

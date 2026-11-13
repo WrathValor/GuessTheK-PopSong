@@ -601,7 +601,7 @@ local function startTutorial(player: Player)
 			return
 		end
 	end
-	QueueRemote:Fire(player, { Message = "NoStages" })
+	QueueRemote:Fire(player, { Message = "NoStages", Tutorial = true })
 end
 
 -- [[ Public ]]
@@ -677,6 +677,8 @@ function DuelService.Start()
 			quickPlay(player)
 		elseif request == "Rematch" then
 			requestRematch(player)
+		elseif request == "Tutorial" then
+			startTutorial(player)
 		end
 	end
 

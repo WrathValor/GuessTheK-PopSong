@@ -14,7 +14,7 @@ return table.freeze({
 	COINS = table.freeze({ 100, 75, 50, 30, 15 }),
 	XP = 25, -- on top of the coins, for any solve
 	-- the number shown as "#142": days since this one (a UTC day number, RewardsCatalog.Day)
-	FIRST_DAY = 20768, -- 11 Nov 2026 is #1 (move it to the launch day)
+	FIRST_DAY = 20769, -- 11 Nov 2026 is #1 (move it to the launch day)
 	-- the "How everyone did" chart: MemoryStore counts per day, read back every STATS_REFRESH s
 	STATS_REFRESH = 60,
 	STATS_TTL = 3 * 86400, -- counts expire after 3 days

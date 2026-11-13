@@ -496,20 +496,44 @@ function Purchased:Initialize(interface)
 	-- bundles (ShopCatalog.Bundles): shown the moment the grant lands, from the purchase
 	-- counter (Rewards.Bundles). (Waiting on PromptProductPurchaseFinished and a currency going
 	-- up was slow: the grant is often already in by then, so it sat out the whole GRANT_WAIT.)
-	local bundleCounts: { [string]: number }? = nil -- nil until the first read: that's the baseline
+	-- The baseline is read once the save has loaded. Scribe's Observe fires straight away with
+	-- the empty default and then again while the first snapshot is replayed (before IsReady),
+	-- so a baseline taken from either one turned every bundle already bought into a fresh
+	-- "YOU GOT!" on every join.
+	local bundleCounts: { [string]: number }? = nil -- nil until the save has loaded
+	local function takeBaseline()
+		local ok, all = pcall(PlayerData.Rewards.Bundles.Get)
+		bundleCounts = if ok and type(all) == "table" then table.clone(all) else {}
+	end
+	if PlayerData.IsReady() then
+		takeBaseline()
+	else
+		task.spawn(function()
+			while not PlayerData.WaitForData(30) do end -- (WaitForData gives up after its timeout)
+			if not bundleCounts then
+				takeBaseline()
+			end
+		end)
+	end
 	j:Add(PlayerData.Rewards.Bundles.Observe(function(all)
-		if type(all) ~= "table" then
-			return -- not loaded yet: no baseline
+		if type(all) ~= "table" or not PlayerData.IsReady() then
+			return -- not loaded yet (the default, or the first snapshot being replayed)
 		end
 		local before = bundleCounts
-		bundleCounts = table.clone(all)
 		if not before then
+			bundleCounts = table.clone(all)
 			return
 		end
+		-- counts only go up, so the baseline never comes down: a re-sent snapshot (reset to
+		-- the defaults, then replayed) mustn't make old purchases look new
 		for id, n in all do
-			local bundle = ShopCatalog.GetBundle(id)
-			if bundle and n > (before[id] or 0) then
-				self:_showBundle(bundle)
+			local had = before[id] or 0
+			if n > had then
+				before[id] = n
+				local bundle = ShopCatalog.GetBundle(id)
+				if bundle then
+					self:_showBundle(bundle)
+				end
 			end
 		end
 	end))
