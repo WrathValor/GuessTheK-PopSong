@@ -17,7 +17,7 @@ return {
 			Volume = 1.1,
 			AnimationId = "rbxassetid://11946315654",
 			PlaybackSpeed = 0.5,
-			TimePosition = 0.5,
+			TimePosition = 0.75,
 			ChorusPosition = 24.3,
 		},
 		{

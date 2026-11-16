@@ -3,8 +3,8 @@
 -- guide 1–3): the same spotlight + speech bubble as the lobby nudges (HUDController/Nudges),
 -- with steps. It sits over every screen in the Frames canvas (ZIndex above them all):
 --   Blocker   full-canvas, transparent: swallows clicks while a guide is up
---   Spot      Dim (a frame on the lit part whose 4000 px outline dims everything else) +
---             the yellow Ring, both placed by code
+--   Spot      Dim (a CanvasGroup over the visible screen holding Top / Bottom / Left / Right
+--             panels round the lit part) + the yellow Ring, all placed by code
 --   Bubble    holder, placed by code; Shadow (sized by code), Arrow (the tail, a cream square
 --             turned 45° under the face), Face, Join (cream strip over the face's outline
 --             where the tail meets it)
@@ -90,11 +90,14 @@ end
 
 local function buildSpot(guide: Frame)
 	local spot = new("Frame", { Name = "Spot", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ZIndex = 2 }, guide)
-	-- the dim: one see-through frame over the lit part with a huge outline that covers the rest
-	-- of the screen (four panels left hairline seams where they met; this also rounds the hole)
-	local dim = new("Frame", { Name = "Dim", BackgroundTransparency = 1, Size = UDim2.new() }, spot)
-	corner(dim, 16)
-	new("UIStroke", { Color = INK, Transparency = 0.38, Thickness = 4000, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, dim)
+	-- the dim: four solid panels round the lit part inside a see-through CanvasGroup (sized to
+	-- the visible screen by code). The group fades them as one picture, so the panels can
+	-- overlap: no hairline seams where they meet, and no darker lines where they overlap. (A
+	-- frame with a 4000 px outline looked clean on PC but drew wrong on phones.)
+	local dim = new("CanvasGroup", { Name = "Dim", BackgroundTransparency = 1, GroupTransparency = 0.38, Size = UDim2.new() }, spot)
+	for _, side in { "Top", "Bottom", "Left", "Right" } do
+		new("Frame", { Name = side, BackgroundColor3 = INK, BorderSizePixel = 0, Size = UDim2.new() }, dim)
+	end
 	local ring = new("Frame", { Name = "Ring", BackgroundTransparency = 1, Size = UDim2.new() }, spot)
 	corner(ring, 16)
 	new("UIStroke", { Color = YELLOW, Thickness = 3, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, ring)

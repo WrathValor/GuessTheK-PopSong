@@ -12,10 +12,14 @@
 --                     "Photocard", N } – a Season Track banner / photocard (EQUIP NOW puts it on)
 --   RewardsRemote reply { Message = "Result", Action = "RedeemCode", Ok = true, Code, Rewards }
 --                     – a shop code: everything it gave (RewardsCatalog.CodeRewards)
+--   ReferralRemote    { Message = "Claimed", Ok = true, Need, Items } – an Invite Friends
+--                     milestone (Engine/ReferralService): its title / mic / stage / banner + photocard
+--   RewardsRemote     { Message = "LikeGoal", Likes, Rewards } – a like goal hit (Engine/LikeGoalService)
 --   RewardsRemote reply { Action = "ClaimLevel", All = true, Rewards, Titles, Levels } – level
 --                     rewards' CLAIM ALL: the currencies added up, then each title
 --   RewardsRemote reply { Action = "ClaimBonus", Scope, Rewards } – the daily / weekly quest bonus
---   PromptProductPurchaseFinished – the Debut Pack (waits for Rewards.Claimed "Debut"), coin
+--   PromptProductPurchaseFinished – the Debut Pack, with or without its starter bonus (waits
+--                                   for Rewards.Claimed "Debut"), coin
 --                     bundles, roll ticket / card upgrade bundles (ShopCatalog.RollBundles) and
 --                     (the mixed bundles, ShopCatalog.Bundles, show from Rewards.Bundles going up:
 --                     up to 5 cards, stage + mic first)
@@ -48,6 +52,7 @@ local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 
 local ShopRemote = Bridgenet.ReferenceBridge("ShopRemote")
+local ReferralRemote = Bridgenet.ReferenceBridge("ReferralRemote")
 local SeasonRemote = Bridgenet.ReferenceBridge("SeasonRemote")
 local RewardsRemote = Bridgenet.ReferenceBridge("RewardsRemote")
 
@@ -388,6 +393,107 @@ function Purchased:Initialize(interface)
 		end
 	end), "Disconnect")
 
+	-- Invite Friends milestones: the title, mic, stage or banner + photocard it gave
+	j:Add(ReferralRemote:Connect(function(packet)
+		if type(packet) ~= "table" or packet.Message ~= "Claimed" or not packet.Ok then
+			return
+		end
+		local cards = {}
+		local wearable = {}
+		for _, r in (if type(packet.Items) == "table" then packet.Items else {}) do
+			if r.Kind == "Title" then
+				table.insert(cards, titleCard(r.Id))
+			elseif r.Kind == "Mic" or r.Kind == "Stage" then
+				table.insert(cards, itemCard(r.Kind, r.Id))
+				table.insert(wearable, r)
+			elseif r.Kind == "Banner" or r.Kind == "Photocard" then
+				table.insert(cards, styleCard(r.Kind, r.Id))
+				table.insert(wearable, r)
+			end
+		end
+		self:Show({
+			Banner = "FRIEND REWARD!",
+			Sub = if type(packet.Need) == "number" then `{packet.Need} friend{if packet.Need == 1 then "" else "s"} played` else "",
+			Cards = cards,
+			Where = if #wearable > 0 then "Added to your Inventory" else "Added to your titles",
+			EquipText = if #wearable > 0 then "EQUIP NOW" else nil,
+			Equip = if #wearable > 0
+				then function()
+					for _, r in wearable do
+						if r.Kind == "Mic" or r.Kind == "Stage" then
+							ShopRemote:Fire({ Action = "EquipItem", Kind = r.Kind, Id = r.Id })
+						else
+							ShopRemote:Fire({ Action = "EquipStyle", [r.Kind] = r.Id })
+						end
+					end
+				end
+				else nil,
+		})
+	end), "Disconnect")
+
+	-- a like goal hit (Engine/LikeGoalService): everyone's reward, already in their account.
+	-- It can land mid-duel or on another screen, so it waits until you're free in the lobby
+	-- (Show keeps the HUD out of the way while it's up).
+	j:Add(RewardsRemote:Connect(function(packet)
+		if type(packet) ~= "table" or packet.Message ~= "LikeGoal" then
+			return
+		end
+		local cards = {}
+		local wearable = {} -- sets / stages / mics / banners / photocards EQUIP can put on
+		for _, r in (if type(packet.Rewards) == "table" then packet.Rewards else {}) do
+			if r.Kind == "Currency" then
+				table.insert(cards, currencyCard(r.Key, r.Amount or 0))
+			elseif r.Kind == "Set" or r.Kind == "Item" then
+				table.insert(cards, itemCard(r.Key, r.Id))
+				table.insert(wearable, r)
+			elseif r.Kind == "Style" then
+				table.insert(cards, styleCard(r.Key, r.Id))
+				table.insert(wearable, r)
+			elseif r.Kind == "Title" then
+				table.insert(cards, titleCard(r.Id))
+			end
+		end
+		local goals = if type(packet.Goals) == "table" then packet.Goals else {}
+		local caughtUp = #goals > 1
+		task.spawn(function()
+			-- free in the lobby, and (a new player) past the tutorial first
+			local interface = self._interface
+			local function tutorialDone(): boolean
+				local ok, v = pcall(PlayerData.Settings.TutorialDone.Get)
+				return ok and v == true
+			end
+			while interface.Mode ~= "Gameplay" or interface.ActiveController ~= nil or LOCAL_PLAYER:GetAttribute("Stage") or not tutorialDone() do
+				task.wait(1)
+			end
+			local likes = {}
+			for _, n in goals do
+				table.insert(likes, tostring(n))
+			end
+			self:Show({
+				Banner = if caughtUp then "LIKE GOALS HIT!" else "LIKE GOAL HIT!", -- (the banner fits ~15 letters)
+				Sub = if caughtUp then `You missed {table.concat(likes, " · ")} likes · here's all of it!`
+					elseif type(packet.Likes) == "number" then `{packet.Likes} likes · thanks for the love!`
+					else "",
+				Cards = cards,
+				Where = if #wearable > 0 then "Added to your Inventory" else "Added to your account",
+				EquipText = if #wearable > 0 then "EQUIP NOW" else nil,
+				Equip = if #wearable > 0
+					then function()
+						for _, r in wearable do
+							if r.Kind == "Set" then
+								ShopRemote:Fire({ Action = "EquipSet", Id = r.Id })
+							elseif r.Kind == "Item" then
+								ShopRemote:Fire({ Action = "EquipItem", Kind = r.Key, Id = r.Id })
+							else
+								ShopRemote:Fire({ Action = "EquipStyle", [r.Key] = r.Id })
+							end
+						end
+					end
+					else nil,
+			})
+		end)
+	end), "Disconnect")
+
 	-- shop codes: everything the code gave
 	j:Add(RewardsRemote:Connect(function(packet)
 		if type(packet) ~= "table" or packet.Message ~= "Result" or packet.Action ~= "RedeemCode" or not packet.Ok then
@@ -434,7 +540,8 @@ function Purchased:Initialize(interface)
 			return
 		end
 		local pack = ShopCatalog.DebutPack
-		if pack and pack.ProductId == productId then
+		local withBonus = pack and pack.Bonus and (pack.Bonus.ProductId or 0) > 0 and pack.Bonus.ProductId == productId
+		if pack and (pack.ProductId == productId or withBonus) then
 			waitFor(function()
 				return owns(PlayerData.Rewards.Claimed, pack.Id)
 			end):andThen(function()
@@ -445,6 +552,7 @@ function Purchased:Initialize(interface)
 						coinCard(pack.Coins, "rbxassetid://75882247530961"),
 						pack.Stage and itemCard("Stage", pack.Stage),
 						pack.Mic and itemCard("Mic", pack.Mic),
+						withBonus and currencyCard("Tickets", pack.Bonus.Tickets) or nil,
 					},
 					Where = "Added to your Inventory",
 					EquipText = "EQUIP STAGE + MIC",
@@ -626,6 +734,23 @@ function Purchased:Show(info)
 	local sj = self._showJanitor
 	sj:Cleanup()
 
+	-- over the lobby (a like goal, a purchase whose screen has just closed…), the HUD and its
+	-- nudges stay out of the way until the last reveal is closed, even if the HUD slides back in
+	-- meanwhile (a menu closing under it)
+	local hud = frame.Parent and frame.Parent.Parent and frame.Parent.Parent:FindFirstChild("HUD")
+	if hud and hud:IsA("GuiObject") and not self._hudWatch then
+		if hud.Visible then
+			hud.Visible = false
+			self._hidHud = hud
+		end
+		self._hudWatch = hud:GetPropertyChangedSignal("Visible"):Connect(function()
+			if hud.Visible and self._showing then
+				hud.Visible = false
+				self._hidHud = hud
+			end
+		end)
+	end
+
 	frame.Banner.Text = info.Banner
 	frame.Sub.Text = info.Sub or ""
 	frame.Where.Label.Text = info.Where or "Added to your Inventory"
@@ -785,6 +910,15 @@ function Purchased:Hide(force: boolean?)
 		task.defer(function()
 			self:Show(nextUp)
 		end)
+	else
+		if self._hudWatch then
+			self._hudWatch:Disconnect()
+			self._hudWatch = nil
+		end
+		if self._hidHud then
+			self._hidHud.Visible = true
+			self._hidHud = nil
+		end
 	end
 end
 

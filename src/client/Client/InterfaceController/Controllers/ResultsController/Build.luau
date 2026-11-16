@@ -7,7 +7,8 @@
 --   right – Winner: the player's banner across the top (SeasonArt.BuildBanner) with their
 --           photocard (SeasonArt.BuildCardSkin + their avatar in the window), name and title
 --           chip; three tiles (Coins, XP, Streak – solo: Score); the Level card (level, XP bar,
---           the next level reward); the LEVEL UP banner; CONTINUE / REMATCH (solo: FIND RIVAL
+--           the next level reward); the LEVEL UP banner; the 2× Coins row or the like line;
+--           CONTINUE / REMATCH (solo: FIND RIVAL
 --           and PLAY AGAIN too). Solo's rank stamp sits on the banner, its best + hint under
 --           the level card.
 -- The Season bar moves into the Level card's place; ResultsController shows one or the other
@@ -39,6 +40,9 @@ Build.LEFT_W = 686 -- table column (27 + 632 + 27); the divider follows
 Build.RIGHT_X, Build.RIGHT_W = 689, 491
 Build.PAD = 20
 Build.CARD_W = Build.RIGHT_W - 2 * Build.PAD -- 451
+Build.LIKE_FRAME = "rbxassetid://71289134513487" -- assets/ui/fans/LikeLineFrame.png (451×48 @2x)
+Build.LIKE_ICON = "rbxassetid://94983019622693" -- assets/ui/fans/ThumbUp.png
+Build.ROBUX = "rbxassetid://83637405007021" -- (as the shop's price buttons)
 
 local function new(className: string, props: { [string]: any }, parent: Instance?): any
 	local inst = Instance.new(className)
@@ -104,6 +108,7 @@ local function button(parent: Instance, name: string, x: number, y: number, w: n
 		TextSize = 18,
 		TextColor3 = INK,
 		Text = label,
+		ZIndex = 2, -- always over its shadow, whatever order the children end up in
 	}, parent)
 	corner(b, 14)
 	stroke(b, 4)
@@ -172,8 +177,20 @@ local function winner(panel: Instance)
 		BackgroundTransparency = 1,
 	}, panel)
 
-	-- their banner across the top, on a rule
-	SeasonArt.BuildBanner(w, "Banner", UDim2.fromOffset(0, 0), UDim2.fromOffset(Build.RIGHT_W - 2, 140), 15, true)
+	-- their banner across the top, on a rule. Only its top-right corner is round (the panel's
+	-- own corner): its left meets the divider and its bottom the rule, so those stay square.
+	-- A CanvasGroup clips what's in it to its UICorner, so BannerShape is made R bigger to the
+	-- left and below, inside BannerClip (a plain frame) that cuts those parts off: only the
+	-- top-right curve is left showing. The controller paints BannerClip.BannerShape.Banner.
+	-- The panel's outline is drawn inside its edge (Inner, 3 thick), so the banner starts below
+	-- it on top (RIGHT_W - 2 already keeps it off the right one), and its curve is the
+	-- outline's inner one (18 - 3).
+	local S = 3
+	local R, BW, BH = 18 - S, Build.RIGHT_W - 2, 140 - S
+	local clip = new("Frame", { Name = "BannerClip", Position = UDim2.fromOffset(0, S), Size = UDim2.fromOffset(BW, BH), BackgroundTransparency = 1, ClipsDescendants = true, ZIndex = 0 }, w)
+	local shape = new("CanvasGroup", { Name = "BannerShape", Position = UDim2.fromOffset(-R, 0), Size = UDim2.fromOffset(BW + R, BH + R), BackgroundTransparency = 1 }, clip)
+	corner(shape, R)
+	SeasonArt.BuildBanner(shape, "Banner", UDim2.fromOffset(R, 0), UDim2.fromOffset(BW, BH), 0, false)
 	new("Frame", { Name = "BannerRule", Position = UDim2.fromOffset(0, 140), Size = UDim2.new(1, 0, 0, 3), BackgroundColor3 = INK, BorderSizePixel = 0 }, w)
 
 	local ribbon = new("Frame", { Name = "Ribbon", Position = UDim2.fromOffset(P, 16), AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 28), BackgroundColor3 = INK }, w)
@@ -271,6 +288,30 @@ local function winner(panel: Instance)
 	pad(newBest, 8)
 	text(best, "Old", { LayoutOrder = 2, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 24), TextSize = 13, TextColor3 = MUTED, Text = "old best 40", TextTruncate = Enum.TextTruncate.None })
 	text(w, "RankHint", { Position = UDim2.fromOffset(P, 508), Size = UDim2.fromOffset(W, 18), TextSize = 13, TextColor3 = MUTED, Text = "6 more points for S rank", Visible = false })
+
+	-- the like line (Fans 2): after your first duel win, once. Its dashed white frame is one
+	-- image the exact size of the line (Roblox strokes can't dash): assets/ui/fans.
+	local like = new("ImageLabel", { Name = "LikeLine", Position = UDim2.fromOffset(P, 478), Size = UDim2.fromOffset(W, 48), BackgroundTransparency = 1, Image = Build.LIKE_FRAME, ScaleType = Enum.ScaleType.Stretch, Visible = false }, w)
+	new("ImageLabel", { Name = "Icon", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 12, 0.5, 0), Size = UDim2.fromOffset(26, 26), BackgroundTransparency = 1, Image = Build.LIKE_ICON, ScaleType = Enum.ScaleType.Fit }, like)
+	text(like, "Label", { Position = UDim2.fromOffset(48, 6), Size = UDim2.fromOffset(W - 60, 20), FontFace = HEAD, TextSize = 15, Text = "Enjoying it? Give the game a like" })
+	text(like, "Note", { Position = UDim2.fromOffset(48, 25), Size = UDim2.fromOffset(W - 60, 16), TextSize = 13, TextColor3 = MUTED, Text = "Tap the thumbs up on its page: it helps more fans find us." })
+
+	-- the 2× Coins row (Money 1): after a duel win when you don't own the pass, in the like
+	-- line's place (it comes first). The controller fills in Label + Buy.Label.
+	local double = card(w, "Double", Vector2.new(P, 478), Vector2.new(W, 48), C("FFF6D6"), 12, 3)
+	double.Visible = false
+	local chip = new("TextLabel", { Name = "Chip", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 10, 0.5, 0), Size = UDim2.fromOffset(32, 32), Rotation = -5, BackgroundColor3 = C("9ED8F5"), FontFace = HEAD, TextSize = 14, TextColor3 = INK, Text = "2×" }, double)
+	corner(chip, 9)
+	stroke(chip, 3)
+	text(double, "Label", { Position = UDim2.fromOffset(52, 6), Size = UDim2.fromOffset(W - 52 - 104, 20), FontFace = HEAD, TextSize = 14, Text = "+84 more with 2× Coins" })
+	text(double, "Note", { Position = UDim2.fromOffset(52, 25), Size = UDim2.fromOffset(W - 52 - 104, 16), TextSize = 12, TextColor3 = MUTED, Text = "Double coins from every match, forever" })
+	local buy = new("TextButton", { Name = "Buy", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(1, -52, 0.5, 0), Size = UDim2.fromOffset(84, 32), BackgroundColor3 = MINT, AutoButtonColor = false, Text = "" }, double)
+	corner(buy, 10)
+	stroke(buy, 3)
+	local inner = new("Frame", { Name = "Inner", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1 }, buy)
+	new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, inner)
+	new("ImageLabel", { Name = "Icon", LayoutOrder = 1, Size = UDim2.fromOffset(16, 16), BackgroundTransparency = 1, Image = Build.ROBUX, ScaleType = Enum.ScaleType.Fit }, inner)
+	text(inner, "Label", { LayoutOrder = 2, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 32), FontFace = HEAD, TextSize = 15, Text = "120", TextTruncate = Enum.TextTruncate.None })
 
 	text(w, "RematchNote", { Position = UDim2.fromOffset(0, 536), Size = UDim2.fromOffset(Build.RIGHT_W, 18), TextSize = 13, Text = "Waiting for your rival…", TextXAlignment = Enum.TextXAlignment.Center, Visible = false })
 

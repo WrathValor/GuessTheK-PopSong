@@ -1,6 +1,7 @@
 --| TutorialController
 -- The first-join tutorial (design boards "Tutorial 1–4"). A player who hasn't finished or
--- skipped it (Settings.TutorialDone) gets the Welcome card once the loading screen has gone:
+-- skipped it (Settings.TutorialDone) gets the Welcome card once the loading screen has gone
+-- (after the "YOU WERE INVITED!" card, if a friend's invite brought them):
 --   PLAY A PRACTICE ROUND → the server puts them on a free stage for a 3-round solo game on
 --   well-known songs (DuelService "Tutorial", Duels.Tutorial), with coach-mark tips (./Tips)
 --   on the clip, the answers and the reveal;
@@ -70,6 +71,14 @@ end
 local function tutorialDone(): boolean
 	local ok, v = pcall(PlayerData.Settings.TutorialDone.Get)
 	return ok and v == true
+end
+
+-- joined from a friend's invite and hasn't collected the welcome gift yet: their
+-- "YOU WERE INVITED!" card (InvitedController) comes before the Welcome card
+local function invitePending(): boolean
+	local ok, by = pcall(PlayerData.Referral.InvitedBy.Get)
+	local ok2, welcomed = pcall(PlayerData.Referral.Welcomed.Get)
+	return ok and ok2 and by ~= "" and welcomed == false
 end
 
 function Tutorial:Initialize(interface)
@@ -153,6 +162,14 @@ function Tutorial:Initialize(interface)
 				break
 			end
 			task.wait(0.5)
+		end
+		local inviteDeadline = os.clock() + 120
+		while os.clock() < inviteDeadline do
+			local active = self._interface.ActiveController
+			if not invitePending() and not (active and active.Name == "Invited") then
+				break
+			end
+			task.wait(0.25)
 		end
 		if not tutorialDone() and not LOCAL_PLAYER:GetAttribute("Stage") and self._interface.ActiveController == nil then
 			self._interface:Open(self.Name, "Welcome")

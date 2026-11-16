@@ -12,6 +12,10 @@
 --                                                -- own key (PartyController: "PartyHost", …)
 --   ScreenGuide.Closed(name)                     -- when a screen starts closing (a controller's
 --                                                -- Name or a guide key: either ends its guide)
+--   ScreenGuide.Showing() -> bool                -- one is up (InterfaceController: no pad focus)
+--   ScreenGuide.Skip()                           -- B on a controller: ends it, marked seen
+-- Controller: A is Next / Got it (its icon shows on the button), B skips. While one is up
+-- nothing behind it can be selected (AutoSelectGuiEnabled is off, the selection cleared).
 -- A guide can wait for its screen to be ready (Guides: Ready), and a bubble that won't fit on
 -- the side its step asks for goes on the other side, then above / below.
 
@@ -37,6 +41,7 @@ local SettingsRemote = Bridgenet.ReferenceBridge("SettingsRemote")
 -- --------------------------------- Tables --------------------------------- --
 local GAP = 20 -- design px between the bubble's tail and the lit part
 local SPOT_PAD = 8 -- design px of lit space around the part
+local EDGE = 200 -- design px the dim reaches past the screen (phone notch strips)
 local TAIL_CLEAR = 26 -- the tail keeps this far from the bubble's rounded corners
 local C = Color3.fromHex
 local INK = C("1E1B2E")
@@ -103,15 +108,6 @@ local function place()
 	local pos = (lo - origin) / s
 	local size = (hi - lo) / s
 
-	-- the spotlight: the dim (a frame on the part, padded, whose huge outline covers the rest)
-	-- and the ring on its edge
-	local spot = guide.Spot
-	local x0, y0 = pos.X - SPOT_PAD, pos.Y - SPOT_PAD
-	local x1, y1 = pos.X + size.X + SPOT_PAD, pos.Y + size.Y + SPOT_PAD
-	for _, f in { spot.Dim, spot.Ring } do
-		f.Position, f.Size = UDim2.fromOffset(x0, y0), UDim2.fromOffset(x1 - x0, y1 - y0)
-	end
-
 	-- the bubble: beside / under / over the part, kept on the real screen (the canvas is
 	-- centred, so its own 0–1280 isn't what's visible on a wide window). The step's side first;
 	-- if it won't fit there, the opposite side, then below / above.
@@ -127,7 +123,27 @@ local function place()
 	local gui = guide:FindFirstAncestorWhichIsA("ScreenGui") :: ScreenGui
 	local corner0, corner1 = gui.AbsolutePosition, gui.AbsolutePosition + gui.AbsoluteSize
 	local left, right = (corner0.X - origin.X) / s + 10, (corner1.X - origin.X) / s - 10
-	local top, bottom = (corner0.Y - origin.Y) / s + 10, (corner1.Y - origin.Y) / s - 10
+	-- bubbles stay below Roblox's top bar (its buttons sit over the GUI when IgnoreGuiInset is on)
+	local bar = if gui.IgnoreGuiInset then (GuiService:GetGuiInset()).Y else 0
+	local top, bottom = (corner0.Y + bar - origin.Y) / s + 10, (corner1.Y - origin.Y) / s - 10
+
+	-- the spotlight: the dim group covers the visible screen; its four panels leave the part
+	-- (padded) lit, each reaching 1 px into its neighbours (the group fades them as one, so the
+	-- overlaps don't show darker); the ring sits on the hole's edge
+	local spot = guide.Spot
+	local x0, y0 = pos.X - SPOT_PAD, pos.Y - SPOT_PAD
+	local x1, y1 = pos.X + size.X + SPOT_PAD, pos.Y + size.Y + SPOT_PAD
+	-- (EDGE past the ScreenGui on every side: a phone's notch strips sit outside it)
+	local sx0, sy0 = (corner0.X - origin.X) / s - EDGE, (corner0.Y - origin.Y) / s - EDGE
+	local sw, sh = gui.AbsoluteSize.X / s + EDGE * 2, gui.AbsoluteSize.Y / s + EDGE * 2
+	local dim = spot.Dim
+	dim.Position, dim.Size = UDim2.fromOffset(sx0, sy0), UDim2.fromOffset(sw, sh)
+	local hx0, hy0, hx1, hy1 = x0 - sx0, y0 - sy0, x1 - sx0, y1 - sy0 -- the hole, in the group
+	dim.Top.Position, dim.Top.Size = UDim2.fromOffset(0, 0), UDim2.fromOffset(sw, math.max(0, hy0))
+	dim.Bottom.Position, dim.Bottom.Size = UDim2.fromOffset(0, hy1), UDim2.fromOffset(sw, math.max(0, sh - hy1))
+	dim.Left.Position, dim.Left.Size = UDim2.fromOffset(0, hy0 - 1), UDim2.fromOffset(math.max(0, hx0), hy1 - hy0 + 2)
+	dim.Right.Position, dim.Right.Size = UDim2.fromOffset(hx1, hy0 - 1), UDim2.fromOffset(math.max(0, sw - hx1), hy1 - hy0 + 2)
+	spot.Ring.Position, spot.Ring.Size = UDim2.fromOffset(x0, y0), UDim2.fromOffset(x1 - x0, y1 - y0)
 	local fits = {
 		Left = x0 - GAP - w >= left,
 		Right = x1 + GAP + w <= right,
@@ -259,6 +275,7 @@ local function finish(quiet: boolean?)
 		unpad = nil
 	end
 	guide.Visible = false
+	GuiService.AutoSelectGuiEnabled = true
 	if not quiet then
 		Sounds.Play("Click")
 		-- hand the controller selection back to the screen
@@ -351,6 +368,7 @@ function ScreenGuide.Opened(name: string, controller: any, args: { any }?)
 		current = { Name = name, Controller = controller, Guide = def, Frame = frame, Step = 1, Cleanup = nil }
 		guide.Visible = true
 		GuiService.SelectedObject = nil
+		GuiService.AutoSelectGuiEnabled = false -- (the D-pad can't pick a button behind it)
 		Sounds.Play("Notify", { Volume = 0.75 })
 		showStep(1)
 		follow = RunService.RenderStepped:Connect(place)
@@ -358,6 +376,14 @@ function ScreenGuide.Opened(name: string, controller: any, args: { any }?)
 			{ Key = Enum.KeyCode.ButtonA, Chip = guide.Bubble.Face.Footer.Next, Run = advance },
 		})
 	end)
+end
+
+function ScreenGuide.Showing(): boolean
+	return current ~= nil
+end
+
+function ScreenGuide.Skip()
+	finish()
 end
 
 function ScreenGuide.Closed(name: string)

@@ -13,6 +13,9 @@
 -- with nothing on it yet. Data comes from Scribe (PlayerData Leaderboards).
 -- Join button: Join the group (Roblox prompt) → Claim rewards → Claimed ✓ (RewardsService
 -- checks everything again).
+-- The like goal ("Leaderboard_LikeGoal", Board3, left of the big board): the game's likes toward
+-- the next goal (Constants/LikeGoalConstants, counted by Engine/LikeGoalService) and what
+-- everyone got for the last goal hit.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -24,6 +27,8 @@ local RewardsCatalog = require(ReplicatedStorage.Constants.RewardsCatalog)
 local AnalyticsClient = require(ReplicatedStorage.Modules.AnalyticsClient)
 local Levels = require(ReplicatedStorage.Modules.Levels)
 local CosmeticView = require(ReplicatedStorage.Modules.UI.CosmeticView)
+local LikeGoalConstants = require(ReplicatedStorage.Constants.LikeGoalConstants)
+local Currencies = require(ReplicatedStorage.Constants.Currencies)
 
 local RewardsRemote = Bridgenet.ReferenceBridge("RewardsRemote")
 local LOCAL_PLAYER = Players.LocalPlayer
@@ -294,6 +299,48 @@ local function attach(gui: SurfaceGui, folder: Instance): BasePart?
 	return part
 end
 
+-- the like goal (Constants/LikeGoalConstants): the count from ReplicatedStorage's "Likes"
+-- attribute (-1 until the server's first read), toward the first goal not hit yet
+-- ("LikeGoalsReached" says how many are; they stay hit if likes drop)
+local function commas(n: number): string
+	local s = tostring(math.floor(n))
+	return (s:reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", ""))
+end
+
+local function bindLike(gui: SurfaceGui)
+	local face = gui.Sign
+	local function paint()
+		local likes = tonumber(ReplicatedStorage:GetAttribute(LikeGoalConstants.ATTRIBUTE)) or -1
+		local reached = tonumber(ReplicatedStorage:GetAttribute(LikeGoalConstants.REACHED)) or 0
+		local nextGoal, lastHit = LikeGoalConstants.State(reached)
+		local shown = nextGoal or lastHit or LikeGoalConstants.GOALS[1]
+		face.Count.Text = if likes < 0 then "…" else commas(likes)
+		face.Of.Text = if nextGoal then `of {commas(nextGoal.Likes)} likes` else "every goal hit!"
+		local share = if likes < 0 then 0 elseif nextGoal then math.clamp(likes / nextGoal.Likes, 0, 1) else 1
+		face.Bar.Fill.Size = UDim2.fromScale(share, 1)
+		face.Bar.Fill.Visible = share > 0
+		face.Bar.Left.Text = if likes < 0 then "" elseif nextGoal then `{commas(nextGoal.Likes - likes)} to go` else "GOAL HIT!"
+		face.Reward.Big.Text = shown.Text
+		-- the icon: the reward's first currency in Currencies order (tickets before coins…)
+		local first = nil
+		for _, id in { "Tickets", "Upgrades", "Coins" } do
+			if shown.Reward[id] then
+				first = id
+				break
+			end
+		end
+		local currency = first and (Currencies :: any)[first]
+		face.Reward.Art.Icon.Image = if shown.Icon then shown.Icon elseif currency and currency.Icon then currency.Icon else ""
+		face.Hit.Visible = lastHit ~= nil
+		if lastHit then
+			face.Hit.Text = `{commas(lastHit.Likes)} HIT! · everyone got {lastHit.Text}`
+		end
+	end
+	ReplicatedStorage:GetAttributeChangedSignal(LikeGoalConstants.ATTRIBUTE):Connect(paint)
+	ReplicatedStorage:GetAttributeChangedSignal(LikeGoalConstants.REACHED):Connect(paint)
+	paint()
+end
+
 function Leaderboards.Start()
 	task.spawn(function()
 		local map = workspace:WaitForChild("Map", 30)
@@ -312,6 +359,10 @@ function Leaderboards.Start()
 		local join = playerGui:WaitForChild("Leaderboard_JoinTheGroup", 10)
 		if join and attach(join, folder) then
 			bindJoin(join)
+		end
+		local like = playerGui:WaitForChild("Leaderboard_LikeGoal", 10)
+		if like and attach(like, folder) then
+			bindLike(like)
 		end
 	end)
 end

@@ -55,6 +55,7 @@ local function reply(player: Player, packet, ok: boolean, text: string)
 		Action = packet.Action,
 		Id = packet.Id,
 		Kind = packet.Kind, -- BuyItem / EquipItem: "Stage" | "Mic" (the purchase reveal needs it)
+		Short = packet.Short, -- a buy you couldn't afford: { Kind = "Coins", Need = price, Name } (Money 3)
 		Price = packet.Charged, -- BuyStyle: what it actually cost (finishing a set costs one half)
 	})
 end
@@ -129,6 +130,10 @@ local function buySet(player: Player, data, packet)
 	if ok then
 		logBought(player, data, "Set", set.Rarity, set.Id, first)
 	end
+	if not ok then
+		packet = table.clone(packet)
+		packet.Short = { Kind = "Coins", Need = set.Price, Name = set.Name }
+	end
 	reply(player, packet, ok, if ok then `{set.Name} unlocked!` else "Not enough coins")
 end
 
@@ -179,6 +184,10 @@ local function buyItem(player: Player, data, packet)
 	end, `Shop{packet.Kind}`, item.Rarity)
 	if ok then
 		logBought(player, data, packet.Kind, item.Rarity, item.Id, first)
+	end
+	if not ok then
+		packet = table.clone(packet)
+		packet.Short = { Kind = "Coins", Need = item.Price, Name = item.Name }
 	end
 	reply(player, packet, ok, if ok then `{item.Name} unlocked!` else "Not enough coins")
 end
@@ -251,6 +260,7 @@ local function buyStyle(player: Player, data, packet)
 	local what = if #want == 2 then "set" elseif want[1] == "Banner" then "banner" else "photocard"
 	packet = table.clone(packet)
 	packet.Charged = if ok then price else nil
+	packet.Short = if ok then nil else { Kind = "Coins", Need = price, Name = `{spec.Name} {what}` }
 	reply(player, packet, ok, if ok then `{spec.Name} {what} unlocked!` else "Not enough coins")
 end
 
@@ -275,7 +285,18 @@ local function equipStyle(player: Player, data, packet)
 	reply(player, packet, true, "Equipped")
 end
 
+-- the starter offer's clock starts (StarterOfferController, back in the lobby after your first
+-- duel): once, and never for someone who owns the Debut Pack
+local function starterStart(player: Player, data, packet)
+	local pack = ShopCatalog.DebutPack
+	if not (pack and pack.Bonus) or data.Rewards.Claimed.Has(pack.Id) or data.Rewards.StarterAt.Get() > 0 then
+		return
+	end
+	data.Rewards.StarterAt.Set(os.time())
+end
+
 local ACTIONS = {
+	StarterStart = starterStart,
 	BuyStyle = buyStyle,
 	EquipStyle = equipStyle,
 	BuySet = buySet,
@@ -322,6 +343,9 @@ end
 if ShopCatalog.DebutPack then
 	local d = ShopCatalog.DebutPack
 	robuxProducts[d.ProductId] = { Key = d.Id, Kind = "Bundle", Sku = "DebutPack", Coins = d.Coins }
+	if d.Bonus and (d.Bonus.ProductId or 0) > 0 then
+		robuxProducts[d.Bonus.ProductId] = { Key = d.Id .. "Bonus", Kind = "Bundle", Sku = "DebutPackBonus", Coins = d.Coins, Tickets = d.Bonus.Tickets }
+	end
 end
 for _, b in ShopCatalog.Bundles do
 	robuxProducts[b.ProductId] = { Key = b.Id, Kind = "Bundle", Sku = "Bundle", Coins = b.Coins, Tickets = b.Tickets, Upgrades = b.Upgrades }

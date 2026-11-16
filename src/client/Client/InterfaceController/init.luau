@@ -135,6 +135,10 @@ function Interface._padFocus(self: Self)
 	if not controller or NO_PAD_FOCUS[controller.Name] or not usingPad() then
 		return
 	end
+	-- a walkthrough is up: A / B drive it, nothing behind it gets selected
+	if ScreenGuide.Showing() then
+		return
+	end
 	local frame = controller._frame
 	if not frame or not frame.Visible then
 		return
@@ -291,6 +295,9 @@ function Interface.Start(self: Self)
 	if interfaceGui and interfaceGui:IsA("ScreenGui") then
 		-- Keep modal headers below Roblox's mobile top bar and device safe area.
 		interfaceGui.IgnoreGuiInset = false
+		-- …but let full-screen pieces (scrims, the nudge + guide dims) reach past the safe area
+		-- into a phone's notch strips: the layout still keeps to it (ScreenInsets)
+		interfaceGui.ClipToDeviceSafeArea = false
 	end
 
 	for _, controller in script.Controllers:GetChildren() do
@@ -323,6 +330,11 @@ function Interface.Start(self: Self)
 		-- B closes a menu that has a Close button (checked even if processed: with a button
 		-- selected, Roblox also uses B to leave the selection)
 		if input.KeyCode == Enum.KeyCode.ButtonB then
+			-- a walkthrough is up: B skips it (the screen stays open)
+			if ScreenGuide.Showing() then
+				ScreenGuide.Skip()
+				return
+			end
 			local active = self.ActiveController
 			if active and active.PadBack and active:PadBack() then
 				return

@@ -7,7 +7,9 @@
 --   Keyboard: the prompt's key (E, or F for View Profile)
 --   Gamepad:  the button in the game's ink controller icons (Modules/UI/PadBinds), on a blue key
 --   Touch:    TAP on a mint key, and the whole pill is the button
--- It pops in, gives a little squeeze when used and pops out. Prompts with a HoldDuration fill
+-- It pops in, gives a little squeeze when used and pops out. The BillboardGui is drawn in
+-- screen pixels, so on a small screen (a phone) it shrinks with the screen height like the
+-- rest of the UI (SIZE_BASE, never under SIZE_MIN so TAP stays easy to hit). Prompts with a HoldDuration fill
 -- the key pink while held (none use one today). The template has AlwaysOnTop off (with it on
 -- it didn't draw), so each one is pulled toward the camera, clear of the part it sits on.
 
@@ -32,6 +34,15 @@ local POP_OUT = TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.
 local SQUEEZE = TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 local SHADOW = 4 -- px, the hard shadow's offset (matches the frames)
 local FRONT_GAP = 0.6 -- studs between the prompt and the front of the part it's on
+local SIZE_BASE = 720 -- screen height (px) the prompt is drawn full size at: the UI canvas height
+local SIZE_MIN = 0.7 -- smallest it gets (phones)
+
+-- how big the prompt is on this screen: full size from 720 px tall up, smaller below that
+local function screenScale(): number
+	local camera = workspace.CurrentCamera
+	local height = if camera then camera.ViewportSize.Y else SIZE_BASE
+	return math.clamp(height / SIZE_BASE, SIZE_MIN, 1)
+end
 
 local CustomPrompts = {}
 
@@ -135,10 +146,10 @@ local function show(prompt: ProximityPrompt, inputType: Enum.ProximityPromptInpu
 	end
 	-- a used prompt gives a little squeeze
 	table.insert(connections, prompt.Triggered:Connect(function()
-		local down = TweenService:Create(pop, SQUEEZE, { Scale = 0.88 })
+		local down = TweenService:Create(pop, SQUEEZE, { Scale = 0.88 * screenScale() })
 		down.Completed:Once(function()
 			if shown[prompt] then
-				TweenService:Create(pop, POP_IN, { Scale = 1 }):Play()
+				TweenService:Create(pop, POP_IN, { Scale = screenScale() }):Play()
 			end
 		end)
 		down:Play()
@@ -174,7 +185,7 @@ local function show(prompt: ProximityPrompt, inputType: Enum.ProximityPromptInpu
 
 	gui.Parent = LOCAL_PLAYER:WaitForChild("PlayerGui")
 	fit(gui)
-	TweenService:Create(pop, POP_IN, { Scale = 1 }):Play()
+	TweenService:Create(pop, POP_IN, { Scale = screenScale() }):Play()
 end
 
 function CustomPrompts.Start()

@@ -96,6 +96,31 @@ do
 	end
 end
 
+-- the Debut Pack + its starter bonus (ShopCatalog.DebutPack.Bonus): the same pack, plus tickets
+do
+	local pack = ShopCatalog.DebutPack
+	local bonus = pack and pack.Bonus
+	if bonus and (bonus.ProductId or 0) > 0 then
+		Products[pack.Id .. "Bonus"] = {
+			Id = bonus.ProductId,
+			Category = "Bundle",
+			Grant = function(data)
+				if not data.Rewards.Claimed.Has(pack.Id) then
+					data.Rewards.Claimed.Add(pack.Id)
+				end
+				data.Currencies.Won.Increment(pack.Coins)
+				Currencies.Data(data, "Tickets").Increment(bonus.Tickets)
+				if pack.Stage and not data.Inventory.Stages.Has(pack.Stage) then
+					data.Inventory.Stages.Add(pack.Stage)
+				end
+				if pack.Mic and not data.Inventory.Mics.Has(pack.Mic) then
+					data.Inventory.Mics.Add(pack.Mic)
+				end
+			end,
+		}
+	end
+end
+
 -- bundles: tickets + upgrades + coins, and the Headliner's stage + mic (ShopCatalog.Bundles)
 for _, bundle in ShopCatalog.Bundles do
 	if (bundle.ProductId or 0) > 0 then
@@ -190,6 +215,7 @@ return Scribe({
 			DailyStreak = Count(), -- consecutive days claimed
 			LastDailyClaim = Count(), -- os.time() of the last daily claim (0 = never)
 			Claimed = Scribe.SetOf(Id(40)), -- one-off rewards already collected ("Group", codes…)
+			StarterAt = Count(), -- os.time the starter offer began (0 = not yet; ShopCatalog.DebutPack.Bonus)
 			Bundles = Scribe.MapOf("string", Count(), { MaxKeys = 20, MaxKeyLength = 20 }), -- times each ShopCatalog.Bundles entry was bought
 			-- daily quests (Constants/RewardsCatalog): counters for QuestDay only, reset each UTC day
 			QuestDay = Count(),
@@ -224,6 +250,17 @@ return Scribe({
 			},
 			WeekClaimed = Scribe.SetOf(Id(20)), -- weekly quest Ids claimed this week, plus "Bonus"
 			LevelClaimed = Scribe.SetOf(Id(8)), -- level rewards claimed (RewardsCatalog.LEVEL_REWARDS), as "5", "10"…
+		},
+
+		-- Invite friends (Engine/ReferralService, Constants/ReferralConstants)
+		Referral = {
+			Seen = false, -- loaded before: only a player's very first load can come from an invite
+			InvitedBy = Id(20), -- UserId of who invited this player, as text ("" = nobody); set once, never changes
+			InviterName = Scribe.String("", { MaxLength = 40 }), -- their display name, for the welcome card
+			Welcomed = false, -- the "You were invited!" card was collected
+			Credited = false, -- this player's first game has been passed on to InvitedBy
+			Paid = Scribe.SetOf(Id(20)), -- (inviter) friends' UserIds already paid INVITER_GIFT for: the milestone count
+			Claimed = Scribe.SetOf(Id(4)), -- (inviter) milestones claimed, by Key ("1", "3", "5", "10")
 		},
 
 		-- the Daily Song (Engine/DailySongService): today's play, kept for Day only, and the streak.

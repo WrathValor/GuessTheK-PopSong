@@ -461,7 +461,7 @@ function SoloPicker:_startCountdown()
 		if not self.IsOpen then
 			return
 		end
-		QueueRemote:Fire({ Request = "Solo", Theme = self:_playable(), Mix = self._mix })
+		QueueRemote:Fire({ Request = "Solo", Theme = self:_playable(), Mix = self._mix, From = "Picker" })
 		self:Close(true)
 	end)
 end

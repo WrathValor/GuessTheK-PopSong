@@ -1157,6 +1157,29 @@ end
 -- HUD: the coins wallet. While you hold roll tickets or card upgrades the coins card shows a
 -- small lilac "+n" tab on its bottom edge; tapping it drops the Wallet card (over Roll / UGC)
 -- with a row each: icon, count, name. Tap a row to use it (HUDController). Hidden at 0.
+-- The coins card's wallet tab (HUDController paints <Id>.Count and turns the Chevron).
+-- Safe to run again on its own: require(this).WalletTab(game.StarterGui.Interface.HUD.TopLeft.Coins)
+function Build.WalletTab(coins: Instance)
+	clear(coins, "WalletTab")
+	local tab = new("TextButton", { Name = "WalletTab", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 1, 3), Size = UDim2.fromOffset(0, 26), AutomaticSize = Enum.AutomaticSize.X, BackgroundColor3 = C("DCD3FF"), AutoButtonColor = false, Text = "", ZIndex = 3 }, coins)
+	corner(tab, 9)
+	stroke(tab, 2)
+	new("UIPadding", { PaddingLeft = UDim.new(0, 5), PaddingRight = UDim.new(0, 6) }, tab)
+	new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, tab)
+	for i, currency in Currencies.Wallet do
+		local item = new("Frame", { Name = currency.Id, LayoutOrder = i, Size = UDim2.fromOffset(0, 22), AutomaticSize = Enum.AutomaticSize.X, BackgroundTransparency = 1, ZIndex = 3 }, tab)
+		new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder }, item)
+		new("ImageLabel", { Name = "Icon", LayoutOrder = 1, Size = UDim2.fromOffset(20, 20), BackgroundTransparency = 1, Image = currency.Icon, ScaleType = Enum.ScaleType.Fit, ZIndex = 3 }, item)
+		text(item, "Count", { LayoutOrder = 2, Size = UDim2.fromOffset(0, 22), AutomaticSize = Enum.AutomaticSize.X, FontFace = HEAD, TextSize = 12, TextTruncate = Enum.TextTruncate.None, Text = "0", ZIndex = 3 })
+	end
+	local chev = new("Frame", { Name = "Chevron", LayoutOrder = 99, Size = UDim2.fromOffset(10, 10), BackgroundTransparency = 1, ZIndex = 3 }, tab)
+	for i, rot in { 45, -45 } do
+		local leg = new("Frame", { Name = "Leg" .. i, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(if i == 1 then 3 else 7, 5), Size = UDim2.fromOffset(6, 2), Rotation = rot, BackgroundColor3 = INK, BorderSizePixel = 0, ZIndex = 3 }, chev)
+		corner(leg, 1)
+	end
+	return tab
+end
+
 function Build.HUDExtras(interface: Instance)
 	local hud = interface:FindFirstChild("HUD") or interface.Parent:FindFirstChild("HUD")
 	local topLeft = hud.TopLeft
@@ -1169,21 +1192,16 @@ function Build.HUDExtras(interface: Instance)
 	clear(topLeft, "Wallet")
 	clear(topLeft, "WalletShadow")
 
-	-- the tab: "+3" and a chevron (flips while open), half over the card's bottom edge
-	local tab = new("TextButton", { Name = "WalletTab", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 1, 3), Size = UDim2.fromOffset(52, 22), BackgroundColor3 = C("DCD3FF"), AutoButtonColor = false, Text = "", ZIndex = 3, Visible = false }, coins)
-	corner(tab, 8)
-	stroke(tab, 2)
-	text(tab, "Count", { Position = UDim2.fromOffset(7, 0), Size = UDim2.new(1, -24, 1, 0), FontFace = HEAD, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Center, Text = "+3", ZIndex = 3 })
-	local chev = new("Frame", { Name = "Chevron", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(1, -11, 0.5, 0), Size = UDim2.fromOffset(10, 10), BackgroundTransparency = 1, ZIndex = 3 }, tab)
-	for i, rot in { 45, -45 } do
-		local leg = new("Frame", { Name = "Leg" .. i, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(if i == 1 then 3 else 7, 5), Size = UDim2.fromOffset(6, 2), Rotation = rot, BackgroundColor3 = INK, BorderSizePixel = 0, ZIndex = 3 }, chev)
-		corner(leg, 1)
-	end
+	-- the tab, half over the card's bottom edge: each wallet currency's icon + count, always
+	-- shown (0 too; "99+" past 99), and a chevron that flips while the wallet is open
+	-- (design board "Wallet 1 · ... wallet tab shows ticket + upgrade icons")
+	Build.WalletTab(coins)
 
-	-- the wallet card, under the coins card (coins sit at 20, 290, 178 × 56)
+	-- the wallet card, under the coins card (coins sit at 20, 280, 178 × 56: 10 px higher than
+	-- they were, so the wallet tab clears the Roll / UGC row)
 	local rowH, pad = 34, 8
 	local h = pad + 12 + (4 + rowH) * #Currencies.Wallet + pad
-	local wallet = card(topLeft, "Wallet", UDim2.fromOffset(17, 366), UDim2.fromOffset(200, h), WHITE, 12, 4, 3)
+	local wallet = card(topLeft, "Wallet", UDim2.fromOffset(17, 356), UDim2.fromOffset(200, h), WHITE, 12, 4, 3)
 	wallet.ZIndex = 5
 	wallet.Visible = false
 	-- a Frame doesn't stop taps reaching Roll / UGC / Season under it: an empty button just

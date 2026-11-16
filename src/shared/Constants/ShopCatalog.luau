@@ -96,6 +96,10 @@ ShopCatalog.VIP_STAGE = "VIPGold"
 -- Debut Pack only (ShopCatalog.DebutPack): never in the shop rotation
 table.insert(ShopCatalog.Stages, { Id = "DebutStage", Name = "Debut Stage", Rarity = "Epic", Bg = "FFE4EF", Stage = "B9A6FF", Platform = "FF9EC4", Reward = "Debut" })
 table.insert(ShopCatalog.Mics, { Id = "DebutMic", Name = "Debut Mic", Rarity = "Epic", Bg = "FFE4EF", Mic = "FF9EC4", Reward = "Debut" })
+-- Invite friends milestones only (Constants/ReferralConstants): never in the shop
+-- (a friendship bracelet: pastel beads, BFF blocks on a bead arch, two hearts)
+table.insert(ShopCatalog.Stages, { Id = "FriendshipStage", Name = "Friendship Stage", Rarity = "Epic", Bg = "E8FFF0", Stage = "A7E9B8", Platform = "FF9EC4", Reward = "Referral" })
+table.insert(ShopCatalog.Mics, { Id = "FriendshipMic", Name = "Friendship Mic", Rarity = "Epic", Bg = "E6F6FF", Mic = "9ED8F5", Reward = "Referral" })
 ShopCatalog.DEFAULT_STAGE = { Id = "Default", Name = "Classic", Rarity = "Common", Bg = "F3EBDD", Stage = "FFFFFF", Platform = "FFFFFF" }
 ShopCatalog.DEFAULT_MIC = { Id = "Default", Name = "Classic Mic", Rarity = "Common", Bg = "F3EBDD", Mic = "FFFFFF" }
 ShopCatalog.ITEMS_PER_ROTATION = 4 -- stages, and the same number of mics, every rotation
@@ -166,6 +170,11 @@ ShopCatalog.DebutPack = {
 		{ Label = "Debut Stage", Sub = "Stage set", Colour = "9ED8F5", Kind = "Stage", Id = "DebutStage", Only = true },
 		{ Label = "Debut Mic", Sub = "Mic", Colour = "9ED8F5", Kind = "Mic", Id = "DebutMic", Only = true },
 	},
+	-- the starter offer (Money 2, StarterOfferController): for Hours after a new player's first
+	-- duel the pack comes with Tickets extra, sold as its own product at the same price. After
+	-- that the bonus is gone for good and the shop's pack is the plain one. ProductId 0 = the
+	-- offer is off (in Studio it still shows, selling the plain pack, so it can be tested).
+	Bonus = { ProductId = 3732070614, Tickets = 3, Hours = 48 },
 }
 
 -- Bundles: Robux packs of roll tickets, card upgrades and coins ("Shop v3 · Bundles" board).

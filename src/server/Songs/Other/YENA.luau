@@ -16,7 +16,7 @@ return {
 			MusicId = "rbxassetid://97778832287551",
 			Volume = 0.85,
 			PlaybackSpeed = 0.98,
-			TimePosition = 0,
+			TimePosition = 0.5,
 			ChorusPosition = 62.2,
 		},
 	},

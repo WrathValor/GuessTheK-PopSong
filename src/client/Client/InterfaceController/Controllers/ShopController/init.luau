@@ -28,6 +28,7 @@ local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local FrameTransition = require(ReplicatedStorage.Modules.UI.Animations.FrameTransition)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
+local ShortOffer = require(script.Parent.ShortOfferController)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 local Prices = require(ReplicatedStorage.Modules.Prices)
 local SeasonArt = require(ReplicatedStorage.Modules.UI.SeasonArt)
@@ -184,10 +185,16 @@ function Shop:_toast(message: string)
 	end)
 end
 
-function Shop:_notEnoughCoins()
-	self:_toast("Not enough coins")
+-- short for something: the "not enough" card offers the pack that covers it (Money 3);
+-- without a price, the old way (toast + the coin bundles)
+function Shop:_notEnoughCoins(need: number?, name: string?)
 	Sounds.Play("Wrong")
 	Juice.Shake(self._frame.Panel.Header.Balance)
+	if need then
+		ShortOffer.Open({ Kind = "Coins", Need = need, Name = name })
+		return
+	end
+	self:_toast("Not enough coins")
 	self:ScrollTo("Coins")
 end
 
@@ -714,7 +721,7 @@ function Shop:_setAction(setId: string?)
 		ShopRemote:Fire({ Action = "EquipSet", Id = setId })
 	else
 		if set and PlayerData.Currencies.Won.Get() < set.Price then
-			self:_notEnoughCoins()
+			self:_notEnoughCoins(set.Price, set.Name)
 			return
 		end
 		ShopRemote:Fire({ Action = "BuySet", Id = setId })
@@ -731,7 +738,7 @@ function Shop:_itemAction(kind: string, id: string?)
 	end
 	local item = ShopCatalog.GetItem(kind, id)
 	if item and PlayerData.Currencies.Won.Get() < (item.Price or 0) then
-		self:_notEnoughCoins()
+		self:_notEnoughCoins(item.Price, item.Name)
 		return
 	end
 	ShopRemote:Fire({ Action = "BuyItem", Kind = kind, Id = id })
@@ -751,7 +758,9 @@ function Shop:_styleAction(kind: string, id: string?)
 		})
 	elseif action == "Buy" then
 		if PlayerData.Currencies.Won.Get() < (price or 0) then
-			self:_notEnoughCoins()
+			local spec = ShopCatalog.GetStyle(id)
+			local what = if kind == "Set" then "set" else string.lower(kind)
+			self:_notEnoughCoins(price, if spec then `{spec.Name} {what}` else nil)
 			return
 		end
 		ShopRemote:Fire({ Action = "BuyStyle", Kind = kind, Id = id })

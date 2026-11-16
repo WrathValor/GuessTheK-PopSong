@@ -1,5 +1,5 @@
 --| Nudges
--- Two one-time lobby hints, after the tutorial, as a spotlight (design board "Lobby nudge C"):
+-- One-time lobby hints, after the tutorial, as a spotlight (design board "Lobby nudge C"):
 -- the lobby dims except the button (HUD.NudgeSpot: Top / Bottom / Left / Right panels that
 -- swallow clicks, and a yellow Ring), and the HUD's speech bubble (HUD.Nudge: Shadow, Bubble
 -- with Title / Body / GotIt (+ its PadIcon), and a tail: Arrow, a cream square turned 45° under
@@ -8,6 +8,9 @@
 --              Roll, and mentions the Shop for the bigger buys
 --   Rewards  – the first time a level reward or a quest is ready to claim (not the daily login
 --              or the group reward, so it can't fire the moment you join): points at Rewards
+--   Tickets  – the first time you hold a roll ticket: points at Roll, says what it does
+--   Upgrades – the first time you hold a card upgrade: points at the Index tile (bubble above)
+--              (design board "Wallet 3 · first-time nudge pointing at Roll / Index")
 -- Each shows once per player (Settings.Hints, saved through SettingsService "HintSeen"): it
 -- goes on Got it (A on a controller) or when the button it points at is opened. One at a
 -- time; the other waits. The bubble sits in the HUD, so it slides away with it.
@@ -34,12 +37,12 @@ local GAP = 18 -- design px between the bubble's pointer and the button it point
 local SPOT_PAD = 8 -- design px of lit space around the button
 local FAR = 4000 -- the dim panels reach this far past the canvas (wide screens)
 
--- what each nudge says and where it points: Side "Below" (bubble under the button, tail up)
--- or "Right" (bubble beside it, tail left)
+-- what each nudge says and where it points: Side "Below" (bubble under the button, tail up),
+-- "Above" (bubble over it, tail down) or "Right" (bubble beside it, tail left)
 local NUDGES = {
 	Money = {
 		Title = "You can roll a song!",
-		Body = `You've got {RollConstants.COST} coins: enough to roll for a new song card. Saving up? Stage sets and mics are in the <b>Shop</b>.`,
+		Body = `You've got {RollConstants.COST} coins: enough for a new song card. Saving up? Try the <b>Shop</b>.`,
 		Target = function(hud)
 			return hud.TopLeft.Roll
 		end,
@@ -48,12 +51,30 @@ local NUDGES = {
 	},
 	Rewards = {
 		Title = "Rewards to claim!",
-		Body = "You levelled up or finished a quest. Open <b>Rewards</b> to collect coins, roll tickets and more.",
+		Body = "You levelled up or finished a quest. Collect coins, tickets and more in <b>Rewards</b>.",
 		Target = function(hud)
 			return hud.Menu.Tiles.Rewards
 		end,
 		Side = "Right", -- (above it would cover Quick Play)
 		Opens = "Rewards",
+	},
+	Tickets = {
+		Title = "You've got a free roll!",
+		Body = "Roll tickets roll any group's songs for free. Tap <b>Roll</b> to use it.",
+		Target = function(hud)
+			return hud.TopLeft.Roll
+		end,
+		Side = "Below",
+		Opens = "Roll",
+	},
+	Upgrades = {
+		Title = "You've got a card upgrade!",
+		Body = "It adds +1 copy to any card you own. Open the <b>Index</b> to pick one.",
+		Target = function(hud)
+			return hud.Menu.Tiles.Index
+		end,
+		Side = "Above", -- (beside it would cover the other tiles)
+		Opens = "Index",
 	},
 }
 
@@ -93,6 +114,14 @@ function Nudges.new(hud, janitor)
 			self:_want("Money")
 		end
 	end))
+	-- Tickets / Upgrades: holding one of either for the first time
+	for id, path in { Tickets = PlayerData.Inventory.Tickets, Upgrades = PlayerData.Inventory.Upgrades } do
+		janitor:Add(path.Observe(function(n: number)
+			if (n or 0) > 0 then
+				self:_want(id)
+			end
+		end))
+	end
 	-- the tutorial finishing lets a waiting nudge through
 	janitor:Add(PlayerData.Settings.TutorialDone.Observe(function()
 		self:_next()
@@ -189,6 +218,14 @@ function Nudges:_place()
 		frame.Arrow.Position = UDim2.fromOffset(tailX, 0)
 		join.Size = UDim2.fromOffset(24, 8)
 		join.Position = UDim2.fromOffset(tailX, 2)
+	elseif nudge.Side == "Above" then
+		local centre = pos.X + size.X / 2
+		local x = math.clamp(centre - w / 2, left, math.max(left, right - w))
+		local tailX = math.clamp(centre - x, 28, w - 28)
+		frame.Position = UDim2.fromOffset(x, pos.Y - GAP - h)
+		frame.Arrow.Position = UDim2.fromOffset(tailX, h)
+		join.Size = UDim2.fromOffset(24, 8)
+		join.Position = UDim2.fromOffset(tailX, h - 2)
 	else -- Right
 		local middle = pos.Y + size.Y / 2
 		local y = math.clamp(middle - h / 2, top, math.max(top, bottom - h))

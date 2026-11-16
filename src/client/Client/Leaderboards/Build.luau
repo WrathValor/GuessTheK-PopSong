@@ -1,12 +1,14 @@
 --| Leaderboards UI builder
 -- Builds the map signs' SurfaceGuis from the "Leaderboards v2 · one big board with tabs + Join
 -- the Group" design board, as instances in StarterGui: "Leaderboard_Main" (the big board, 32×20
--- studs = 1280 × 800, five tabs) and "Leaderboard_JoinTheGroup" (16×20 = 640 × 800). Each one's
+-- studs = 1280 × 800, five tabs), "Leaderboard_JoinTheGroup" (16×20 = 640 × 800) and
+-- "Leaderboard_LikeGoal" (the like goal, left of the big board: Build.LIKE_SIGN). Each one's
 -- "Board" attribute names the part at Map.Landmarks.Leaderboards it goes on ("Frame" the part
 -- behind it, which the client tints to the open tab). Run once in Studio (signs already there
 -- are kept as ServerStorage.Leaderboards_Legacy); Client/Leaderboards finds everything by name
 -- and only fills in names, values, ranks, the tabs and the Join button.
 --   require(StarterPlayer.StarterPlayerScripts.Client.Client.Leaderboards.Build).Build(game.StarterGui)
+--   (…Build).BuildLike(game.StarterGui)   -- the like goal sign alone
 -- The big board's Sign frame ("Sign", not "Face": a SurfaceGui has a Face property): Header
 -- (Title, Sub), Tabs (one TextButton per board, by its Name, + <Name>Shadow), Podium (Place1–3:
 -- Card (Photo.Avatar, PlayerName, Value) on a Step), List (Row4–Row10: Rank, PlayerName, Value)
@@ -326,6 +328,68 @@ local function joinSign(parent: Instance, groupCoins: number, groupTitle: string
 	return gui
 end
 
+-- ------------------------------ Like goal sign ----------------------------- --
+
+-- The third sign, left of the big board (design board "Fans 4"): Board3 / Frame3 / two Leg3s,
+-- the Join sign's parts mirrored to the other end (they live in the place, not Rojo).
+-- Client/Leaderboards fills in Count, Of, Bar.Fill + Bar.Left, the Reward card and the Hit
+-- chip (Constants/LikeGoalConstants).
+Build.LIKE_SIGN = { Board = "Board3", Frame = "Frame3", Name = "LikeGoal" }
+
+local function likeSign(parent: Instance)
+	local gui, face = surface(parent, Build.LIKE_SIGN.Name, Build.LIKE_SIGN.Board, Build.LIKE_SIGN.Frame, W)
+	face.BackgroundColor3 = BLUE
+	header(face, "LIKE GOAL", "HIT IT AND THE WHOLE SERVER WINS", MINT)
+
+	label(face, "Count", { Position = UDim2.fromOffset(0, HEADER + 26), Size = UDim2.new(1, 0, 0, 84), FontFace = HEAD, TextSize = 80, Text = "1,240" })
+	label(face, "Of", { Position = UDim2.fromOffset(0, HEADER + 112), Size = UDim2.new(1, 0, 0, 34), FontFace = HEAD, TextSize = 28, TextColor3 = C("2E4A66"), Text = "of 1,500 likes" })
+
+	-- the bar: red fill on white, how many to go across it
+	local barY, barW, barH = HEADER + 168, W - 68, 54
+	local barShadow = new("Frame", { Name = "BarShadow", Position = UDim2.fromOffset(34 + 6, barY + 6), Size = UDim2.fromOffset(barW, barH), BackgroundColor3 = INK }, face)
+	corner(barShadow, 27)
+	local bar = card(face, "Bar", 34, barY, barW, barH, WHITE, 27, 0, 5)
+	local fill = new("Frame", { Name = "Fill", Size = UDim2.fromScale(0.83, 1), BackgroundColor3 = C("FF5A4E"), BorderSizePixel = 0 }, bar)
+	corner(fill, 27)
+	label(bar, "Left", { Size = UDim2.fromScale(1, 1), FontFace = HEAD, TextSize = 22, Text = "260 to go", ZIndex = 2 })
+
+	-- the reward: a photocard like the Join sign's
+	local cw, ch = 260, 250
+	local cy = barY + barH + 46
+	local reward = card(face, "Reward", (W - cw) / 2, cy, cw, ch, WHITE, 16, 6, 3)
+	local art = new("Frame", { Name = "Art", Position = UDim2.fromOffset(10, 10), Size = UDim2.new(1, -20, 1, -84), BackgroundColor3 = C("FFF6D6") }, reward)
+	corner(art, 10)
+	stroke(art, 2)
+	new("ImageLabel", { Name = "Icon", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(104, 104), BackgroundTransparency = 1, Image = "", ScaleType = Enum.ScaleType.Fit }, art)
+	local big = label(reward, "Big", { Position = UDim2.new(0, 6, 1, -68), Size = UDim2.new(1, -12, 0, 34), FontFace = HEAD, TextScaled = true, Text = "2 roll tickets" })
+	new("UITextSizeConstraint", { MaxTextSize = 24 }, big) -- longer rewards shrink to fit
+	label(reward, "Small", { Position = UDim2.new(0, 6, 1, -34), Size = UDim2.new(1, -12, 0, 22), TextSize = 17, TextColor3 = MUTED, Text = "for everyone" })
+	local tag = new("TextLabel", { Name = "Tag", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0, 0), Size = UDim2.fromOffset(150, 26), BackgroundColor3 = YELLOW, FontFace = HEAD, TextSize = 14, TextColor3 = INK, Text = "GOAL REWARD", ZIndex = 3 }, reward)
+	corner(tag, 9)
+	stroke(tag, 3)
+
+	-- the last goal hit and what everyone got (hidden until one is)
+	local code = new("TextLabel", {
+		Name = "Hit",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.fromOffset(W / 2, cy + ch + 22),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, 40),
+		BackgroundColor3 = MINT,
+		FontFace = HEAD,
+		TextSize = 18,
+		TextColor3 = INK,
+		Text = "25 HIT! · everyone got 250 coins",
+		Visible = false,
+	}, face)
+	corner(code, 12)
+	stroke(code, 3)
+	new("UIPadding", { PaddingLeft = UDim.new(0, 14), PaddingRight = UDim.new(0, 14) }, code)
+
+	label(face, "Footer", { Position = UDim2.new(0, 20, 1, -84), Size = UDim2.new(1, -40, 0, 56), TextSize = 20, TextColor3 = C("1E3A52"), TextWrapped = true, Text = "Like the game on its Roblox page\nto help us get there" })
+	return gui
+end
+
 -- ---------------------------------- Build ---------------------------------- --
 
 function Build.Build(starterGui: Instance)
@@ -347,6 +411,16 @@ function Build.Build(starterGui: Instance)
 
 	mainSign(starterGui)
 	joinSign(starterGui, RewardsCatalog.GROUP.Coins, RewardsCatalog.GROUP.Title)
+	likeSign(starterGui)
+end
+
+-- just the like goal sign (the others stay as they are)
+function Build.BuildLike(starterGui: Instance)
+	local old = starterGui:FindFirstChild("Leaderboard_" .. Build.LIKE_SIGN.Name)
+	if old then
+		old:Destroy()
+	end
+	return likeSign(starterGui)
 end
 
 return Build

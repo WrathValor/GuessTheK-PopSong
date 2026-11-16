@@ -28,6 +28,7 @@ AnalyticsEvents.Custom = {
 	QueueJoined = { Fields = { "Stage", "How" } },
 	MatchFound = { Fields = { "Stage" } }, -- value: seconds waited
 	QueueLeft = { Fields = { "Stage", "When" } }, -- value: seconds waited
+	SoloFromQueue = { Fields = { "How", "Stage" } }, -- value: seconds waited; How Quick (the nudge) / Picker
 	RematchRequested = { Fields = { "Mode" } },
 	RematchStarted = { Fields = { "Mode" } },
 	InviteSent = { Fields = { "Stage" } },
@@ -48,6 +49,10 @@ AnalyticsEvents.Custom = {
 	TicketRoll = { Fields = { "Group", "Result" } }, -- Result New / Duplicate
 	QuestBonusClaimed = {},
 	GroupRewardClaimed = {},
+	-- Invite friends (Engine/ReferralService). How = LaunchData / Referred (Roblox's share link)
+	ReferralJoined = { Fields = { "How" } }, -- a new player came from an invite (logged for them)
+	ReferralPaid = {}, -- value: friends paid for at once (logged for the inviter)
+	ReferralClaimed = { Fields = { "Milestone" } }, -- value: friends played
 	CodeRedeemed = { Fields = { "Code" } }, -- value: coins
 	SettingChanged = { Fields = { "Setting", "Value" } },
 	BadgeEarned = { Fields = { "Badge" } }, -- Constants/BadgeCatalog Key
@@ -70,7 +75,7 @@ AnalyticsEvents.Custom = {
 
 	-- [[ From the client ]]
 	ScreenOpened = { Fields = { "Screen" }, Client = true, Allowed = {
-		Screen = { "Shop", "Roll", "UGC", "Inventory", "Index", "Rewards", "News", "Settings", "Queue", "Results", "SaveStreak", "Tutorial", "Party", "Profile", "PlayerCard" },
+		Screen = { "Shop", "Roll", "UGC", "Inventory", "Index", "Rewards", "News", "Settings", "Queue", "Results", "SaveStreak", "Tutorial", "Party", "Profile", "PlayerCard", "Invite" },
 	} },
 	ShopTabOpened = { Fields = { "Tab" }, Client = true, Allowed = {
 		Tab = { "Featured", "Sets", "Items", "Songs", "UGC", "Coins" },
@@ -79,6 +84,19 @@ AnalyticsEvents.Custom = {
 	-- the Save Streak popup answered (value: the streak on offer); shown = ScreenOpened SaveStreak
 	SaveStreakOffer = { Fields = { "Result" }, Client = true, Allowed = {
 		Result = { "Bought", "Cancelled", "NoThanks" },
+	} },
+	-- the Invite Friends button opened Roblox's invite pop-up (or couldn't)
+	InvitePrompt = { Fields = { "Result" }, Client = true, Allowed = {
+		Result = { "Opened", "Unavailable" },
+	} },
+	-- a Robux offer tapped outside the shop (Money boards); value 1. Where = the moment
+	MoneyOffer = { Fields = { "Offer", "Where" }, Client = true, Allowed = {
+		Offer = { "DoubleCoins", "Starter", "Coins", "Tickets" },
+		Where = { "Results", "Popup", "HUD", "Short" },
+	} },
+	-- the second favourite ask answered (FavouriteAskController); value 1
+	FavouriteAsk = { Fields = { "Result" }, Client = true, Allowed = {
+		Result = { "Favourite", "NotNow" },
 	} },
 	GroupJoinPrompt = { Fields = { "Result" }, Client = true, Allowed = {
 		Result = { "Joined", "AlreadyMember", "Pending", "Cancelled", "Error" },
@@ -113,6 +131,8 @@ AnalyticsEvents.Transactions = {
 	Quest = "Quest",
 	QuestBonus = "QuestBonus",
 	Group = "GroupReward",
+	Referral = "Referral", -- the welcome gift + the inviter's per-friend coins
+	LikeGoal = "LikeGoal", -- a like goal hit: everyone's reward
 	Robux = "RobuxBundle",
 	-- sinks
 	ShopSet = "ShopSet",

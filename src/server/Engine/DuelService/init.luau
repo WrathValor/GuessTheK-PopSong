@@ -456,6 +456,11 @@ function trySolo(player: Player, packet: any?)
 		return
 	end
 	saveSoloChoice(player, packet)
+	-- gave up waiting for a rival and went solo from the queue card (Quick Solo or the picker):
+	-- these leave the Duel funnel at "Matched" without leaving the game
+	if type(packet) == "table" and (packet.From == "Quick" or packet.From == "Picker") and not stage.Solo then
+		Analytics.Event(player, "SoloFromQueue", math.floor(os.clock() - (queuedAt[player] or os.clock())), packet.From, stage.Name)
+	end
 
 	stage.Solo = true
 	QueueRemote:Fire(player, {

@@ -9,6 +9,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
+local MarketplaceService = game:GetService("MarketplaceService")
 
 -- --------------------------------- Imports -------------------------------- --
 local Janitor = require(ReplicatedStorage.Packages.janitor)
@@ -28,12 +29,25 @@ local Levels = require(ReplicatedStorage.Modules.Levels)
 local FavoritePrompt = require(script.Parent.Parent.Parent.FavoritePrompt) -- Client/FavoritePrompt
 local TitleChip = require(ReplicatedStorage.Modules.UI.TitleChip)
 local RewardsCatalog = require(ReplicatedStorage.Constants.RewardsCatalog)
+local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Client
+local ShopCatalog = require(ReplicatedStorage.Constants.ShopCatalog)
+local AnalyticsClient = require(ReplicatedStorage.Modules.AnalyticsClient)
 
 -- -------------------------------- Variables ------------------------------- --
 local LOCAL_PLAYER = Players.LocalPlayer
 local ME = tostring(LOCAL_PLAYER.UserId)
 local DuelRemote = Bridgenet.ReferenceBridge("DuelRemote")
 local QueueRemote = Bridgenet.ReferenceBridge("QueueRemote")
+local SettingsRemote = Bridgenet.ReferenceBridge("SettingsRemote")
+local LIKE_HINT = "LikeLine" -- the like line shows once: after your first duel win
+local DOUBLE = (function()
+	for _, pass in ShopCatalog.Passes do
+		if pass.Id == "DoubleCoins" then
+			return pass
+		end
+	end
+	return { Id = "DoubleCoins", GamePassId = 0 }
+end)()
 local C = Color3.fromHex
 local CELL = { Correct = C("A7E9B8"), Wrong = C("FFD2CE"), None = C("EDE4D4") }
 local WHITE = C("FFFFFF")
@@ -240,6 +254,25 @@ function Results:Initialize(interface)
 	self._rematch, self._leave = rematch, leave
 	self._janitor:Add(w.Rematch.Activated:Connect(rematch))
 	self._janitor:Add(w.Leave.Activated:Connect(leave))
+
+	-- the 2× Coins row: its price (once), and BUY opens Roblox's pass prompt
+	task.spawn(function()
+		local ok, info = pcall(MarketplaceService.GetProductInfo, MarketplaceService, DOUBLE.GamePassId, Enum.InfoType.GamePass)
+		if ok and info and info.PriceInRobux then
+			self._doublePrice = tostring(info.PriceInRobux)
+			w.Double.Buy.Inner.Label.Text = self._doublePrice
+		end
+	end)
+	self._janitor:Add(w.Double.Buy.Activated:Connect(function()
+		AnalyticsClient.Event("MoneyOffer", 1, "DoubleCoins", "Results")
+		MarketplaceService:PromptGamePassPurchase(LOCAL_PLAYER, DOUBLE.GamePassId)
+	end))
+	-- bought it: the row goes
+	self._janitor:Add(MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, bought)
+		if player == LOCAL_PLAYER and passId == DOUBLE.GamePassId and bought then
+			w.Double.Visible = false
+		end
+	end))
 	-- solo: step off and go find a real duel (the nearest stage with someone waiting)
 	self._janitor:Add(w.FindRival.Activated:Connect(function()
 		QueueRemote:Fire("Leave")
@@ -391,7 +424,9 @@ function Results:Show(packet, info)
 	w.Ribbon.Label.Text = if packet.Solo then "SOLO" else "WINNER"
 	local shown = Players:GetPlayerByUserId(showId) -- nil if they've already left
 	local _, _, bannerId, photocardId = SeasonArt.Of(shown)
-	SeasonArt.PaintBanner(w.Banner, bannerId)
+	-- (BannerClip.BannerShape.Banner: only its top-right corner is round, see ./Build)
+	local banner = w:FindFirstChild("Banner") or w.BannerClip.BannerShape.Banner
+	SeasonArt.PaintBanner(banner, bannerId)
 	SeasonArt.PaintPhotocard(w.Card, photocardId)
 	local title = shown and shown:GetAttribute("Title")
 	w.Title.Visible = type(title) == "string" and title ~= "" and not packet.Draw
@@ -456,6 +491,29 @@ function Results:Show(packet, info)
 		up.Note.Text = if mine.NewTitle then `New title: {mine.NewTitle}`
 			elseif RewardsCatalog.LevelReward(mine.LevelUp) then "Reward ready in Rewards"
 			else ""
+	end
+
+	-- after a duel win (no solo, party or tutorial), one line in the same spot: the 2× Coins
+	-- row if you don't own the pass (it always comes first), else the like line, once ever
+	local wonDuel = not solo and not packet.Party and not packet.Tutorial and packet.Winner == LOCAL_PLAYER.UserId
+	local hasDouble = true
+	pcall(function()
+		hasDouble = PlayerData.GamePasses.Has(DOUBLE.Id) == true
+	end)
+	local doubled = wonDuel and not hasDouble and (mine.Coins or 0) > 0 and DOUBLE.GamePassId > 0
+	w.Double.Visible = doubled
+	if doubled then
+		w.Double.Label.Text = `+{mine.Coins} more with 2× Coins`
+		w.Double.Buy.Inner.Label.Text = self._doublePrice or "…"
+	end
+	local likeSeen = true
+	pcall(function()
+		likeSeen = PlayerData.Settings.Hints.Has(LIKE_HINT) == true
+	end)
+	local liked = wonDuel and not doubled and not likeSeen
+	w.LikeLine.Visible = liked
+	if liked then
+		SettingsRemote:Fire({ Action = "HintSeen", Id = LIKE_HINT })
 	end
 
 	-- your all-time record against this rival

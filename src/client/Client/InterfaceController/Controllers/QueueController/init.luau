@@ -18,6 +18,7 @@ local PadBinds = require(ReplicatedStorage.Modules.UI.PadBinds)
 local TitleChip = require(ReplicatedStorage.Modules.UI.TitleChip)
 local SeasonArt = require(ReplicatedStorage.Modules.UI.SeasonArt)
 local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
+local Themes = require(ReplicatedStorage.Modules.Library.Themes)
 local SoloPicker = require(script.SoloPicker)
 local InvitePicker = require(script.InvitePicker)
 
@@ -41,6 +42,13 @@ local ASIDE_X, ASIDE_Y = 1014, 360
 local ASIDE_TWEEN = TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
 local CHIP_ON = Color3.fromHex("FFE07A")
 local CHIP_OFF = Color3.fromHex("FFFFFF")
+-- alone on the stage this long: "No rival yet", and Play Solo turns into a pulsing QUICK SOLO
+-- (one tap, last theme) with "Pick a theme instead" under it; the panel grows for that link
+local NUDGE_AFTER = 15
+local PANEL_HEIGHT_NUDGE, LEAVE_Y_NUDGE = PANEL_HEIGHT + 20, LEAVE_Y + 20
+local SOLO_COLOUR, QUICK_COLOUR = Color3.fromHex("B9A6FF"), Color3.fromHex("FFE07A")
+local BEAT = { { 1.035, 0.2 }, { 0.99, 0.2 }, { 1.02, 0.2 }, { 1, 0.6 } } -- scale, seconds
+local RING_TIME = 1.2
 
 -- --------------------------------- Helpers -------------------------------- --
 -- Starts downloading the pre-duel cards' images (both headshots at the size PreDuel asks for
@@ -139,10 +147,37 @@ function QueueController.Initialize(self: typeof(QueueController.new({} :: UITyp
 	self._invite = InvitePicker.new(self._frame, self._janitor, self._solo)
 
 	self._janitor:Add(playSoloBtn.Activated:Connect(function()
-		if not self._invite.IsOpen then
+		if self._invite.IsOpen then
+			return
+		end
+		if self._nudged then
+			-- QUICK SOLO: straight in with the theme the picker would play (last pick / All songs)
+			Sounds.Play("Click")
+			self:_stopWait()
+			QueueRemote:Fire({ Request = "Solo", Theme = self._solo:_playable(), Mix = self._solo._mix, From = "Quick" })
+		else
 			self._solo:Open()
 		end
 	end))
+	local pickTheme = panelFrame:FindFirstChild("PickTheme")
+	if pickTheme then
+		self._janitor:Add(pickTheme.Activated:Connect(function()
+			if not self._invite.IsOpen then
+				Sounds.Play("Click")
+				self._solo:Open()
+			end
+		end))
+	end
+	-- the beat pauses while the mouse is over the button (ButtonScale owns its UIScale then)
+	self._janitor:Add(playSoloBtn.MouseEnter:Connect(function()
+		self._hoverSolo = true
+	end))
+	self._janitor:Add(playSoloBtn.MouseLeave:Connect(function()
+		self._hoverSolo = false
+	end))
+	self._janitor:Add(function()
+		self:_stopWait()
+	end, true)
 	if invitePlayersBtn then
 		self._janitor:Add(invitePlayersBtn.Activated:Connect(function()
 			self._invite:Pressed()
@@ -377,6 +412,149 @@ function QueueController:_setButtons(visible: boolean)
 	end
 end
 
+-- --------------------------- No rival yet (nudge) -------------------------- --
+-- Counts how long you've been alone on the stage; at NUDGE_AFTER it switches the card to
+-- "No rival yet" + timer and turns Play Solo into QUICK SOLO. Anything that ends the wait
+-- (a rival, solo starting, the countdown, leaving) calls _stopWait.
+function QueueController:_startWait()
+	self:_stopWait()
+	local started = os.clock()
+	self._waitThread = task.spawn(function()
+		while true do
+			task.wait(1)
+			local seconds = math.floor(os.clock() - started)
+			if seconds >= NUDGE_AFTER and not self._nudged then
+				self:_nudge(true)
+			end
+			if self._nudged then
+				local timer = self._frame.Panel:FindFirstChild("WaitRow")
+				local label = timer and timer:FindFirstChild("Time", true)
+				if label then
+					label.Text = string.format("%d:%02d", seconds // 60, seconds % 60)
+				end
+			end
+		end
+	end)
+end
+
+function QueueController:_stopWait()
+	if self._waitThread then
+		pcall(task.cancel, self._waitThread)
+		self._waitThread = nil
+	end
+	if self._nudged then
+		self:_nudge(false)
+	end
+end
+
+function QueueController:_nudge(on: boolean)
+	local panel = self._frame and self._frame:FindFirstChild("Panel")
+	if not panel then
+		return
+	end
+	self._nudged = on
+	local playSolo = panel:FindFirstChild("PlaySolo")
+	local row, pick = panel:FindFirstChild("WaitRow"), panel:FindFirstChild("PickTheme")
+	if row then
+		row.Visible = on
+		local label = row:FindFirstChild("Time", true)
+		if label then
+			label.Text = string.format("0:%02d", NUDGE_AFTER)
+		end
+	end
+	panel.Subtitle.Visible = not on
+	if pick then
+		pick.Visible = on
+	end
+	if on then
+		panel.Title.Text = "No rival yet"
+	elseif panel.Title.Text == "No rival yet" then
+		panel.Title.Text = "Waiting for a rival…"
+	end
+	if playSolo then
+		playSolo.BackgroundColor3 = if on then QUICK_COLOUR else SOLO_COLOUR
+		for _, n in { "QuickTitle", "Tap" } do
+			local inst = playSolo:FindFirstChild(n)
+			if inst then
+				inst.Visible = on
+			end
+		end
+		playSolo.Title.Visible = not on
+		if on then
+			local theme = self._solo and self._solo:_playable()
+			local info = theme and Themes.Get(theme)
+			playSolo.Sub.Text = `Starts now · {if info then info.Name else "All songs"}`
+		elseif self._solo then
+			self._solo:RenderFront()
+		end
+	end
+	-- room for "Pick a theme instead": Leave moves down and the card grows (not over solo layout)
+	if not self._soloLayoutOn then
+		local leave = panel:FindFirstChild("Leave")
+		if leave then
+			leave.Position = UDim2.new(leave.Position.X, UDim.new(0, if on then LEAVE_Y_NUDGE else LEAVE_Y))
+		end
+		local height = if on then PANEL_HEIGHT_NUDGE else PANEL_HEIGHT
+		for _, frame in { panel, self._frame:FindFirstChild("PanelShadow") } do
+			if frame then
+				TweenService:Create(frame, PANEL_TWEEN, { Size = UDim2.fromOffset(frame.Size.X.Offset, height) }):Play()
+			end
+		end
+	end
+	self:_pulse(on)
+	if on then
+		Sounds.Play("Notify")
+	end
+end
+
+-- the heartbeat on QUICK SOLO + two yellow rings rippling out of it, half a beat apart
+function QueueController:_pulse(on: boolean)
+	if self._pulseThread then
+		pcall(task.cancel, self._pulseThread)
+		self._pulseThread = nil
+	end
+	local panel = self._frame.Panel
+	local playSolo = panel:FindFirstChild("PlaySolo")
+	local scale = playSolo and playSolo:FindFirstChildOfClass("UIScale")
+	local rings = { panel:FindFirstChild("QuickRing1"), panel:FindFirstChild("QuickRing2") }
+	for _, ring in rings do
+		if ring then
+			ring.Visible = on
+			ring.Size = UDim2.fromOffset(playSolo.Size.X.Offset + 8, playSolo.Size.Y.Offset + 8)
+			ring.UIStroke.Transparency = if on then 0 else 1
+		end
+	end
+	if not on then
+		if scale and not self._hoverSolo then
+			scale.Scale = 1
+		end
+		return
+	end
+	local w, h = playSolo.Size.X.Offset, playSolo.Size.Y.Offset
+	local ringInfo = TweenInfo.new(RING_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local function ripple(ring)
+		if not ring then
+			return
+		end
+		ring.Size = UDim2.fromOffset(w + 8, h + 8)
+		ring.UIStroke.Transparency = 0.35
+		TweenService:Create(ring, ringInfo, { Size = UDim2.fromOffset(w * 1.15, h * 1.3) }):Play()
+		TweenService:Create(ring.UIStroke, ringInfo, { Transparency = 1 }):Play()
+	end
+	self._pulseThread = task.spawn(function()
+		while true do
+			ripple(rings[1])
+			task.delay(RING_TIME / 2, ripple, rings[2])
+			for _, step in BEAT do
+				if scale and not self._hoverSolo then
+					TweenService:Create(scale, TweenInfo.new(step[2], Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Scale = step[1] }):Play()
+				end
+				task.wait(step[2])
+			end
+		end
+	end)
+end
+
 -- Back to "waiting for a rival": called every time you join a stage, so a second match
 -- doesn't start with the last one's countdown and hidden buttons.
 function QueueController:Reset()
@@ -396,6 +574,7 @@ function QueueController:Reset()
 	end
 	self:_setButtons(true)
 	self:UpdateOpponent(nil)
+	self:_startWait()
 end
 
 function QueueController:UpdateOpponent(opponent: Player?)
@@ -410,6 +589,7 @@ function QueueController:UpdateOpponent(opponent: Player?)
 	local dashes = opponentAvatar:FindFirstChild("Dashes")
 
 	if opponent then
+		self:_stopWait() -- someone's on the other spot (or solo is starting): no more nudging
 		-- solo practice: the server puts you in the rival spot (you vs you)
 		local solo = opponent == LOCAL_PLAYER
 		if self._opponent ~= opponent then
@@ -472,6 +652,9 @@ function QueueController:UpdateOpponent(opponent: Player?)
 			self:_lockCancel(false)
 			panelFrame.Title.Text = "Waiting for a rival…"
 			panelFrame.Subtitle.Text = "Nobody's joined the other spot yet"
+			if self.State == "Active" or self.State == "Activating" then
+				self:_startWait() -- alone again: the clock starts over
+			end
 		end
 	end
 	self._opponent = opponent
@@ -500,6 +683,7 @@ function QueueController:ShowRematch()
 			inst.Visible = true
 		end
 	end
+	self:_stopWait()
 	panel.Title.Text = "Rematch requested"
 	panel.Subtitle.Text = `Waiting for {rival.DisplayName} to accept…`
 	self._rematch = true
@@ -511,6 +695,7 @@ function QueueController:StartIntermission()
 		return
 	end
 	self._rematch = false
+	self:_stopWait()
 	self:_setButtons(false)
 	self._invite:Reset()
 	self._solo:Close(true)
@@ -595,6 +780,7 @@ function QueueController.Deactivate(self: typeof(QueueController.new({} :: UITyp
 	end
 
 	self.State = "Deactivating"
+	self:_stopWait()
 	if self._unpad then
 		self._unpad()
 		self._unpad = nil

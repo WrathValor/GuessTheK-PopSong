@@ -7,7 +7,7 @@
 --                          { Action = "Reset" }                 (volumes back to 1, invites on)
 --                          { Action = "SeenNews", Id = newsId } (clears the News button dot)
 --                          { Action = "FavoritePrompted" }       (the one-time favourite prompt was shown)
---                          { Action = "HintSeen", Id = "Money" | "Rewards" | "Guide…" } (a nudge or a screen guide: HINTS)
+--                          { Action = "HintSeen", Id = "Money" | "Rewards" | "Tickets" | "Upgrades" | "Guide…" } (a nudge or a screen guide: HINTS)
 --                          { Action = "Blocked", Ids = { userId } } (the player's Roblox block list,
 --                            sent by Client/SettingsController; kept in memory, never saved)
 -- Invites (Engine/InviteService duels, Engine/PartyService parties) ask AcceptsInvitesFrom:
@@ -25,6 +25,11 @@ local News = require(ReplicatedStorage.Constants.News)
 local HINTS = {
 	Money = true,
 	Rewards = true,
+	Tickets = true, -- first roll ticket held
+	Upgrades = true, -- first card upgrade held
+	Favourite2 = true, -- the second favourite ask (FavouriteAskController)
+	LikeLine = true, -- the like line on your first duel win (ResultsController)
+	Starter = true, -- the starter offer card opened by itself (StarterOfferController)
 	GuideRoll = true,
 	GuideDaily = true,
 	GuidePartyHost = true,

@@ -17,6 +17,7 @@ local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local GroupArt = require(ReplicatedStorage.Modules.UI.GroupArt)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
+local ShortOffer = require(script.Parent.Parent.ShortOfferController)
 local FrameTransition = require(ReplicatedStorage.Modules.UI.Animations.FrameTransition)
 
 local LOCAL_PLAYER = Players.LocalPlayer
@@ -132,6 +133,9 @@ function Picker.new(frame: Frame, janitor, onRoll: (string) -> ())
 		if not id or tickets() < 1 then
 			Juice.Shake(panel.RollGroup)
 			Sounds.Play("Wrong")
+			if id and tickets() < 1 then
+				ShortOffer.Open({ Kind = "Tickets" })
+			end
 			return
 		end
 		self:Close()

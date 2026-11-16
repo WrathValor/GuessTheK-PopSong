@@ -210,14 +210,21 @@ end
 
 -- [[ Roll tickets / card upgrades: the coins wallet ]]
 
--- While you hold any wallet currency (Constants/Currencies.Wallet: roll tickets, card upgrades)
--- the coins card shows a "+n" tab (Coins.WalletTab); tapping it opens the Wallet card under it
--- (a row each, hidden at 0). Tap a row to use it (WALLET_USE). Claiming one never opens anything.
+-- The coins card always shows its wallet tab (Coins.WalletTab, SeasonController/Build.WalletTab):
+-- each wallet currency's icon + count (Constants/Currencies.Wallet: roll tickets, card upgrades;
+-- 0 too, "99+" past 99). Tapping it opens the Wallet card under it (a row each, hidden at 0);
+-- with nothing to use the tab just shakes. Tap a row to use it (WALLET_USE). Claiming one never
+-- opens anything.
 -- The card (and its shadow) is as tall as the rows showing; its top edge stays put.
 local WALLET_USE = {
 	Tickets = { "Roll", { Picker = true } }, -- Pick a Group
 	Upgrades = { "Index", { Upgrade = true } }, -- the Index's card picker
 }
+
+-- a wallet count as shown: "99+" past 99 (the tab has room for two digits each)
+local function capped(n: number): string
+	return if n > 99 then "99+" else tostring(n)
+end
 
 function HUDController._bindExtras(self: Self)
 	local topLeft = self._hud.TopLeft
@@ -260,7 +267,11 @@ function HUDController._bindExtras(self: Self)
 				continue -- not built yet (SeasonController/Build.HUDExtras)
 			end
 			row.Visible = n > 0
-			row.Count.Text = tostring(n)
+			row.Count.Text = tostring(n) -- (exact here: the open wallet has the room)
+			local chip = tab:FindFirstChild(key)
+			if chip then
+				chip.Count.Text = capped(n)
+			end
 			if n > 0 then
 				table.insert(rows, row)
 			end
@@ -274,8 +285,11 @@ function HUDController._bindExtras(self: Self)
 			open = false
 		end
 		fit(rows)
-		tab.Visible = total > 0
-		tab.Count.Text = `+{total}`
+		tab.Visible = true
+		local count = tab:FindFirstChild("Count") -- (the old "+n" tab, before Build.WalletTab)
+		if count then
+			count.Text = `+{total}`
+		end
 		tab.Chevron.Rotation = if open then 180 else 0
 		wallet.Visible = open
 		if shadow then
@@ -305,6 +319,14 @@ function HUDController._bindExtras(self: Self)
 		end
 	end
 	self._janitor:Add(tab.Activated:Connect(function()
+		local total = 0
+		for _, currency in Currencies.Wallet do
+			total += Currencies.Count(LOCAL_PLAYER, currency.Id)
+		end
+		if total == 0 then
+			Juice.Shake(tab, 0.6) -- nothing to use yet
+			return
+		end
 		setOpen(not open)
 	end))
 	self._closeWallet = function()

@@ -14,6 +14,8 @@
 -- (DupesInRow is the coin rolls' counter); duplicates still level the card + refund coins.
 --
 -- RollRemote request: { Action = "Roll", Count = 1 | 10 }
+-- (a roll you can't pay for adds Short = { Kind = "Coins" | "Tickets", Need, Name? } to the
+-- reply, for the "not enough" card: ShortOfferController)
 --                     { Action = "Roll", Count = 1, Group = "Group:<artist>" } – spends a ticket
 -- Reply:              { Message = "Rolled", Ok, Text?, Pulls = { { Song, New, Copies, Level, LevelUp } },
 --                       Refund, DupesInRow, Title? = { Title, Tier, New } }
@@ -84,7 +86,7 @@ local function roll(player: Player, count: number, groupId: string?)
 			return reply(player, false, "That group can't be rolled")
 		end
 		if Currencies.Data(data, "Tickets").Get() < 1 then
-			return reply(player, false, "No roll tickets left")
+			return reply(player, false, "No roll tickets left", { Short = { Kind = "Tickets", Need = 1 } })
 		end
 		all, count = group.Songs, 1
 	end
@@ -93,7 +95,7 @@ local function roll(player: Player, count: number, groupId: string?)
 	end
 	local price = if group then 0 elseif count == 10 then RollConstants.TEN_COST else RollConstants.COST
 	if Currencies.Data(data, "Coins").Get() < price then
-		return reply(player, false, "Not enough coins")
+		return reply(player, false, "Not enough coins", { Short = { Kind = "Coins", Need = price, Name = if count == 10 then "10 rolls" else "a roll" } })
 	end
 	busy[player] = true
 

@@ -18,7 +18,8 @@
 -- Roll tickets (Season Track): while you have any, Stage.TicketStrip shows under the coin rolls
 -- (the deck and buttons move up to make room) and ROLL A GROUP opens the Pick a Group overlay
 -- (RollController/Picker); RollGroup(id) then rolls one song from that group for a ticket.
--- ROLL AGAIN repeats the last kind of roll (a group roll only while tickets last).
+-- ROLL AGAIN repeats the last kind of roll; out of tickets after a group roll it opens the
+-- "out of roll tickets" card (ShortOfferController) once, then rolls with coins.
 -- Card upgrades (Index upgrade mode) that make a card Gold / Rainbow play the same ×1 reveal
 -- through ShowUpgrade(pull, onDone): NOW GOLD! / NOW RAINBOW!, no ROLL AGAIN, and Done hands
 -- back to the Index.
@@ -38,6 +39,7 @@ local RollConstants = require(ReplicatedStorage.Constants.RollConstants)
 local Currencies = require(ReplicatedStorage.Constants.Currencies)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
+local ShortOffer = require(script.Parent.Parent.ShortOfferController)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
 local TitleChip = require(ReplicatedStorage.Modules.UI.TitleChip)
 local TierShine = require(ReplicatedStorage.Modules.UI.TierShine)
@@ -146,10 +148,16 @@ function Roll.new(pages: Instance, shop: Instance, janitor, toast: (string) -> (
 		if self._upgradeDone then
 			return -- an upgrade reveal has nothing to roll again
 		end
+		-- out of tickets after a group roll: the "out of roll tickets" card (Money 3) instead of
+		-- quietly switching to a coin roll; ROLL AGAIN after that is a coin roll
+		if self._lastGroup and Currencies.Count(Players.LocalPlayer, "Tickets") < 1 then
+			self._lastGroup = nil
+			Sounds.Play("Wrong")
+			ShortOffer.Open({ Kind = "Tickets" })
+			return
+		end
 		-- the last card shrinks away while the next roll is asked for (the reveal stays open)
-		local again = if self._lastGroup and (Currencies.Count(Players.LocalPlayer, "Tickets")) > 0
-			then self:RollGroup(self._lastGroup)
-			else self:_roll(self._last)
+		local again = if self._lastGroup then self:RollGroup(self._lastGroup) else self:_roll(self._last)
 		if again then
 			self:_exitCard()
 		end
@@ -411,7 +419,7 @@ function Roll:_roll(count: number): boolean
 		Juice.Shake(b)
 		Sounds.Play("Wrong")
 		if self:_allowed() then
-			self._toast("Not enough coins · win duels or get more in Coins")
+			ShortOffer.Open({ Kind = "Coins", Need = cost, Name = if count == 10 then "10 rolls" else "a roll" })
 		end
 		return false
 	end

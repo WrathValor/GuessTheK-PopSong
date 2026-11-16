@@ -42,6 +42,7 @@ local CREAM = C("FBF7F0")
 local TAG_COLOUR = {
 	FREE = C("FFFFFF"), SEASON = C("FF9EC4"), INDEX = C("DCD3FF"), SHOP = C("FFE07A"),
 	TIER = C("FFE07A"), ANIMATED = C("FF9EC4"), HOLO = C("1E1B2E"), SOON = C("EDE4D4"),
+	FRIENDS = C("A7E9B8"), -- Invite friends rewards (the Squad set)
 }
 local TABS = { "Sets", "Banners", "Cards" }
 local GRID = { Sets = "Sets", Banners = "Grid", Cards = "Cards" } -- the grid frame each tab shows
