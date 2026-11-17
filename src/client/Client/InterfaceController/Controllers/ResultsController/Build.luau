@@ -289,12 +289,32 @@ local function winner(panel: Instance)
 	text(best, "Old", { LayoutOrder = 2, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 24), TextSize = 13, TextColor3 = MUTED, Text = "old best 40", TextTruncate = Enum.TextTruncate.None })
 	text(w, "RankHint", { Position = UDim2.fromOffset(P, 508), Size = UDim2.fromOffset(W, 18), TextSize = 13, TextColor3 = MUTED, Text = "6 more points for S rank", Visible = false })
 
-	-- the like line (Fans 2): after your first duel win, once. Its dashed white frame is one
-	-- image the exact size of the line (Roblox strokes can't dash): assets/ui/fans.
+	-- the like line (design board "Fans 5"): the live like goal, on any duel or solo result where the 2×
+	-- Coins row isn't showing. Its dashed white frame is one image the exact size of the line
+	-- (Roblox strokes can't dash): assets/ui/fans. Label "Like the game · 18 to go!", Bar.Fill +
+	-- Count ("7 / 25 likes"), and Chip on the right: the next goal's main reward (Chip.Row.Icon +
+	-- Chip.Row.Reward) and Chip.More ("for everyone" / "+ more for everyone"). The controller
+	-- fills them in from Constants/LikeGoalConstants.
 	local like = new("ImageLabel", { Name = "LikeLine", Position = UDim2.fromOffset(P, 478), Size = UDim2.fromOffset(W, 48), BackgroundTransparency = 1, Image = Build.LIKE_FRAME, ScaleType = Enum.ScaleType.Stretch, Visible = false }, w)
 	new("ImageLabel", { Name = "Icon", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 12, 0.5, 0), Size = UDim2.fromOffset(26, 26), BackgroundTransparency = 1, Image = Build.LIKE_ICON, ScaleType = Enum.ScaleType.Fit }, like)
-	text(like, "Label", { Position = UDim2.fromOffset(48, 6), Size = UDim2.fromOffset(W - 60, 20), FontFace = HEAD, TextSize = 15, Text = "Enjoying it? Give the game a like" })
-	text(like, "Note", { Position = UDim2.fromOffset(48, 25), Size = UDim2.fromOffset(W - 60, 16), TextSize = 13, TextColor3 = MUTED, Text = "Tap the thumbs up on its page: it helps more fans find us." })
+	text(like, "Label", { Position = UDim2.fromOffset(48, 6), Size = UDim2.fromOffset(250, 18), FontFace = HEAD, TextSize = 14, Text = "Like the game · 18 to go!" })
+	local bar = new("Frame", { Name = "Bar", Position = UDim2.fromOffset(48, 28), Size = UDim2.fromOffset(150, 9), BackgroundColor3 = CREAM, ClipsDescendants = true }, like)
+	corner(bar, 4)
+	stroke(bar, 2)
+	local fill = new("Frame", { Name = "Fill", Size = UDim2.fromScale(0.28, 1), BackgroundColor3 = C("FF5A4E"), BorderSizePixel = 0 }, bar)
+	corner(fill, 4)
+	text(like, "Count", { Position = UDim2.fromOffset(206, 25), Size = UDim2.fromOffset(100, 15), TextSize = 11, TextColor3 = MUTED, Text = "7 / 25 likes" })
+	-- the reward chip: tilted, mint, sizes to its text
+	local chip = new("Frame", { Name = "Chip", AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0), Size = UDim2.fromOffset(0, 32), AutomaticSize = Enum.AutomaticSize.X, Rotation = 2, BackgroundColor3 = MINT }, like)
+	corner(chip, 10)
+	stroke(chip, 3)
+	new("UIPadding", { PaddingLeft = UDim.new(0, 9), PaddingRight = UDim.new(0, 9) }, chip)
+	new("UIListLayout", { FillDirection = Enum.FillDirection.Vertical, HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder }, chip)
+	local row = new("Frame", { Name = "Row", LayoutOrder = 1, Size = UDim2.fromOffset(0, 16), AutomaticSize = Enum.AutomaticSize.X, BackgroundTransparency = 1 }, chip)
+	new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, row)
+	new("ImageLabel", { Name = "Icon", LayoutOrder = 1, Size = UDim2.fromOffset(15, 15), BackgroundTransparency = 1, Image = Currencies.Coins.Icon, ScaleType = Enum.ScaleType.Fit }, row)
+	text(row, "Reward", { LayoutOrder = 2, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 16), FontFace = HEAD, TextSize = 13, Text = "250", TextTruncate = Enum.TextTruncate.None })
+	text(chip, "More", { LayoutOrder = 2, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 12), TextSize = 10, Text = "for everyone", TextTruncate = Enum.TextTruncate.None })
 
 	-- the 2× Coins row (Money 1): after a duel win when you don't own the pass, in the like
 	-- line's place (it comes first). The controller fills in Label + Buy.Label.

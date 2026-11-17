@@ -1,0 +1,8 @@
+{"background": "bg.png",
+ "answers": {"layout":"row","x":225,"y":868,"scale":0.98,
+   "items":[{"title":"Dear Santa","artist":"GIRLS' GENERATION-TTS"},
+            {"title":"Miracles in December","artist":"EXO","correct":true},
+            {"title":"Merry & Happy","artist":"TWICE"},
+            {"title":"Christmas EveL","artist":"STRAY KIDS"}]},
+ "vs":{"x":960,"y":520,"scale":1.0},
+ "text":[{"text":"CHRISTMAS UPDATE!","x":960,"y":790,"size":84,"color":"#FFE07A","rotate":-3}]}

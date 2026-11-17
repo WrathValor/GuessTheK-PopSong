@@ -31,6 +31,8 @@ local TitleChip = require(ReplicatedStorage.Modules.UI.TitleChip)
 local RewardsCatalog = require(ReplicatedStorage.Constants.RewardsCatalog)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Client
 local ShopCatalog = require(ReplicatedStorage.Constants.ShopCatalog)
+local LikeGoalConstants = require(ReplicatedStorage.Constants.LikeGoalConstants)
+local Currencies = require(ReplicatedStorage.Constants.Currencies)
 local AnalyticsClient = require(ReplicatedStorage.Modules.AnalyticsClient)
 
 -- -------------------------------- Variables ------------------------------- --
@@ -38,8 +40,6 @@ local LOCAL_PLAYER = Players.LocalPlayer
 local ME = tostring(LOCAL_PLAYER.UserId)
 local DuelRemote = Bridgenet.ReferenceBridge("DuelRemote")
 local QueueRemote = Bridgenet.ReferenceBridge("QueueRemote")
-local SettingsRemote = Bridgenet.ReferenceBridge("SettingsRemote")
-local LIKE_HINT = "LikeLine" -- the like line shows once: after your first duel win
 local DOUBLE = (function()
 	for _, pass in ShopCatalog.Passes do
 		if pass.Id == "DoubleCoins" then
@@ -89,6 +89,58 @@ local function pickTier(pick): number?
 		return nil
 	end
 	return pick.Tier or tierOf(pick.Points)
+end
+
+-- the like line's reward chip: the goal's main reward (an item, else tickets, upgrades, coins)
+-- with its icon, and "+ more" when it pays more than one thing
+local ITEM_KINDS = { "Set", "Stage", "Mic", "Banner", "Photocard", "Title" }
+local function headline(reward): (string, string)
+	for _, kind in ITEM_KINDS do
+		local id = reward[kind]
+		if type(id) == "string" then
+			local name = id
+			if kind == "Set" then
+				local set = ShopCatalog.GetSet(id)
+				name = if set then set.Name else id
+			elseif kind == "Stage" or kind == "Mic" then
+				local item = ShopCatalog.GetItem(kind, id)
+				name = if item then item.Name else id
+			elseif kind == "Title" then
+				name = `"{id}" title`
+			else
+				name = `{id} {string.lower(kind)}`
+			end
+			return name, SeasonConstants.ICONS.Stars
+		end
+	end
+	for _, id in { "Tickets", "Upgrades", "Coins" } do
+		local n = reward[id]
+		if type(n) == "number" and n > 0 then
+			local c = Currencies.Get(id)
+			local label = if id == "Coins" then tostring(n) elseif id == "Tickets" then (if n == 1 then "×1 ticket" else `×{n} tickets`) else (if n == 1 then "×1 upgrade" else `×{n} upgrades`)
+			return label, if c then c.Icon else ""
+		end
+	end
+	return "", ""
+end
+
+local function fillLikeLine(line, likes: number, goal)
+	local left = math.max(0, goal.Likes - likes)
+	line.Label.Text = `Like the game · {left} to go!`
+	line.Bar.Fill.Size = UDim2.fromScale(math.clamp(likes / goal.Likes, 0, 1), 1)
+	line.Bar.Fill.Visible = likes > 0
+	line.Count.Text = `{likes} / {goal.Likes} likes`
+	local label, icon = headline(goal.Reward)
+	line.Chip.Row.Reward.Text = label
+	line.Chip.Row.Icon.Image = goal.Icon or icon
+	local kinds = 0
+	for _ in goal.Reward do
+		kinds += 1
+	end
+	if goal.Reward.TitleTier then
+		kinds -= 1
+	end
+	line.Chip.More.Text = if kinds > 1 then "+ more for everyone" else "for everyone"
 end
 
 local function soloColour(pick): Color3
@@ -493,8 +545,9 @@ function Results:Show(packet, info)
 			else ""
 	end
 
-	-- after a duel win (no solo, party or tutorial), one line in the same spot: the 2× Coins
-	-- row if you don't own the pass (it always comes first), else the like line, once ever
+	-- one line in the same spot (y 478): after a duel win, the 2× Coins row if you don't own the
+	-- pass (it always comes first); otherwise the like line (wins with the pass, losses, draws
+	-- and solo practice; never party or tutorial)
 	local wonDuel = not solo and not packet.Party and not packet.Tutorial and packet.Winner == LOCAL_PLAYER.UserId
 	local hasDouble = true
 	pcall(function()
@@ -506,15 +559,21 @@ function Results:Show(packet, info)
 		w.Double.Label.Text = `+{mine.Coins} more with 2× Coins`
 		w.Double.Buy.Inner.Label.Text = self._doublePrice or "…"
 	end
-	local likeSeen = true
-	pcall(function()
-		likeSeen = PlayerData.Settings.Hints.Has(LIKE_HINT) == true
-	end)
-	local liked = wonDuel and not doubled and not likeSeen
+	-- the like line: the live like goal, while a goal is left. Solo's personal best + rank hint
+	-- use this spot too, so with the line up they move into the LEVEL UP slot above it (and on
+	-- a solo level-up there's no room, so the line sits that one out)
+	local likes = tonumber(ReplicatedStorage:GetAttribute(LikeGoalConstants.ATTRIBUTE)) or -1
+	local reached = tonumber(ReplicatedStorage:GetAttribute(LikeGoalConstants.REACHED)) or 0
+	local goal = LikeGoalConstants.State(reached)
+	local played = not packet.Party and not packet.Tutorial and not (solo and mine.LevelUp ~= nil)
+	local liked = played and not doubled and goal ~= nil and likes >= 0
 	w.LikeLine.Visible = liked
-	if liked then
-		SettingsRemote:Fire({ Action = "HintSeen", Id = LIKE_HINT })
+	if liked and goal then
+		fillLikeLine(w.LikeLine, likes, goal)
 	end
+	local raised = solo and liked
+	w.Best.Position = UDim2.fromOffset(w.LikeLine.Position.X.Offset, if raised then 416 else 478)
+	w.RankHint.Position = UDim2.fromOffset(w.LikeLine.Position.X.Offset, if raised then 446 else 508)
 
 	-- your all-time record against this rival
 	local record = packet.Record and packet.Record[ME]

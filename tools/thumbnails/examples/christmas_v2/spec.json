@@ -1,0 +1,6 @@
+{"background": "clean.png",
+ "answers": {"layout":"row","x":225,"y":866,"scale":0.98,
+   "items":[{"title":"First Snow","artist":"EXO"},
+            {"title":"Merry & Happy","artist":"TWICE","correct":true},
+            {"title":"Wish Tree","artist":"Red Velvet"},
+            {"title":"Winter Sleep","artist":"IU"}]}}

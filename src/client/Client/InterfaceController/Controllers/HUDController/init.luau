@@ -8,6 +8,8 @@ local Janitor = require(ReplicatedStorage.Packages.janitor)
 local Promise = require(ReplicatedStorage.Packages.promise)
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
+local EventConstants = require(ReplicatedStorage.Constants.EventConstants)
+local EventRsvp = require(ReplicatedStorage.Modules.EventRsvp)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Client
 local Levels = require(ReplicatedStorage.Modules.Levels)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
@@ -123,6 +125,7 @@ function HUDController.Initialize(self: Self, interface: any)
 	self:_bindCurrency()
 	self:_bindButtons()
 	self:_bindSeason()
+	self:_bindEvent()
 	self:_bindExtras()
 	self:_applyStatic()
 	-- one-time lobby hints: Roll / Shop once you can afford something, Rewards once one's earned
@@ -398,6 +401,88 @@ function HUDController._bindSeason(self: Self)
 	end, true)
 	self._janitor:Add(card.Activated:Connect(function()
 		self:_open("Season")
+	end))
+end
+
+-- the Christmas card under the season card (in its slot while seasons are off), as in the
+-- "Christmas event sign-up" mockup. Before the event: white, "in 14d" + NEW, and a tap opens
+-- Roblox's sign-up (Modules/EventRsvp); signed up: pale mint, "✓ Going · in 14d". During it
+-- (EventConstants.STARTS to ENDS): pale blue with a yellow tile, "Winter '26", opens the
+-- Winter screen. Hidden once it's over.
+function HUDController._bindEvent(self: Self)
+	local topLeft = self._hud.TopLeft
+	local card = topLeft:FindFirstChild("Event")
+	if not card then
+		return
+	end
+	local shadow = topLeft:FindFirstChild("EventShadow")
+	if not SeasonConstants.ENABLED then
+		local season, seasonShadow = topLeft:FindFirstChild("Season"), topLeft:FindFirstChild("SeasonShadow")
+		if season then
+			card.Position = season.Position
+		end
+		if shadow and seasonShadow then
+			shadow.Position = seasonShadow.Position
+		end
+	end
+	local WHITE = card.BackgroundColor3
+	local TILE = card.Tile.BackgroundColor3
+	local SUB = card.Sub.TextColor3
+	local GOING_BG, GOING_TEXT = Color3.fromHex("E9F8EC"), Color3.fromHex("1F7A40")
+	local LIVE_BG, LIVE_TILE, INK = Color3.fromHex("DCEFF9"), Color3.fromHex("FFE07A"), Color3.fromHex("1E1B2E")
+	local going: boolean? = nil
+
+	local function show(on: boolean)
+		card.Visible = on
+		if shadow then
+			shadow.Visible = on
+		end
+	end
+	local function paint()
+		local phase = EventRsvp.Phase()
+		show(phase ~= "Over")
+		if phase == "Live" then
+			card.BackgroundColor3 = LIVE_BG
+			card.Tile.BackgroundColor3 = LIVE_TILE
+			card.Title.Text = EventConstants.LIVE_NAME
+			card.Sub.Text = "Open"
+			card.Sub.TextColor3 = INK
+			card.New.Visible = false
+		elseif phase == "Before" then
+			card.BackgroundColor3 = if going then GOING_BG else WHITE
+			card.Tile.BackgroundColor3 = TILE
+			card.Title.Text = EventConstants.NAME
+			card.Sub.Text = if going then `✓ Going · in {EventRsvp.Countdown()}` else `in {EventRsvp.Countdown()}`
+			card.Sub.TextColor3 = if going then GOING_TEXT else SUB
+			card.New.Visible = not going
+		end
+	end
+	paint()
+	-- Roblox's answer can take a moment (and is nil in Studio): paint again once it's in
+	task.spawn(function()
+		going = EventRsvp.IsGoing()
+		paint()
+	end)
+	self._janitor:Add(EventRsvp.Changed:Connect(function(now: boolean)
+		going = now
+		paint()
+	end))
+	local ticker = task.spawn(function()
+		while true do
+			task.wait(60)
+			paint()
+		end
+	end)
+	self._janitor:Add(function()
+		task.cancel(ticker)
+	end, true)
+	self._janitor:Add(card.Activated:Connect(function()
+		local phase = EventRsvp.Phase()
+		if phase == "Live" then
+			self:_open("Winter")
+		elseif phase == "Before" then
+			task.spawn(EventRsvp.Prompt)
+		end
 	end))
 end
 

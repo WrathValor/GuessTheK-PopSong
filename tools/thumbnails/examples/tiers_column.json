@@ -1,0 +1,4 @@
+{"background": "bg.png",
+ "answers": {"layout":"column","x":1320,"y":150,"scale":1.0,
+   "items":[{"title":"Supernova","artist":"aespa"},{"title":"Dynamite","artist":"BTS","correct":true},{"title":"Fancy","artist":"TWICE"}]},
+ "tiers": {"x":250,"y":770,"scale":1.0,"active":0}}

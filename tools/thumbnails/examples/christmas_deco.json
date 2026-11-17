@@ -1,0 +1,1 @@
+{"background": "vs_render.jpg", "hats": [{"x": 386, "y": 172, "w": 245, "rot": 10, "flip": true}, {"x": 990, "y": 238, "w": 215, "rot": -8, "flip": false}], "snow": {"count": 300, "seed": 11, "drifts": false}, "tint": "rgba(150,190,255,0.35)"}

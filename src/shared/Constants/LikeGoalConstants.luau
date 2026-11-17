@@ -29,11 +29,37 @@ LikeGoalConstants.STORE = "LikeGoal_v1" -- DataStore, key "Reached": the most GO
 --   Title = a title, TitleTier = 1 Normal / 2 Gold / 3 Rainbow (default 1)
 -- e.g. Reward = table.freeze({ Coins = 500, Set = "Neon", Title = "Day One Fan", TitleTier = 2 })
 LikeGoalConstants.GOALS = table.freeze({
-	table.freeze({ Likes = 25, Id = "LIKES25", Reward = table.freeze({ Coins = 250 }), Text = "250 coins" }),
-	table.freeze({ Likes = 50, Id = "LIKES50", Reward = table.freeze({ Tickets = 1, Coins = 150 }), Text = "1 roll ticket + 150 coins" }),
-	table.freeze({ Likes = 100, Id = "LIKES100", Reward = table.freeze({ Tickets = 5, Upgrades = 2 }), Text = "5 roll tickets + 2 upgrades" }),
-	table.freeze({ Likes = 250, Id = "LIKES250", Reward = table.freeze({ Upgrades = 3, Coins = 500 }), Text = "3 upgrades + 500 coins" }),
-	table.freeze({ Likes = 500, Id = "LIKES500", Reward = table.freeze({ Tickets = 5, Upgrades = 2, Coins = 500 }), Text = "5 roll tickets + 2 upgrades + 500 coins" }),
+	table.freeze({ Likes = 10, Id = "LIKES10", Reward = table.freeze({ Coins = 250 }), Text = "250 coins" }),
+	table.freeze({
+		Likes = 15,
+		Id = "LIKES15",
+		Reward = table.freeze({ Tickets = 1, Coins = 150 }),
+		Text = "1 roll ticket + 150 coins",
+	}),
+	table.freeze({
+		Likes = 25,
+		Id = "LIKES25",
+		Reward = table.freeze({ Tickets = 5, Upgrades = 2 }),
+		Text = "5 roll tickets + 2 upgrades",
+	}),
+	table.freeze({
+		Likes = 50,
+		Id = "LIKES50",
+		Reward = table.freeze({ Upgrades = 3, Coins = 200 }),
+		Text = "3 upgrades + 200 coins",
+	}),
+	table.freeze({
+		Likes = 75,
+		Id = "LIKES75",
+		Reward = table.freeze({ Tickets = 5, Coins = 100 }),
+		Text = "5 roll tickets + 100 coins",
+	}),
+	table.freeze({
+		Likes = 100,
+		Id = "LIKES100",
+		Reward = table.freeze({ Tickets = 7, Upgrades = 3, Coins = 250 }),
+		Text = "7 roll tickets + 3 upgrades + 250 coins",
+	}),
 })
 
 -- how many GOALS this many likes hits

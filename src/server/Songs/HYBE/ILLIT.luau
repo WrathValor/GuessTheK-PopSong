@@ -99,7 +99,7 @@ return {
 			ChorusPosition = 29,
 		},
 		{
-			Name = "Billyeoon Goyangi (Do the Dance)",
+			Name = "Billyeoon Goyangi",
 			Year = 2025,
 			MusicId = "rbxassetid://73804988229153",
 			PlaybackSpeed = 0.8,

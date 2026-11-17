@@ -1,0 +1,4 @@
+{"background": "bg.png",
+ "answers": {"layout":"row","x":225,"y":870,"scale":0.98,
+   "items":[{"title":"How You Like That","artist":"BLACKPINK"},{"title":"Butter","artist":"BTS","correct":true},{"title":"Alcohol-Free","artist":"TWICE"},{"title":"Queencard","artist":"(G)I-DLE"}]},
+ "vs":{"x":960,"y":520,"scale":1.0}}
