@@ -287,6 +287,10 @@ return Scribe({
 			SoloPool = Scribe.String("Mix", { MaxLength = 8 }),
 			-- the last solo theme picked on the queue card (Modules/Library/Themes ids)
 			SoloTheme = Scribe.String("All", { MaxLength = 12 }),
+			-- "Rivals can join my practice" (on by default): solo from the queue card keeps the
+			-- stage open, so someone stepping on ends practice after the round and starts a duel
+			-- (DuelService)
+			SoloOpen = true,
 			TutorialDone = false, -- finished or skipped the first-join tutorial
 			FavoritePrompted = false, -- shown the one-time "favourite the game" prompt (Client/FavoritePrompt)
 			Hints = Scribe.SetOf(Id(16)), -- one-time hints already seen: lobby nudges ("Money", "Rewards") + screen guides ("Guide…")

@@ -56,6 +56,12 @@ return table.freeze({
 	-- solo practice's stake (paid as XP, a seventh per right answer): about two thirds of a
 	-- duel's (averages ~34), so duels stay the better way to level. Same weights.
 	SOLO_STAKES = table.freeze({ 20, 25, 35, 45, 60, 90 }),
+	-- open practice (Settings.SoloOpen): a rival stepped onto your stage mid-practice. The round
+	-- you're on gets at most SOLO_HANDOVER more seconds to answer, plays its reveal, then the
+	-- "A rival stepped up!" card counts HANDOVER_COUNT seconds into the duel (no queue
+	-- intermission: the card is it)
+	SOLO_HANDOVER = 15,
+	HANDOVER_COUNT = 3,
 
 	-- rewards
 	XP_CORRECT = 10,

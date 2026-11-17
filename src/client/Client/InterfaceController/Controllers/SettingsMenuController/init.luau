@@ -3,7 +3,9 @@
 --   • Audio  – Music / Sound effects / Song clips sliders (0–100%), each with a mute button
 --              that remembers the level it muted from
 --   • Social – Duel invites on/off (Settings.DuelInvites; the server checks it before
---              delivering an invite, see SettingsService.AcceptsInvites)
+--              delivering an invite, see SettingsService.AcceptsInvites), and Rivals can join
+--              my practice (Settings.SoloOpen, on by default: solo from the queue card keeps
+--              your stage open, see DuelService; the queue card's chip flips the same setting)
 --   • Reset to default
 -- Dragging a slider applies the volume straight away (Client/SettingsController.Preview);
 -- the value is saved through SettingsRemote when you let go. Opened from the HUD cog.
@@ -87,6 +89,23 @@ function Settings:_paintInvites(on: boolean)
 	}):Play()
 end
 
+function Settings:_paintSoloOpen(on: boolean)
+	local row = self._frame.Panel.Content:FindFirstChild("SoloOpen")
+	if not row then
+		return
+	end
+	row.State.Text = if on then "On" else "Off"
+	TweenService:Create(row.Toggle, TOGGLE_TWEEN, { BackgroundColor3 = if on then MINT else GREY }):Play()
+	TweenService:Create(row.Toggle.Knob, TOGGLE_TWEEN, {
+		Position = if on then UDim2.new(1, -15, 0.5, 0) else UDim2.new(0, 15, 0.5, 0),
+	}):Play()
+end
+
+local function soloOpen(): boolean
+	local ok, on = pcall(PlayerData.Settings.SoloOpen.Get)
+	return not ok or on ~= false -- on by default
+end
+
 function Settings:_refresh()
 	for _, spec in Build.ROWS do
 		if self._dragging ~= spec.Key then
@@ -95,6 +114,7 @@ function Settings:_refresh()
 	end
 	local ok, on = pcall(PlayerData.Settings.DuelInvites.Get)
 	self:_paintInvites(not ok or on ~= false)
+	self:_paintSoloOpen(soloOpen())
 end
 
 -- [[ Changing values ]]
@@ -181,12 +201,23 @@ function Settings:Initialize(interface)
 		Sounds.Play("Click")
 	end))
 
+	local practice = panel.Content:FindFirstChild("SoloOpen")
+	if practice then
+		j:Add(practice.Toggle.Activated:Connect(function()
+			local nextValue = not soloOpen()
+			self:_paintSoloOpen(nextValue) -- the server confirms through PlayerData
+			SettingsRemote:Fire({ Action = "SetSoloOpen", Value = nextValue })
+			Sounds.Play("Click")
+		end))
+	end
+
 	j:Add(panel.Content.Reset.Activated:Connect(function()
 		SettingsRemote:Fire({ Action = "Reset" })
 		for _, spec in Build.ROWS do
 			self:_setVolume(spec, 1, false)
 		end
 		self:_paintInvites(true)
+		self:_paintSoloOpen(true)
 		Juice.Pop(panel.Content.Reset, 0.12)
 	end))
 
@@ -197,11 +228,13 @@ function Settings:Initialize(interface)
 			end
 		end))
 	end
-	j:Add(PlayerData.Settings.DuelInvites.Observe(function()
-		if self.State ~= "Inactive" then
-			self:_refresh()
-		end
-	end))
+	for _, key in { "DuelInvites", "SoloOpen" } do
+		j:Add(PlayerData.Settings[key].Observe(function()
+			if self.State ~= "Inactive" then
+				self:_refresh()
+			end
+		end))
+	end
 end
 
 function Settings:Activate()
@@ -213,9 +246,11 @@ function Settings:Activate()
 	self.State = "Activating"
 	local content = self._frame.Panel.Content
 	local list = {}
-	for _, name in { "Music", "SoundEffects", "SongClips", "Invites" } do
-		table.insert(list, content[name .. "Shadow"])
-		table.insert(list, content[name])
+	for _, name in { "Music", "SoundEffects", "SongClips", "Invites", "SoloOpen" } do
+		if content:FindFirstChild(name) then
+			table.insert(list, content[name .. "Shadow"])
+			table.insert(list, content[name])
+		end
 	end
 	Juice.Stagger(list, 0.05)
 	return FrameTransition.Open(self._frame):andThen(function()

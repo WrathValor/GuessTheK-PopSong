@@ -83,6 +83,11 @@ function DuelController.Start()
 			end
 		elseif message == "RematchWaiting" then
 			call("Queue", "ShowRematch") -- stepped back on: the rival is still on their results
+		elseif message == "RivalFinishing" then
+			-- stepped onto someone's open practice: they finish their round, then it's a duel
+			call("Queue", "RivalFinishing", packet.Opponent, packet.Seconds)
+		elseif message == "RivalReady" then
+			call("Queue", "RivalReady", packet.Count) -- their round's done: the hand-over countdown
 		elseif message == "NoStages" then
 			-- every stage is taken (Quick Play), or every tutorial lane and stage (the tutorial:
 			-- its Welcome comes back so they can try again or skip)
@@ -117,6 +122,7 @@ function DuelController.Start()
 			BackgroundMusic.Duck()
 			CameraController.Focus(packet.Mode, DuelController.Info)
 			InterfaceController:Open("Game", DuelController.Info, packet.Mode)
+			call("Game", "SetOpen", packet.Open) -- open practice: the STAGE OPEN chip
 		elseif message == "Encore" then
 			call("Game", "OnEncore", packet) -- the final round's ENCORE sign
 		elseif message == "Round" then
@@ -152,6 +158,17 @@ function DuelController.Start()
 			end
 		elseif message == "RematchState" then
 			call("Results", "UpdateRematch", packet.Wants)
+		-- open practice (Settings › Rivals can join my practice): someone stepped onto your stage
+		elseif message == "RivalWaiting" then
+			call("Game", "OnRivalWaiting", packet.Name) -- this round is your last
+		elseif message == "RivalLeft" then
+			call("Game", "OnRivalLeft") -- they stepped off again: practice carries on
+		elseif message == "RivalSteppedUp" then
+			-- practice is over: the hand-over card counts into the duel (its pre-duel screen
+			-- closes this one)
+			backToLobby()
+			call("SaveStreak", "Hide")
+			InterfaceController:Open("RivalUp", packet)
 		end
 	end)
 end

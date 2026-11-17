@@ -23,11 +23,13 @@ local Snippet = require(script.Snippet)
 local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 
 local REVEAL_FADE = 2 -- the reveal song fades out over the last this-many seconds
+local OPEN_CHIP_ROOM = 46 -- how far the theme tag drops while the STAGE OPEN chip is up
 local LoadingCard = require(script.LoadingCard)
 local EncoreBanner = require(script.EncoreBanner)
 local PadBinds = require(ReplicatedStorage.Modules.UI.PadBinds)
 local PackTag = require(script.PackTag)
 local RevealOwner = require(script.RevealOwner)
+local OpenChip = require(script.OpenChip) -- open practice: STAGE OPEN / RIVAL WAITING
 
 -- -------------------------------- Variables ------------------------------- --
 local LOCAL_PLAYER = Players.LocalPlayer
@@ -113,6 +115,7 @@ function Game:Initialize(interface)
 	local controls = self._frame.Controls
 	self.Loader = LoadingCard.new(self._frame, controls.PlayButton)
 	self.Encore = EncoreBanner.new(self._frame)
+	self.OpenChip = OpenChip.new(self._frame)
 
 	self._janitor:Add(controls.PlayButton.Activated:Connect(function()
 		self:_play()
@@ -241,6 +244,17 @@ function Game:OnRound(packet)
 		self.FFA:SetAll("Listening…")
 	end
 	PackTag.Set(self._frame, nil, packet.Theme) -- ownership shows on the reveal now, not during the round
+	-- open practice: the STAGE OPEN chip has the spot under the scoreboard, so the theme tag
+	-- drops below it
+	local packTag = self._frame:FindFirstChild("PackTag")
+	if packTag then
+		if not packTag:GetAttribute("HomeY") then
+			packTag:SetAttribute("HomeY", packTag.Position.Y.Offset)
+		end
+		local chip = self._frame:FindFirstChild("OpenChip")
+		local y = packTag:GetAttribute("HomeY") + (if chip and chip.Visible then OPEN_CHIP_ROOM else 0)
+		packTag.Position = UDim2.new(packTag.Position.X, UDim.new(0, y))
+	end
 	self.Scoreboard:SetStatus(false, "Loading…")
 	self.Scoreboard:SetStatus(true, "Listening…")
 
@@ -704,10 +718,30 @@ function Game:_revealLayout(ffa: boolean)
 	nextRound.Position = UDim2.new(nb.X.Scale, nb.X.Offset, 0, FFA_NEXT_Y)
 end
 
+-- [[ Open practice ]]
+-- (DuelController: "Start".Open, "RivalWaiting", "RivalLeft")
+
+-- (may come before Activate when the screen is still opening: Activate applies it then)
+function Game:SetOpen(open: boolean?)
+	self._open = open == true
+	if self.State == "Active" or self.State == "Activating" then
+		self.OpenChip:Show(self._open and self.Solo == true)
+	end
+end
+
+function Game:OnRivalWaiting(name: string)
+	self.OpenChip:Waiting(if type(name) == "string" then name else "A rival")
+end
+
+function Game:OnRivalLeft()
+	self.OpenChip:Left()
+end
+
 -- [[ Lifecycle ]]
 
 function Game:Activate(info, mode)
 	self:_setupDuel(info, mode)
+	self.OpenChip:Show(self._open == true and self.Solo == true)
 	ContextActionService:BindActionAtPriority(PAD_ACTION, function(...)
 		return self:_padInput(...)
 	end, false, Enum.ContextActionPriority.High.Value, PAD_PLAY, PAD_SKIP, table.unpack(PAD_ANSWERS))
@@ -734,6 +768,8 @@ function Game:Deactivate()
 	self._frame.Controls.Interactable = true
 	self.Loader:HideAll()
 	self.Encore:Destroy()
+	self.OpenChip:Hide()
+	self._open = false
 	self.Round = nil
 	return FrameTransition.Close(self._frame):andThen(function()
 		self._frame.Visible = false

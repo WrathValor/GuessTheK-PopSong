@@ -2,7 +2,8 @@
 -- The neon strip under each duel stage's lip (Visual.Stage_Neon) shows whether it's free,
 -- so players can read the street at a glance:
 --   • soft white        – empty: anyone can step on
---   • yellow            – one player waiting for a rival (join = instant duel)
+--   • yellow            – one player waiting for a rival (join = instant duel), or practising
+--                         solo with "Rivals can join my practice" on
 --   • pink, pulsing     – a duel (or solo game) is on
 -- DuelService calls Refresh(stage) whenever a stage's players or State change.
 
@@ -27,7 +28,9 @@ function StageStatus.Refresh(stage)
 		return
 	end
 	local count = (if stage.Players.A then 1 else 0) + (if stage.Players.B then 1 else 0)
-	local status = if stage.State == "InProgress" then "Live" elseif count > 0 then "Waiting" else "Empty"
+	-- open practice (DuelService): someone's playing solo but a rival can still step on
+	local open = count == 1 and stage.Solo and stage.OpenSolo and not stage.Tutorial and not stage.HandOver
+	local status = if open then "Waiting" elseif stage.State == "InProgress" then "Live" elseif count > 0 then "Waiting" else "Empty"
 	if stage.Status == status then
 		return
 	end

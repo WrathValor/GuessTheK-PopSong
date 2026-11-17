@@ -4,7 +4,8 @@
 --
 -- SettingsRemote requests: { Action = "SetVolume", Key = "MusicVolume" | "SfxVolume" | "ClipVolume", Value = 0–1 }
 --                          { Action = "SetInvites", Value = bool }
---                          { Action = "Reset" }                 (volumes back to 1, invites on)
+--                          { Action = "SetSoloOpen", Value = bool } ("Rivals can join my practice")
+--                          { Action = "Reset" }                 (volumes back to 1, invites on, open practice on)
 --                          { Action = "SeenNews", Id = newsId } (clears the News button dot)
 --                          { Action = "FavoritePrompted" }       (the one-time favourite prompt was shown)
 --                          { Action = "HintSeen", Id = "Money" | "Rewards" | "Tickets" | "Upgrades" | "Guide…" } (a nudge or a screen guide: HINTS)
@@ -100,12 +101,18 @@ local function handle(player: Player, packet)
 			settings.DuelInvites.Set(packet.Value)
 			logSetting(player, "DuelInvites", if packet.Value then "On" else "Off")
 		end
+	elseif action == "SetSoloOpen" then
+		if type(packet.Value) == "boolean" then
+			settings.SoloOpen.Set(packet.Value)
+			logSetting(player, "SoloOpen", if packet.Value then "On" else "Off")
+		end
 	elseif action == "Reset" then
 		PlayerData.Batch(player, function()
 			for key in VOLUMES do
 				settings[key].Set(1)
 			end
 			settings.DuelInvites.Set(true)
+			settings.SoloOpen.Set(true)
 		end)
 		logSetting(player, "Reset", "Reset")
 	elseif action == "TutorialDone" then
@@ -135,6 +142,13 @@ function SettingsService.AcceptsInvites(target: Player): boolean
 	-- (Get throws while the data is still loading: no invites until it has)
 	local ok, data = pcall(PlayerData.Get, target)
 	return ok and data ~= nil and data.Settings.DuelInvites.Get() == true
+end
+
+-- Has `player` turned on "Rivals can join my practice"? (DuelService: solo from the queue
+-- card keeps their stage open)
+function SettingsService.SoloOpen(player: Player): boolean
+	local ok, data = pcall(PlayerData.Get, player)
+	return ok and data ~= nil and data.Settings.SoloOpen.Get() == true
 end
 
 -- Has either player blocked the other on Roblox?

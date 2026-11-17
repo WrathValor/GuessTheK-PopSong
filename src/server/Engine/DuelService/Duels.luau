@@ -186,6 +186,13 @@ function Duels.new(stage, playerA: Player?, playerB: Player?, solo: boolean?, pa
 	self.Started = false
 	-- true during the queue intermission countdown: leaving then cancels the match, no forfeit
 	self.Intermission = false
+	-- a duel straight after open practice's "A rival stepped up!" card: that card was the
+	-- countdown, so no queue intermission (set by DuelService before Start)
+	self.SkipIntermission = false
+	-- open practice (Interrupt): a rival is waiting, so this solo game ends after the round
+	-- it's on; HandoverBy is when that round's answer clock gets cut off
+	self.Handover = false
+	self.HandoverBy = nil :: number?
 
 	stage.Model:SetAttribute("Round", 0)
 	return self
@@ -212,7 +219,7 @@ function Duels:Start()
 	local thread = task.spawn(function()
 		if self.Party then
 			self:_partyIntro() -- the lobby's countdown already happened: no intermission or vote
-		elseif not self.Solo then
+		elseif not self.Solo and not self.SkipIntermission then
 			self.Intermission = true
 			QueueRemote:Fire(Bridgenet.Players(self.Players), { Message = "Intermission" })
 			task.wait(DuelConstants.START_TIME)
@@ -256,10 +263,14 @@ function Duels:Start()
 			Analytics.Funnel(me, "Solo", self.Sessions[me] or Analytics.SoloSession(me), "Started")
 		end
 
-		self:_fire({ Message = "Start", Mode = self.Mode })
+		-- Open: solo practice on a stage a rival can still step onto (the STAGE OPEN chip)
+		self:_fire({ Message = "Start", Mode = self.Mode, Open = if self.Solo and self.Stage.OpenSolo then true else nil })
 		task.wait(0.6)
 
 		for round = 1, self.RoundCount do
+			if self.Handover then
+				break -- open practice: a rival is waiting, so no next round
+			end
 			self.Round = round
 			self.Stage.Model:SetAttribute("Round", round)
 			self:_playRound(round)
@@ -528,6 +539,9 @@ function Duels:_playRound(round: number)
 		end
 		if state.FirstGuessAt and now >= state.FirstGuessAt + DuelConstants.ANSWER_WINDOW then
 			break
+		end
+		if self.HandoverBy and os.clock() >= self.HandoverBy then
+			break -- open practice: the rival waiting has waited long enough
 		end
 	end
 	if not self._running then
@@ -918,6 +932,35 @@ function Duels:Forfeit(player: Player)
 	self:_finish(winner, true, player)
 end
 
+-- [[ Open practice ]]
+
+-- Solo practice on an open stage (Settings.SoloOpen): a rival stepped on. The round being
+-- played gets at most SOLO_HANDOVER more seconds to answer and plays its reveal, then the
+-- game ends there instead of starting the next round (DuelService hands the stage over).
+-- Returns about how many seconds that leaves, for the rival's progress bar.
+function Duels:Interrupt(): number
+	if not self.Solo or self.Tutorial or not self._running then
+		return 0
+	end
+	if not self.Handover then
+		self.Handover = true
+		self.HandoverBy = os.clock() + DuelConstants.SOLO_HANDOVER
+	end
+	local left = DuelConstants.REVEAL_TIME
+	if self.Phase == "Round" or self.Phase == "Loading" then
+		left += math.max(0, self.HandoverBy - os.clock())
+	elseif self.Phase ~= "Reveal" then
+		left = DuelConstants.PRE_DUEL_HOLD -- still on the stake chips: ends before round 1
+	end
+	return math.ceil(left)
+end
+
+-- The rival who was waiting stepped off before the round ended: practice carries on.
+function Duels:CancelInterrupt()
+	self.Handover = false
+	self.HandoverBy = nil
+end
+
 -- Party: everyone who started, best first: players still in by points, then total seconds
 -- to their correct answers (faster wins a tie), then whoever left (last).
 function Duels:Placement(): { Player }
@@ -976,6 +1019,10 @@ function Duels:_finish(winner: Player?, forfeit: boolean, leaver: Player?)
 		StakeRoll = self.StakeRoll, -- party: the rolled amount before the multiplier
 		Mode = self.Mode,
 		Solo = self.Solo,
+		-- open practice ended early for a rival: Interrupted = fewer rounds than a full game
+		-- (no Solo Best, not counted as a game), HandOver = a rival is waiting for the stage
+		HandOver = if self.Handover then true else nil,
+		Interrupted = if self.Handover and #self.Rounds < self.RoundCount then true else nil,
 		Packs = self.Boost == true,
 		Tutorial = self.Tutorial,
 		Sessions = self.Sessions,

@@ -23,7 +23,7 @@ for _, screen in require(ReplicatedStorage.Constants.AnalyticsEvents).Custom.Scr
 	SCREEN_EVENTS[screen] = true
 end
 -- frames that open without the "Open" sound (the HUD, the round screen and the victory shot have their own)
-local SILENT_OPEN = { HUD = true, Game = true, Victory = true }
+local SILENT_OPEN = { HUD = true, Game = true, Victory = true, RivalUp = true }
 -- Controller: when a menu opens (or a controller is picked up while one is open) its first
 -- button is selected, so A works straight away; a controller can name a better one with
 -- :PadFocus(). B closes menus that have a Close button, like Escape. These screens get no

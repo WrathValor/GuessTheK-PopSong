@@ -19,6 +19,7 @@ local TitleChip = require(ReplicatedStorage.Modules.UI.TitleChip)
 local SeasonArt = require(ReplicatedStorage.Modules.UI.SeasonArt)
 local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
 local Themes = require(ReplicatedStorage.Modules.Library.Themes)
+local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Client
 local SoloPicker = require(script.SoloPicker)
 local InvitePicker = require(script.InvitePicker)
 
@@ -26,6 +27,7 @@ local InvitePicker = require(script.InvitePicker)
 
 local LOCAL_PLAYER = Players.LocalPlayer
 local QueueRemote = Bridgenet.ReferenceBridge("QueueRemote")
+local SettingsRemote = Bridgenet.ReferenceBridge("SettingsRemote")
 
 -- the panel shrinks to fit while only the Cancel button sits under the cards
 local PANEL_HEIGHT = 383
@@ -43,9 +45,13 @@ local ASIDE_TWEEN = TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirect
 local CHIP_ON = Color3.fromHex("FFE07A")
 local CHIP_OFF = Color3.fromHex("FFFFFF")
 -- alone on the stage this long: "No rival yet", and Play Solo turns into a pulsing QUICK SOLO
--- (one tap, last theme) with "Pick a theme instead" under it; the panel grows for that link
+-- (one tap, last theme) with the "Let rivals join while I practise" chip (Settings.SoloOpen)
+-- and "Pick a theme instead" under it; the panel grows for those two
 local NUDGE_AFTER = 15
-local PANEL_HEIGHT_NUDGE, LEAVE_Y_NUDGE = PANEL_HEIGHT + 20, LEAVE_Y + 20
+local PANEL_HEIGHT_NUDGE, LEAVE_Y_NUDGE = PANEL_HEIGHT + 76, LEAVE_Y + 76
+-- the chip stays white; only its switch shows on (mint, knob right) / off, like Settings
+local CHIP_TRACK_ON, CHIP_TRACK_OFF = Color3.fromHex("A7E9B8"), Color3.fromHex("E6DCCB")
+local TOGGLE_TWEEN = TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 local SOLO_COLOUR, QUICK_COLOUR = Color3.fromHex("B9A6FF"), Color3.fromHex("FFE07A")
 local BEAT = { { 1.035, 0.2 }, { 0.99, 0.2 }, { 1.02, 0.2 }, { 1, 0.6 } } -- scale, seconds
 local RING_TIME = 1.2
@@ -168,6 +174,26 @@ function QueueController.Initialize(self: typeof(QueueController.new({} :: UITyp
 			end
 		end))
 	end
+	-- "Let rivals join while I practise": flips Settings.SoloOpen (same as the Settings row);
+	-- painted from the saved value, so the server's answer is what sticks
+	local rivalsChip = panelFrame:FindFirstChild("RivalsChip")
+	if rivalsChip then
+		self._janitor:Add(rivalsChip.Activated:Connect(function()
+			local nextValue = not self:_soloOpen()
+			self:_paintRivalsChip(nextValue)
+			SettingsRemote:Fire({ Action = "SetSoloOpen", Value = nextValue })
+			Sounds.Play("Click")
+		end))
+		local ok, setting = pcall(function()
+			return PlayerData.Settings.SoloOpen
+		end)
+		if ok and setting then
+			self._janitor:Add(setting.Observe(function()
+				self:_paintRivalsChip(self:_soloOpen())
+			end))
+		end
+	end
+
 	-- the beat pauses while the mouse is over the button (ButtonScale owns its UIScale then)
 	self._janitor:Add(playSoloBtn.MouseEnter:Connect(function()
 		self._hoverSolo = true
@@ -466,6 +492,12 @@ function QueueController:_nudge(on: boolean)
 	if pick then
 		pick.Visible = on
 	end
+	for _, n in { "RivalsChip", "RivalsChipShadow" } do
+		local inst = panel:FindFirstChild(n)
+		if inst then
+			inst.Visible = on
+		end
+	end
 	if on then
 		panel.Title.Text = "No rival yet"
 	elseif panel.Title.Text == "No rival yet" then
@@ -481,9 +513,7 @@ function QueueController:_nudge(on: boolean)
 		end
 		playSolo.Title.Visible = not on
 		if on then
-			local theme = self._solo and self._solo:_playable()
-			local info = theme and Themes.Get(theme)
-			playSolo.Sub.Text = `Starts now · {if info then info.Name else "All songs"}`
+			self:_paintRivalsChip(self:_soloOpen())
 		elseif self._solo then
 			self._solo:RenderFront()
 		end
@@ -505,6 +535,109 @@ function QueueController:_nudge(on: boolean)
 	if on then
 		Sounds.Play("Notify")
 	end
+end
+
+-- Settings.SoloOpen ("Rivals can join my practice"), on by default
+function QueueController:_soloOpen(): boolean
+	local ok, on = pcall(function()
+		return PlayerData.Settings.SoloOpen.Get()
+	end)
+	return not ok or on ~= false
+end
+
+-- The chip under QUICK SOLO, and QUICK SOLO's line: on = your stage stays open while you play
+function QueueController:_paintRivalsChip(on: boolean)
+	local panel = self._frame and self._frame:FindFirstChild("Panel")
+	local chip = panel and panel:FindFirstChild("RivalsChip")
+	if chip then
+		chip.Track.BackgroundColor3 = if on then CHIP_TRACK_ON else CHIP_TRACK_OFF
+		TweenService:Create(chip.Track.Knob, TOGGLE_TWEEN, {
+			Position = if on then UDim2.new(1, -19, 0.5, 0) else UDim2.new(0, 3, 0.5, 0),
+		}):Play()
+	end
+	local playSolo = panel and panel:FindFirstChild("PlaySolo")
+	if playSolo and self._nudged then
+		local theme = self._solo and self._solo:_playable()
+		local info = theme and Themes.Get(theme)
+		playSolo.Sub.Text = if on then "Starts now · stage stays open" else `Starts now · {if info then info.Name else "All songs"}`
+	end
+end
+
+-- -------------------------- Open practice (rival) -------------------------- --
+-- You stepped onto a stage where someone's practising with their stage open (DuelService
+-- join): the card shows them in the rival spot and a bar fills while they finish their round
+-- (QueueRemote "RivalFinishing", then "RivalReady" once their "A rival stepped up!" card
+-- counts down). Leave stays; the pre-duel screen takes over when the duel starts.
+
+function QueueController:_finishing(on: boolean)
+	local panel = self._frame and self._frame:FindFirstChild("Panel")
+	local f = panel and panel:FindFirstChild("Finishing")
+	if f then
+		f.Visible = on
+	end
+	if self._finishTween then
+		self._finishTween:Cancel()
+		self._finishTween = nil
+	end
+	self._isFinishing = on
+end
+
+function QueueController:_fillTo(scale: number, seconds: number)
+	local f = self._frame.Panel:FindFirstChild("Finishing")
+	if not f then
+		return
+	end
+	if self._finishTween then
+		self._finishTween:Cancel()
+	end
+	self._finishTween = TweenService:Create(f.Bar.Fill, TweenInfo.new(math.max(seconds, 0.1), Enum.EasingStyle.Linear), { Size = UDim2.fromScale(scale, 1) })
+	self._finishTween:Play()
+end
+
+function QueueController:RivalFinishing(opponent: Player?, seconds: number?)
+	local panel = self._frame:FindFirstChild("Panel")
+	if not (panel and opponent) then
+		return
+	end
+	self:UpdateOpponent(opponent)
+	self._invite:Reset()
+	self._solo:Close(true)
+	self:_setButtons(false)
+	for _, n in { "Leave", "LeaveShadow" } do
+		local inst = panel:FindFirstChild(n)
+		if inst then
+			inst.Visible = true
+		end
+	end
+	panel.Title.Text = "Rival found!"
+	panel.Subtitle.Text = `{opponent.DisplayName} is finishing a practice round…`
+	self:_finishing(true)
+	local f = panel:FindFirstChild("Finishing")
+	if f then
+		local s = math.max(1, math.floor(tonumber(seconds) or DuelConstants.SOLO_HANDOVER))
+		f.Label.Text = "Duel starts after their round"
+		f.Time.Text = `~{s} s`
+		f.Bar.Fill.Size = UDim2.fromScale(0.04, 1)
+		-- most of the bar fills over their round; the last bit is the hand-over countdown
+		self:_fillTo(0.8, s)
+	end
+end
+
+function QueueController:RivalReady(count: number?)
+	local panel = self._frame:FindFirstChild("Panel")
+	local f = panel and panel:FindFirstChild("Finishing")
+	if not f then
+		return
+	end
+	if not self._isFinishing then
+		self:_finishing(true)
+	end
+	local s = math.max(1, math.floor(tonumber(count) or DuelConstants.HANDOVER_COUNT))
+	panel.Subtitle.Text = "Their round's done. Get ready!"
+	f.Label.Text = "Duel starting…"
+	f.Time.Text = `{s} s`
+	self:_fillTo(1, s)
+	Sounds.Play("RivalFound")
 end
 
 -- the heartbeat on QUICK SOLO + two yellow rings rippling out of it, half a beat apart
@@ -565,6 +698,7 @@ function QueueController:Reset()
 		return
 	end
 	self._rematch = false
+	self:_finishing(false)
 	panel.Title.Text = "Waiting for a rival…"
 	panel.Subtitle.Text = "Nobody's joined the other spot yet"
 	self._invite:Reset()
@@ -636,9 +770,10 @@ function QueueController:UpdateOpponent(opponent: Player?)
 			-- a solo game ended or was cancelled: the full card comes back
 			self:_soloLayout(false)
 		end
-		if self._rematch then
+		if self._rematch or self._isFinishing then
 			-- the rival we were waiting on stepped off: back to an ordinary open queue
 			self._rematch = false
+			self:_finishing(false)
 			self:_setButtons(true)
 		end
 		if self._opponent then

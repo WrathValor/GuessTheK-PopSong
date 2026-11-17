@@ -161,8 +161,9 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 			-- clicking through at random isn't worth more than a duel)
 			earned.Outcome = "Solo"
 			earned.XP = math.floor(result.Stake * correct / DuelConstants.ROUNDS + 0.5)
-			-- personal best (full 7-round runs only, so the tutorial can't set one)
-			if not result.Tutorial then
+			-- personal best (full 7-round runs only, so the tutorial or an open practice cut
+			-- short by a rival can't set one)
+			if not result.Tutorial and not result.Interrupted then
 				local score = result.Scores[player] or 0
 				earned.PrevBest = data.Statistics.SoloBest2.Get()
 				earned.NewBest = score > (earned.PrevBest :: number)
@@ -268,7 +269,9 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 				data.Statistics.SuspectGames.Increment(1)
 			end
 			if result.Solo then
-				data.Statistics.SoloGames.Increment(1)
+				if not result.Interrupted then
+					data.Statistics.SoloGames.Increment(1)
+				end
 				if earned.NewBest then
 					data.Statistics.SoloBest2.Set(math.max(0, result.Scores[player] or 0))
 				end
@@ -301,7 +304,11 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 		-- the duel moved, for the results screen's Season bar
 		local stars = 0
 		if result.Solo then
-			stars = SeasonService.Award(player, "Solo")
+			-- (not for an open practice a rival cut short: starting solo then letting someone
+			-- step on mustn't be a quick way to farm Stars)
+			if not result.Interrupted then
+				stars = SeasonService.Award(player, "Solo")
+			end
 		elseif earned.Outcome ~= "Left" then
 			stars = SeasonService.Award(player, "Duel", earned.Outcome == "Win")
 		end

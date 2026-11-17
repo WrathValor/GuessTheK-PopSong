@@ -13,10 +13,12 @@ local StageStatus = require(script.StageStatus)
 local Analytics = require(script.Parent.Analytics)
 local RivalRecord = require(script.Parent.RivalRecord)
 local GhostRecorder = require(script.Parent.GhostRecorder)
+local SettingsService = require(script.Parent.SettingsService)
 local StreetScreens = require(script.Parent.StreetScreens)
 local StreetScreensConstants = require(ReplicatedStorage.Constants.StreetScreens)
 local Themes = require(ReplicatedStorage.Modules.Library.Themes)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
+local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 
 --| Types
 
@@ -32,6 +34,11 @@ export type Stage = {
 	Duel: any?,
 	Rematch: { [Player]: boolean },
 	Solo: boolean?,
+	-- open practice: the solo game here was started with "Rivals can join my practice" on,
+	-- so the other spot stays open (openPractice)
+	OpenSolo: boolean?,
+	-- set while the "A rival stepped up!" card counts down (handOver); leave clears it
+	HandOver: any?,
 	Janitor: any,
 }
 
@@ -73,10 +80,27 @@ DuelService.PlayerStage = {} :: { [Player]: Stage }
 
 -- [[ Private ]]
 
-local leave, tryStart, notifyOpponents, requestRematch -- forward declared, join() needs them
+local leave, tryStart, notifyOpponents, requestRematch, handOver -- forward declared, join() needs them
 
 local function otherSlot(slot: Slot): Slot
 	return if slot == "A" then "B" else "A"
+end
+
+-- Open practice (Settings.SoloOpen): someone's practising solo here and the other spot is
+-- still open to a rival. Returns the one practising, or nil (no solo, the setting was off,
+-- the tutorial, or a rival's already on the way).
+local function openPractice(stage: Stage): Player?
+	if not (stage.Solo and stage.OpenSolo) or stage.Tutorial or stage.HandOver then
+		return nil
+	end
+	if stage.Duel and (stage.Duel.Tutorial or stage.Duel.Handover) then
+		return nil
+	end
+	local a, b = stage.Players.A, stage.Players.B
+	if (a == nil) == (b == nil) then
+		return nil
+	end
+	return a or b
 end
 
 local function refreshPrompts(stage: Stage)
@@ -84,7 +108,9 @@ local function refreshPrompts(stage: Stage)
 		local prompt = stage.Prompts[slot]
 		local opponent = stage.Players[otherSlot(slot)]
 
-		prompt.Enabled = stage.State == "Waiting" and stage.Players[slot] == nil
+		-- a free spot on a waiting stage, or beside someone's open practice
+		prompt.Enabled = stage.Players[slot] == nil
+			and (if stage.Solo then openPractice(stage) ~= nil else stage.State == "Waiting" and not stage.HandOver)
 		prompt.ObjectText = if opponent then "vs " .. opponent.DisplayName else "Duel Stage"
 	end
 	StageStatus.Refresh(stage) -- the neon strip: free / waiting / live
@@ -153,14 +179,14 @@ local function join(stage: Stage, slot: Slot, player: Player, how: string?)
 	if player:GetAttribute("PartyStage") then
 		return -- on a Party Stage (Engine/PartyService)
 	end
-	if stage.State ~= "Waiting" or stage.Players[slot] then
+	if stage.Players[slot] then
 		return
 	end
-
-	if stage.Solo then
-		if stage.Players.A or stage.Players.B then
-			return
-		end
+	-- someone's practising here with "Rivals can join my practice" on: stepping on ends their
+	-- practice after the round they're on, then it's a duel (their game may still be running)
+	local soloer = openPractice(stage)
+	if not soloer and (stage.State ~= "Waiting" or stage.Solo) then
+		return
 	end
 
 	local character = player.Character
@@ -197,6 +223,22 @@ local function join(stage: Stage, slot: Slot, player: Player, how: string?)
 	notifyOpponents(stage)
 	onResults[player] = nil
 
+	if soloer then
+		Analytics.Event(player, "JoinedOpenPractice", 1, stage.Name, if stage.Duel then "MidGame" else "AfterGame")
+		if stage.Duel then
+			-- the queue card shows them finishing their round (with roughly how long), and their
+			-- round screen says someone's waiting; the duel's end hands the stage over
+			local seconds = stage.Duel:Interrupt()
+			QueueRemote:Fire(player, { Message = "RivalFinishing", Opponent = soloer, Seconds = seconds })
+			DuelRemote:Fire(soloer, { Message = "RivalWaiting", Name = player.DisplayName })
+			refreshPrompts(stage)
+		else
+			-- between games (on their practice results): straight to the hand-over card
+			handOver(stage, soloer, player, nil, nil)
+		end
+		return
+	end
+
 	-- the rival is still on their results screen: stepping on counts as asking for a rematch,
 	-- and the game starts once they accept (requestRematch) rather than pulling them off it
 	local rival = stage.Players[otherSlot(slot)]
@@ -226,8 +268,24 @@ function leave(player: Player)
 	stage.Rematch = {}
 	onResults[player] = nil
 
+	-- left during the "A rival stepped up!" countdown: the other one is back to an open queue
+	if stage.HandOver then
+		stage.HandOver = nil
+		local other = stage.Players[otherSlot(slot)]
+		if other then
+			QueueRemote:Fire(other, { Message = "Queueing" })
+		end
+	end
+
 	if stage.Duel then
-		if stage.Duel.Started and not stage.Duel.Intermission then
+		if stage.Duel.Solo and not table.find(stage.Duel.Players, player) then
+			-- the rival waiting on someone's open practice stepped off: practice carries on
+			stage.Duel:CancelInterrupt()
+			local soloer = stage.Duel.Players[1]
+			if soloer then
+				DuelRemote:Fire(soloer, { Message = "RivalLeft" })
+			end
+		elseif stage.Duel.Started and not stage.Duel.Intermission then
 			stage.Duel:Forfeit(player)
 		else
 			-- A duel is prepared one second before Start so the UI can transition, then runs
@@ -242,6 +300,7 @@ function leave(player: Player)
 
 	if stage.Players.A == nil and stage.Players.B == nil and stage.Solo then
 		stage.Solo = false
+		stage.OpenSolo = false
 	end
 
 	player:SetAttribute("Stage", nil)
@@ -310,6 +369,31 @@ local function onDuelEnded(stage: Stage, result)
 		end
 	end
 
+	-- open practice: someone stepped onto the other spot while it was on. No results screen:
+	-- the one practising gets the hand-over card instead (or, if they left, the rival is just
+	-- waiting on an open stage now)
+	if result.Solo and not result.Tutorial then
+		local soloer = players[1]
+		local rival = nil
+		for _, slot in SLOTS do
+			local p = stage.Players[slot]
+			if p and p ~= soloer then
+				rival = p
+			end
+		end
+		if rival then
+			if soloer and DuelService.PlayerStage[soloer] == stage then
+				handOver(stage, soloer, rival, earned[soloer], #result.Rounds)
+			else
+				stage.Solo, stage.OpenSolo = false, false
+				stage.State = "Waiting"
+				refreshPrompts(stage)
+				notifyOpponents(stage)
+			end
+			return
+		end
+	end
+
 	local function k(p: Player)
 		return tostring(p.UserId)
 	end
@@ -359,6 +443,43 @@ local function onDuelEnded(stage: Stage, result)
 	stage.Rematch = {}
 	stage.State = "Waiting"
 	refreshPrompts(stage)
+end
+
+-- Open practice → duel. The one practising gets the "A rival stepped up!" card (with the XP
+-- their practice earned when it was cut short: earned / rounds, nil from their results screen)
+-- and the one who stepped on sees their bar fill. After HANDOVER_COUNT seconds both go into
+-- a normal duel with no queue intermission (the card was the countdown). Either leaving
+-- meanwhile sends the other back to an open queue (leave).
+function handOver(stage: Stage, soloer: Player, rival: Player, earned: any?, rounds: number?)
+	stage.Solo = false
+	stage.OpenSolo = false
+	stage.State = "Waiting"
+	stage.Rematch = {}
+	onResults[soloer], onResults[rival] = nil, nil
+	local token = {}
+	stage.HandOver = token
+	refreshPrompts(stage)
+	DuelRemote:Fire(soloer, {
+		Message = "RivalSteppedUp",
+		Rival = Duels.ProfileOf(rival),
+		XP = if earned then earned.XP else nil,
+		Rounds = rounds,
+		Count = DuelConstants.HANDOVER_COUNT,
+	})
+	QueueRemote:Fire(rival, { Message = "RivalReady", Count = DuelConstants.HANDOVER_COUNT })
+	task.delay(DuelConstants.HANDOVER_COUNT, function()
+		if stage.HandOver ~= token then
+			return -- someone left (leave cleared it)
+		end
+		stage.HandOver = nil
+		local here = DuelService.PlayerStage[soloer] == stage and DuelService.PlayerStage[rival] == stage
+		if not here or stage.Duel or stage.State ~= "Waiting" then
+			refreshPrompts(stage)
+			return
+		end
+		notifyOpponents(stage)
+		tryStart(stage, nil, nil, true)
+	end)
 end
 
 function requestRematch(player: Player)
@@ -471,7 +592,8 @@ function trySolo(player: Player, packet: any?)
 	tryStart(stage, true)
 end
 
-function tryStart(stage: Stage, soloStage: boolean?, rematch: boolean?)
+-- skipIntermission: straight after open practice's hand-over card (handOver), which was the countdown
+function tryStart(stage: Stage, soloStage: boolean?, rematch: boolean?, skipIntermission: boolean?)
 	local a, b = stage.Players.A, stage.Players.B
 
 	if stage.State ~= "Waiting" then
@@ -482,10 +604,18 @@ function tryStart(stage: Stage, soloStage: boolean?, rematch: boolean?)
 		return
 	end
 
+	-- solo: "Rivals can join my practice" (Settings) keeps the other spot open while they play.
+	-- Read every game, so a change in Settings counts from their next Play again.
+	if soloStage then
+		local me = a or b
+		stage.OpenSolo = not stage.Tutorial and me ~= nil and SettingsService.SoloOpen(me)
+	end
+
 	stage.State = "InProgress"
 	refreshPrompts(stage)
 
 	local duel = Duels.new(stage, a, b, soloStage)
+	duel.SkipIntermission = skipIntermission == true
 	stage.Duel = duel
 	-- each player's record against the other, for the pre-duel chip
 	if a and b and not soloStage then
@@ -558,14 +688,20 @@ local function createStage(model: Model): Stage?
 end
 
 -- Lobby "Quick Play": fill the empty spot on a stage where someone is already waiting,
--- otherwise take the first fully empty stage.
+-- then one beside someone's open practice (they finish their round first), otherwise take
+-- the first fully empty stage.
 local function quickPlay(player: Player)
 	if DuelService.PlayerStage[player] then
 		return
 	end
 
 	local emptyStage: Stage? = nil
+	local practiceStage: Stage? = nil
 	for _, stage in DuelService.Stages do
+		if openPractice(stage) then
+			practiceStage = practiceStage or stage
+			continue
+		end
 		if stage.State ~= "Waiting" or stage.Solo then
 			continue
 		end
@@ -579,7 +715,9 @@ local function quickPlay(player: Player)
 		end
 	end
 
-	if emptyStage then
+	if practiceStage then
+		join(practiceStage, if practiceStage.Players.A then "B" else "A", player, "QuickPlay")
+	elseif emptyStage then
 		join(emptyStage, "A", player, "QuickPlay")
 	else
 		QueueRemote:Fire(player, { Message = "NoStages" })
