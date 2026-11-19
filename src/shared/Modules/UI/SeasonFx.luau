@@ -32,6 +32,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
 local TierShine = require(script.Parent.TierShine)
+local OnScreen = require(script.Parent.OnScreen)
 
 local C = Color3.fromHex
 local WHITE = C("FFFFFF")
@@ -56,21 +57,6 @@ end
 
 -- [[ Loop ]]
 
-local function onScreen(gui: GuiObject): boolean
-	local node: Instance? = gui
-	while node do
-		if node:IsA("GuiObject") then
-			if not node.Visible then
-				return false
-			end
-		elseif node:IsA("LayerCollector") then
-			return node.Enabled
-		end
-		node = node.Parent
-	end
-	return false
-end
-
 local function start()
 	if running then
 		return
@@ -81,7 +67,7 @@ local function start()
 		for holder, update in active do
 			if holder.Parent == nil then
 				active[holder] = nil
-			elseif onScreen(holder) then
+			elseif OnScreen.Gui(holder) then
 				update(t)
 			end
 		end
@@ -110,7 +96,12 @@ local function artFrame(holder: Frame, root: GuiObject, aspect: number): Frame
 		art.Position = UDim2.fromScale((1 - aw / w) / 2, (1 - ah / h) / 2)
 	end
 	fit()
-	root:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
+	-- root outlives the holder (a re-Apply / clear() destroys only the holder), so the resize
+	-- connection goes with the holder; left on root it piled up on every repaint
+	local conn = root:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
+	holder.Destroying:Once(function()
+		conn:Disconnect()
+	end)
 	return art
 end
 

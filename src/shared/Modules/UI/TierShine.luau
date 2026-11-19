@@ -18,6 +18,8 @@
 
 local RunService = game:GetService("RunService")
 
+local OnScreen = require(script.Parent.OnScreen)
+
 local C = Color3.fromHex
 local WHITE = C("FFFFFF")
 local RAINBOW = { C("FFB3C7"), C("FFD8A8"), C("FFF1A8"), C("B8F0C8"), C("B5DDFF"), C("D8C4FF") }
@@ -77,21 +79,12 @@ end
 
 -- [[ Loop ]]
 
--- On screen? Every GuiObject above the gradient is Visible, and its ScreenGui / BillboardGui is
--- Enabled. (A few property reads per gradient; far cheaper than redrawing what nobody sees.)
+-- On screen? Every GuiObject above the gradient is Visible, and its ScreenGui is Enabled (or its
+-- name tag / street screen is in range and in view: Modules/UI/OnScreen). A few property reads
+-- per gradient; far cheaper than redrawing what nobody sees.
 local function shown(gradient: UIGradient): boolean
-	local node = gradient.Parent
-	while node do
-		if node:IsA("GuiObject") then
-			if not node.Visible then
-				return false
-			end
-		elseif node:IsA("LayerCollector") then
-			return node.Enabled
-		end
-		node = node.Parent
-	end
-	return false
+	local parent = gradient.Parent
+	return parent ~= nil and OnScreen.Gui(parent)
 end
 
 local function start()

@@ -23,6 +23,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 
+local OnScreen = require(script.Parent.OnScreen)
+
 local CosmeticView = {}
 
 local FOV = 30
@@ -620,29 +622,8 @@ if RunService:IsClient() and Players.LocalPlayer then
 end
 
 -- the auto turn: one loop for every card, only the ones actually on screen move
--- (hidden, or scrolled / clipped out of view: a viewport off screen still costs a render)
-local function onScreen(gui: GuiObject): boolean
-	local pos, size = gui.AbsolutePosition, gui.AbsoluteSize
-	local node: Instance? = gui
-	while node do
-		if node:IsA("GuiObject") then
-			if not node.Visible then
-				return false
-			end
-			if node ~= gui and (node.ClipsDescendants or node:IsA("ScrollingFrame")) then
-				local p, s = node.AbsolutePosition, node.AbsoluteSize
-				if pos.X > p.X + s.X or pos.Y > p.Y + s.Y or pos.X + size.X < p.X or pos.Y + size.Y < p.Y then
-					return false
-				end
-			end
-		elseif node:IsA("LayerCollector") then
-			return node.Enabled
-		end
-		node = node.Parent
-	end
-	return false
-end
-
+-- (hidden, scrolled / clipped out of view, or on a street screen out of range or behind the
+-- camera: a viewport off screen still costs a render). See Modules/UI/OnScreen.
 if RunService:IsClient() and RunService:IsRunning() then
 	RunService.RenderStepped:Connect(function(dt)
 		dt = math.min(dt, MAX_STEP)
@@ -653,7 +634,7 @@ if RunService:IsClient() and RunService:IsRunning() then
 			end
 			local vf = art:FindFirstChild("Model3D") :: ViewportFrame?
 			local cam = vf and vf.CurrentCamera
-			if not (vf and cam and onScreen(vf)) then
+			if not (vf and cam and OnScreen.Gui(vf, true)) then
 				continue
 			end
 			orbit.Yaw += dt * AUTO_SPIN
