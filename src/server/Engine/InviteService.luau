@@ -179,6 +179,11 @@ end
 --| Public
 
 function InviteService.Start()
+	-- while an invite is out (sent or received), DuelService doesn't move this player to another
+	-- stage or send them a ghost (DuelService.scheduleGhost), so the invite can still land
+	DuelService.InvitePending = function(player: Player): boolean
+		return outgoing[player] ~= nil or incoming[player] ~= nil
+	end
 	InviteRemote:Connect(function(player: Player, packet)
 		if type(packet) ~= "table" then
 			return

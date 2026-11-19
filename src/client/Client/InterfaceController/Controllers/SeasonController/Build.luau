@@ -5,7 +5,8 @@
 --                                 5 milestones a page on a road, Earn Stars, Coming up), Ranks
 --                                 (top 3 podium cards, rows 4–10, pinned YOU row) and Rewards
 --                                 (what each tier + placement unlocks)
---   • Interface.Frames.Banners  – the STYLE picker (Sets / Banners / Photocards tabs, preview, 4 × 3 grid)
+--   • Interface.Frames.Banners  – the STYLE picker (Sets / Banners / Photocards tabs, preview, 4 × 3 grid;
+--                                 one Template tile per tab, cloned per owned banner by BannersController)
 --   • Season Track rewards (board "Seasons 12"): the Roll screen's ticket counter, ticket strip
 --     and Pick a Group overlay (Roll.Picker), and the Index's card-upgrade bits (BuildRewards)
 --   • Shop: the "Banners + photocards" section (StyleTitle + Style, 4 rotating cards) after
@@ -470,13 +471,13 @@ function Build.Banners(frames: Instance)
 	button(left, "Equip", 0, 437, 294, 56, MINT, "EQUIP", 20)
 
 	local grid = new("Frame", { Name = "Grid", Position = UDim2.fromOffset(346, 67 + 18), Size = UDim2.fromOffset(632, 495), BackgroundTransparency = 1 }, panel)
-	-- 4 × 3 a page (BANNERS_PER_PAGE); BannersController places and pages them
+	-- 4 × 3 a page (BANNERS_PER_PAGE). Each grid holds one hidden "Template" tile (placeholder
+	-- text from the first banner); BannersController clones it for each banner you own as a
+	-- page needs it, then places and pages them, so a new banner needs no rebuild
 	local cw, ch, g = math.floor((632 - 3 * 12) / 4), 150, 12
-	local perPage = SeasonConstants.BANNERS_PER_PAGE
-	for i, spec in SeasonConstants.BANNERS do
-		local slot = (i - 1) % perPage
-		local col, rowN = slot % 4, math.floor(slot / 4)
-		local b = new("TextButton", { Name = spec.Id, Position = UDim2.fromOffset(col * (cw + g), rowN * (ch + 18)), Size = UDim2.fromOffset(cw, ch), BackgroundColor3 = WHITE, AutoButtonColor = false, Text = "", Visible = i <= perPage }, grid)
+	do
+		local spec = SeasonConstants.BANNERS[1]
+		local b = new("TextButton", { Name = "Template", Position = UDim2.fromOffset(0, 0), Size = UDim2.fromOffset(cw, ch), BackgroundColor3 = WHITE, AutoButtonColor = false, Text = "", Visible = false }, grid)
 		corner(b, 14)
 		stroke(b, 3)
 		b:SetAttribute("NoButtonScale", true)
@@ -507,10 +508,8 @@ function Build.Banners(frames: Instance)
 		SeasonArt.BuildCardSkin(m, ph, 8, withDeco)
 		return m
 	end
-	local function tile(parent: Instance, i: number, id: string): TextButton
-		local slot = (i - 1) % perPage
-		local col, rowN = slot % 4, math.floor(slot / 4)
-		local b = new("TextButton", { Name = id, Position = UDim2.fromOffset(col * (cw + g), rowN * (ch + 18)), Size = UDim2.fromOffset(cw, ch), BackgroundColor3 = WHITE, AutoButtonColor = false, Text = "", Visible = i <= perPage }, parent)
+	local function tile(parent: Instance): TextButton
+		local b = new("TextButton", { Name = "Template", Position = UDim2.fromOffset(0, 0), Size = UDim2.fromOffset(cw, ch), BackgroundColor3 = WHITE, AutoButtonColor = false, Text = "", Visible = false }, parent)
 		corner(b, 14)
 		stroke(b, 3)
 		b:SetAttribute("NoButtonScale", true)
@@ -519,42 +518,36 @@ function Build.Banners(frames: Instance)
 
 	-- photocards: the card standing in the tile, name under it
 	local cards = new("Frame", { Name = "Cards", Position = grid.Position, Size = grid.Size, BackgroundTransparency = 1, Visible = false }, panel)
-	local n = 0
-	for _, spec in SeasonConstants.BANNERS do
-		if SeasonConstants.Photocard(spec.Id) then
-			n += 1
-			local b = tile(cards, n, spec.Id)
-			mini(b, UDim2.new(0.5, -42, 0, 8), 84, 100, 0, true)
-			text(b, "CardName", { Position = UDim2.fromOffset(8, 114), Size = UDim2.new(1, -16, 0, 22), FontFace = HEAD, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Center, Text = spec.Name })
-			local tag = chip(b, "Tag", UDim2.fromOffset(6, 6), 18, WHITE, spec.Tag, 10)
-			tag.ZIndex = 4
-			local eq = chip(b, "Equipped", UDim2.new(1, -6, 0, 6), 18, INK, "ON", 10, Vector2.new(1, 0))
-			eq.TextColor3 = MINT
-			eq.ZIndex = 4
-			eq.Visible = false
-		end
+	do
+		local spec = SeasonConstants.BANNERS[1]
+		local b = tile(cards)
+		mini(b, UDim2.new(0.5, -42, 0, 8), 84, 100, 0, true)
+		text(b, "CardName", { Position = UDim2.fromOffset(8, 114), Size = UDim2.new(1, -16, 0, 22), FontFace = HEAD, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Center, Text = spec.Name })
+		local tag = chip(b, "Tag", UDim2.fromOffset(6, 6), 18, WHITE, spec.Tag, 10)
+		tag.ZIndex = 4
+		local eq = chip(b, "Equipped", UDim2.new(1, -6, 0, 6), 18, INK, "ON", 10, Vector2.new(1, 0))
+		eq.TextColor3 = MINT
+		eq.ZIndex = 4
+		eq.Visible = false
 	end
 
 	-- sets: the banner with its photocard tucked over the corner
 	local sets = new("Frame", { Name = "Sets", Position = grid.Position, Size = grid.Size, BackgroundTransparency = 1, Visible = false }, panel)
-	n = 0
-	for _, spec in SeasonConstants.BANNERS do
-		if SeasonConstants.Photocard(spec.Id) then
-			n += 1
-			local b = tile(sets, n, spec.Id)
-			local art = SeasonArt.BuildBanner(b, "Banner", UDim2.fromOffset(9, 9), UDim2.new(1, -18, 0, 62), 10, false)
-			stroke(art, 3)
-			mini(b, UDim2.fromOffset(12, 44), 50, 60, -5, false)
-			-- two lines for the long names ("Chrome Dream", "S0 Comeback")
-			text(b, "SetName", { Position = UDim2.fromOffset(70, 72), Size = UDim2.new(1, -76, 0, 30), FontFace = HEAD, TextSize = 12, TextWrapped = true, TextTruncate = Enum.TextTruncate.None, TextYAlignment = Enum.TextYAlignment.Bottom, LineHeight = 0.9, Text = spec.Name })
-			text(b, "Kind", { Position = UDim2.fromOffset(70, 104), Size = UDim2.new(1, -76, 0, 18), FontFace = BODY_BOLD, TextSize = 11, TextColor3 = MUTED, Text = "banner + card" })
-			local tag = chip(art, "Tag", UDim2.fromOffset(6, 6), 18, WHITE, spec.Tag, 10)
-			tag.ZIndex = 4
-			local eq = chip(art, "Equipped", UDim2.new(1, -6, 0, 6), 18, INK, "EQUIPPED", 10, Vector2.new(1, 0))
-			eq.TextColor3 = MINT
-			eq.ZIndex = 4
-			eq.Visible = false
-		end
+	do
+		local spec = SeasonConstants.BANNERS[1]
+		local b = tile(sets)
+		local art = SeasonArt.BuildBanner(b, "Banner", UDim2.fromOffset(9, 9), UDim2.new(1, -18, 0, 62), 10, false)
+		stroke(art, 3)
+		mini(b, UDim2.fromOffset(12, 44), 50, 60, -5, false)
+		-- two lines for the long names ("Chrome Dream", "S0 Comeback")
+		text(b, "SetName", { Position = UDim2.fromOffset(70, 72), Size = UDim2.new(1, -76, 0, 30), FontFace = HEAD, TextSize = 12, TextWrapped = true, TextTruncate = Enum.TextTruncate.None, TextYAlignment = Enum.TextYAlignment.Bottom, LineHeight = 0.9, Text = spec.Name })
+		text(b, "Kind", { Position = UDim2.fromOffset(70, 104), Size = UDim2.new(1, -76, 0, 18), FontFace = BODY_BOLD, TextSize = 11, TextColor3 = MUTED, Text = "banner + card" })
+		local tag = chip(art, "Tag", UDim2.fromOffset(6, 6), 18, WHITE, spec.Tag, 10)
+		tag.ZIndex = 4
+		local eq = chip(art, "Equipped", UDim2.new(1, -6, 0, 6), 18, INK, "EQUIPPED", 10, Vector2.new(1, 0))
+		eq.TextColor3 = MINT
+		eq.ZIndex = 4
+		eq.Visible = false
 	end
 	return root
 end

@@ -8,7 +8,6 @@ local Janitor = require(ReplicatedStorage.Packages.janitor)
 local Promise = require(ReplicatedStorage.Packages.promise)
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
-local EventConstants = require(ReplicatedStorage.Constants.EventConstants)
 local EventRsvp = require(ReplicatedStorage.Modules.EventRsvp)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Client
 local Levels = require(ReplicatedStorage.Modules.Levels)
@@ -21,6 +20,7 @@ local UITypes = require(ReplicatedStorage.Types.UITypes)
 
 local Effects = require(script.Effects)
 local Nudges = require(script.Nudges)
+local Boosts = require(script.Boosts)
 
 -- -------------------------------- Variables ------------------------------- --
 local LOCAL_PLAYER = Players.LocalPlayer
@@ -31,6 +31,7 @@ local FILL_TWEEN = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirecti
 -- Slide-out when a menu opens: each corner group leaves through its nearest edge.
 local SLIDE = {
 	TopLeft = Vector2.new(-480, 0),
+	BottomLeft = Vector2.new(-480, 0),
 	Buttons = Vector2.new(480, 0),
 	Menu = Vector2.new(0, 340),
 }
@@ -126,10 +127,14 @@ function HUDController.Initialize(self: Self, interface: any)
 	self:_bindButtons()
 	self:_bindSeason()
 	self:_bindEvent()
+	-- active boost potions under the left cards (hover for what they do)
+	Boosts.Start(hud, self._janitor, function()
+		self:_open("Shop", "Boosts")
+	end)
 	self:_bindExtras()
 	self:_applyStatic()
 	-- one-time lobby hints: Roll / Shop once you can afford something, Rewards once one's earned
-	self._nudges = Nudges.new(hud, self._janitor)
+	self._nudges = Nudges.new(hud, self._janitor, self._interface)
 	self._nudges:RewardsEarned(self._rewardsEarned or 0)
 	-- looping eye-catchers: rainbow Shop outline, Quick Play sheen, Rewards badge hop
 	Effects.Start(hud, self._janitor, function(gui)
@@ -404,11 +409,11 @@ function HUDController._bindSeason(self: Self)
 	end))
 end
 
--- the Christmas card under the season card (in its slot while seasons are off), as in the
--- "Christmas event sign-up" mockup. Before the event: white, "in 14d" + NEW, and a tap opens
--- Roblox's sign-up (Modules/EventRsvp); signed up: pale mint, "✓ Going · in 14d". During it
--- (EventConstants.STARTS to ENDS): pale blue with a yellow tile, "Winter '26", opens the
--- Winter screen. Hidden once it's over.
+-- the event button under the season card (in its slot while seasons are off), for whichever
+-- Roblox event Configs points at (Constants/EventConstants, Modules/EventRsvp). Before the
+-- event: white, the event's icon and title, "in 14d" + NEW, and a tap opens Roblox's sign-up. Once the
+-- player is going it hides. While live it shows only if EventConstants.EVENTS[id].Live says
+-- what to open (pale blue, yellow tile). Hidden when there's no event or it's over.
 function HUDController._bindEvent(self: Self)
 	local topLeft = self._hud.TopLeft
 	local card = topLeft:FindFirstChild("Event")
@@ -428,9 +433,8 @@ function HUDController._bindEvent(self: Self)
 	local WHITE = card.BackgroundColor3
 	local TILE = card.Tile.BackgroundColor3
 	local SUB = card.Sub.TextColor3
-	local GOING_BG, GOING_TEXT = Color3.fromHex("E9F8EC"), Color3.fromHex("1F7A40")
 	local LIVE_BG, LIVE_TILE, INK = Color3.fromHex("DCEFF9"), Color3.fromHex("FFE07A"), Color3.fromHex("1E1B2E")
-	local going: boolean? = nil
+	local info: EventRsvp.Info? = nil
 
 	local function show(on: boolean)
 		card.Visible = on
@@ -439,33 +443,39 @@ function HUDController._bindEvent(self: Self)
 		end
 	end
 	local function paint()
-		local phase = EventRsvp.Phase()
-		show(phase ~= "Over")
-		if phase == "Live" then
+		local phase = info and EventRsvp.Phase(info)
+		if info then
+			card.Tile.Icon.Image = info.Icon
+		end
+		if info and phase == "Before" and not info.Going then
+			show(true)
+			card.BackgroundColor3 = WHITE
+			card.Tile.BackgroundColor3 = TILE
+			card.Title.Text = info.Title
+			card.Sub.Text = `in {EventRsvp.Countdown(info)}`
+			card.Sub.TextColor3 = SUB
+			card.New.Visible = true
+		elseif info and phase == "Live" and info.Live then
+			show(true)
 			card.BackgroundColor3 = LIVE_BG
 			card.Tile.BackgroundColor3 = LIVE_TILE
-			card.Title.Text = EventConstants.LIVE_NAME
+			card.Title.Text = info.Live.Name
 			card.Sub.Text = "Open"
 			card.Sub.TextColor3 = INK
 			card.New.Visible = false
-		elseif phase == "Before" then
-			card.BackgroundColor3 = if going then GOING_BG else WHITE
-			card.Tile.BackgroundColor3 = TILE
-			card.Title.Text = EventConstants.NAME
-			card.Sub.Text = if going then `✓ Going · in {EventRsvp.Countdown()}` else `in {EventRsvp.Countdown()}`
-			card.Sub.TextColor3 = if going then GOING_TEXT else SUB
-			card.New.Visible = not going
+		else
+			show(false)
 		end
 	end
-	paint()
-	-- Roblox's answer can take a moment (and is nil in Studio): paint again once it's in
-	task.spawn(function()
-		going = EventRsvp.IsGoing()
+	-- Roblox's answer can take a moment: hidden until it's in
+	local function refresh()
+		info = EventRsvp.Info()
 		paint()
-	end)
-	self._janitor:Add(EventRsvp.Changed:Connect(function(now: boolean)
-		going = now
-		paint()
+	end
+	show(false)
+	task.spawn(refresh)
+	self._janitor:Add(EventRsvp.Changed:Connect(function()
+		task.spawn(refresh)
 	end))
 	local ticker = task.spawn(function()
 		while true do
@@ -477,9 +487,12 @@ function HUDController._bindEvent(self: Self)
 		task.cancel(ticker)
 	end, true)
 	self._janitor:Add(card.Activated:Connect(function()
-		local phase = EventRsvp.Phase()
-		if phase == "Live" then
-			self:_open("Winter")
+		if not info then
+			return
+		end
+		local phase = EventRsvp.Phase(info)
+		if phase == "Live" and info.Live then
+			self:_open(info.Live.Opens)
 		elseif phase == "Before" then
 			task.spawn(EventRsvp.Prompt)
 		end
@@ -578,7 +591,7 @@ function HUDController._slide(self: Self, show: boolean): any
 	for name, offset in SLIDE do
 		local group = hud:FindFirstChild(name) :: GuiObject?
 		if group then
-			-- groups AutoScale doesn't pin (Menu) rest where they were placed in Studio
+			-- a group AutoScale doesn't pin rests where it was placed in Studio
 			if group:GetAttribute("HomeX") == nil then
 				group:SetAttribute("HomeX", group.Position.X.Offset)
 				group:SetAttribute("HomeY", group.Position.Y.Offset)

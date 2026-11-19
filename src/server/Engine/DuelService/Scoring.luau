@@ -126,6 +126,15 @@ function Scoring.RivalCoins(coins: number): number
 	return math.floor(coins * DuelConstants.SAME_RIVAL_COIN_SCALE + 0.5)
 end
 
+-- a win against a ghost rival: GHOST_COIN_SCALE of the stake, or GHOST_TAPER_SCALE once the
+-- player already has GHOST_DAILY_WINS ghost wins today. Returns coins, the share paid and
+-- whether the daily taper applied. winsBefore = today's ghost wins before this one.
+function Scoring.GhostCoins(stake: number, winsBefore: number): (number, number, boolean)
+	local tapered = winsBefore >= DuelConstants.GHOST_DAILY_WINS
+	local scale = if tapered then DuelConstants.GHOST_TAPER_SCALE else DuelConstants.GHOST_COIN_SCALE
+	return math.floor(stake * scale + 0.5), scale, tapered
+end
+
 -- a game's answers that look like a modified client (DuelConstants.SUSPECT_*): "Instant" or
 -- "Slow" and how many rounds fit, or nil. picks = one player's { Correct, Tier, Time } per round.
 function Scoring.Suspect(picks: { { Correct: boolean, Tier: number, Time: number? } }): (string?, number)

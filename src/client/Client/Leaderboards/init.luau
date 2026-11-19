@@ -13,6 +13,8 @@
 -- with nothing on it yet. Data comes from Scribe (PlayerData Leaderboards).
 -- Join button: Join the group (Roblox prompt) → Claim rewards → Claimed ✓ (RewardsService
 -- checks everything again).
+-- VIP Pass owners wear ★ VIP on their row (the "VIP" chip on each row and podium card, built in
+-- Studio): Engine/VIPService puts the top rows' VIPs on ReplicatedStorage ("VIPOnBoards").
 -- The like goal ("Leaderboard_LikeGoal", Board3, left of the big board): the game's likes toward
 -- the next goal (Constants/LikeGoalConstants, counted by Engine/LikeGoalService) and what
 -- everyone got for the last goal hit.
@@ -31,6 +33,7 @@ local LikeGoalConstants = require(ReplicatedStorage.Constants.LikeGoalConstants)
 local Currencies = require(ReplicatedStorage.Constants.Currencies)
 
 local RewardsRemote = Bridgenet.ReferenceBridge("RewardsRemote")
+local VIP_ATTRIBUTE = "VIPOnBoards"
 local LOCAL_PLAYER = Players.LocalPlayer
 
 local C = Color3.fromHex
@@ -117,6 +120,10 @@ local function bindMain(gui: SurfaceGui, framePart: BasePart?)
 
 	local function fill()
 		local spec = BOARDS[current]
+		local vip = {}
+		for id in string.gmatch(tostring(ReplicatedStorage:GetAttribute(VIP_ATTRIBUTE) or ""), "%d+") do
+			vip[tonumber(id)] = true
+		end
 		local ok, entries = pcall(PlayerData.GetLeaderboard, current)
 		entries = if ok and type(entries) == "table" then entries else {}
 		fillYou(spec, entries)
@@ -137,11 +144,16 @@ local function bindMain(gui: SurfaceGui, framePart: BasePart?)
 				face.Value.Text = if e then (if spec.Unit then `{value} {spec.Unit}` else value) else ""
 				face.Photo.Avatar.Image = if e then headshot(e.UserId) else ""
 				face.BackgroundColor3 = if mine then MINE else WHITE
+				face.VIP.Visible = e ~= nil and vip[e.UserId] == true
 			else
 				local r = list["Row" .. place]
 				r.PlayerName.Text = if e then e.Name else "—"
 				r.Value.Text = value
 				r.BackgroundColor3 = if mine then MINE else WHITE
+				r.VIP.Visible = e ~= nil and vip[e.UserId] == true
+				-- leave the chip its room (it sits just left of the value)
+				r.PlayerName.Size = UDim2.new(1, if r.VIP.Visible then -272 else -192, 1, 0)
+				r.PlayerName.TextTruncate = Enum.TextTruncate.AtEnd
 			end
 		end
 	end
@@ -187,6 +199,8 @@ local function bindMain(gui: SurfaceGui, framePart: BasePart?)
 			end
 		end)
 	end)
+	-- the VIP list came in or changed (Engine/VIPService)
+	ReplicatedStorage:GetAttributeChangedSignal(VIP_ATTRIBUTE):Connect(fill)
 	-- flip through the boards (unless you're reading one), keep the countdown and the
 	-- replicated cache fresh (it can land before OnLeaderboard is hooked)
 	task.spawn(function()

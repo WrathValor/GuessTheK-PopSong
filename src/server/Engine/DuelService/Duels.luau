@@ -48,12 +48,17 @@ export type Result = {
 	StakeRoll: number?,
 	Mode: string,
 	Solo: boolean,
+	Ghost: any?, -- a ghost rival game: { Score, Won, Level, Synthetic, Rounds } (nil otherwise)
 }
 
 --| Helpers
 local function key(player: Player): string
 	return tostring(player.UserId)
 end
+
+-- the ghost rival in packets (scores, picks, profiles) and as a round's FirstCorrect
+local GHOST_KEY = tostring(DuelConstants.GHOST_USER_ID)
+local GHOST = "Ghost"
 
 -- the duel maths lives in Scoring (tested in tests/Scoring.spec)
 local rollStake = Scoring.RollStake
@@ -115,6 +120,19 @@ Duels.__index = Duels
 Duels.Halted = false
 Duels.StreakMultiplier = streakMultiplier
 Duels.ProfileOf = profileOf -- the invite cards show the same Level / Streak
+
+-- The ghost rival as the screens show it: always anonymous, always marked as a ghost.
+function Duels.GhostProfile(record): any
+	return {
+		UserId = DuelConstants.GHOST_USER_ID,
+		Name = DuelConstants.GHOST_NAME,
+		DisplayName = DuelConstants.GHOST_NAME,
+		Level = record.L or 1,
+		Streak = 0,
+		Multiplier = 1,
+		Ghost = true,
+	}
+end
 
 -- party = a Party Stage match (Engine/PartyService), nil for duels + solo:
 --   { Kind = "FFA" | "Duel", Players = { Player } (setlist order), Pool = { song }? (the
@@ -193,9 +211,29 @@ function Duels.new(stage, playerA: Player?, playerB: Player?, solo: boolean?, pa
 	-- it's on; HandoverBy is when that round's answer clock gets cut off
 	self.Handover = false
 	self.HandoverBy = nil :: number?
+	-- ghost rival (SetGhost): a solo game underneath (one player on an open stage) that plays
+	-- as a duel against a recorded game. Practice() is solo without one.
+	self.Ghost = nil :: any
 
 	stage.Model:SetAttribute("Round", 0)
 	return self
+end
+
+-- Turns this solo game into a ghost rival game (DuelService, before Start). The ghost plays
+-- the recording's songs in order, answering on its recorded tier, time and pick.
+function Duels:SetGhost(record)
+	self.Ghost = {
+		Record = record,
+		Profile = Duels.GhostProfile(record),
+		Score = 0,
+		CorrectTime = 0, -- tie-break, like CorrectTime for players
+		Rounds = {} :: { any }, -- per round: { Correct, Points, Picked, Tier }
+	}
+end
+
+-- solo practice proper (no ghost): its own stakes, theme, no clock and no rival to beat
+function Duels:Practice(): boolean
+	return self.Solo and not self.Ghost
 end
 
 function Duels:_fire(packet)
@@ -219,7 +257,7 @@ function Duels:Start()
 	local thread = task.spawn(function()
 		if self.Party then
 			self:_partyIntro() -- the lobby's countdown already happened: no intermission or vote
-		elseif not self.Solo and not self.SkipIntermission then
+		elseif not self:Practice() and not self.SkipIntermission then
 			self.Intermission = true
 			QueueRemote:Fire(Bridgenet.Players(self.Players), { Message = "Intermission" })
 			task.wait(DuelConstants.START_TIME)
@@ -255,7 +293,11 @@ function Duels:Start()
 		if not self._running then
 			return
 		end
-		if self.Solo and not self.Tutorial then
+		if self.Ghost then
+			-- a ghost game keeps the duel's round clock
+			local me = self.Players[1]
+			Analytics.Event(me, "GhostStarted", self.Ghost.Record.L or 0, if self.Ghost.Record.Synthetic then "Synthetic" else "Recorded")
+		elseif self.Solo and not self.Tutorial then
 			-- practice is at your own pace: no 20 s round clock, so no countdown either
 			self.Cap = DuelConstants.SOLO_CAP
 			local me = self.Players[1]
@@ -355,7 +397,7 @@ end
 
 function Duels:_preDuel()
 	-- solo rolls a stake too, from its own lower table; it pays out as XP instead of coins
-	local stakes = if self.Solo then DuelConstants.SOLO_STAKES else DuelConstants.STAKES
+	local stakes = if self:Practice() then DuelConstants.SOLO_STAKES else DuelConstants.STAKES
 	self.Stake = rollStake(stakes, DuelConstants.STAKE_WEIGHTS)
 
 	local reel = {}
@@ -369,6 +411,10 @@ function Duels:_preDuel()
 		if p then
 			profiles[slot] = profileOf(p)
 		end
+	end
+	if self.Ghost then
+		-- the ghost takes the empty spot
+		profiles[if profiles.A then "B" else "A"] = self.Ghost.Profile
 	end
 
 	-- owned songs: whatever a player owns comes up more often, nothing to equip. Solo can turn
@@ -386,7 +432,7 @@ function Duels:_preDuel()
 		end
 	end
 	-- solo: the theme from the queue card (Settings.SoloTheme)
-	if self.Solo then
+	if self:Practice() then
 		local me = self.Players[1]
 		local ok, data = pcall(PlayerData.Get, me)
 		local theme = if ok and data then data.Settings.SoloTheme.Get() else Themes.DEFAULT
@@ -412,9 +458,10 @@ function Duels:_preDuel()
 		Packs = packsInfo,
 		Stake = self.Stake,
 		Reel = reel,
-		Chips = if self.Solo then stakes else nil, -- solo's lower table (nil: the duel strip)
+		Chips = if self:Practice() then stakes else nil, -- solo's lower table (nil: the duel strip)
 		Players = profiles,
-		Solo = self.Solo,
+		Solo = self:Practice(),
+		Ghost = if self.Ghost then true else nil, -- a ghost rival game (screens show it as a duel)
 		Record = self.Record,
 		SpinTime = DuelConstants.STAKE_SPIN,
 		ModeVote = DuelConstants.MODE_VOTE,
@@ -493,13 +540,16 @@ function Duels:_playRound(round: number)
 		for p, s in self.Scores do
 			scores[key(p)] = s
 		end
+		if self.Ghost then
+			scores[GHOST_KEY] = self.Ghost.Score
+		end
 		self:_fire({
 			Message = "Encore",
 			Multiplier = mult,
 			Scores = scores,
 			-- the top tier, plus the first-correct bonus where there's a rival to beat
-			Max = DuelConstants.TIER_POINTS[1] * mult + (if self.Solo then 0 else DuelConstants.FIRST_CORRECT_BONUS * mult),
-			Solo = self.Solo or nil,
+			Max = DuelConstants.TIER_POINTS[1] * mult + (if self:Practice() then 0 else DuelConstants.FIRST_CORRECT_BONUS * mult),
+			Solo = self:Practice() or nil,
 			Party = if self.Party then true else nil,
 		})
 		-- the scores going into the ENCORE, so a comeback can be spotted (StreetScreens)
@@ -527,7 +577,14 @@ function Duels:_playRound(round: number)
 	while self._running do
 		task.wait(0.1)
 		local now = os.clock() - state.Start
-		local allIn = true
+		-- the ghost answers when its recording did (inside the answer window, like anyone)
+		local ghost = state.Ghost
+		if ghost and not ghost.Done and ghost.At and now >= ghost.At then
+			if not (state.FirstGuessAt and now >= state.FirstGuessAt + DuelConstants.ANSWER_WINDOW) then
+				self:_ghostGuess(state, now)
+			end
+		end
+		local allIn = ghost == nil or ghost.Done
 		for _, info in per do
 			if not info.Picked then
 				allIn = false
@@ -582,12 +639,35 @@ function Duels:_playRound(round: number)
 			First = state.FirstCorrect == p,
 		}
 	end
+	local ghost = state.Ghost
+	if ghost then
+		local answered = ghost.Done and ghost.Picked ~= nil
+		local correct = answered and ghost.Correct
+		local points = Scoring.PickPoints(correct, answered, ghost.Tier, state.FirstCorrect == GHOST, mult, false)
+		local g = self.Ghost
+		g.Score += points
+		if correct then
+			g.CorrectTime += ghost.Time or 0
+		end
+		g.Rounds[round] = { Correct = correct, Points = points, Picked = answered, Tier = ghost.Tier }
+		local picked = answered and SongLibrary.GetById(ghost.Picked)
+		publicPicks[GHOST_KEY] = {
+			Picked = picked and SongLibrary.Public(picked) or nil,
+			Correct = correct,
+			Points = points,
+			Tier = ghost.Tier,
+			First = state.FirstCorrect == GHOST,
+		}
+	end
 	table.insert(self.Rounds, { Song = song, Picks = picks, Owners = owners, Multiplier = self:_multiplier(round) })
 	self:_logRound(round, song, picks, owners)
 
 	local scores = {}
 	for p, s in self.Scores do
 		scores[key(p)] = s
+	end
+	if self.Ghost then
+		scores[GHOST_KEY] = self.Ghost.Score
 	end
 	local left = nil
 	if self.Party then
@@ -619,7 +699,15 @@ function Duels:_startRound(round: number, swapped: boolean, canSwap: boolean)
 		self.Used[id] = true -- every picker skips used songs
 	end
 	local song
-	if self.Tutorial then
+	-- a ghost replays its recording's songs in order (a swapped-out clip takes any song)
+	local ghostRound = self.Ghost and self.Ghost.Record.R[round]
+	if ghostRound and not swapped then
+		local s = SongLibrary.GetById(ghostRound.Id)
+		if s and not self.Used[s.Id] then
+			song = s
+		end
+	end
+	if not song and self.Tutorial then
 		-- well-known songs, in a random order
 		local pool = {}
 		for _, id in DuelConstants.TUTORIAL_SONGS do
@@ -682,17 +770,30 @@ function Duels:_startRound(round: number, swapped: boolean, canSwap: boolean)
 		end
 		if #list > 0 then
 			self.OwnedRounds += 1
-			ownedTag = { Owners = list, XP = if self.Solo then nil else DuelConstants.OWNED_XP }
+			ownedTag = { Owners = list, XP = if self:Practice() then nil else DuelConstants.OWNED_XP }
 		end
 	end
 
 	local options = { song }
 	-- a themed solo game keeps its options in the theme ("Pack" answers use the whole library)
-	local within = if self.Solo and self.Theme ~= Themes.DEFAULT and self.Theme ~= Themes.PACK
+	local within = if self:Practice() and self.Theme ~= Themes.DEFAULT and self.Theme ~= Themes.PACK
 		then Themes.SongsFor(self.Theme)
 		else partyPool
+	-- the ghost's recorded wrong pick has to be one of the options it can pick
+	local exact = ghostRound ~= nil and ghostRound.Id == song.Id
+	local forced = exact and not ghostRound.Ok and ghostRound.Pick and SongLibrary.GetById(ghostRound.Pick) or nil
+	if forced and forced.Id ~= song.Id then
+		table.insert(options, forced)
+	else
+		forced = nil
+	end
 	for _, s in SongLibrary.GetWrongOptions(song, 3, within) do
-		table.insert(options, s)
+		if #options >= 4 then
+			break
+		end
+		if not forced or s.Id ~= forced.Id then
+			table.insert(options, s)
+		end
 	end
 	for i = #options, 2, -1 do
 		local j = math.random(1, i)
@@ -717,8 +818,12 @@ function Duels:_startRound(round: number, swapped: boolean, canSwap: boolean)
 		Loaded = {} :: { [Player]: boolean },
 		Start = os.clock(),
 		FirstGuessAt = nil :: number?,
-		FirstCorrect = nil :: Player?,
+		FirstCorrect = nil :: any, -- a Player, or GHOST
+		Ghost = nil :: any, -- the ghost's answer this round (ghostAnswer)
 	}
+	if self.Ghost then
+		state.Ghost = self:_ghostAnswer(ghostRound, song, forced, options)
+	end
 	self.Current = state
 	self.Phase = "Loading" -- no guessing until everyone's clip has loaded
 
@@ -738,7 +843,7 @@ function Duels:_startRound(round: number, swapped: boolean, canSwap: boolean)
 		Options = publicOptions,
 		Cap = self.Cap,
 		OwnedTag = ownedTag,
-		Theme = if self.Solo and self.Theme ~= Themes.DEFAULT and self.Theme ~= Themes.PACK
+		Theme = if self:Practice() and self.Theme ~= Themes.DEFAULT and self.Theme ~= Themes.PACK
 			then Themes.Get(self.Theme).Name
 			else nil,
 		-- the client has to play the clip locally, so it gets this round's clip assets (only
@@ -878,7 +983,7 @@ function Duels:Action(player: Player, packet)
 		info.Picked = packet.Id
 		info.Correct = packet.Id == state.Song.Id
 		info.Time = now
-		if info.Correct and not state.FirstCorrect and not self.Solo then
+		if info.Correct and not state.FirstCorrect and not self:Practice() then
 			state.FirstCorrect = player
 		end
 		if self.Party then
@@ -893,6 +998,57 @@ function Duels:Action(player: Player, packet)
 					DuelRemote:Fire(other, { Message = "RivalAnswered", Seconds = left })
 				end
 			end
+		end
+	end
+end
+
+-- [[ Ghost rival ]]
+
+-- What the ghost does this round: answer at its recorded time, on its recorded tier, with its
+-- recorded pick. On a swapped-in song (its clip wouldn't load) it keeps the tier and time, and
+-- is right if it was right on the original (a miss picks one of this round's wrong options).
+function Duels:_ghostAnswer(ghostRound, song, forced, options): any
+	local answer = { Tier = 1, At = nil, Picked = nil, Correct = false, Done = true, Time = nil }
+	if not ghostRound then
+		return answer
+	end
+	answer.Tier = math.clamp(math.floor(tonumber(ghostRound.Tier) or 1), 1, #DuelConstants.TIER_POINTS)
+	if type(ghostRound.Time) ~= "number" then
+		return answer -- it never answered this round
+	end
+	answer.At = ghostRound.Time
+	answer.Done = false
+	if ghostRound.Ok then
+		answer.Picked = song.Id
+		answer.Correct = true
+	elseif forced then
+		answer.Picked = forced.Id
+	else
+		local wrong = {}
+		for _, s in options do
+			if s.Id ~= song.Id then
+				table.insert(wrong, s)
+			end
+		end
+		answer.Picked = if #wrong > 0 then wrong[math.random(1, #wrong)].Id else nil
+		answer.Done = answer.Picked == nil
+	end
+	return answer
+end
+
+-- The ghost's guess lands: first correct, and the "rival answered" clock, as for a player.
+function Duels:_ghostGuess(state, now: number)
+	local ghost = state.Ghost
+	ghost.Done = true
+	ghost.Time = now
+	if ghost.Correct and not state.FirstCorrect then
+		state.FirstCorrect = GHOST
+	end
+	if not state.FirstGuessAt then
+		state.FirstGuessAt = now
+		local left = math.min(DuelConstants.ANSWER_WINDOW, self.Cap - now)
+		for _, p in self.Players do
+			DuelRemote:Fire(p, { Message = "RivalAnswered", Seconds = left })
 		end
 	end
 end
@@ -993,9 +1149,21 @@ function Duels:_finish(winner: Player?, forfeit: boolean, leaver: Player?)
 
 	local draw = false
 	local placement = nil
+	local ghostWon = false
 	if self.Party then
 		placement = self:Placement()
 		winner = winner or placement[1]
+	elseif self.Ghost and not forfeit then
+		-- against the ghost: same rules as a 1v1 (Scoring.Decide), the player as "A"
+		local me = self.Players[1]
+		local outcome = Scoring.Decide(self.Scores[me] or 0, self.Ghost.Score, self.CorrectTime[me] or 0, self.Ghost.CorrectTime)
+		if outcome == "Draw" then
+			draw = true
+		elseif outcome == "A" then
+			winner = me
+		else
+			ghostWon = true
+		end
 	elseif not winner and not self.Solo and self.Slots.A and self.Slots.B then
 		local a, b = self.Slots.A, self.Slots.B
 		-- more points wins; a tie on points goes to the faster correct answers (Scoring.Decide)
@@ -1032,6 +1200,15 @@ function Duels:_finish(winner: Player?, forfeit: boolean, leaver: Player?)
 		Left = self.Left,
 		Firsts = self.Firsts,
 		Everyone = self.Everyone,
+		Ghost = if self.Ghost
+			then {
+				Score = self.Ghost.Score,
+				Won = ghostWon,
+				Level = self.Ghost.Record.L,
+				Synthetic = self.Ghost.Record.Synthetic == true,
+				Rounds = self.Ghost.Rounds,
+			}
+			else nil,
 	}
 
 	-- deferred: the listener destroys this duel, which cancels the round thread

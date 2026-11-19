@@ -11,15 +11,6 @@ return {
 	Status = "Active",
 	Songs = {
 		{
-			Name = "Masterpiece",
-			Year = 2026,
-			MusicId = "rbxassetid://137789938277422",
-			Volume = 1.1,
-			PlaybackSpeed = 0.57,
-			TimePosition = 0.5,
-			ChorusPosition = 45,
-		},
-		{
 			Name = "Moonwalkin'",
 			Year = 2026,
 			MusicId = "rbxassetid://130807626041031",

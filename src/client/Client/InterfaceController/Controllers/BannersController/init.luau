@@ -4,6 +4,9 @@
 --   SETS        a banner and its matching photocard, equipped together
 --   BANNERS     banners on their own
 --   PHOTOCARDS  photocards on their own
+-- Each grid holds one hidden "Template" tile (made by SeasonController/Build). A tile is cloned
+-- from it only for what you own, the first time a page needs it (a Shop buy refills the picker,
+-- so it gets its tile then), so a new banner only needs its line in SeasonConstants, no rebuild.
 -- Only what you own is shown, BANNERS_PER_PAGE a page (the header's ‹ › page them). The left
 -- side previews your inspect card with what's picked, and Equip puts it on.
 -- Owned = the free ones plus the player's "Banners" / "Photocards" attributes (comma lists the
@@ -43,6 +46,7 @@ local TAG_COLOUR = {
 	FREE = C("FFFFFF"), SEASON = C("FF9EC4"), INDEX = C("DCD3FF"), SHOP = C("FFE07A"),
 	TIER = C("FFE07A"), ANIMATED = C("FF9EC4"), HOLO = C("1E1B2E"), SOON = C("EDE4D4"),
 	FRIENDS = C("A7E9B8"), -- Invite friends rewards (the Squad set)
+	VIP = INK, -- the VIP Pass's VIP Gold set (gold text)
 }
 local TABS = { "Sets", "Banners", "Cards" }
 local GRID = { Sets = "Sets", Banners = "Grid", Cards = "Cards" } -- the grid frame each tab shows
@@ -126,6 +130,14 @@ function BannersController:Initialize(interface)
 	self._frame = interface:ResolveFrame("Interface", "Banners")
 	self._frame.Visible = false
 	local panel = self._frame.Panel
+	for _, gridName in GRID do
+		local template = panel[gridName]:FindFirstChild("Template")
+		if template then
+			template.Visible = false
+		else
+			warn(`[Banners] {gridName} has no Template tile; re-run SeasonController/Build.Banners`)
+		end
+	end
 	FitPanel.Watch(self._frame, self._janitor)
 	ButtonScale.ApplyToDescendants(panel)
 
@@ -145,19 +157,6 @@ function BannersController:Initialize(interface)
 					self:_fill()
 				end
 			end))
-		end
-		local grid = panel:FindFirstChild(GRID[tab])
-		if grid then
-			for _, b in grid:GetChildren() do
-				if b:IsA("GuiButton") then
-					j:Add(b.Activated:Connect(function()
-						Sounds.Play("Click")
-						self._picked[tab] = b.Name
-						Juice.Pop(b, 0.08)
-						self:_fill()
-					end))
-				end
-			end
 		end
 	end
 	local pager = panel.Header:FindFirstChild("Pager")
@@ -225,11 +224,43 @@ end
 
 -- [[ Fill ]]
 
+-- `id`'s tile in `tab`'s grid, cloned from its Template the first time it's needed: name +
+-- source written once, the rest painted per fill (_paintTile)
+function BannersController:_tile(tab: string, grid: Instance, spec): GuiButton?
+	local b = grid:FindFirstChild(spec.Id)
+	if b then
+		return b
+	end
+	local template = grid:FindFirstChild("Template")
+	if not template then
+		return nil
+	end
+	b = template:Clone()
+	b.Name = spec.Id
+	local name = b:FindFirstChild("BannerName") or b:FindFirstChild("CardName") or b:FindFirstChild("SetName")
+	if name then
+		name.Text = spec.Name
+	end
+	local source = b:FindFirstChild("Source")
+	if source then
+		source.Text = spec.Source
+	end
+	self._janitor:Add(b.Activated:Connect(function()
+		Sounds.Play("Click")
+		self._picked[tab] = spec.Id
+		Juice.Pop(b, 0.08)
+		self:_fill()
+	end))
+	self._janitor:Add(b)
+	b.Parent = grid
+	return b
+end
+
 local function paintTag(tag: TextLabel?, spec)
 	if tag then
 		tag.Text = spec.Tag
 		tag.BackgroundColor3 = TAG_COLOUR[spec.Tag] or WHITE
-		tag.TextColor3 = if spec.Tag == "HOLO" then YELLOW else INK
+		tag.TextColor3 = if spec.Tag == "HOLO" or spec.Tag == "VIP" then YELLOW else INK
 	end
 end
 
@@ -306,6 +337,7 @@ function BannersController:_fill()
 	for i, spec in list do
 		if math.ceil(i / perPage) == page then
 			shown[spec.Id] = i
+			self:_tile(tab, grid, spec)
 		end
 	end
 	for _, b in grid:GetChildren() do

@@ -2,7 +2,8 @@
 -- The card you get by clicking (or tapping) another player in the lobby
 -- (Interface.Frames.PlayerCard, built by ./Build from the "Profile 2 · clicking another
 -- player" board): their photocard, name, title, level and best board rank, four stats, their
--- 5-card showcase, their streak, and Invite to Duel.
+-- 5-card showcase, their streak, Invite to Duel, and GIFT (opens the shop in gift mode for
+-- them: ShopController:StartGift).
 -- Everything comes from their player attributes (DataService: Level, Title, TitleTier, Streak;
 -- Engine/ProfileService: Wins, Duels, BestStreak, Perfect, SongsOwned, Showcase), so it
 -- updates while the card is open. Invite to Duel asks InviteService to "Challenge" them: it
@@ -133,6 +134,8 @@ function PlayerCard:_paint()
 	top.Photocard.Photo.Avatar.Image = `rbxthumb://type=AvatarBust&id={player.UserId}&w=150&h=150`
 	TitleChip.Paint(top.Chips.Title, player:GetAttribute("Title") or HUDConstants.DEFAULT_TITLE, player:GetAttribute("TitleTier") or "Normal")
 	top.Chips.Level.Text = `LV {number(player, "Level")}`
+	-- ★ VIP first in the row for VIP Pass owners (the chip is ReplicatedStorage.Assets.VIPTag's twin)
+	top.Chips.VIP.Visible = player:GetAttribute("VIP") == true
 	top.Rank.Text = bestRank(player.UserId)
 	top.Rank.Visible = top.Rank.Text ~= ""
 	-- season: their banner behind the top strip + their tier chip
@@ -343,6 +346,20 @@ function PlayerCard:Initialize(interface)
 	end
 	j:Add(panel.Top.Close.Activated:Connect(close))
 	j:Add(self._frame.Away.Activated:Connect(close))
+	-- GIFT: the shop in gift mode for them
+	local giftButton = panel.Body:FindFirstChild("Gift")
+	if giftButton then
+		j:Add(giftButton.Activated:Connect(function()
+			local player = self._player
+			local shop = self._interface:GetController("Shop")
+			if not player or not shop then
+				return
+			end
+			self._interface:Close(self.Name)
+			self._interface:Open("Shop")
+			shop:StartGift(player.UserId)
+		end))
+	end
 	j:Add(panel.Body.Invite.Activated:Connect(function()
 		local player = self._player
 		if not player or not panel.Body.Invite.Active then

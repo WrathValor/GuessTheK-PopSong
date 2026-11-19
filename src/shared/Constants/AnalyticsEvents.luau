@@ -13,6 +13,8 @@
 local AnalyticsEvents = {}
 
 AnalyticsEvents.Custom = {
+	-- [[ Gifting ]] (Engine/GiftService)
+	GiftSent = { Fields = { "Paid", "What" } }, -- value: coins spent (Coins) or 1 (Robux)
 	-- [[ Rounds + games ]]
 	RoundResult = { Fields = { "Song", "Result", "Tier" } }, -- value: seconds to answer (0 = no answer)
 	GameFinished = { Fields = { "Outcome", "Mode", "Packs" } }, -- value: correct answers (0-7)
@@ -29,6 +31,17 @@ AnalyticsEvents.Custom = {
 	MatchFound = { Fields = { "Stage" } }, -- value: seconds waited
 	QueueLeft = { Fields = { "Stage", "When" } }, -- value: seconds waited
 	SoloFromQueue = { Fields = { "How", "Stage" } }, -- value: seconds waited; How Quick (the nudge) / Picker
+	-- ghost rival (DuelService.startGhost / Duels): value = seconds waited / the ghost's level;
+	-- How Queue (nobody came) / Rematch (Play Again); Source Recorded / Synthetic
+	GhostMatched = { Fields = { "How", "Source" } },
+	GhostStarted = { Fields = { "Source" } },
+	GhostLimit = { Fields = {} }, -- a ghost win past GHOST_DAILY_WINS today. value: that win's number today
+	-- waiting alone, moved to a real rival on another stage instead of getting a ghost
+	-- (DuelService.scheduleGhost). value: seconds waited; To Waiting (someone alone) / Practice (open practice or a ghost game's results)
+	RivalMoved = { Fields = { "To" } },
+	-- stepped onto someone's open practice (Settings.SoloOpen, DuelService). When MidGame (their
+	-- solo game was on: it ends after the round) / AfterGame (they were on its results)
+	JoinedOpenPractice = { Fields = { "Stage", "When" } },
 	RematchRequested = { Fields = { "Mode" } },
 	RematchStarted = { Fields = { "Mode" } },
 	InviteSent = { Fields = { "Stage" } },
@@ -98,6 +111,10 @@ AnalyticsEvents.Custom = {
 	FavouriteAsk = { Fields = { "Result" }, Client = true, Allowed = {
 		Result = { "Favourite", "NotNow" },
 	} },
+	-- the daily login pop-up opened on join (DailyLoginController); value 1
+	DailyLoginPopup = { Fields = { "From" }, Client = true, Allowed = {
+		From = { "Join" },
+	} },
 	GroupJoinPrompt = { Fields = { "Result" }, Client = true, Allowed = {
 		Result = { "Joined", "AlreadyMember", "Pending", "Cancelled", "Error" },
 	} },
@@ -133,9 +150,11 @@ AnalyticsEvents.Transactions = {
 	Group = "GroupReward",
 	Referral = "Referral", -- the welcome gift + the inviter's per-friend coins
 	LikeGoal = "LikeGoal", -- a like goal hit: everyone's reward
+	VIPDaily = "VIPDaily", -- the VIP Pass's free roll ticket each day
 	Robux = "RobuxBundle",
 	-- sinks
 	ShopSet = "ShopSet",
+	Gift = "Gift", -- a coin item gifted to someone (sku: Set / Stage / Mic / StyleSet / Banner / Photocard)
 	ShopStage = "ShopStage",
 	ShopMic = "ShopMic",
 	SeasonTrack = "SeasonTrack", -- (a source: milestone coins)

@@ -2,9 +2,11 @@
 -- Top bar of the round screen: both players, round pips and the running score.
 
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- name tag over the opponent mirrors the rival status
 local RivalTag = require(script.Parent.Parent.Parent.Parent.CameraController.RivalTag)
+local GhostArt = require(ReplicatedStorage.Modules.UI.GhostArt) -- the ghost rival's face
 
 local LOCAL_PLAYER = Players.LocalPlayer
 local C = Color3.fromHex
@@ -20,8 +22,7 @@ local Scoreboard = {}
 Scoreboard.__index = Scoreboard
 
 local function thumb(userId: number): string
-	local ok, img = pcall(Players.GetUserThumbnailAsync, Players, userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
-	return ok and img or ""
+	return GhostArt.Thumbnail(userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
 end
 
 function Scoreboard.new(frame, me, rival)

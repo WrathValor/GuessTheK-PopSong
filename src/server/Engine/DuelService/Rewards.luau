@@ -5,6 +5,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
+local ShopCatalog = require(ReplicatedStorage.Constants.ShopCatalog)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 local Levels = require(ReplicatedStorage.Modules.Levels)
 local DailyQuests = require(script.Parent.Parent.RewardsService) -- Engine/RewardsService
@@ -14,6 +15,20 @@ local AnalyticsEvents = require(ReplicatedStorage.Constants.AnalyticsEvents)
 local Scoring = require(script.Parent.Scoring) -- the duel maths (tests/Scoring.spec)
 
 local Rewards = {}
+
+local BoostService = require(script.Parent.Parent.BoostService) -- Engine/BoostService
+
+local function boosted(data, kind: string): boolean
+	return BoostService.Active(data, kind)
+end
+
+-- the coin multiplier and how the results screen names it ("2× pass", "2× potion", "3× pass + potion")
+local function coinBoost(data): (string, number)
+	local pass, potion = data.GamePasses.Has("DoubleCoins") == true, boosted(data, "Coins")
+	local mult = ShopCatalog.CoinMultiplier(pass, potion)
+	local tag = if pass and potion then "3× pass + potion" elseif pass then "2× pass" elseif potion then "2× potion" else ""
+	return tag, mult
+end
 
 -- [[ Same-rival guard ]]
 -- duels between the same two players today (UTC), for DuelConstants.SAME_RIVAL_GAMES
@@ -48,6 +63,7 @@ export type Earned = {
 	PrevBest: number?, -- solo: best score before this run (the results screen's "NEW BEST!" sticker)
 	NewBest: boolean?, -- solo: this run beat PrevBest
 	XPBefore: number?, -- total XP before this match (the results screen's level bar)
+	XPBoosted: boolean?, -- a 2× XP potion doubled it
 	-- the results screen's Season bar: SP moved by a rated duel (Engine/SeasonService.Rate) and
 	-- the Stars it earned. Before / After / Delta are nil when the game wasn't rated.
 	Season: { Before: number?, After: number?, Delta: number?, Gap: number?, TierUp: boolean?, TierDown: boolean?, Stars: number }?,
@@ -58,7 +74,7 @@ local TX = AnalyticsEvents.Transactions
 local OUTCOME_TX = { Win = TX.DuelWin, Lose = TX.DuelLoss, Left = TX.DuelLoss, Draw = TX.DuelDraw, Solo = TX.Solo }
 
 function Rewards._log(player: Player, data, result, earned: Earned, correct: number)
-	local mode = if result.Solo then "Solo" else result.Mode
+	local mode = if result.Ghost then "Ghost" elseif result.Solo then "Solo" else result.Mode
 	local tx = OUTCOME_TX[earned.Outcome] or TX.Solo
 	Analytics.Event(player, "GameFinished", correct, earned.Outcome, mode, if result.Packs then "On" else "Off")
 	Analytics.Onboarding(player, "FinishedGame")
@@ -85,7 +101,7 @@ function Rewards._log(player: Player, data, result, earned: Earned, correct: num
 	if earned.Perfect then
 		Analytics.Event(player, "PerfectGame", 1, mode)
 	end
-	if earned.Outcome == "Win" and earned.Streak >= 2 then
+	if earned.Outcome == "Win" and earned.Streak >= 2 and not result.Ghost then -- (a ghost win doesn't move the streak)
 		Analytics.Event(player, "StreakReached", earned.Streak, if earned.Streak >= 10 then "10+" else tostring(earned.Streak))
 	end
 	if earned.StreakLost >= 2 then
@@ -108,6 +124,12 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 		rivalCount = countRivalGame(players[1], players[2])
 		farmed = Scoring.IsFarmed(rivalCount)
 	end
+	-- a full game against a ghost rival: plays like a duel (win / lose / draw, perfect, AFK),
+	-- but a win pays GHOST_COIN_SCALE of the stake (GHOST_TAPER_SCALE past GHOST_DAILY_WINS
+	-- wins today), and it's never rated, never moves the streak and isn't a duel on the stats.
+	-- Cut short by a real rival, it pays like practice.
+	local ghost = result.Ghost ~= nil and not result.Tutorial and not result.Interrupted
+	local today = math.floor(os.time() / 86400)
 	for _, player in players do
 		local ok, data = pcall(PlayerData.Get, player)
 		if not ok or not data then
@@ -156,7 +178,34 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 			Outcome = "Solo",
 		}
 
-		if result.Solo then
+		if ghost then
+			if result.Leaver == player then
+				earned.Outcome = "Left"
+				earned.XP = 0
+			elseif result.Draw then
+				earned.Outcome = "Draw"
+				earned.XP += DuelConstants.XP_LOSE
+				earned.Coins = DuelConstants.LOSER_COINS
+				earned.CoinsDetail = "Draw"
+			elseif result.Winner == player then
+				earned.Outcome = "Win"
+				earned.XP += DuelConstants.XP_WIN
+				-- today's ghost wins before this one (a new UTC day starts the count again)
+				local before = if data.Statistics.GhostDay.Get() == today then data.Statistics.GhostWinsToday.Get() else 0
+				local coins, scale, tapered = Scoring.GhostCoins(result.Stake, before)
+				earned.Coins = coins
+				earned.CoinsDetail = `{result.Stake} stake × {math.floor(scale * 100 + 0.5)}% · ghost`
+					.. (if tapered then " (daily limit)" else "")
+				if tapered then
+					Analytics.Event(player, "GhostLimit", before + 1)
+				end
+			else
+				earned.Outcome = "Lose"
+				earned.XP += DuelConstants.XP_LOSE
+				earned.Coins = DuelConstants.LOSER_COINS
+				earned.CoinsDetail = "Loser's share"
+			end
+		elseif result.Solo then
 			-- solo practice pays the rolled stake as XP, a seventh of it per right answer (so
 			-- clicking through at random isn't worth more than a duel)
 			earned.Outcome = "Solo"
@@ -207,7 +256,7 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 			earned.XP += ownedHits * DuelConstants.OWNED_XP
 		end
 
-		if perfect and not result.Solo and earned.Outcome ~= "Left" then
+		if perfect and (ghost or not result.Solo) and earned.Outcome ~= "Left" then
 			earned.Perfect = true
 			earned.XP += DuelConstants.PERFECT_XP
 			earned.Coins += DuelConstants.PERFECT_COINS
@@ -222,15 +271,23 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 		end
 
 		-- AFK guard: no answer in any round = no coins (the base XP still counts)
-		if not result.Solo and answered == 0 and earned.Coins > 0 then
+		if (ghost or not result.Solo) and answered == 0 and earned.Coins > 0 then
 			earned.Coins = 0
 			earned.CoinsDetail = "No answers, no coins"
 		end
 
-		-- 2× Coins pass doubles everything coin-related from a match
-		if earned.Coins > 0 and not earned.Tutorial and data.GamePasses.Has("DoubleCoins") then
-			earned.Coins *= 2
-			earned.CoinsDetail = if earned.CoinsDetail ~= "" then `{earned.CoinsDetail} · 2× pass` else "2× pass"
+		-- 2× Coins pass and / or a coin potion: ×2 each, ×3 together (ShopCatalog.CoinMultiplier)
+		if earned.Coins > 0 and not earned.Tutorial then
+			local tag, mult = coinBoost(data)
+			if mult > 1 then
+				earned.Coins *= mult
+				earned.CoinsDetail = if earned.CoinsDetail ~= "" then `{earned.CoinsDetail} · {tag}` else tag
+			end
+		end
+		-- 2× XP potion
+		if earned.XP > 0 and not earned.Tutorial and boosted(data, "XP") then
+			earned.XP *= 2
+			earned.XPBoosted = true
 		end
 
 		-- level up? (the results screen shows it next to the XP)
@@ -268,7 +325,18 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 			if suspect then
 				data.Statistics.SuspectGames.Increment(1)
 			end
-			if result.Solo then
+			if ghost then
+				-- a ghost game: its own counters (no streak, duel or practice stats)
+				data.Statistics.GhostGames.Increment(1)
+				if earned.Outcome == "Win" then
+					data.Statistics.GhostWins.Increment(1)
+					if data.Statistics.GhostDay.Get() ~= today then
+						data.Statistics.GhostDay.Set(today)
+						data.Statistics.GhostWinsToday.Set(0)
+					end
+					data.Statistics.GhostWinsToday.Increment(1)
+				end
+			elseif result.Solo then
 				if not result.Interrupted then
 					data.Statistics.SoloGames.Increment(1)
 				end
@@ -328,7 +396,7 @@ function Rewards.Apply(result, players: { Player }): { [Player]: Earned }
 			Correct = correct,
 			Win = earned.Outcome == "Win",
 			Lost = earned.Outcome == "Lose" or earned.Outcome == "Left",
-			Solo = result.Solo,
+			Solo = result.Solo and not ghost,
 			Perfect = earned.Perfect == true,
 		})
 	end
@@ -383,9 +451,16 @@ function Rewards.ApplyParty(result, info): { [Player]: Earned }
 				earned.Coins = 0
 				earned.CoinsDetail = "No answers, no coins"
 			end
-			if earned.Coins > 0 and data.GamePasses.Has("DoubleCoins") then
-				earned.Coins *= 2
-				earned.CoinsDetail ..= " · 2× pass"
+			if earned.Coins > 0 then
+				local tag, mult = coinBoost(data)
+				if mult > 1 then
+					earned.Coins *= mult
+					earned.CoinsDetail ..= ` · {tag}`
+				end
+			end
+			if earned.XP > 0 and boosted(data, "XP") then
+				earned.XP *= 2
+				earned.XPBoosted = true
 			end
 		elseif not left then
 			earned.CoinsDetail = `Custom pools need {PartyConstants.MIN_POOL_REWARDS}+ songs to pay out`

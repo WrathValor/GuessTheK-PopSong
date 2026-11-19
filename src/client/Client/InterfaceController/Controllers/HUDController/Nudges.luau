@@ -14,7 +14,9 @@
 -- Each shows once per player (Settings.Hints, saved through SettingsService "HintSeen"): it
 -- goes on Got it (A on a controller) or when the button it points at is opened. One at a
 -- time; the other waits. The bubble sits in the HUD, so it slides away with it.
---   local nudges = Nudges.new(hud, janitor)
+-- A nudge never comes over a pop-up: it waits until no screen is open and the lobby has been
+-- quiet for QUIET seconds (the join pop-ups, daily login then What's New, go first).
+--   local nudges = Nudges.new(hud, janitor, interface)
 --   nudges:RewardsEarned(n)   -- RewardsController (via HUD:SetRewardsBadge): quests + levels ready
 --   nudges:Opened(name)       -- HUD: the player opened "Roll" / "Rewards"
 
@@ -36,6 +38,7 @@ local SettingsRemote = Bridgenet.ReferenceBridge("SettingsRemote")
 local GAP = 18 -- design px between the bubble's pointer and the button it points at
 local SPOT_PAD = 8 -- design px of lit space around the button
 local FAR = 4000 -- the dim panels reach this far past the canvas (wide screens)
+local QUIET = 3 -- seconds with no screen open before a nudge shows
 
 -- what each nudge says and where it points: Side "Below" (bubble under the button, tail up),
 -- "Above" (bubble over it, tail down) or "Right" (bubble beside it, tail left)
@@ -92,9 +95,10 @@ local function seen(id: string): boolean
 	return ok and v == true
 end
 
-function Nudges.new(hud, janitor)
+function Nudges.new(hud, janitor, interface)
 	local self = setmetatable({}, Nudges)
 	self._hud = hud
+	self._interface = interface
 	self._frame = hud:WaitForChild("Nudge")
 	self._frame.Visible = false
 	self._spot = hud:WaitForChild("NudgeSpot")
@@ -150,13 +154,46 @@ function Nudges:_want(id: string)
 	self:_next()
 end
 
+-- no screen open (pop-ups, menus) and in the lobby's gameplay mode
+function Nudges:_free(): boolean
+	local i = self._interface
+	return i == nil or (i.Mode == "Gameplay" and i.ActiveController == nil)
+end
+
 function Nudges:_next()
 	if self._showing or #self._queue == 0 or not get(PlayerData.Settings.TutorialDone, false) then
 		return
 	end
+	if self._waiting then
+		return -- already waiting for the lobby to be free
+	end
+	-- wait until nothing has been open for QUIET seconds, so pop-ups always go first
+	self._waiting = true
+	task.spawn(function()
+		local quietSince = os.clock()
+		while true do
+			task.wait(0.5)
+			if not self:_free() then
+				quietSince = os.clock()
+			elseif os.clock() - quietSince >= QUIET then
+				break
+			end
+		end
+		self._waiting = false
+		if self._showing or #self._queue == 0 then
+			return
+		end
+		self:_take()
+	end)
+end
+
+function Nudges:_take()
 	local id = table.remove(self._queue, 1)
 	if self._done[id] or seen(id) then
-		return self:_next()
+		if #self._queue > 0 then
+			return self:_take()
+		end
+		return
 	end
 	self:_show(id)
 end

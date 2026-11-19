@@ -21,6 +21,7 @@ local FitPanel = require(ReplicatedStorage.Modules.UI.FitPanel)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
 local PadBinds = require(ReplicatedStorage.Modules.UI.PadBinds)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
+local GhostArt = require(ReplicatedStorage.Modules.UI.GhostArt) -- the ghost rival's face
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 local SeasonArt = require(ReplicatedStorage.Modules.UI.SeasonArt)
 local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
@@ -363,6 +364,11 @@ function Results:Show(packet, info)
 
 	local solo = packet.Solo == true
 	self:_layout(solo, packet.Tutorial == true)
+	if packet.Ghost then
+		-- against a ghost, "rematch" is a new ghost: the button reads PLAY AGAIN
+		w.Rematch.Label.Visible = false
+		w.Rematch.SoloLabel.Visible = true
+	end
 
 	-- round table
 	local rows = panel.Table.Rows
@@ -487,8 +493,8 @@ function Results:Show(packet, info)
 	end
 	w.Card.Photo.Thumbnail.Image = ""
 	task.spawn(function()
-		local ok, img = pcall(Players.GetUserThumbnailAsync, Players, showId, Enum.ThumbnailType.AvatarBust, Enum.ThumbnailSize.Size150x150)
-		if ok then
+		local img = GhostArt.Thumbnail(showId, Enum.ThumbnailType.AvatarBust, Enum.ThumbnailSize.Size150x150)
+		if img ~= "" then
 			w.Card.Photo.Thumbnail.Image = img
 		end
 	end)
@@ -612,7 +618,7 @@ function Results:_season(packet)
 	local mine = packet.Rewards and packet.Rewards[tostring(LOCAL_PLAYER.UserId)]
 	local season = packet.Season or (mine and mine.Season)
 	local rated = season ~= nil and season.After ~= nil
-	local unrated = packet.Solo == true or packet.Party ~= nil or packet.Tutorial == true or not rated
+	local unrated = packet.Solo == true or packet.Party ~= nil or packet.Tutorial == true or packet.Ghost == true or not rated
 	local current = LOCAL_PLAYER:GetAttribute("SeasonSP") or 0
 	local after = if rated then season.After else current
 	local before = if rated then season.Before else after
@@ -624,6 +630,7 @@ function Results:_season(packet)
 	bar.Note.Visible = unrated
 	bar.Note.Text = if packet.Tutorial then "Practice round · not rated"
 		elseif packet.Solo then "Solo practice doesn't change SP"
+		elseif packet.Ghost then "Ghost games don't change SP"
 		elseif packet.Party ~= nil then "Party matches don't change SP"
 		else "Season over · SP isn't moving"
 	local delta = after - before

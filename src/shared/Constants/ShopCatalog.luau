@@ -5,6 +5,15 @@
 
 local ShopCatalog = {}
 
+-- Developer products belong to one game. The live game ("Guess The K-POP Song!", universe
+-- 10774118391) owns the originals; products added since are made in both it and the
+-- development place, and LIVE picks which ID a catalog entry uses.
+ShopCatalog.LIVE_UNIVERSE = 10774118391
+ShopCatalog.LIVE = game.GameId == ShopCatalog.LIVE_UNIVERSE
+local function pick(live: number, dev: number): number
+	return if ShopCatalog.LIVE then live else dev
+end
+
 ShopCatalog.RARITY_COLOURS = {
 	Common = "EDE4D4",
 	Uncommon = "A7E9B8",
@@ -228,10 +237,141 @@ function ShopCatalog.BundleContents(bundle): { any }
 end
 
 ShopCatalog.Passes = {
-	{ Id = "DoubleCoins", Name = "2× Coins", Sub = "Double coins from every match, forever", GamePassId = 2063766272, Bg = "9ED8F5", Icon = "2×" },
-	{ Id = "VIP", Name = "VIP Pass", Sub = "VIP name tag · gold platform · early restocks", GamePassId = 2063596588, Bg = "FFE07A", Icon = "Crown",
-		Perks = { "VIP name tag", "Gold platform", "Early restocks" } },
+	{ Id = "DoubleCoins", Name = "2× Coins", Sub = "Double coins from every match, forever", Line = "Double coins from\nevery match!", GamePassId = 2063766272, Bg = "9ED8F5", Icon = "2×" },
+	-- (the daily perks are Engine/VIPService's; the looks are NameTags, VIPChat and the ★ VIP chips)
+	{ Id = "VIP", Name = "VIP Pass", Title = "VIP!", Sub = "Gold name tag · daily free ticket + Save Streak", Line = "Gold name tag, daily\nrewards & more!", GamePassId = 2063596588, Bg = "FFE07A", Icon = "Crown",
+		-- the shop's VIP perks popup (ShopController, "Money 12b"), top to bottom
+		Perks = {
+			{ Name = "Gold name tag", Desc = "Shiny gold plate + crown above your head", Icon = "rbxassetid://93316822259435" },
+			{ Name = "Early restocks", Desc = `See and buy the next shop lineup {ShopCatalog.VIP_EARLY_SECONDS // 60} min early`, Icon = "rbxassetid://70878487229406" },
+			{ Name = "Daily roll ticket", Desc = "A free roll ticket every day you play", Icon = "rbxassetid://106180506046153" },
+			{ Name = "Daily Save Streak", Desc = "Save a lost streak for free, once a day", Icon = "rbxassetid://74346417839400" },
+			{ Name = "VIP Gold style", Desc = "Exclusive gold banner + photocard", Icon = "rbxassetid://119995213928145" },
+			{ Name = "Gold platform", Desc = "Stand on a gold platform in your duels", Icon = "rbxassetid://86375644031928" },
+		} },
 }
+
+-- [[ Boost potions: 2× coins or 2× XP for a while ]]
+-- Robux products ("Boosts 1" board). The clock only runs while you're in the game
+-- (Engine/BoostService) and drinking more adds time up to BOOST_MAX_SECONDS. A coin potion
+-- on top of the 2× Coins pass adds one more ×: 3× (the shop and HUD say so).
+ShopCatalog.BOOST_MAX_SECONDS = 8 * 60 * 60
+
+-- The coin multiplier for a match: ×2 pass, ×2 potion, ×3 both
+function ShopCatalog.CoinMultiplier(pass: boolean, potion: boolean): number
+	if pass and potion then
+		return 3
+	elseif pass or potion then
+		return 2
+	end
+	return 1
+end
+ShopCatalog.Boosts = {
+	{ Id = "CoinsSmall", Kind = "Coins", Seconds = 30 * 60, ProductId = pick(3733529669, 3733232797), Image = "rbxassetid://120664233001275" },
+	{ Id = "CoinsBig", Kind = "Coins", Seconds = 2 * 60 * 60, ProductId = pick(3733529934, 3733232856), Image = "rbxassetid://90605715561632", Best = true },
+	{ Id = "XPSmall", Kind = "XP", Seconds = 30 * 60, ProductId = pick(3733529678, 3733232866), Image = "rbxassetid://93064684252304" },
+	{ Id = "XPBig", Kind = "XP", Seconds = 2 * 60 * 60, ProductId = pick(3733529688, 3733232874), Image = "rbxassetid://86807835649616", Best = true },
+}
+ShopCatalog.BOOST_KINDS = { Coins = { Name = "2× Coins", Colour = "FFD23F" }, XP = { Name = "2× XP", Colour = "B9A6FF" } }
+
+function ShopCatalog.GetBoost(id: string)
+	for _, boost in ShopCatalog.Boosts do
+		if boost.Id == id then
+			return boost
+		end
+	end
+	return nil
+end
+
+-- [[ Gifting ]] (Engine/GiftService, "Gifting 1–4" boards)
+-- Passes can't be bought for someone else, so each has a gift product that grants it in-game
+-- (data.GamePasses, the same set the real pass fills). Everything else Robux is gifted with
+-- its own product through Scribe's PromptGift; coin items are paid with the giver's coins.
+ShopCatalog.PassGifts = {
+	{ Id = "GiftVIP", Pass = "VIP", ProductId = pick(3733529693, 3733272670) },
+	{ Id = "GiftDoubleCoins", Pass = "DoubleCoins", ProductId = pick(3733529702, 3733272681) },
+}
+
+-- gift twins: a second product for every giftable Robux item, so a gift never shares a product
+-- id with someone buying the same thing for themselves (Scribe can't tell those receipts apart).
+-- PlayerData registers each as "<Id>Gift" with the item's own Grant. The dev place has its
+-- own copies at 1 Robux for testing.
+ShopCatalog.GIFT_SUFFIX = "Gift"
+ShopCatalog.GiftProducts = {
+	Coins250 = pick(3733530057, 3733546700),
+	Coins500 = pick(3733530068, 3733546728),
+	Coins1000 = pick(3733530076, 3733546754),
+	Coins2500 = pick(3733530091, 3733546784),
+	Coins5000 = pick(3733530097, 3733546807),
+	Tickets1 = pick(3733530105, 3733546825),
+	Tickets5 = pick(3733530117, 3733546842),
+	Tickets12 = pick(3733530131, 3733546863),
+	Upgrades1 = pick(3733530145, 3733546884),
+	Upgrades5 = pick(3733530159, 3733546906),
+	Upgrades12 = pick(3733530175, 3733546929),
+	Headliner = pick(3733530193, 3733546951),
+	WarmUp = pick(3733530211, 3733546969),
+	Practice = pick(3733530226, 3733546990),
+	Debut = pick(3733530242, 3733547011),
+	CoinsSmall = pick(3733530256, 3733547041),
+	CoinsBig = pick(3733530269, 3733547053),
+	XPSmall = pick(3733530284, 3733547062),
+	XPBig = pick(3733530300, 3733547076),
+}
+
+-- the product name to gift an item with: its twin when there is one
+function ShopCatalog.GiftProduct(id: string): string
+	return if ShopCatalog.GiftProducts[id] then id .. ShopCatalog.GIFT_SUFFIX else id
+end
+
+-- a twin's name back to the item it gifts ("Coins250Gift" → "Coins250")
+function ShopCatalog.GiftBase(product: string): string
+	local suffix = ShopCatalog.GIFT_SUFFIX
+	if string.sub(product, -#suffix) == suffix then
+		local base = string.sub(product, 1, -#suffix - 1)
+		if ShopCatalog.GiftProducts[base] then
+			return base
+		end
+	end
+	return product
+end
+
+-- what a giftable Robux product is called in the gift messages ("sent you the VIP Pass")
+function ShopCatalog.GiftName(product: string): string?
+	product = ShopCatalog.GiftBase(product)
+	for _, g in ShopCatalog.PassGifts do
+		if g.Id == product then
+			local pass = ShopCatalog.GetPass(g.Pass)
+			return pass and pass.Name
+		end
+	end
+	for _, b in ShopCatalog.CoinBundles do
+		if b.Id == product then
+			return `{ShopCatalog.Format(b.Amount)} coins`
+		end
+	end
+	for _, b in ShopCatalog.RollBundles do
+		if b.Id == product then
+			return if b.Currency == "Tickets" then `{b.Amount} roll ticket{if b.Amount == 1 then "" else "s"}` else `{b.Amount} card upgrade{if b.Amount == 1 then "" else "s"}`
+		end
+	end
+	for _, b in ShopCatalog.Bundles do
+		if b.Id == product then
+			return `{b.Name} bundle`
+		end
+	end
+	if ShopCatalog.DebutPack and ShopCatalog.DebutPack.Id == product then
+		return "Debut Pack"
+	end
+	for _, b in ShopCatalog.Boosts do
+		if b.Id == product then
+			local kind = ShopCatalog.BOOST_KINDS[b.Kind]
+			local length = if b.Seconds >= 3600 then `{b.Seconds // 3600} h` else `{b.Seconds // 60} min`
+			return `{kind and kind.Name or b.Kind} potion ({length})`
+		end
+	end
+	return nil
+end
 
 -- [[ Helpers ]]
 

@@ -353,6 +353,9 @@ end
 if (DuelConstants.SAVE_STREAK_PRODUCT_ID or 0) > 0 then
 	robuxProducts[DuelConstants.SAVE_STREAK_PRODUCT_ID] = { Key = "SaveStreak", Kind = "Streak", Sku = "SaveStreak" }
 end
+for _, b in ShopCatalog.Boosts do
+	robuxProducts[b.ProductId] = { Key = b.Id, Kind = "Boost", Sku = `{b.Kind}Boost` }
+end
 robuxProducts[0] = nil
 
 -- a Robux prompt closed: the Robux funnel, RobuxPrompt, and (bought) the currencies it adds as

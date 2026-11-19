@@ -1,44 +1,51 @@
 --| NameTags
--- Lobby name tags over other players (design board "Lobby name tags"): a white name plate
--- (same look as the rival tag) and, under it, a streak chip when they're on a win streak:
--- "4 win streak" + a dark ×1.2 / ×1.5 / ×2 coin-multiplier badge from 3 wins, yellow, and
--- orange from 10 wins. Hidden while that player is
--- in a duel (the "InDuel" attribute) — the rival tag takes over there. Built on this client
--- only, and replaces Roblox's default overhead name. Phones and tablets draw every tag at
--- TOUCH_SCALE (a fixed-pixel tag covers far more of a small screen). Your own tag shows too, at SELF_SCALE: it
--- sits in the middle of your screen, so full size would cover a lot of the view.
+-- Lobby name tags over other players (design board "Name tags · new format"): the name alone
+-- on a white plate, and under it one row of small chips: ★ VIP, the player's title, and their
+-- win streak (the flame icon, the count, and a dark ×1.2 / ×1.5 / ×2 coin-multiplier badge from
+-- 3 wins; yellow, orange from 10). A row with no chips hides. Hidden while that player is in a
+-- duel (the "InDuel" attribute): the rival tag takes over there. Replaces Roblox's default
+-- overhead name. Phones and tablets draw every tag at TOUCH_SCALE (a fixed-pixel tag covers far
+-- more of a small screen). Your own tag shows too, at SELF_SCALE: it sits in the middle of your
+-- screen, so full size would cover a lot of the view.
+-- The tag is ReplicatedStorage.Assets.NameTag (a BillboardGui made in Studio), cloned per
+-- player; the title chip is Modules/UI/TitleChip's.
+-- VIP Pass owners (the "VIP" attribute): a gold plate (the Face's "Gold" gradient, pale at the
+-- ends) with a white band sweeping across it every few seconds (Face.Gloss: a white frame whose
+-- "Band" gradient is see-through except one stripe, slid along with Offset, so it keeps to the
+-- rounded corners and stays under the name), a crown bobbing on its top-left corner and three
+-- twinkling sparkles (looping tweens, only while the tag is a VIP's), plus the ★ VIP chip.
+-- UIScale doesn't thin outlines, so a scaled-down tag scales its UIStrokes itself.
 -- Streak comes from the "Streak" player attribute, which DataService mirrors from PlayerData.
--- VIP Pass owners (the "VIP" attribute) get a gold plate and the ★ VIP chip in front of their
--- title: the chip is the ReplicatedStorage.Assets.VIPTag instance (made in Studio), cloned in.
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 
 local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 local TitleChip = require(ReplicatedStorage.Modules.UI.TitleChip)
 
 local LOCAL_PLAYER = Players.LocalPlayer
-local VIP_TAG = ReplicatedStorage:WaitForChild("Assets"):WaitForChild("VIPTag", 10) :: Frame?
+local TEMPLATE = ReplicatedStorage:WaitForChild("Assets"):WaitForChild("NameTag", 10) :: BillboardGui?
 
 local C = Color3.fromHex
-local INK = C("1E1B2E")
 local WHITE = C("FFFFFF")
 local YELLOW = C("FFE07A")
 local ORANGE = C("FF9A5C") -- hot streak (10+)
 -- (the title chip is shared/Modules/UI/TitleChip)
 local HOT_STREAK = 10
 local MULT_FONT = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.Heavy)
-local FONT = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.ExtraBold)
 
-local PLATE_H = 30
-local CHIP_H = 22
+local CROWN_AT = UDim2.fromOffset(2, -4) -- the crown's rest spot on the plate (it bobs 4 px up)
+local SHINE_FROM, SHINE_TO = Vector2.new(-1.1, 0), Vector2.new(1.1, 0) -- the band's sweep (gradient Offset)
+local SHINE_TIME, SHINE_GAP = 1.1, 1.5 -- seconds across, then a pause
 local SELF_SCALE = 0.95 -- the local player's own tag, relative to everyone else's
 local TOUCH_SCALE = 0.7 -- every tag on phones / tablets (touch screen, no mouse)
 
 local NameTags = {}
 
 local tags: { [Player]: BillboardGui } = {}
+local effects: { [Player]: { Tween } } = {} -- a VIP tag's looping crown + sparkle tweens
 
 local function new(className: string, props: { [string]: any }, parent: Instance?): any
 	local inst = Instance.new(className)
@@ -47,60 +54,6 @@ local function new(className: string, props: { [string]: any }, parent: Instance
 	end
 	inst.Parent = parent
 	return inst
-end
-
-local function round(parent: Instance, radius: number)
-	new("UICorner", { CornerRadius = UDim.new(0, radius) }, parent)
-end
-
-local function outline(parent: Instance, thickness: number)
-	new("UIStroke", { Color = INK, Thickness = thickness, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, parent)
-end
-
--- auto-width face + hard shadow, centred, as in RivalTag
-local function card(parent: Instance, name: string, y: number, height: number, radius: number, stroke: number, drop: number, colour: Color3)
-	local group = new("Frame", {
-		Name = name,
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, y),
-		Size = UDim2.fromOffset(0, height),
-		AutomaticSize = Enum.AutomaticSize.X,
-		BackgroundTransparency = 1,
-	}, parent)
-	local shadow = new("Frame", {
-		Name = "Shadow",
-		Position = UDim2.fromOffset(drop, drop),
-		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = INK,
-		ZIndex = 1,
-	}, group)
-	round(shadow, radius)
-	outline(shadow, stroke)
-	local face = new("Frame", {
-		Name = "Face",
-		AutomaticSize = Enum.AutomaticSize.X,
-		Size = UDim2.fromOffset(0, height),
-		BackgroundColor3 = colour,
-		ZIndex = 2,
-	}, group)
-	round(face, radius)
-	outline(face, stroke)
-	new("UIPadding", { PaddingLeft = UDim.new(0, 12), PaddingRight = UDim.new(0, 12) }, face)
-	return group, face
-end
-
-local function label(parent: Instance, text: string, size: number, height: number): TextLabel
-	return new("TextLabel", {
-		Name = "Label",
-		AutomaticSize = Enum.AutomaticSize.X,
-		Size = UDim2.fromOffset(0, height),
-		BackgroundTransparency = 1,
-		FontFace = FONT,
-		TextSize = size,
-		TextColor3 = INK,
-		Text = text,
-		ZIndex = 3,
-	}, parent)
 end
 
 -- coin multiplier for a streak (DuelConstants.STREAK_MULTIPLIERS = { {wins, mult}, ... })
@@ -114,121 +67,116 @@ local function multiplierFor(streak: number): number
 	return best
 end
 
+local function stopEffects(player: Player)
+	for _, tween in effects[player] or {} do
+		tween:Cancel()
+	end
+	effects[player] = nil
+end
+
+-- the VIP crown bobs and the sparkles twinkle, each sparkle a little out of step
+local function startEffects(player: Player, plate: Frame)
+	stopEffects(player)
+	local list = {}
+	local crown = plate:FindFirstChild("Crown") :: ImageLabel
+	crown.Position = CROWN_AT
+	table.insert(list, TweenService:Create(crown, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
+		Position = CROWN_AT - UDim2.fromOffset(0, 4),
+	}))
+	for i, sparkle in (plate:FindFirstChild("Sparkles") :: Frame):GetChildren() do
+		if sparkle:IsA("ImageLabel") then
+			sparkle.ImageTransparency = 1
+			sparkle.Rotation = 0
+			table.insert(list, TweenService:Create(sparkle, TweenInfo.new(0.7 + i * 0.15, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true, i * 0.3), {
+				ImageTransparency = 0,
+				Rotation = 45,
+			}))
+		end
+	end
+	local band = plate.Face.Gloss.Band :: UIGradient
+	band.Offset = SHINE_FROM
+	table.insert(list, TweenService:Create(band, TweenInfo.new(SHINE_TIME, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, false, SHINE_GAP), {
+		Offset = SHINE_TO,
+	}))
+	for _, tween in list do
+		tween:Play()
+	end
+	effects[player] = list
+end
+
 local function refresh(player: Player)
 	local bb = tags[player]
 	if not bb then
 		return
 	end
 	bb.Enabled = not player:GetAttribute("InDuel")
+	local plate = bb.Tag.Plate
+	local chips = bb.Tag.Chips
+
 	local vip = player:GetAttribute("VIP") == true
-	local vipChip = bb.Plate.Face:FindFirstChild("VIP")
-	if vipChip then
-		vipChip.Visible = vip
+	plate.Face.BackgroundColor3 = WHITE
+	plate.Face.Gold.Enabled = vip
+	plate.Face.Gloss.Visible = vip
+	plate.Crown.Visible = vip
+	plate.Sparkles.Visible = vip
+	chips.VIP.Visible = vip
+	if vip and not effects[player] then
+		startEffects(player, plate)
+	elseif not vip then
+		stopEffects(player)
 	end
-	bb.Plate.Face.BackgroundColor3 = if vip and VIP_TAG then VIP_TAG:GetAttribute("PlateColour") or WHITE else WHITE
+
 	local title = player:GetAttribute("Title")
-	local titleChip = bb.Plate.Face:FindFirstChild("Title")
+	local titleChip = chips:FindFirstChild("Title")
 	if titleChip then
 		TitleChip.Set(titleChip, if type(title) == "string" then title else nil, player:GetAttribute("TitleTier"))
 	end
+
 	local streak = player:GetAttribute("Streak") or 0
-	local chip = bb:FindFirstChild("Streak") :: Frame
-	local face = chip:FindFirstChild("Face") :: Frame
+	local chip = chips.Streak
 	chip.Visible = streak > 0
-	face.BackgroundColor3 = if streak >= HOT_STREAK then ORANGE else YELLOW
-	;(face:FindFirstChild("Label") :: TextLabel).Text = `{streak} win streak`
+	chip.BackgroundColor3 = if streak >= HOT_STREAK then ORANGE else YELLOW
+	chip.Count.Text = tostring(streak)
 	local mult = multiplierFor(streak)
-	local badge = face:FindFirstChild("Mult") :: TextLabel
-	badge.Visible = mult > 1
-	badge.Text = `×{mult}`
+	chip.Mult.Visible = mult > 1
+	chip.Mult.Text = `×{mult}`
+
+	chips.Visible = vip or streak > 0 or (titleChip ~= nil and (titleChip :: GuiObject).Visible)
 end
 
 local function build(player: Player, character: Model)
+	stopEffects(player)
 	if tags[player] then
 		tags[player]:Destroy()
 		tags[player] = nil
 	end
 	local head = character:WaitForChild("Head", 10) :: BasePart?
 	local humanoid = character:FindFirstChildOfClass("Humanoid") or character:WaitForChild("Humanoid", 10)
-	if not head or not character.Parent then
+	if not head or not character.Parent or not TEMPLATE then
 		return
 	end
 	if humanoid then
 		(humanoid :: Humanoid).DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
 	end
 
-	local bb = new("BillboardGui", {
-		Name = "NameTag",
-		Adornee = head,
-		Size = UDim2.fromOffset(240, 60),
-		StudsOffsetWorldSpace = Vector3.new(0, 2.4, 0),
-		LightInfluence = 0,
-		MaxDistance = 80,
-		ResetOnSpawn = false,
-		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-	})
-	local plate, plateFace = card(bb, "Plate", 0, PLATE_H, 11, 3, 3, WHITE)
-	plate.ZIndex = 2
-	-- [Title] Name
-	new("UIListLayout", {
-		FillDirection = Enum.FillDirection.Horizontal,
-		VerticalAlignment = Enum.VerticalAlignment.Center,
-		Padding = UDim.new(0, 7),
-		SortOrder = Enum.SortOrder.LayoutOrder,
-	}, plateFace)
-	plateFace:FindFirstChildOfClass("UIPadding").PaddingLeft = UDim.new(0, 8)
-	-- the title chip (shared/Modules/UI/TitleChip)
-	-- ★ VIP chip (VIP Pass), first in the row
-	if VIP_TAG then
-		local vipChip = VIP_TAG:Clone()
-		vipChip.Name = "VIP"
-		vipChip.LayoutOrder = 0
-		vipChip.Visible = false
-		vipChip.Parent = plateFace
-	end
-	local titleChip = TitleChip.new(plateFace, { Name = "Title", LayoutOrder = 1, Height = 20, TextSize = 13, Font = MULT_FONT, ZIndex = 3 })
+	local bb = TEMPLATE:Clone()
+	bb.Adornee = head
+	bb.Tag.Plate.Face.Label.Text = player.DisplayName
+	-- the title chip (shared/Modules/UI/TitleChip), between ★ VIP and the streak
+	local titleChip = TitleChip.new(bb.Tag.Chips, { Name = "Title", LayoutOrder = 1, Height = 20, TextSize = 13, Font = MULT_FONT, ZIndex = 3 })
 	titleChip.Visible = false
-	local nameLabel = label(plateFace, player.DisplayName, 17, PLATE_H)
-	nameLabel.LayoutOrder = 2
-	local chip, chipFace = card(bb, "Streak", PLATE_H - 1, CHIP_H, 8, 2.5, 2, YELLOW)
-	chip.ZIndex = 1
-	chipFace:FindFirstChildOfClass("UIPadding").PaddingLeft = UDim.new(0, 9)
-	chipFace:FindFirstChildOfClass("UIPadding").PaddingRight = UDim.new(0, 6)
-	new("UIListLayout", {
-		FillDirection = Enum.FillDirection.Horizontal,
-		VerticalAlignment = Enum.VerticalAlignment.Center,
-		Padding = UDim.new(0, 6),
-		SortOrder = Enum.SortOrder.LayoutOrder,
-	}, chipFace)
-	local streakLabel = label(chipFace, "", 12, CHIP_H)
-	streakLabel.LayoutOrder = 1
-	-- dark coin-multiplier badge (×1.2 / ×1.5 / ×2)
-	local badge = new("TextLabel", {
-		Name = "Mult",
-		LayoutOrder = 2,
-		AutomaticSize = Enum.AutomaticSize.X,
-		Size = UDim2.fromOffset(0, 15),
-		BackgroundColor3 = INK,
-		FontFace = MULT_FONT,
-		TextSize = 11,
-		TextColor3 = YELLOW,
-		Text = "",
-		ZIndex = 3,
-		Visible = false,
-	}, chipFace)
-	round(badge, 5)
-	new("UIPadding", { PaddingLeft = UDim.new(0, 5), PaddingRight = UDim.new(0, 5) }, badge)
 
 	local touch = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
 	local scale = (if player == LOCAL_PLAYER then SELF_SCALE else 1) * (if touch then TOUCH_SCALE else 1)
 	if scale ~= 1 then
-		-- smaller, and re-spaced so it stays centred where the full-size tag was
-		local full = PLATE_H - 1 + CHIP_H
-		local top = (bb.Size.Y.Offset - full * scale) / 2
-		plate.Position = UDim2.new(0.5, 0, 0, top)
-		chip.Position = UDim2.new(0.5, 0, 0, top + (PLATE_H - 1) * scale)
-		for _, group in { plate, chip } do
-			new("UIScale", { Scale = scale }, group)
+		-- smaller, around the middle of the tag so it stays where the full-size one was
+		bb.Tag.AnchorPoint = Vector2.new(0.5, 0.5)
+		bb.Tag.Position = UDim2.fromScale(0.5, 0.5)
+		new("UIScale", { Scale = scale }, bb.Tag)
+		for _, stroke in bb:GetDescendants() do
+			if stroke:IsA("UIStroke") then
+				stroke.Thickness *= scale
+			end
 		end
 	end
 
@@ -270,6 +218,7 @@ function NameTags.Start()
 	end
 	Players.PlayerAdded:Connect(track)
 	Players.PlayerRemoving:Connect(function(player)
+		stopEffects(player)
 		if tags[player] then
 			tags[player]:Destroy()
 			tags[player] = nil

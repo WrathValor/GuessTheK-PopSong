@@ -63,18 +63,34 @@ describe("daily login", function()
 		expect({ RewardsCatalog.DailyState(3, now - DAY, now) }).toEqual({ true, 4, 4 })
 	end)
 
-	it("loops back to step 1 after day 7", function()
-		expect({ RewardsCatalog.DailyState(7, now - DAY, now) }).toEqual({ true, 8, 1 })
+	it("moves on to the second week after day 7, and back to the first after day 14", function()
+		expect({ RewardsCatalog.DailyState(7, now - DAY, now) }).toEqual({ true, 8, 8 })
+		expect({ RewardsCatalog.DailyWeek(8) }).toEqual({ 8, 1 })
+		expect({ RewardsCatalog.DailyState(14, now - DAY, now) }).toEqual({ true, 15, 1 })
 	end)
 
 	it("starts again at day 1 after a missed day", function()
 		expect({ RewardsCatalog.DailyState(5, now - 2 * DAY, now) }).toEqual({ true, 1, 1 })
 	end)
 
-	it("pays more each step", function()
-		for i = 2, #RewardsCatalog.DAILY do
-			expect(RewardsCatalog.DAILY[i]).toBeGreaterThan(RewardsCatalog.DAILY[i - 1])
+	it("has whole weeks, each day paying something", function()
+		expect(#RewardsCatalog.DAILY % RewardsCatalog.DAILY_DAYS).toBe(0)
+		for _, reward in RewardsCatalog.DAILY do
+			expect(#RewardsCatalog.RewardList(reward) + #RewardsCatalog.DailyBoosts(reward)).toBeGreaterThan(0)
 		end
+	end)
+
+	it("labels the day cards", function()
+		expect({ RewardsCatalog.DailyLabel({ Coins = 100 }) }).toEqual({ "100", "coins" })
+		expect({ RewardsCatalog.DailyLabel({ Tickets = 1 }) }).toEqual({ "1", "roll ticket" })
+		expect({ RewardsCatalog.DailyLabel({ XPBoost = 30 }) }).toEqual({ "30 min", "2× XP potion" })
+		expect({ RewardsCatalog.DailyLabel({ Coins = 300, Tickets = 1 }) }).toEqual({ "300 + 1", "coins + ticket" })
+		expect({ RewardsCatalog.DailyLabel({ Coins = 750, CoinsBoost = 120 }) }).toEqual({ "750 + 2 h", "coins + 2× Coins potion" })
+	end)
+
+	it("reads potion time out of a day", function()
+		local boosts = RewardsCatalog.DailyBoosts({ Coins = 500, CoinsBoost = 30, XPBoost = 15 })
+		expect(boosts).toEqual({ { Kind = "Coins", Minutes = 30 }, { Kind = "XP", Minutes = 15 } })
 	end)
 end)
 
@@ -207,6 +223,20 @@ describe("shop codes", function()
 		local codes, problems = RewardsCatalog.ParseCodes("{ oops")
 		expect(codes).toBeNil()
 		expect(#problems).toBe(1)
+	end)
+
+	it("reads potion time as a boost reward in minutes", function()
+		local codes, problems = RewardsCatalog.ParseCodes("POTION coinsboost=30 xpboost=120")
+		expect(#problems).toBe(0)
+		local rewards = RewardsCatalog.CodeRewards(codes.POTION)
+		expect(#rewards).toBe(2)
+		expect(rewards[1].Kind).toBe("Boost")
+		expect(rewards[1].Boost).toBe("Coins")
+		expect(rewards[1].Amount).toBe(30)
+		expect(rewards[2].Boost).toBe("XP")
+		expect(rewards[2].Amount).toBe(120)
+		-- a potion on its own is enough for a code
+		expect(RewardsCatalog.ParseCodes('{ "sip": { "xpboost": 15 } }').SIP).toBeDefined()
 	end)
 
 	it("expires a code at its Expires time", function()

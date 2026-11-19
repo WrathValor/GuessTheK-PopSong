@@ -1,5 +1,6 @@
 --| Services
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
 
 --| Imports
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
@@ -143,7 +144,9 @@ function DuelController.Start()
 			for _, p in (packet.Party and packet.Party.Placement) or {} do
 				partyWinner = partyWinner or (p.Place == 1 and not p.Left)
 			end
-			if (packet.Winner and not (packet.Party or packet.Tutorial or packet.Solo or packet.Draw)) or partyWinner then
+			-- (beaten by a ghost: no one's stage to show, straight to the results)
+			local ghostWon = packet.Ghost and packet.Winner ~= Players.LocalPlayer.UserId
+			if (packet.Winner and not (packet.Party or packet.Tutorial or packet.Solo or packet.Draw or ghostWon)) or partyWinner then
 				BackgroundMusic.Resume()
 				InterfaceController:Open("Victory", packet, DuelController.Info)
 				return

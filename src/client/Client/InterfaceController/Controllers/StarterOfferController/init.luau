@@ -2,11 +2,20 @@
 -- The starter offer (design board "Money 2"): for ShopCatalog.DebutPack.Bonus.Hours after a
 -- new player's first duel, the Debut Pack comes with +Bonus.Tickets roll tickets, sold as its
 -- own product at the same price.
---   • Back in the lobby with the tutorial done, no Debut Pack and no offer yet: the server
+--   • Back in the lobby with the tutorial done (or the moment it's finished / skipped), no
+--     Debut Pack and no offer yet: the server
 --     starts the clock (ShopRemote "StarterStart" → Rewards.StarterAt) and the card opens
 --     once by itself (Settings.Hints "Starter").
---   • While the bonus lasts, HUD.Buttons.Starter (under Invite, right side) counts down; tapping it opens
---     the card again. At 0, or once the pack is owned, the chip goes for good.
+--   • HUD.Buttons.Starter (under the top-right buttons) is the one offer button (design board
+--     "Money 6 · HUD offer button"), showing the next thing you don't own, once the tutorial
+--     is done:
+--       Bonus  – while the bonus lasts: the roll ticket, "Bonus ends 47:59:12", the countdown
+--                bar and a red +3 FREE sticker; tapping it opens the card
+--       Debut  – the Debut Pack after that, until it's bought: its own gift icon, the price
+--                sticker; tapping it opens the card
+--       DoubleCoins / VIP – the passes in turn (blue "2×", lilac crown), the price sticker;
+--                tapping it opens Roblox's pass prompt
+--     Hidden once you own all of them.
 --   • GET IT prompts the bonus product (the plain pack once the bonus is over); the purchase
 --     reveal is PurchasedController's.
 -- Bonus.ProductId 0 = off; in Studio it still runs, selling the plain pack, for testing.
@@ -29,6 +38,8 @@ local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
 local CosmeticView = require(ReplicatedStorage.Modules.UI.CosmeticView)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local AnalyticsClient = require(ReplicatedStorage.Modules.AnalyticsClient)
+local Prices = require(ReplicatedStorage.Modules.Prices)
+local Currencies = require(ReplicatedStorage.Constants.Currencies)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 
 -- -------------------------------- Variables ------------------------------- --
@@ -38,6 +49,17 @@ local SettingsRemote = Bridgenet.ReferenceBridge("SettingsRemote")
 
 local PACK = ShopCatalog.DebutPack
 local BONUS = PACK and PACK.Bonus
+local ROBUX_GLYPH = utf8.char(0xE002) -- Roblox fonts draw this as the Robux sign
+
+-- the HUD offer button's looks, by what it offers
+local C = Color3.fromHex
+local OFFERS = {
+	Bonus = { Colour = C("FFE07A"), Icon = Currencies.Tickets.Icon, Title = "Debut Pack" },
+	Debut = { Colour = C("FFE07A"), Icon = "rbxassetid://115794843985239", Title = "Debut Pack", Sub = "2,500 coins + a set" }, -- assets/ui/DebutPack.png
+	DoubleCoins = { Colour = C("9ED8F5"), Glyph = "2×", Title = "2× Coins", Sub = "Every win, forever", Pass = "DoubleCoins" },
+	VIP = { Colour = C("B9A6FF"), Icon = "rbxassetid://131353192492921", Title = "VIP Pass", Sub = "Gold tag + daily perks", Pass = "VIP" },
+}
+local RED, WHITE, INK = C("FF5A4E"), C("FFFFFF"), C("1E1B2E")
 local HINT = "Starter"
 local DELAY = 1.5 -- seconds back in the lobby before it opens
 
@@ -75,6 +97,27 @@ end
 -- the bonus is running for you
 local function live(): boolean
 	return enabled() and not owned() and left() > 0
+end
+
+local function hasPass(id: string): boolean
+	return has(PlayerData.GamePasses, id)
+end
+
+-- what the HUD offer button shows right now (nil = nothing left to offer, or still in the tutorial)
+local function nextOffer(): string?
+	if get(PlayerData.Settings.TutorialDone, false) ~= true then
+		return nil
+	end
+	if PACK and ((PACK.ProductId or 0) > 0 or RunService:IsStudio()) and not owned() then
+		return if live() then "Bonus" else "Debut"
+	end
+	for _, id in { "DoubleCoins", "VIP" } do
+		local pass = ShopCatalog.GetPass(id)
+		if pass and (pass.GamePassId or 0) > 0 and not hasPass(id) then
+			return id
+		end
+	end
+	return nil
 end
 
 local function clock(seconds: number): string
@@ -137,7 +180,7 @@ function StarterOffer:Initialize(interface)
 		self:_tick()
 	end)
 
-	-- the HUD chip, under the Invite button (HUD.Buttons, the right-hand group)
+	-- the HUD chip, under the top-right buttons (HUD.Buttons: Invite · News · Settings)
 	task.spawn(function()
 		local hud = LOCAL_PLAYER:WaitForChild("PlayerGui"):WaitForChild("Interface"):WaitForChild("HUD")
 		local tl = hud:WaitForChild("Buttons")
@@ -150,7 +193,8 @@ function StarterOffer:Initialize(interface)
 		local invite = tl:FindFirstChild("Invite")
 		local function place()
 			if invite then
-				chip.Position = invite.Position + UDim2.fromOffset(0, 74) -- (52 high + 22 apart)
+				-- under the top row (Invite · News · Settings), keeping its own X
+				chip.Position = UDim2.new(chip.Position.X, invite.Position.Y + UDim.new(0, 74))
 				shadow.Position = chip.Position + UDim2.fromOffset(4, 4)
 			end
 		end
@@ -159,6 +203,15 @@ function StarterOffer:Initialize(interface)
 			j:Add(invite:GetPropertyChangedSignal("Position"):Connect(place))
 		end
 		j:Add(chip.Activated:Connect(function()
+			local offer = nextOffer()
+			local spec = offer and OFFERS[offer]
+			if spec and spec.Pass then
+				-- a pass: straight to Roblox's prompt
+				local pass = ShopCatalog.GetPass(spec.Pass)
+				AnalyticsClient.Event("MoneyOffer", 1, spec.Pass, "HUD")
+				MarketplaceService:PromptGamePassPurchase(LOCAL_PLAYER, pass.GamePassId)
+				return
+			end
 			self._from = "HUD"
 			self._interface:Open(self.Name)
 		end))
@@ -181,6 +234,13 @@ function StarterOffer:Initialize(interface)
 	task.delay(5, function()
 		self:_try()
 	end)
+	-- the tutorial just finished or was skipped: don't wait for the next menu to close
+	j:Add(PlayerData.Settings.TutorialDone.Observe(function(done)
+		-- (on join this fires straight away: the 5 s try above covers that, after the loading screen)
+		if done == true and LOCAL_PLAYER:GetAttribute("LoadingDone") then
+			self:_try()
+		end
+	end))
 end
 
 -- what GET IT sells right now
@@ -192,16 +252,43 @@ function StarterOffer:_tick()
 	local on = live()
 	local chip = self._chip
 	if chip then
-		chip.Visible = on
-		chip.Parent.StarterShadow.Visible = on
-		if on then
-			chip.Info.Timer.Text = `Bonus ends {clock(left())}`
-			chip.Sticker.Text = `+{BONUS.Tickets} FREE`
-			chip.Info.Bar.Fill.Size = UDim2.fromScale(math.clamp(left() / (BONUS.Hours * 3600), 0, 1), 1)
-			-- the bar as wide as the timer line (screen px back to the HUD's design px)
-			local scale = chip.AbsoluteSize.X / chip.Size.X.Offset
-			if scale > 0 then
-				chip.Info.Bar.Size = UDim2.fromOffset(math.floor(chip.Info.Timer.AbsoluteSize.X / scale + 0.5), 5)
+		local offer = nextOffer()
+		local spec = offer and OFFERS[offer]
+		chip.Visible = spec ~= nil
+		chip.Parent.StarterShadow.Visible = spec ~= nil
+		if spec then
+			chip.BackgroundColor3 = spec.Colour
+			chip.Title.Text = spec.Title
+			local icon, glyph = chip.IconBox.Icon, chip.IconBox:FindFirstChild("Glyph")
+			icon.Visible = spec.Icon ~= nil
+			icon.Image = spec.Icon or ""
+			if glyph then
+				glyph.Visible = spec.Glyph ~= nil
+				glyph.Text = spec.Glyph or ""
+			end
+			chip.Info.Bar.Visible = offer == "Bonus"
+			if offer == "Bonus" then
+				chip.Info.Timer.Text = `Bonus ends {clock(left())}`
+				chip.Sticker.Text = `+{BONUS.Tickets} FREE`
+				chip.Sticker.BackgroundColor3, chip.Sticker.TextColor3 = RED, WHITE
+				chip.Info.Bar.Fill.Size = UDim2.fromScale(math.clamp(left() / (BONUS.Hours * 3600), 0, 1), 1)
+				-- the bar as wide as the timer line (screen px back to the HUD's design px)
+				local scale = chip.AbsoluteSize.X / chip.Size.X.Offset
+				if scale > 0 then
+					chip.Info.Bar.Size = UDim2.fromOffset(math.floor(chip.Info.Timer.AbsoluteSize.X / scale + 0.5), 5)
+				end
+			else
+				-- the plain offers: a line about it, and its price on a white sticker
+				chip.Info.Timer.Text = spec.Sub
+				local price = if spec.Pass
+					then Prices.Get("GamePass", ShopCatalog.GetPass(spec.Pass).GamePassId)
+					else Prices.Get("Product", PACK.ProductId)
+				chip.Sticker.Visible = price ~= nil
+				chip.Sticker.Text = `{ROBUX_GLYPH} {price or ""}`
+				chip.Sticker.BackgroundColor3, chip.Sticker.TextColor3 = WHITE, INK
+			end
+			if offer == "Bonus" then
+				chip.Sticker.Visible = true
 			end
 		end
 	end

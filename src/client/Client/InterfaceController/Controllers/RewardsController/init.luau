@@ -33,6 +33,7 @@ local TitleChip = require(ReplicatedStorage.Modules.UI.TitleChip)
 local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
 
 local Build = require(script.Build)
+local DailyLogin = require(script.Parent.DailyLoginController)
 
 -- -------------------------------- Variables ------------------------------- --
 local LOCAL_PLAYER = Players.LocalPlayer
@@ -47,6 +48,7 @@ local GREY = C("EDE4D4")
 local DONE = C("CFC5B3")
 local MUTED = C("5C566B")
 local SAND = C("F3EEE5")
+local CLAIMED_TINT = C("C9C2B6") -- a claimed day's coin stacks
 local LILAC = C("B9A6FF")
 local HEAD = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy)
 local BODY = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.ExtraBold)
@@ -448,7 +450,10 @@ function Rewards:_fillDaily()
 	local canClaim, nextStreak, index = self:_daily()
 	local streak = if canClaim then nextStreak - 1 else nextStreak
 	s.Heading.Streak.Text = if streak > 0 then `Streak: day {streak}` else "Streak: start today"
-	-- claimed steps this cycle: before `index` (and `index` itself once claimed today)
+	-- the week of the ladder you're on (two weeks take turns: Catalog.DAILY), and its day
+	local first, dayOfWeek = Catalog.DailyWeek(index)
+	index = dayOfWeek
+	-- claimed steps this week: before today (and today itself once claimed)
 	local claimedUpTo = if canClaim then index - 1 else index
 	s.Track.Fill.Size = UDim2.fromScale(math.clamp((claimedUpTo - 1) / (Build.DAYS - 1), 0, 1), 1)
 	s.Track.Fill.Visible = claimedUpTo > 1
@@ -461,12 +466,34 @@ function Rewards:_fillDaily()
 		face.BackgroundTransparency = if claimed then 0.3 else 0
 		holder.FaceShadow.Visible = not claimed
 		holder.Glow.Visible = ready
-		face.Amount.Text = tostring(Catalog.DAILY[i])
-		-- claimed days fade their coin stacks
+		-- coins alone: the coin stacks + "coins"; anything else: its art (DailyLogin.Icons)
+		-- and the short line under the amount
+		local reward = Catalog.DAILY[first + i - 1]
+		local big, small = Catalog.DailyLabel(reward)
+		local coinsOnly = reward.Coins ~= nil and #Catalog.RewardList(reward) == 1 and #Catalog.DailyBoosts(reward) == 0
+		local icons = DailyLogin.Icons(reward)
+		face.Amount.Text = big
+		face.Amount.TextSize = if #big > 7 then 15 else 20
+		face.Coins.Visible = coinsOnly
+		face.Icon.Visible = not coinsOnly
+		face.Icon.Image = if coinsOnly then "" else (icons[2] or icons[1] or "")
+		face.Icon.ImageTransparency = if claimed then 0.55 else 0
+		-- the line under the amount, centred across the card (the stacks already say "coins",
+		-- so no extra coin icon beside the word)
+		face.Unit.Coin.Visible = false
+		face.Unit.Size = UDim2.fromOffset(112, 14)
+		face.Unit.Label.Position = UDim2.fromOffset(0, 0)
+		face.Unit.Label.Size = UDim2.fromOffset(112, 14)
+		face.Unit.Label.TextXAlignment = Enum.TextXAlignment.Center
+		face.Unit.Label.Text = if coinsOnly then "coins" else small
+		face.Unit.Label.TextSize = if #small > 20 then 10 else 12 -- "coins + 2× Coins potion" fits
+		-- claimed days grey their coin stacks (fading them let the coins behind show through,
+		-- which read as doubled coins)
 		for k = 1, Build.MAX_STACKS do
 			local stack = face.Coins:FindFirstChild("Stack" .. k)
 			if stack then
-				stack.ImageTransparency = if claimed then 0.55 else 0
+				stack.ImageTransparency = 0
+				stack.ImageColor3 = if claimed then CLAIMED_TINT else Color3.new(1, 1, 1)
 			end
 		end
 		if claimed then
@@ -644,8 +671,14 @@ function Rewards:_claimToast(info)
 				cell.Amount.Text = item.Name or "Stage"
 				cell.Amount.TextSize = 13
 			else
-				cell.Icon.Image = Build.ICONS[item.Kind] or Build.ICONS.Coins
-				cell.Amount.Text = if item.Kind == "XP" then `+{item.Amount} XP` else `+{item.Amount}`
+				if item.Kind == "Boost" then
+					-- potion time from the daily login
+					cell.Icon.Image = DailyLogin.Icons({ [item.Boost .. "Boost"] = item.Amount })[1] or Build.ICONS.Coins
+					cell.Amount.Text = `+{Catalog.MinutesText(item.Amount)}`
+				else
+					cell.Icon.Image = Build.ICONS[item.Kind] or Build.ICONS.Coins
+					cell.Amount.Text = if item.Kind == "XP" then `+{item.Amount} XP` else `+{item.Amount}`
+				end
 			end
 		end
 		cell.Name = "Item" .. i

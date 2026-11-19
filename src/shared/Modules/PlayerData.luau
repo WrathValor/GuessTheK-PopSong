@@ -148,6 +148,53 @@ for _, bundle in ShopCatalog.Bundles do
 	end
 end
 
+-- boost potions (ShopCatalog.Boosts): time added to the kind's clock, capped at
+-- BOOST_MAX_SECONDS (Engine/BoostService runs the clock down while you play)
+for _, boost in ShopCatalog.Boosts do
+	if (boost.ProductId or 0) > 0 then
+		local kind, seconds = boost.Kind, boost.Seconds
+		Products[boost.Id] = {
+			Id = boost.ProductId,
+			Category = "Boost",
+			Grant = function(data)
+				local clock = data.Boosts[kind]
+				clock.Set(math.min(clock.Get() + seconds, ShopCatalog.BOOST_MAX_SECONDS))
+				data.Statistics.BoostsDrunk.Increment(1)
+			end,
+		}
+	end
+end
+
+-- pass gifts (ShopCatalog.PassGifts): the pass in-game for whoever they're gifted to
+-- (Engine/GiftService opens these with PlayerData.PromptGift; Scribe delivers to the recipient)
+for _, gift in ShopCatalog.PassGifts do
+	if (gift.ProductId or 0) > 0 then
+		local pass = gift.Pass
+		Products[gift.Id] = {
+			Id = gift.ProductId,
+			Category = "PassGift",
+			Grant = function(data)
+				if not data.GamePasses.Has(pass) then
+					data.GamePasses.Add(pass)
+				end
+			end,
+		}
+	end
+end
+
+-- gift twins (ShopCatalog.GiftProducts): the same Grant as the item, on its own product id,
+-- so gifts and ordinary purchases of one item never wait on each other's receipts
+for base, id in ShopCatalog.GiftProducts do
+	local item = Products[base]
+	if item and (id or 0) > 0 then
+		Products[base .. ShopCatalog.GIFT_SUFFIX] = {
+			Id = id,
+			Category = item.Category,
+			Grant = item.Grant,
+		}
+	end
+end
+
 --| Template
 
 return Scribe({
@@ -211,12 +258,21 @@ return Scribe({
 			DuelPack = Scribe.String("", { MaxLength = 80 }), -- legacy: bias packs are gone (owned songs just count)
 		},
 
+		-- boost potions: seconds of play left on each clock (Engine/BoostService)
+		Boosts = {
+			Coins = Count(),
+			XP = Count(),
+		},
+
 		Rewards = {
 			DailyStreak = Count(), -- consecutive days claimed
 			LastDailyClaim = Count(), -- os.time() of the last daily claim (0 = never)
 			Claimed = Scribe.SetOf(Id(40)), -- one-off rewards already collected ("Group", codes…)
 			StarterAt = Count(), -- os.time the starter offer began (0 = not yet; ShopCatalog.DebutPack.Bonus)
 			Bundles = Scribe.MapOf("string", Count(), { MaxKeys = 20, MaxKeyLength = 20 }), -- times each ShopCatalog.Bundles entry was bought
+			-- VIP Pass daily perks (Engine/VIPService): the UTC day (os.time() // 86400) each was last used
+			VIPTicketDay = Count(), -- the free roll ticket
+			VIPSaveDay = Count(), -- the free Save Streak
 			-- daily quests (Constants/RewardsCatalog): counters for QuestDay only, reset each UTC day
 			QuestDay = Count(),
 			Quest = {
@@ -310,6 +366,7 @@ return Scribe({
 
 		Statistics = {
 			PlayTime = Count(), -- seconds
+			BoostsDrunk = Count(), -- boost potions bought
 			Duels = Count(), -- 1v1 duels finished (not solo)
 			Wins = Count(),
 			Losses = Count(),
@@ -328,9 +385,22 @@ return Scribe({
 			PerfectGames = Count(),
 			CoinsEarned = Count(), -- lifetime coins from duels
 			SuspectGames = Count(), -- duels flagged by Scoring.Suspect (DuelConstants.SUSPECT_*); nothing reads it but the stats command
+			-- ghost rival games (DuelService Rewards): finished, won, and today's wins for the daily
+			-- taper (GhostWinsToday counts the UTC day in GhostDay, days since 1970)
+			GhostGames = Count(),
+			GhostWins = Count(),
+			GhostWinsToday = Count(),
+			GhostDay = Count(),
 		},
 	},
 	Products = if next(Products) then Products else nil,
+	-- gifting (Engine/GiftService): no gap between gifts (Roblox's own purchase prompt already
+	-- paces them), and a gift that's opened but never paid for stops blocking another of the
+	-- same item after 15 minutes instead of an hour
+	GiftCooldown = 0,
+	GiftIntentTTL = 15 * 60,
+	-- lets the Scribe Studio plugin show live data, receipts and gifts while testing
+	StudioHook = true,
 	-- The map signs (client/Client/Leaderboards). Scribe writes, reads and replicates them;
 	-- the client reads PlayerData.Client.GetLeaderboard(name) / OnLeaderboard.
 	-- Limit 100: the signs show the top 10, the rest is there so each player's own place

@@ -5,6 +5,9 @@
 -- nothing to build in Studio. See the "Party 9 · FFA reveal" board.
 
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local GhostArt = require(ReplicatedStorage.Modules.UI.GhostArt) -- the ghost rival's face
 
 local LOCAL_PLAYER = Players.LocalPlayer
 local C = Color3.fromHex
@@ -69,7 +72,9 @@ local function chip(parent: Instance, profile, slot: number, order: number)
 			label.Visible = false
 		end
 	end
-	if thumbs[id] then
+	if GhostArt.Is(id) then
+		set(GhostArt.IMAGE)
+	elseif thumbs[id] then
 		set(thumbs[id])
 	else
 		task.spawn(function()

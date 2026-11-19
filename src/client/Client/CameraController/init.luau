@@ -2,8 +2,10 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local RivalTag = require(script.RivalTag)
+local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 
 --| Variables
 local LOCAL_PLAYER = Players.LocalPlayer
@@ -71,6 +73,7 @@ CameraController.Active = false
 
 local fovTween: Tween? = nil
 local soloDouble: Model? = nil -- solo Song: a copy of you standing on the other spot
+local ghostFigure: Model? = nil -- ghost rival: the server's GhostRig on the other spot (not ours to destroy)
 local cachedTargetModel: Model? = nil
 local cachedTargetHead: BasePart? = nil
 local cachedLocalCharacter: Model? = nil
@@ -184,6 +187,7 @@ local function clearSoloDouble()
 		soloDouble:Destroy()
 		soloDouble = nil
 	end
+	ghostFigure = nil
 end
 
 local function tweenFov(fov: number)
@@ -203,7 +207,7 @@ local function shot(mode: string, opponent: Player?, rigSpot: BasePart?): CFrame
 	end
 
 	-- Song: over your shoulder at the opponent (or your solo double)
-	local target: Model? = if opponent then opponent.Character elseif mode == "Song" then soloDouble else nil
+	local target: Model? = if opponent then opponent.Character elseif mode == "Song" then (soloDouble or ghostFigure) else nil
 	if mode == "Song" and target then
 		local head = if target == cachedTargetModel then cachedTargetHead else target:FindFirstChild("Head") :: BasePart?
 		cachedTargetModel = target
@@ -528,7 +532,14 @@ function CameraController.Focus(mode: string, info)
 	CameraController.Mode = mode
 
 	clearSoloDouble()
-	if mode == "Song" and info and info.Solo then
+	if mode == "Song" and info and info.Ghost then
+		-- the ghost rival's figure (DuelService puts ServerStorage.GhostRig on the free spot);
+		-- without one, your solo double stands in for it
+		ghostFigure = stage and stage:FindFirstChild("GhostRig") :: Model?
+		if not ghostFigure then
+			soloDouble = makeSoloDouble(stage)
+		end
+	elseif mode == "Song" and info and info.Solo then
 		soloDouble = makeSoloDouble(stage)
 	end
 	cachedTargetModel = nil
@@ -551,6 +562,8 @@ function CameraController.Focus(mode: string, info)
 		-- no tag
 	elseif opponent and opponent.Character then
 		RivalTag.Attach(opponent.Character, opponent.DisplayName, levelOf(opponent.UserId))
+	elseif info and info.Ghost and (ghostFigure or soloDouble) then
+		RivalTag.Attach((ghostFigure or soloDouble) :: Model, DuelConstants.GHOST_NAME, levelOf(DuelConstants.GHOST_USER_ID))
 	elseif soloDouble then
 		RivalTag.Attach(soloDouble, LOCAL_PLAYER.DisplayName, levelOf(LOCAL_PLAYER.UserId))
 	end

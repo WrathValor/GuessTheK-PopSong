@@ -21,6 +21,7 @@ local FFABoard = require(script.FFABoard) -- Party Stage matches with 3–6 play
 local PickChips = require(script.PickChips) -- reveal: who picked which answer
 local Snippet = require(script.Snippet)
 local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
+local GhostArt = require(ReplicatedStorage.Modules.UI.GhostArt) -- the ghost rival's face
 
 local REVEAL_FADE = 2 -- the reveal song fades out over the last this-many seconds
 local OPEN_CHIP_ROOM = 46 -- how far the theme tag drops while the STAGE OPEN chip is up
@@ -627,8 +628,8 @@ function Game:OnRoundEnd(packet)
 		fillPick(reveal.Picks.Rival, rivalPick, if self.Solo then "You" else (self.Rival and self.Rival.Name or "Rival"))
 		if self.Rival then
 			task.spawn(function()
-				local ok, img = pcall(Players.GetUserThumbnailAsync, Players, self.Rival.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
-				if ok then
+				local img = GhostArt.Thumbnail(self.Rival.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+				if img ~= "" then
 					reveal.Picks.Rival.Avatar.Thumbnail.Image = img
 				end
 			end)

@@ -5,7 +5,8 @@
 -- "Play my songs more often" switch, Back and Start. Start counts down START_DELAY seconds (the
 -- picks can still change, tap Start again or Back to cancel), then sends
 -- { Request = "Solo", Theme, Mix } on QueueRemote; the server saves both
--- (Settings.SoloTheme / SoloPool) for next time.
+-- (Settings.SoloTheme / SoloPool) for next time. Opening / closing it sends
+-- { Request = "Picking", On } so the server holds the ghost rival while you choose.
 -- Build(queueFrame) runs once in Studio; new() wires it up from QueueController.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -616,6 +617,8 @@ function SoloPicker:Open()
 	end
 	self.IsOpen = true
 	AnalyticsClient.Event("SoloPickerOpened")
+	-- the server holds the ghost rival (and moving you to another stage) while you pick
+	QueueRemote:Fire({ Request = "Picking", On = true })
 	self:Render()
 	local quick = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 	local pop = TweenInfo.new(0.26, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
@@ -647,6 +650,7 @@ function SoloPicker:Close(instant: boolean?)
 	end
 	self.IsOpen = false
 	self:_cancelStart()
+	QueueRemote:Fire({ Request = "Picking", On = false })
 	local fronts = { self._front, self._frontShadow }
 	local function showFront()
 		for _, f in { self._back, self._backShadow } do

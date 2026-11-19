@@ -24,6 +24,13 @@
 --                     (the mixed bundles, ShopCatalog.Bundles, show from Rewards.Bundles going up:
 --                     up to 5 cards, stage + mic first)
 --   PromptGamePassPurchaseFinished – passes (waits for GamePasses to have it)
+--   GiftRemote        { Message = "Received", From, FromUserId, Item, Kind?, Id?, Product? } – a gift
+--                     (Engine/GiftService): "GIFT RECEIVED!", "From <name> · <item>", SAY THANKS, which thanks
+--                     them in chat; the giver gets "GIFT SENT!" ({ Message = "Sent", … }, the same
+--                     cards). A Robux buy made as a gift (the "GiftPrompt" attribute,
+--                     ShopController) shows no reveal for the giver.
+--   PromptProductPurchaseFinished – boost potions (ShopCatalog.Boosts): waits for the
+--                     Boost<Kind> attribute to move (Engine/BoostService)
 -- A second buy while one is showing waits its turn.
 
 -- -------------------------------- Services -------------------------------- --
@@ -32,6 +39,7 @@ local Players = game:GetService("Players")
 local MarketplaceService = game:GetService("MarketplaceService")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local TextChatService = game:GetService("TextChatService")
 
 -- --------------------------------- Imports -------------------------------- --
 local Janitor = require(ReplicatedStorage.Packages.janitor)
@@ -55,6 +63,7 @@ local ShopRemote = Bridgenet.ReferenceBridge("ShopRemote")
 local ReferralRemote = Bridgenet.ReferenceBridge("ReferralRemote")
 local SeasonRemote = Bridgenet.ReferenceBridge("SeasonRemote")
 local RewardsRemote = Bridgenet.ReferenceBridge("RewardsRemote")
+local GiftRemote = Bridgenet.ReferenceBridge("GiftRemote")
 
 -- -------------------------------- Constants ------------------------------- --
 local LOCAL_PLAYER = Players.LocalPlayer
@@ -127,6 +136,19 @@ local function currencyCard(id: string, amount: number)
 	}
 end
 
+-- potion time from a code: the kind's small potion art, "+30 min"
+local function boostCard(kind: string, minutes: number)
+	local k = ShopCatalog.BOOST_KINDS[kind]
+	local image = nil
+	for _, b in ShopCatalog.Boosts do
+		if b.Kind == kind and not image then
+			image = b.Image
+		end
+	end
+	local length = if minutes >= 60 and minutes % 60 == 0 then `+{minutes // 60} h` else `+{minutes} min`
+	return { Name = length, Kind = `{k and k.Name or kind} potion`, Colour = k and k.Colour or "FFE07A", Image = image, Tag = "POTION", TagColour = "B9A6FF" }
+end
+
 -- titles: your name with the title chip under it, like the Inventory and the level reward cards
 local function titleCard(title: string)
 	return { Name = title, Kind = "Title", Colour = "CDEBFA", Title = title, Tag = "NEW", TagColour = "FF9EC4" }
@@ -161,6 +183,82 @@ local function styleCard(kind: string, id: string)
 		Tag = if spec.Animated then "ANIMATED" else "NEW",
 		TagColour = if spec.Animated then "FF9EC4" else "9ED8F5",
 	}
+end
+
+-- the cards for a gift (GiftRemote "Received" / "Sent"): a coin item from Kind + Id, a Robux
+-- one from its Product
+local function giftCards(packet): { any }
+	local cards = {}
+	local kind, id, product = packet.Kind, packet.Id, packet.Product
+	if (kind == "Set" or kind == "Stage" or kind == "Mic") and type(id) == "string" then
+		table.insert(cards, itemCard(kind, id))
+	elseif kind == "StyleSet" and type(id) == "string" then
+		table.insert(cards, styleCard("Banner", id))
+		table.insert(cards, styleCard("Photocard", id))
+	elseif (kind == "Banner" or kind == "Photocard") and type(id) == "string" then
+		table.insert(cards, styleCard(kind, id))
+	elseif type(product) == "string" then
+		local found = false
+		for _, b in ShopCatalog.CoinBundles do
+			if b.Id == product then
+				table.insert(cards, coinCard(b.Amount, b.Pile))
+				found = true
+			end
+		end
+		for _, b in ShopCatalog.RollBundles do
+			if b.Id == product then
+				table.insert(cards, currencyCard(b.Currency, b.Amount))
+				found = true
+			end
+		end
+		for _, b in ShopCatalog.Boosts do
+			if b.Id == product then
+				local k = ShopCatalog.BOOST_KINDS[b.Kind]
+				table.insert(cards, { Name = k and k.Name or b.Kind, Kind = "Boost potion", Colour = k and k.Colour or "FFE07A", Image = b.Image, Tag = "POTION", TagColour = "B9A6FF" })
+				found = true
+			end
+		end
+		for _, g in ShopCatalog.PassGifts do
+			if g.Id == product then
+				local pass = ShopCatalog.GetPass(g.Pass)
+				if pass then
+					table.insert(cards, {
+						Name = pass.Name,
+						Kind = "Pass · forever",
+						Colour = pass.Bg or "FFE07A",
+						Image = if pass.Icon == "Crown" then "rbxassetid://131353192492921" else nil,
+						Big = if pass.Icon ~= "Crown" then pass.Icon else nil,
+						Tag = "GIFT",
+						TagColour = "FF9EC4",
+					})
+					found = true
+				end
+			end
+		end
+		if not found then
+			-- the Debut Pack and the bundles: what's in them
+			local pack = ShopCatalog.DebutPack
+			local bundle = ShopCatalog.GetBundle(product)
+			if pack and product == pack.Id then
+				table.insert(cards, coinCard(pack.Coins, "rbxassetid://75882247530961"))
+				if pack.Stage then
+					table.insert(cards, itemCard("Stage", pack.Stage))
+				end
+				if pack.Mic then
+					table.insert(cards, itemCard("Mic", pack.Mic))
+				end
+			elseif bundle then
+				for _, entry in ShopCatalog.BundleContents(bundle) do
+					if entry.Kind == "Stage" or entry.Kind == "Mic" then
+						table.insert(cards, itemCard(entry.Kind, entry.Id))
+					elseif entry.Kind and entry.Amount then
+						table.insert(cards, currencyCard(entry.Kind, entry.Amount))
+					end
+				end
+			end
+		end
+	end
+	return cards
 end
 
 -- a small photocard with your avatar (skin, photo background, stickers + its animation)
@@ -253,6 +351,7 @@ function Purchased.new()
 	self._janitor = Janitor.new()
 	self._showJanitor = Janitor.new()
 	self._queue = {}
+	self._giftedAt = {} :: { [string]: number } -- product → when a gift of it arrived
 	return (self :: any) :: UITypes.Controller
 end
 
@@ -313,6 +412,54 @@ function Purchased:Initialize(interface)
 			})
 		end
 	end), "Disconnect") -- BridgeNet2 connections have no Destroy
+
+	-- a gift for you (Engine/GiftService): what it is, who it's from, SAY THANKS
+	j:Add(GiftRemote:Connect(function(packet)
+		if type(packet) ~= "table" or packet.Message ~= "Received" then
+			return
+		end
+		local from = tostring(packet.From or "Someone")
+		local cards = giftCards(packet)
+		local product = packet.Product
+		if type(product) == "string" then
+			self._giftedAt[product] = os.clock()
+		end
+		local fromId = packet.FromUserId
+		self:Show({
+			-- (a fixed banner: a long name ran off it; who it's from goes underneath)
+			Banner = "GIFT RECEIVED!",
+			Sub = `From {from} · {packet.Item or "a gift"}`,
+			Cards = cards,
+			Where = "Added to your Inventory",
+			EquipText = if type(fromId) == "number" then "SAY THANKS" else nil,
+			Equip = if type(fromId) == "number"
+				then function()
+					GiftRemote:Fire({ Action = "Thanks", To = fromId })
+					-- and a thank-you in chat, as you
+					local channels = TextChatService:FindFirstChild("TextChannels")
+					local general = channels and channels:FindFirstChild("RBXGeneral")
+					if general then
+						pcall(function()
+							(general :: TextChannel):SendAsync("thank you for the gift!! 💗")
+						end)
+					end
+				end
+				else nil,
+		})
+	end), "Disconnect")
+
+	-- your gift reached them (Engine/GiftService "Sent"): the same cards, as a "GIFT SENT!"
+	j:Add(GiftRemote:Connect(function(packet)
+		if type(packet) ~= "table" or packet.Message ~= "Sent" then
+			return
+		end
+		self:Show({
+			Banner = "GIFT SENT!",
+			Sub = `To {tostring(packet.To or "them")} · {packet.Item or "a gift"}`,
+			Cards = giftCards(packet),
+			Where = `It's in {tostring(packet.To or "their")}'s Inventory now`,
+		})
+	end), "Disconnect")
 
 	-- Season Track: a banner / photocard milestone gets the same reveal (it isn't worn yet)
 	j:Add(SeasonRemote:Connect(function(packet)
@@ -431,13 +578,15 @@ function Purchased:Initialize(interface)
 		})
 	end), "Disconnect")
 
-	-- a like goal hit (Engine/LikeGoalService): everyone's reward, already in their account.
+	-- a like goal hit (Engine/LikeGoalService): everyone's reward, already in their account;
+	-- or a VIP's free daily roll ticket (Engine/VIPService, Message "VIPDaily"), same reveal.
 	-- It can land mid-duel or on another screen, so it waits until you're free in the lobby
 	-- (Show keeps the HUD out of the way while it's up).
 	j:Add(RewardsRemote:Connect(function(packet)
-		if type(packet) ~= "table" or packet.Message ~= "LikeGoal" then
+		if type(packet) ~= "table" or (packet.Message ~= "LikeGoal" and packet.Message ~= "VIPDaily") then
 			return
 		end
+		local vipDaily = packet.Message == "VIPDaily"
 		local cards = {}
 		local wearable = {} -- sets / stages / mics / banners / photocards EQUIP can put on
 		for _, r in (if type(packet.Rewards) == "table" then packet.Rewards else {}) do
@@ -470,8 +619,11 @@ function Purchased:Initialize(interface)
 				table.insert(likes, tostring(n))
 			end
 			self:Show({
-				Banner = if caughtUp then "LIKE GOALS HIT!" else "LIKE GOAL HIT!", -- (the banner fits ~15 letters)
-				Sub = if caughtUp then `You missed {table.concat(likes, " · ")} likes · here's all of it!`
+				Banner = if vipDaily then "VIP DAILY!"
+					elseif caughtUp then "LIKE GOALS HIT!"
+					else "LIKE GOAL HIT!", -- (the banner fits ~15 letters)
+				Sub = if vipDaily then "Your free roll ticket · another one tomorrow"
+					elseif caughtUp then `You missed {table.concat(likes, " · ")} likes · here's all of it!`
 					elseif type(packet.Likes) == "number" then `{packet.Likes} likes · thanks for the love!`
 					else "",
 				Cards = cards,
@@ -512,6 +664,8 @@ function Purchased:Initialize(interface)
 				table.insert(wearable, r)
 			elseif r.Kind == "Title" then
 				table.insert(cards, titleCard(r.Id))
+			elseif r.Kind == "Boost" then
+				table.insert(cards, boostCard(r.Boost, r.Amount or 0))
 			end
 		end
 		self:Show({
@@ -536,7 +690,16 @@ function Purchased:Initialize(interface)
 
 	-- Robux: the Debut Pack, coin bundles, roll ticket + card upgrade bundles
 	j:Add(MarketplaceService.PromptProductPurchaseFinished:Connect(function(userId, productId, purchased)
-		if not purchased or userId ~= LOCAL_PLAYER.UserId then
+		if userId ~= LOCAL_PLAYER.UserId then
+			return
+		end
+		-- bought as a gift: it's theirs, so no reveal here (they get the GIFT one)
+		local giftAt = LOCAL_PLAYER:GetAttribute("GiftPrompt")
+		if type(giftAt) == "number" and os.clock() - giftAt < 600 then
+			LOCAL_PLAYER:SetAttribute("GiftPrompt", nil)
+			return
+		end
+		if not purchased then
 			return
 		end
 		local pack = ShopCatalog.DebutPack
@@ -567,6 +730,35 @@ function Purchased:Initialize(interface)
 				})
 			end)
 			return
+		end
+		-- boost potions: "BOOST ACTIVE!" once the clock is running (BoostService's attribute)
+		for _, boost in ShopCatalog.Boosts do
+			if boost.ProductId == productId then
+				local attr = "Boost" .. boost.Kind
+				local before = LOCAL_PLAYER:GetAttribute(attr) or 0
+				waitFor(function()
+					return (LOCAL_PLAYER:GetAttribute(attr) or 0) > before
+				end):andThen(function()
+					local kind = ShopCatalog.BOOST_KINDS[boost.Kind]
+					local length = if boost.Seconds >= 3600 then `{boost.Seconds // 3600} hours` else `{boost.Seconds // 60} min`
+					self:Show({
+						Banner = "BOOST ACTIVE!",
+						Sub = `{kind and kind.Name or boost.Kind} · {length}`,
+						Cards = {
+							{
+								Name = kind and kind.Name or boost.Kind,
+								Kind = `+{length} of play`,
+								Colour = kind and kind.Colour or "FFE07A",
+								Image = boost.Image,
+								Tag = "POTION",
+								TagColour = "B9A6FF",
+							},
+						},
+						Where = "The timer's on your HUD · it pauses when you leave",
+					})
+				end)
+				return
+			end
 		end
 		for _, bundle in ShopCatalog.CoinBundles do
 			if bundle.ProductId == productId then
@@ -640,7 +832,12 @@ function Purchased:Initialize(interface)
 				before[id] = n
 				local bundle = ShopCatalog.GetBundle(id)
 				if bundle then
-					self:_showBundle(bundle)
+					-- a gifted bundle gets the GIFT reveal instead (its packet lands just after)
+					task.delay(1, function()
+						if not (self._giftedAt[id] and os.clock() - self._giftedAt[id] < 5) then
+							self:_showBundle(bundle)
+						end
+					end)
 				end
 			end
 		end

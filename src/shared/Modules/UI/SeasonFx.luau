@@ -15,11 +15,17 @@
 --   Spin     an image turning in place (vinyl)                     { Image, At = { {x, y, size, deg/s} } }
 --   Sway     an image breathing + rocking over its copy (flowers)  { At = { {image, x, y, size} }, Bounce = grow + shrink only? }
 --   Hop      images hopping in turn, left to right (letters)        { At = { {image, x, y, size} } }
+--   Bob      an image floating up and down with a little tilt (a crown on top)  { At = { {image, x, y, size} } }
+--   Aura     a soft halo round the whole card, breathing in and out             { Colour = hex }
 --   Confetti small pieces drifting down                            { Area = {x0, y0, x1, y1}, Count }
 --   Masked   a shape's fill animated under its outline              { Fill, Line, At = {x, y, size}, Mode }
 --            Fill = a white silhouette image, Line = its ink outline drawn on top;
 --            Mode "Rainbow" slides the pastel rainbow through it, "Pulse" breathes cream → yellow
 -- Layer = "Photo" puts an effect in the photocard's photo window, behind the avatar.
+-- On a photocard, effects drawn as separate pieces (Sparkle, Glow, Sway, Spin, Hop, Masked) sit
+-- in an unclipped holder, so stickers near the card's corners and edges aren't cut off; the
+-- ones that cover the whole art (Shine, Holo, Rays, Confetti) and everything on a banner or in
+-- the photo window stay clipped to the rounded shape.
 
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -110,13 +116,20 @@ end
 
 -- a CanvasGroup, not a Frame: the Profile photocard is tilted, and ClipsDescendants doesn't
 -- clip under rotation, so a Frame would let glows and rays spill past the card
-local function holderIn(root: GuiObject, zIndex: number, radius: UDim?): Frame
+local function holderIn(root: GuiObject, zIndex: number, radius: UDim?, clip: boolean?): Frame
+	if clip == false then
+		-- pieces that may hang over the edge (a photocard's corner stickers)
+		return new("Frame", { Name = "FxOver", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ClipsDescendants = false, ZIndex = zIndex }, root)
+	end
 	local holder = new("CanvasGroup", { Name = "Fx", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ClipsDescendants = true, ZIndex = zIndex }, root)
 	if radius then
 		new("UICorner", { CornerRadius = radius }, holder)
 	end
 	return holder
 end
+
+-- the kinds that cover the whole art, so they always keep to its rounded shape
+local COVERS = { Shine = true, Holo = true, Rays = true, Confetti = true }
 
 local function image(parent: Instance, key: string, x: number, y: number, size: number, zIndex: number): ImageLabel
 	return new("ImageLabel", {
@@ -259,6 +272,53 @@ function BUILD.Spin(_fx, art, z, _radius, spec)
 	end
 end
 
+-- an image floating up and down, tilting a touch (the VIP Gold photocard's crown on top). Not
+-- in the art, so nothing shows underneath; on a photocard it may sit over the card's edge.
+local BOB_HEIGHT = 0.018 -- of the art's height
+function BUILD.Bob(_fx, art, z, _radius, spec)
+	local list = {}
+	for i, at in spec.At do
+		table.insert(list, { image(art, at[1], at[2], at[3], at[4], z + 1), at[2], at[3], i * 1.3 })
+	end
+	return function(t)
+		for _, item in list do
+			local up = BOB_HEIGHT * (0.5 + 0.5 * math.sin(t * 3 + item[4]))
+			item[1].Position = UDim2.fromScale(item[2], item[3] - up)
+			item[1].Rotation = 3 * math.sin(t * 1.5 + item[4])
+		end
+	end
+end
+
+-- a soft halo round the whole card (VIP Gold): rounded outlines just outside its edge, each
+-- wider and fainter than the last, breathing in and out together
+local AURA = { { 3, 0.35 }, { 7, 0.6 }, { 12, 0.8 } } -- { width px, transparency }
+function BUILD.Aura(fx, _art, _z, radius, spec)
+	local colour = C(spec.Colour or "FFE07A")
+	local layers = {}
+	for _, ring in AURA do
+		local frame = new("Frame", {
+			Name = "Aura",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.new(1, 6, 1, 6),
+			BackgroundTransparency = 1,
+			ZIndex = 0, -- under the holder's art frame, so pieces like the crown sit on top of the halo
+		}, fx)
+		if radius then
+			new("UICorner", { CornerRadius = radius + UDim.new(0, 3) }, frame)
+		end
+		local stroke = new("UIStroke", { Color = colour, Thickness = ring[1], Transparency = ring[2], ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, frame)
+		table.insert(layers, { stroke, ring[1], ring[2] })
+	end
+	return function(t)
+		local k = 0.5 + 0.5 * math.sin(t * 2.4)
+		for _, layer in layers do
+			layer[1].Thickness = layer[2] * (0.7 + 0.6 * k)
+			layer[1].Transparency = math.clamp(layer[3] - 0.15 * k, 0, 1)
+		end
+	end
+end
+
 function BUILD.Sway(_fx, art, z, _radius, spec)
 	-- drawn a touch bigger than the flower in the art so the copy underneath never peeks out
 	local list = {}
@@ -367,10 +427,11 @@ local function clear(root: Instance?)
 	if not root then
 		return
 	end
-	local old = root:FindFirstChild("Fx")
-	if old then
-		active[old] = nil
-		old:Destroy()
+	for _, old in root:GetChildren() do
+		if old.Name == "Fx" or old.Name == "FxOver" then
+			active[old] = nil
+			old:Destroy()
+		end
 	end
 end
 
@@ -394,8 +455,10 @@ function SeasonFx.Apply(root: GuiObject?, effects: { any }?, opts: { [string]: a
 		return c and c.CornerRadius or nil
 	end
 	local made = {}
-	local function layer(name: string?): (Frame, Frame, number, UDim?)
-		local key = name or "Root"
+	local function layer(name: string?, kind: string): (Frame, Frame, number, UDim?)
+		-- a photocard's own pieces go unclipped (photo = this is a photocard)
+		local clip = not (photo ~= nil and name ~= "Photo" and not COVERS[kind])
+		local key = (name or "Root") .. (if clip then "" else "Over")
 		if made[key] then
 			return table.unpack(made[key])
 		end
@@ -405,7 +468,7 @@ function SeasonFx.Apply(root: GuiObject?, effects: { any }?, opts: { [string]: a
 			target, aspect, z = photo, 256 / 228, 0
 		end
 		local r = radiusOf(target)
-		local fx = holderIn(target, z, r)
+		local fx = holderIn(target, z, r, clip)
 		local art = artFrame(fx, target, aspect)
 		made[key] = { fx, art, z, r }
 		return fx, art, z, r
@@ -414,7 +477,7 @@ function SeasonFx.Apply(root: GuiObject?, effects: { any }?, opts: { [string]: a
 	for _, spec in effects do
 		local build = BUILD[spec.Kind]
 		if build then
-			local fx, art, z, r = layer(spec.Layer)
+			local fx, art, z, r = layer(spec.Layer, spec.Kind)
 			local update = build(fx, art, z, r, spec)
 			if update then
 				table.insert(updates, update)

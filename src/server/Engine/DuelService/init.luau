@@ -1,6 +1,7 @@
 --| Services
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local ServerStorage = game:GetService("ServerStorage")
 
 --| Imports
 
@@ -13,11 +14,13 @@ local StageStatus = require(script.StageStatus)
 local Analytics = require(script.Parent.Analytics)
 local RivalRecord = require(script.Parent.RivalRecord)
 local GhostRecorder = require(script.Parent.GhostRecorder)
+local GhostPool = require(script.Parent.GhostPool)
 local SettingsService = require(script.Parent.SettingsService)
 local StreetScreens = require(script.Parent.StreetScreens)
 local StreetScreensConstants = require(ReplicatedStorage.Constants.StreetScreens)
 local Themes = require(ReplicatedStorage.Modules.Library.Themes)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
+local Levels = require(ReplicatedStorage.Modules.Levels)
 local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 
 --| Types
@@ -39,6 +42,11 @@ export type Stage = {
 	OpenSolo: boolean?,
 	-- set while the "A rival stepped up!" card counts down (handOver); leave clears it
 	HandOver: any?,
+	-- ghost rival: the solo game here is against a ghost (Play Again brings a new one),
+	-- the pending "nobody came" timer (scheduleGhost), and the ghost's figure on its spot
+	GhostGame: boolean?,
+	GhostTimer: any?,
+	GhostRig: Model?,
 	Janitor: any,
 }
 
@@ -63,6 +71,10 @@ local played: { [Player]: boolean } = {}
 -- accept instead of pulling them straight into a game.
 local onResults: { [Player]: boolean } = {}
 
+-- players with the solo theme picker open on the queue card (QueueRemote "Picking"): they're
+-- choosing practice, so no ghost and no move to another stage while it's open (scheduleGhost)
+local picking: { [Player]: boolean } = {}
+
 local function newSession(player: Player): string
 	local id = `{player.UserId}-{os.time()}-{math.random(1000, 9999)}`
 	sessions[player] = id
@@ -75,12 +87,17 @@ end
 local DuelService = {}
 DuelService.Stages = {} :: { [string]: Stage }
 DuelService.PlayerStage = {} :: { [Player]: Stage }
+-- whether this player has a duel invite out or in (set by InviteService, which needs this
+-- module, so it hands the check over rather than being required here)
+DuelService.InvitePending = function(_player: Player): boolean
+	return false
+end
 
 --| Functions
 
 -- [[ Private ]]
 
-local leave, tryStart, notifyOpponents, requestRematch, handOver -- forward declared, join() needs them
+local leave, tryStart, notifyOpponents, requestRematch, handOver, join -- forward declared, join() needs them (and scheduleGhost needs join)
 
 local function otherSlot(slot: Slot): Slot
 	return if slot == "A" then "B" else "A"
@@ -172,7 +189,165 @@ function notifyOpponents(stage: Stage)
 	end
 end
 
-local function join(stage: Stage, slot: Slot, player: Player, how: string?)
+-- [[ Ghost rival ]]
+-- Alone on a stage for GHOST_AFTER seconds (GHOST_AFTER_FIRST before your first finished
+-- duel), a ghost steps up: a recorded game (Engine/GhostPool) replayed as your rival. It's a
+-- solo game underneath but plays like a real duel, so the stage is closed while it runs
+-- (whatever Settings.SoloOpen says). On its results screen the free spot opens: a real rival
+-- stepping on then gets the "A rival stepped up!" hand-over, as from open practice.
+
+local function levelOf(player: Player): number
+	local ok, data = pcall(PlayerData.Get, player)
+	return if ok and data then (Levels.FromXP(data.Player.XP.Get())) else 1
+end
+
+local function firstDuel(player: Player): boolean
+	local ok, data = pcall(PlayerData.Get, player)
+	return ok and data ~= nil and data.Statistics.Duels.Get() == 0
+end
+
+-- The ghost's see-through figure on the free spot (ServerStorage.GhostRig, built in Studio).
+-- on = false takes it away.
+local function setGhostRig(stage: Stage, on: boolean)
+	if stage.GhostRig then
+		stage.GhostRig:Destroy()
+		stage.GhostRig = nil
+	end
+	local template = ServerStorage:FindFirstChild("GhostRig")
+	if not on or not template then
+		return
+	end
+	local slot: Slot = if stage.Players.A then "B" else "A"
+	local spot = stage.Spots[slot]
+	local rig = template:Clone() :: Model
+	local humanoid = rig:FindFirstChildOfClass("Humanoid")
+	local root = rig:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local hip = if humanoid then humanoid.HipHeight else 2
+	local half = if root then root.Size.Y / 2 else 1
+	local standAt = spot.Position + Vector3.new(0, spot.Size.Y / 2 + hip + half, 0)
+	local rigSpot = stage.Model:FindFirstChild("RigSpot") :: BasePart?
+	local lookAt = if rigSpot then Vector3.new(rigSpot.Position.X, standAt.Y, rigSpot.Position.Z) else standAt + spot.CFrame.LookVector
+	rig:PivotTo(CFrame.lookAt(standAt, lookAt))
+	rig.Parent = stage.Model
+	stage.GhostRig = rig
+end
+
+local function clearGhost(stage: Stage)
+	stage.GhostGame = nil
+	stage.GhostTimer = nil
+	setGhostRig(stage, false)
+end
+
+-- A ghost rival for `player`, alone on `stage`. Returns whether it started.
+local function startGhost(stage: Stage, player: Player, how: string): boolean
+	if not DuelConstants.GHOST_ENABLED or stage.State ~= "Waiting" or stage.Duel then
+		return false
+	end
+	local record = GhostPool.Take(player, levelOf(player))
+	if not record then
+		return false
+	end
+	stage.Solo = true
+	stage.GhostGame = true
+	stage.GhostTimer = nil
+	-- (value: seconds waited for a rival; Play Again from the results didn't wait)
+	local waited = if how == "Rematch" then 0 else math.floor(os.clock() - (queuedAt[player] or os.clock()))
+	Analytics.Event(player, "GhostMatched", waited, how, if record.Synthetic then "Synthetic" else "Recorded")
+	local again = how == "Rematch" -- Play Again from the results: straight in, like solo
+	if not again then
+		QueueRemote:Fire(player, { Message = "Opponent", Opponent = Duels.GhostProfile(record) })
+	end
+	setGhostRig(stage, true)
+	tryStart(stage, true, again, again, record)
+	return true
+end
+
+-- Someone on another stage the player waiting on `stage` could play right now: first a player
+-- waiting alone there (not practising, not on a results screen), then open practice or
+-- someone on a ghost game's results (either hands over to a real rival). Returns the stage,
+-- its free spot and which kind it was.
+local function realRivalFor(stage: Stage): (Stage?, Slot?, string?)
+	local practice: Stage? = nil
+	for _, other in DuelService.Stages do
+		if other == stage or other.HandOver then
+			continue
+		end
+		local a, b = other.Players.A, other.Players.B
+		if (a == nil) == (b == nil) then
+			continue -- empty or full
+		end
+		local them = (a or b) :: Player
+		if DuelService.InvitePending(them) then
+			continue -- their spot is promised to whoever they invited
+		end
+		if other.State == "Waiting" and not other.Solo and not other.Duel and not onResults[them] and not other.Tutorial then
+			return other, if a then "B" else "A", "Waiting"
+		end
+		if openPractice(other) then
+			practice = practice or other
+		end
+	end
+	if practice then
+		return practice, if practice.Players.A then "B" else "A", "Practice"
+	end
+	return nil, nil, nil
+end
+
+-- Starts the "nobody came" wait for someone alone on `stage`: every GHOST_MATCH_EVERY seconds
+-- it looks for a real rival on another stage (realRivalFor) and moves them there; once
+-- GHOST_AFTER seconds pass with nobody, a ghost steps up. Anything that ends the wait
+-- (a rival stepping on, solo, leaving) clears stage.GhostTimer and the loop stops.
+local function scheduleGhost(stage: Stage, player: Player)
+	if not DuelConstants.GHOST_ENABLED then
+		return
+	end
+	local token = {}
+	stage.GhostTimer = token
+	local wait = if firstDuel(player) then DuelConstants.GHOST_AFTER_FIRST else DuelConstants.GHOST_AFTER
+	local started = os.clock()
+	task.spawn(function()
+		while stage.GhostTimer == token do
+			-- (the last check lands right on the ghost's time; past it, every GHOST_MATCH_EVERY)
+			local left = wait - (os.clock() - started)
+			task.wait(if left > 0.05 then math.min(DuelConstants.GHOST_MATCH_EVERY, left) else DuelConstants.GHOST_MATCH_EVERY)
+			if stage.GhostTimer ~= token then
+				return
+			end
+			-- still alone, still waiting, and not practising, on a results screen or mid hand-over
+			local alone = (stage.Players.A == nil) ~= (stage.Players.B == nil)
+			if DuelService.PlayerStage[player] ~= stage or not alone or stage.State ~= "Waiting" or stage.Duel or stage.Solo or stage.HandOver or onResults[player] then
+				stage.GhostTimer = nil
+				return
+			end
+			-- an invite out or in, or picking a practice theme: hold on (the clock keeps running,
+			-- so a ghost may follow once it's over)
+			if DuelService.InvitePending(player) or picking[player] then
+				continue
+			end
+			-- a real rival somewhere else beats a ghost
+			local other, slot, kind = realRivalFor(stage)
+			if other and slot then
+				stage.GhostTimer = nil
+				Analytics.Event(player, "RivalMoved", math.floor(os.clock() - started), kind)
+				local mySlot: Slot = if stage.Players.A == player then "A" else "B"
+				leave(player)
+				join(other, slot, player, "Matched")
+				if DuelService.PlayerStage[player] ~= other then
+					-- (the move didn't take: put them back where they were)
+					join(stage, mySlot, player, "Matched")
+				end
+				return
+			end
+			if os.clock() - started >= wait then
+				stage.GhostTimer = nil
+				startGhost(stage, player, "Queue")
+				return
+			end
+		end
+	end)
+end
+
+function join(stage: Stage, slot: Slot, player: Player, how: string?)
 	if DuelService.PlayerStage[player] then
 		return
 	end -- already on a stage
@@ -197,6 +372,10 @@ local function join(stage: Stage, slot: Slot, player: Player, how: string?)
 
 	stage.Players[slot] = player
 	DuelService.PlayerStage[player] = stage
+	stage.GhostTimer = nil -- a real rival: no ghost needed
+	if stage.GhostGame then
+		setGhostRig(stage, false) -- (they stand where the ghost stood)
+	end
 
 	-- everything that should kick this player off lives in their slot's janitor
 	local slotJanitor = stage.SlotJanitors[slot]
@@ -248,6 +427,9 @@ local function join(stage: Stage, slot: Slot, player: Player, how: string?)
 		return
 	end
 	tryStart(stage)
+	if not (stage.Players.A and stage.Players.B) then
+		scheduleGhost(stage, player) -- nobody on the other spot yet
+	end
 end
 
 function leave(player: Player)
@@ -257,6 +439,7 @@ function leave(player: Player)
 		return
 	end -- makes double calls harmless
 	DuelService.PlayerStage[player] = nil
+	picking[player] = nil
 	local when = if stage.Duel then "MidDuel" elseif played[player] then "AfterGame" else "Waiting"
 	Analytics.Event(player, "QueueLeft", os.clock() - (queuedAt[player] or os.clock()), stage.Name, when)
 	queuedAt[player], sessions[player], played[player] = nil, nil, nil
@@ -298,9 +481,12 @@ function leave(player: Player)
 		end
 	end
 
-	if stage.Players.A == nil and stage.Players.B == nil and stage.Solo then
-		stage.Solo = false
-		stage.OpenSolo = false
+	if stage.Players.A == nil and stage.Players.B == nil then
+		if stage.Solo then
+			stage.Solo = false
+			stage.OpenSolo = false
+		end
+		clearGhost(stage)
 	end
 
 	player:SetAttribute("Stage", nil)
@@ -323,6 +509,11 @@ function leave(player: Player)
 	})
 	refreshPrompts(stage)
 	notifyOpponents(stage)
+	-- the one left behind is waiting alone again: a ghost can step up for them
+	local other = stage.Players[otherSlot(slot)]
+	if other and not stage.Solo and stage.State == "Waiting" and not stage.Duel and not onResults[other] then
+		scheduleGhost(stage, other)
+	end
 end
 
 local function onDuelEnded(stage: Stage, result)
@@ -401,6 +592,11 @@ local function onDuelEnded(stage: Stage, result)
 	for p, s in result.Scores do
 		scores[k(p)] = s
 	end
+	local ghost = result.Ghost
+	local ghostKey = tostring(DuelConstants.GHOST_USER_ID)
+	if ghost then
+		scores[ghostKey] = ghost.Score
+	end
 	for p, e in earned do
 		rewards[k(p)] = e
 	end
@@ -409,6 +605,9 @@ local function onDuelEnded(stage: Stage, result)
 		local picks = {}
 		for p, pick in round.Picks do
 			picks[k(p)] = { Correct = pick.Correct, Points = pick.Points, Picked = pick.Picked ~= nil, Tier = pick.Tier }
+		end
+		if ghost and ghost.Rounds[i] then
+			picks[ghostKey] = ghost.Rounds[i]
 		end
 		rounds[i] = { Name = round.Song.Name, Artist = round.Song.Artist, Picks = picks, Multiplier = round.Multiplier }
 	end
@@ -425,10 +624,14 @@ local function onDuelEnded(stage: Stage, result)
 	if #present > 0 then
 		DuelRemote:Fire(Bridgenet.Players(present), {
 			Message = "End",
-			Winner = result.Winner and result.Winner.UserId or nil,
+			Winner = if result.Winner then result.Winner.UserId
+				elseif ghost and ghost.Won then DuelConstants.GHOST_USER_ID
+				else nil,
 			Draw = result.Draw,
 			Forfeit = result.Forfeit,
-			Solo = result.Solo,
+			-- a ghost game shows as a duel against the ghost (Ghost), not as practice
+			Solo = result.Solo and not ghost,
+			Ghost = if ghost then true else nil,
 			Tutorial = result.Tutorial or nil,
 			Mode = result.Mode,
 			Stake = result.Stake,
@@ -442,6 +645,10 @@ local function onDuelEnded(stage: Stage, result)
 	-- players stay on their spots; a rematch starts once everyone still here presses Rematch
 	stage.Rematch = {}
 	stage.State = "Waiting"
+	-- a ghost game's over: the free spot opens, so a real rival can step on (hand-over)
+	if result.Ghost and stage.GhostGame then
+		stage.OpenSolo = true
+	end
 	refreshPrompts(stage)
 end
 
@@ -453,6 +660,7 @@ end
 function handOver(stage: Stage, soloer: Player, rival: Player, earned: any?, rounds: number?)
 	stage.Solo = false
 	stage.OpenSolo = false
+	clearGhost(stage) -- a real rival beats a ghost
 	stage.State = "Waiting"
 	stage.Rematch = {}
 	onResults[soloer], onResults[rival] = nil, nil
@@ -525,7 +733,13 @@ function requestRematch(player: Player)
 				end
 			end
 		end
-		if stage.Solo then
+		if stage.GhostGame and #present == 1 then
+			-- Play Again after a ghost game: a new ghost
+			if not startGhost(stage, present[1], "Rematch") then
+				clearGhost(stage)
+				tryStart(stage, true, true)
+			end
+		elseif stage.Solo then
 			tryStart(stage, true, true)
 		elseif #present == 2 then
 			tryStart(stage, nil, true)
@@ -593,7 +807,8 @@ function trySolo(player: Player, packet: any?)
 end
 
 -- skipIntermission: straight after open practice's hand-over card (handOver), which was the countdown
-function tryStart(stage: Stage, soloStage: boolean?, rematch: boolean?, skipIntermission: boolean?)
+-- ghost: a recording to play against (startGhost); the game is solo underneath, closed like a duel
+function tryStart(stage: Stage, soloStage: boolean?, rematch: boolean?, skipIntermission: boolean?, ghost: any?)
 	local a, b = stage.Players.A, stage.Players.B
 
 	if stage.State ~= "Waiting" then
@@ -608,7 +823,8 @@ function tryStart(stage: Stage, soloStage: boolean?, rematch: boolean?, skipInte
 	-- Read every game, so a change in Settings counts from their next Play again.
 	if soloStage then
 		local me = a or b
-		stage.OpenSolo = not stage.Tutorial and me ~= nil and SettingsService.SoloOpen(me)
+		-- (a ghost game plays like a real duel: closed, whatever the setting says)
+		stage.OpenSolo = not stage.Tutorial and me ~= nil and not ghost and SettingsService.SoloOpen(me)
 	end
 
 	stage.State = "InProgress"
@@ -616,6 +832,11 @@ function tryStart(stage: Stage, soloStage: boolean?, rematch: boolean?, skipInte
 
 	local duel = Duels.new(stage, a, b, soloStage)
 	duel.SkipIntermission = skipIntermission == true
+	if ghost and soloStage then
+		duel:SetGhost(ghost) -- (stage.OpenSolo is already false: nobody steps in mid-game, it opens on the results)
+	elseif soloStage and stage.GhostGame then
+		clearGhost(stage) -- practice after a ghost game: the ghost goes
+	end
 	stage.Duel = duel
 	-- each player's record against the other, for the pre-duel chip
 	if a and b and not soloStage then
@@ -791,6 +1012,7 @@ function DuelService.Start()
 	Players.PlayerRemoving:Connect(leave)
 	Players.PlayerRemoving:Connect(function(player)
 		onResults[player] = nil
+		picking[player] = nil
 	end)
 	-- Request is a string, or { Request = "Solo", Theme, Mix } from the solo theme picker
 	QueueRemote:Connect(function(Player: Player, Request: any)
@@ -807,6 +1029,9 @@ function DuelService.Start()
 			quickPlay(Player)
 		elseif Request == "Tutorial" then
 			startTutorial(Player)
+		elseif Request == "Picking" and packet then
+			-- the solo theme picker opened / closed (QueueController/SoloPicker)
+			picking[Player] = if packet.On == true and DuelService.PlayerStage[Player] then true else nil
 		end
 	end)
 

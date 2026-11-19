@@ -316,8 +316,11 @@ function Interface.Start(self: Self)
 
 	-- shrink text and chip rows that would overflow their boxes (mostly on phones, where the
 	-- canvas is scaled right down); watches UI the controllers build later too
-	if interfaceGui then
-		FitText.Watch(interfaceGui)
+	-- (Start can run before the Interface ScreenGui has been copied into PlayerGui, so wait
+	-- for it here; the inset settings above keep their old behaviour, the layout is tuned to it)
+	local fitRoot = interfaceGui or self.PlayerGui:WaitForChild("Interface", 10)
+	if fitRoot then
+		FitText.Watch(fitRoot)
 	end
 
 	-- the loading screen (ReplicatedFirst/Loading) waits for this before it fades out

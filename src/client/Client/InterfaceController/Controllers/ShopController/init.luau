@@ -1,11 +1,28 @@
 --| ShopController
 -- The shop (Interface.Frames.Shop, built in Studio from the "Shop v3" board): one scrolling
--- page under the usual header. Top to bottom: the featured set, the Headliner (the featured
--- bundle), "Bundles": the one-time Debut Pack then the other bundles (ShopCatalog.Bundles:
--- tickets + upgrades + coins), the
--- four stage sets in the rotation, the stages + mic stands in the rotation, the banners +
--- photocards in the rotation (a set, or either half), roll tickets + card upgrades (Robux
--- bundles, the "Rolls" section), the coin bundles, the passes and the code box. Fills everything from ShopCatalog + the player's data;
+-- page under the usual header. The order (design board "Money 4 · shop order for new players",
+-- Shop:_order): a player without the Debut Pack sees it first, then the passes, then the
+-- featured set; once it's bought the passes lead and the pack drops into "Bundles". Then the
+-- Headliner (the featured bundle), "Bundles" (ShopCatalog.Bundles: tickets + upgrades +
+-- coins), the four stage sets in the rotation, the stages + mic stands in the rotation, the
+-- banners + photocards in the rotation (a set, or either half), roll tickets + card upgrades
+-- (Robux bundles, the "Rolls" section), the coin bundles and the code box.
+-- While the starter bonus runs (ShopCatalog.DebutPack.Bonus, Rewards.StarterAt) the Debut Pack
+-- shows a 4th BONUS card (the extra roll tickets), "Bonus ends in …", and Buy sells the bonus
+-- product at the same price. Coin bundles past the first wear "+n% MORE" (Money 5): how many
+-- more coins per Robux than the smallest bundle, from the live prices.
+-- Boost potions (ShopCatalog.Boosts) sit under the passes: 2× Coins / 2× XP, 30 min or 2 h; with
+-- the 2× Coins pass the coin ones read "3× Coins" (they stack to 3×).
+-- Gift mode ("Gifting 1–2"): "Send a gift" at the foot of the sidebar opens Shop.GiftPick
+-- (players in this server), then the whole page buys for them: the header and buttons go pink,
+-- what they already own reads "<name> has it", and buys go to GiftRemote (Engine/GiftService)
+-- instead. The header's GiftTag (centre top) says who it's for; its ✕ leaves gift mode. Shop:StartGift(userId) jumps straight in
+-- (the player card's GIFT).
+-- Down the left, Panel.Sidebar's tabs jump to a stretch of the page (TABS) and the one you're
+-- in stays lit as you scroll.
+-- The VIP card's ⓘ opens Shop.Perks: the pass's perks from ShopCatalog
+-- ("Money 12b") with a Get VIP button that prompts the pass.
+-- Fills everything from ShopCatalog + the player's data;
 -- purchases are only requests, the server (ShopService, RewardsService for codes) checks and
 -- applies them. The song roll and the group's UGC are their own screens (RollController,
 -- UGCController). Open with Interface:Open("Shop", "Coins") to land on the coin bundles.
@@ -38,6 +55,7 @@ local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
 local LOCAL_PLAYER = Players.LocalPlayer
 local ShopRemote = Bridgenet.ReferenceBridge("ShopRemote")
 local RewardsRemote = Bridgenet.ReferenceBridge("RewardsRemote")
+local GiftRemote = Bridgenet.ReferenceBridge("GiftRemote")
 
 local C = Color3.fromHex
 local WHITE = C("FFFFFF")
@@ -80,6 +98,55 @@ local function owns(path, id: string): boolean
 	return ok and has == true
 end
 
+-- Gift mode: who the shop is buying for and what they own (GiftRemote "Owned"), or nil
+type GiftState = {
+	UserId: number,
+	Name: string,
+	Owned: { [string]: { [string]: boolean } }?, -- Passes / Sets / Stages / Mics / Banners / Photocards
+	Debut: boolean,
+	Bundles: { [string]: number },
+}
+local gift: GiftState? = nil
+
+local function giftOwns(key: string, id: string): boolean
+	local owned = gift and gift.Owned
+	return owned ~= nil and owned[key] ~= nil and owned[key][id] == true
+end
+
+-- what the page is checking ownership for: the gift's recipient in gift mode, else you
+local function ownsSet(id: string): boolean
+	if gift then
+		return giftOwns("Sets", id)
+	end
+	return owns(PlayerData.Inventory.Sets, id)
+end
+local function ownsItem(kind: string, id: string): boolean
+	local key = if kind == "Stage" then "Stages" else "Mics"
+	if gift then
+		return giftOwns(key, id)
+	end
+	return owns(PlayerData.Inventory[key], id)
+end
+local function ownsPass(id: string): boolean
+	if gift then
+		return giftOwns("Passes", id)
+	end
+	return owns(PlayerData.GamePasses, id)
+end
+local function hasDebut(): boolean
+	local pack = ShopCatalog.DebutPack
+	if not pack then
+		return false
+	end
+	if gift then
+		return gift.Debut
+	end
+	return owns(PlayerData.Rewards.Claimed, pack.Id)
+end
+local function hasIt(): string
+	return if gift then `{gift.Name} has it` else "Owned"
+end
+
 -- Sets an action button (built with Icon + Label children): label, icon (Coin / Robux / none),
 -- colour, and whether it can be pressed. Its <name>Shadow hides while it can't be pressed.
 local function setButton(button: GuiButton, label: string, opts: { Icon: string?, Colour: Color3?, Enabled: boolean? })
@@ -90,8 +157,9 @@ local function setButton(button: GuiButton, label: string, opts: { Icon: string?
 	if opts.Icon then
 		icon.Image = opts.Icon
 	end
-	button.BackgroundColor3 = opts.Colour or MINT
 	local enabled = opts.Enabled ~= false
+	-- gift mode: every live price button is pink
+	button.BackgroundColor3 = opts.Colour or (if gift and enabled then PINK else MINT)
 	button.Active = enabled
 	button.AutoButtonColor = false
 	local shadow = button.Parent and button.Parent:FindFirstChild(button.Name .. "Shadow")
@@ -119,14 +187,19 @@ end
 
 -- A set counts as equipped while you wear both of its pieces.
 local function setEquipped(set): boolean
+	if gift then
+		return false -- (what you wear doesn't matter when it's for someone else)
+	end
 	local stage, mic = ShopCatalog.SetPieces(set)
 	return PlayerData.Inventory.EquippedStage.Get() == stage.Id and PlayerData.Inventory.EquippedMic.Get() == mic.Id
 end
 
 -- Buy / Equip / Equipped on a set's button
 local function setSetButton(button: GuiButton, set)
-	local owned = owns(PlayerData.Inventory.Sets, set.Id)
-	if owned and setEquipped(set) then
+	local owned = ownsSet(set.Id)
+	if owned and gift then
+		setButton(button, hasIt(), { Colour = GREY, Enabled = false })
+	elseif owned and setEquipped(set) then
 		setButton(button, "Equipped", { Colour = GREY, Enabled = false })
 	elseif owned then
 		setButton(button, "Equip", { Colour = WHITE })
@@ -143,17 +216,89 @@ local function paintRarity(art: Instance, rarity: string)
 	end
 end
 
+-- the PlayerData Products name of a Robux product (what Scribe gifts by)
+local function productName(id: number): string?
+	local pack = ShopCatalog.DebutPack
+	if pack and (pack.ProductId == id or (pack.Bonus and pack.Bonus.ProductId == id)) then
+		return pack.Id -- (a gift is always the plain pack: the starter bonus is the buyer's own)
+	end
+	for _, list in { ShopCatalog.CoinBundles, ShopCatalog.RollBundles, ShopCatalog.Bundles, ShopCatalog.Boosts } do
+		for _, b in list do
+			if b.ProductId == id then
+				return b.Id
+			end
+		end
+	end
+	return nil
+end
+
+-- a Robux gift: Scribe opens the prompt; this purchase's own reveal stays off (GiftPrompt)
+local function promptGift(name: string?)
+	if not gift or not name then
+		return
+	end
+	LOCAL_PLAYER:SetAttribute("GiftPrompt", os.clock())
+	GiftRemote:Fire({ Action = "Robux", Product = name, To = gift.UserId })
+end
+
 local function promptPass(pass)
-	if pass and (pass.GamePassId or 0) > 0 then
+	if not pass then
+		return
+	end
+	if gift then
+		for _, g in ShopCatalog.PassGifts do
+			if g.Pass == pass.Id then
+				promptGift(g.Id)
+			end
+		end
+		return
+	end
+	if (pass.GamePassId or 0) > 0 then
 		MarketplaceService:PromptGamePassPurchase(LOCAL_PLAYER, pass.GamePassId)
 	end
 end
 
 local function promptProduct(id: number?)
-	if (id or 0) > 0 then
-		MarketplaceService:PromptProductPurchase(LOCAL_PLAYER, id :: number)
+	if (id or 0) <= 0 then
+		return
 	end
+	if gift then
+		promptGift(productName(id :: number))
+		return
+	end
+	MarketplaceService:PromptProductPurchase(LOCAL_PLAYER, id :: number)
 end
+
+-- seconds left on the Debut Pack's starter bonus (0 = none: not started, over, or off)
+local function bonusLeft(): number
+	local pack = ShopCatalog.DebutPack
+	local bonus = pack and pack.Bonus
+	if not bonus or (bonus.ProductId or 0) <= 0 then
+		return 0
+	end
+	local ok, at = pcall(PlayerData.Rewards.StarterAt.Get)
+	if not ok or type(at) ~= "number" or at <= 0 then
+		return 0
+	end
+	return math.max(0, at + bonus.Hours * 3600 - workspace:GetServerTimeNow())
+end
+
+-- the section order, top to bottom (LayoutOrder = place in the list). The Debut Pack leads
+-- until it's bought, then sits first in "Bundles".
+local ORDER_NEW = { "Debut", "Featured", "Headliner", "PassesTitle", "Passes", "BoostsTitle", "Boosts", "BundlesTitle", "Bundles", "RollsTitle", "Rolls", "SetsTitle", "Sets", "PiecesTitle", "Pieces", "StyleTitle", "Style", "Coins", "CodesTitle", "Codes", "Thanks" }
+local ORDER_OWNED = { "Featured", "Headliner", "PassesTitle", "Passes", "BoostsTitle", "Boosts", "BundlesTitle", "Debut", "Bundles", "RollsTitle", "Rolls", "SetsTitle", "Sets", "PiecesTitle", "Pieces", "StyleTitle", "Style", "Coins", "CodesTitle", "Codes", "Thanks" }
+
+-- the sidebar's quick-jump tabs (Panel.Sidebar, "Shop v4b"), top to bottom: each scrolls the
+-- page to its first section, and lights up while the page is in its stretch
+local TABS = {
+	{ Tab = "Featured", Section = "Featured" },
+	{ Tab = "Perks", Section = "PassesTitle" }, -- passes + boosts
+	{ Tab = "Bundles", Section = "BundlesTitle" }, -- bundles + rolls
+	{ Tab = "Looks", Section = "SetsTitle" }, -- sets, pieces, styles
+	{ Tab = "Coins", Section = "Coins" },
+	{ Tab = "Codes", Section = "CodesTitle" },
+}
+local TAB_ON = C("FFE07A")
 
 -- the coin bundles on sale (a Hidden bundle still grants if bought before, but isn't shown)
 local function shownBundles(): { any }
@@ -199,6 +344,57 @@ function Shop:_notEnoughCoins(need: number?, name: string?)
 end
 
 -- --------------------------------- Scrolling -------------------------------- --
+
+-- lights the tab for whichever stretch of the page sits at the top of the scroll
+function Shop:_paintTabs()
+	local sidebar = self._frame.Panel:FindFirstChild("Sidebar")
+	if not sidebar then
+		return
+	end
+	local scroll = self._scroll
+	local top = scroll.AbsolutePosition.Y + 40 -- a little way into the page
+	local active = TABS[1].Tab
+	if scroll.CanvasPosition.Y >= scroll.AbsoluteCanvasSize.Y - scroll.AbsoluteWindowSize.Y - 2 and scroll.CanvasPosition.Y > 0 then
+		-- scrolled to the bottom: the last tab that's showing, even if its section is short
+		for i = #TABS, 1, -1 do
+			local tab = sidebar:FindFirstChild(TABS[i].Tab)
+			if tab and tab.Visible then
+				active = TABS[i].Tab
+				break
+			end
+		end
+	else
+		local best = -math.huge
+		for _, t in TABS do
+			local section = scroll:FindFirstChild(t.Section)
+			local y = section and section.Visible and section.AbsolutePosition.Y
+			if y and y <= top and y > best then
+				best, active = y, t.Tab
+			end
+		end
+	end
+	if self._activeTab == active then
+		return
+	end
+	self._activeTab = active
+	for _, t in TABS do
+		local tab = sidebar:FindFirstChild(t.Tab)
+		if tab then
+			local on = t.Tab == active
+			tab.BackgroundTransparency = if on then 0 else 1
+			tab.BackgroundColor3 = TAB_ON
+			local stroke = tab:FindFirstChildWhichIsA("UIStroke")
+			if stroke then
+				stroke.Enabled = on
+			end
+			local shadow = sidebar:FindFirstChild(t.Tab .. "Shadow")
+			if shadow then
+				shadow.Visible = on
+			end
+		end
+	end
+end
+
 
 -- Scrolls the page so a section (Featured, Sets, Pieces, Coins, Passes, Codes) sits at the top.
 function Shop:ScrollTo(section: string?, instant: boolean?)
@@ -250,19 +446,38 @@ function Shop:_fillDebut()
 	if not show then
 		return
 	end
-	local bought = owns(PlayerData.Rewards.Claimed, pack.Id)
+	local bought = hasDebut()
 	local face = section.Face
 	local items = face.Items
+	-- the starter bonus: a 4th card with its tickets, and the clock in the note
+	local left = if bought or gift then 0 else bonusLeft() -- (the starter bonus is yours only)
+	local list = pack.Items
+	if left > 0 then
+		list = table.clone(pack.Items)
+		table.insert(list, { Label = `×{pack.Bonus.Tickets}`, Sub = "Roll tickets", Colour = "FFD2DE", Image = Currencies.Tickets.Icon, Bonus = true })
+	end
+	self._debutBonus = left > 0
 	if face:FindFirstChild("Count") then
-		face.Count.Text = `{#pack.Items} ITEMS`
+		face.Count.Text = `{#list} ITEMS`
 	end
 	if face:FindFirstChild("Note") then
-		face.Note.Text = if bought then "0/1 left" else "1/1 left"
+		local h, m = left // 3600, (left % 3600) // 60
+		face.Note.Text = if bought then "0/1 left" elseif left > 0 then `Bonus ends in {h}h {m}m` else "1/1 left"
+		face.Note.TextColor3 = if left > 0 then RED else self._noteColour or face.Note.TextColor3
 	end
+	-- four cards don't fit the row at full size: shrink it, kept centred on the banner
+	local scale = items:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
+	scale.Scale = if #list > 3 then 0.78 else 1
+	scale.Parent = items
+	if not self._itemsY then
+		self._itemsY = items.Position.Y.Offset
+		self._noteColour = face.Note and face.Note.TextColor3
+	end
+	items.Position = UDim2.new(items.Position.X, UDim.new(0, self._itemsY + (if #list > 3 then items.Size.Y.Offset * 0.11 else 0)))
 	for i = 1, 4 do
 		-- (Item n is a tilted photocard slot: Shadow + Card; Plus n-1 sits before it)
 		local slot = items:FindFirstChild("Item" .. i)
-		local entry = pack.Items[i]
+		local entry = list[i]
 		slot.Visible = entry ~= nil
 		local plus = items:FindFirstChild("Plus" .. (i - 1))
 		if plus then
@@ -270,7 +485,13 @@ function Shop:_fillDebut()
 		end
 		local tile = slot:FindFirstChild("Card") or slot
 		if slot:FindFirstChild("Only") then
-			slot.Only.Visible = entry ~= nil and entry.Only == true
+			slot.Only.Visible = entry ~= nil and (entry.Only == true or entry.Bonus == true)
+			if not slot:GetAttribute("OnlyColour") then
+				slot:SetAttribute("OnlyColour", slot.Only.BackgroundColor3:ToHex())
+			end
+			slot.Only.Text = if entry and entry.Bonus then "BONUS" else "ONLY HERE"
+			slot.Only.BackgroundColor3 = if entry and entry.Bonus then RED else C(slot:GetAttribute("OnlyColour"))
+			slot.Only.TextColor3 = if entry and entry.Bonus then WHITE else Color3.fromHex("1E1B2E")
 		end
 		if entry then
 			tile.Label.Text = entry.Label
@@ -298,9 +519,22 @@ function Shop:_fillDebut()
 		end
 	end
 	if bought then
-		setButton(section.Face.Buy, "Bought", { Colour = GREY, Enabled = false })
+		setButton(section.Face.Buy, if gift then hasIt() else "Bought", { Colour = GREY, Enabled = false })
 	else
-		setRobuxButton(section.Face.Buy, "Product", pack.ProductId)
+		-- the bonus pack costs the same; its own product
+		setRobuxButton(section.Face.Buy, "Product", if left > 0 then pack.Bonus.ProductId else pack.ProductId)
+	end
+end
+
+-- the sections' order (see the header): new players see the Debut Pack first
+function Shop:_order()
+	local pack = ShopCatalog.DebutPack
+	local fresh = pack ~= nil and (pack.ProductId or 0) > 0 and not owns(PlayerData.Rewards.Claimed, pack.Id)
+	for place, name in (if fresh then ORDER_NEW else ORDER_OWNED) do
+		local section = self._scroll:FindFirstChild(name)
+		if section then
+			section.LayoutOrder = place
+		end
 	end
 end
 
@@ -321,6 +555,9 @@ end
 
 -- times this player bought a bundle (Rewards.Bundles)
 local function bundleBought(id: string): number
+	if gift then
+		return gift.Bundles[id] or 0
+	end
 	local ok, all = pcall(PlayerData.Rewards.Bundles.Get)
 	return if ok and type(all) == "table" then all[id] or 0 else 0
 end
@@ -407,7 +644,7 @@ local function fillBundle(holder: Instance?, bundle)
 	local left = math.max(0, limit - bundleBought(bundle.Id))
 	face.Note.Text = `{left}/{limit} left`
 	if left <= 0 then
-		setButton(face.Buy, if limit == 1 then "Bought" else "Sold out", { Colour = GREY, Enabled = false })
+		setButton(face.Buy, if gift then (if limit == 1 then hasIt() else "Maxed out") elseif limit == 1 then "Bought" else "Sold out", { Colour = GREY, Enabled = false })
 	else
 		setRobuxButton(face.Buy, "Product", bundle.ProductId)
 	end
@@ -490,10 +727,12 @@ function Shop:_fillPieces()
 					card.Rarity.BackgroundColor3 = C(ShopCatalog.RARITY_COLOURS[item.Rarity] or "FFFFFF")
 					CosmeticView.Show(card.Art, kind, item.Id)
 				end
-				local equipped = PlayerData.Inventory[ITEM_EQUIPPED[kind]].Get() == item.Id
-				if equipped then
+				local equipped = not gift and PlayerData.Inventory[ITEM_EQUIPPED[kind]].Get() == item.Id
+				if gift and ownsItem(kind, item.Id) then
+					setButton(card.Action, hasIt(), { Colour = GREY, Enabled = false })
+				elseif equipped then
 					setButton(card.Action, "Equipped", { Colour = GREY, Enabled = false })
-				elseif owns(PlayerData.Inventory[ITEM_OWNED[kind]], item.Id) then
+				elseif ownsItem(kind, item.Id) then
 					setButton(card.Action, "Equip", { Colour = WHITE })
 				else
 					setButton(card.Action, fmt(item.Price), { Icon = COIN })
@@ -510,10 +749,19 @@ local STYLE_WORN = { Banner = "Banner", Photocard = "Photocard" }
 local STYLE_FREE = { Banner = SeasonConstants.FREE_BANNERS, Photocard = SeasonConstants.FREE_PHOTOCARDS }
 
 local function ownsStyle(kind: string, id: string): boolean
-	return STYLE_FREE[kind][id] == true or owns(PlayerData.Inventory[STYLE_OWNED[kind]], id)
+	if STYLE_FREE[kind][id] == true then
+		return true
+	end
+	if gift then
+		return giftOwns(STYLE_OWNED[kind], id)
+	end
+	return owns(PlayerData.Inventory[STYLE_OWNED[kind]], id)
 end
 
 local function wearing(kind: string, id: string): boolean
+	if gift then
+		return true -- owned for them = nothing to do (no Equip in gift mode)
+	end
 	local worn = PlayerData.Inventory[STYLE_WORN[kind]].Get()
 	return worn == id or (worn == "" and id == SeasonConstants["DEFAULT_" .. string.upper(kind)])
 end
@@ -543,7 +791,10 @@ local function setHalfButton(button: GuiButton, kind: string, id: string)
 	button.BackgroundColor3 = if owned then GREY else WHITE
 	button.Active = not owned
 	button.Row.Icon.Visible = not owned
-	button.Row.Label.Text = if owned then "Owned" else fmt(ShopCatalog.StylePrice(id, kind) or 0)
+	button.Row.Label.Text = if owned then (if gift then "Has it" else "Owned") else fmt(ShopCatalog.StylePrice(id, kind) or 0)
+	if not owned and gift then
+		button.BackgroundColor3 = PINK
+	end
 	local shadow = button.Parent:FindFirstChild(button.Name .. "Shadow")
 	if shadow then
 		shadow.Visible = not owned
@@ -595,7 +846,7 @@ function Shop:_fillStyle()
 			elseif action == "Equip" then
 				setButton(card.SetBuy, "Equip set", { Colour = WHITE })
 			else
-				setButton(card.SetBuy, "Equipped", { Colour = GREY, Enabled = false })
+				setButton(card.SetBuy, if gift then hasIt() else "Equipped", { Colour = GREY, Enabled = false })
 			end
 			card.Save.Visible = action == "Buy" and not finishing
 			card.Save.Text = `SAVE {fmt(halves - full)}`
@@ -629,6 +880,18 @@ function Shop:_fillCoins()
 				tag.BackgroundColor3 = if bundle.Tag == "BEST VALUE" then RED else PINK
 			end
 			setRobuxButton(holder.Buy, "Product", bundle.ProductId)
+			-- "+n% MORE": coins per Robux against the smallest bundle (live prices)
+			local sticker = holder:FindFirstChild("Bonus") :: TextLabel?
+			if sticker then
+				local base = bundles[1]
+				local price = Prices.Get("Product", bundle.ProductId)
+				local basePrice = Prices.Get("Product", base.ProductId)
+				local more = if i > 1 and price and basePrice and price > 0 and basePrice > 0
+					then math.floor(((bundle.Amount / price) / (base.Amount / basePrice) - 1) * 100 + 0.5)
+					else 0
+				sticker.Visible = more >= 5
+				sticker.Text = `+{more}% MORE`
+			end
 		end
 	end
 end
@@ -668,15 +931,90 @@ function Shop:_fillPasses()
 		local face = passes:FindFirstChild(card)
 		local pass = ShopCatalog.GetPass(id)
 		if face and pass then
-			face.PassName.Text = pass.Name
-			face.Desc.Text = pass.Sub
-			if owns(PlayerData.GamePasses, pass.Id) then
-				setButton(face.Action, "Owned", { Colour = GREY, Enabled = false })
+			face.PassName.Text = pass.Title or pass.Name
+			face.Desc.Text = pass.Line or pass.Sub -- the card's short line; Sub stays the long one
+			local owned = ownsPass(pass.Id)
+			local best = face:FindFirstChild("Best") -- VIP's BEST PASS sticker
+			if best then
+				best.Visible = not owned
+			end
+			if owned then
+				setButton(face.Action, hasIt(), { Colour = GREY, Enabled = false })
+			elseif gift then
+				-- (bought as its gift product, at the pass's price)
+				local giftProduct
+				for _, g in ShopCatalog.PassGifts do
+					if g.Pass == pass.Id then
+						giftProduct = g.ProductId
+					end
+				end
+				setRobuxButton(face.Action, "Product", giftProduct)
 			else
 				setRobuxButton(face.Action, "GamePass", pass.GamePassId)
 			end
 		end
 	end
+end
+
+-- The Boost Potions shelf: art, how long, which boost, price. With the 2× Coins pass a coin
+-- potion makes it 3×, so its owners see "3× Coins" on those.
+function Shop:_fillBoosts()
+	local boosts = self._scroll:FindFirstChild("Boosts")
+	if not boosts then
+		return
+	end
+	local hasPass = ownsPass("DoubleCoins")
+	for i, boost in ShopCatalog.Boosts do
+		local slot = boosts.Face:FindFirstChild("Potion" .. i)
+		if slot then
+			local kind = ShopCatalog.BOOST_KINDS[boost.Kind]
+			slot.Art.Image = boost.Image or ""
+			slot.Time.Label.Text = if boost.Seconds >= 3600 then `{boost.Seconds // 3600} hours` else `{boost.Seconds // 60} min`
+			slot.PotionName.Text = if boost.Kind == "Coins" and hasPass then "3× Coins" else kind and kind.Name or boost.Kind
+			if kind then
+				slot.Time.BackgroundColor3 = C(kind.Colour)
+				local backdrop = slot:FindFirstChild("Backdrop")
+				local tint = backdrop and backdrop:FindFirstChildWhichIsA("UIGradient")
+				if tint then
+					tint.Color = ColorSequence.new(WHITE, C(kind.Colour):Lerp(WHITE, 0.55))
+				end
+			end
+			setRobuxButton(slot.Buy, "Product", boost.ProductId)
+		end
+	end
+end
+
+-- Fills the VIP perks popup from ShopCatalog and shows or hides it.
+function Shop:_showPerks(show: boolean)
+	local perks = self._frame and self._frame:FindFirstChild("Perks")
+	if not perks then
+		return
+	end
+	if show then
+		local pass = ShopCatalog.GetPass("VIP")
+		local list = pass and pass.Perks or {}
+		for _, row in perks.Card.List:GetChildren() do
+			if row:IsA("Frame") then
+				local perk = list[row.LayoutOrder]
+				row.Visible = perk ~= nil
+				if perk then
+					row.PerkName.Text = perk.Name
+					row.Desc.Text = perk.Desc
+					row.Bubble.Icon.Image = perk.Icon or ""
+				end
+			end
+		end
+		if pass and ownsPass(pass.Id) then
+			setButton(perks.Card.Buy, hasIt(), { Colour = GREY, Enabled = false })
+		elseif pass and gift then
+			setRobuxButton(perks.Card.Buy, "Product", ShopCatalog.PassGifts[1].ProductId)
+		elseif pass then
+			setRobuxButton(perks.Card.Buy, "GamePass", pass.GamePassId)
+		end
+		perks.Card.Header.Sub.Text = if gift then `A gift for {gift.Name}` elseif pass and ownsPass(pass.Id) then "All yours · thanks for the support!" else "One-time · yours forever"
+		Sounds.Play("Click")
+	end
+	perks.Visible = show
 end
 
 function Shop:_refresh()
@@ -695,6 +1033,7 @@ function Shop:_refresh()
 		end
 		self._shownCoins = coins
 	end
+	self:_order()
 	self:_fillFeatured()
 	self:_fillDebut()
 	self:_fillBundles()
@@ -704,6 +1043,156 @@ function Shop:_refresh()
 	self:_fillRolls()
 	self:_fillCoins()
 	self:_fillPasses()
+	self:_fillBoosts()
+	self:_paintTabs()
+end
+
+-- ---------------------------------- Gifting ---------------------------------- --
+
+local PICK_TINT = C("FFE07A") -- the picked row
+local HEADER_GIFT = C("FF9EC4") -- the header in gift mode
+
+-- the header: mint normally, pink in gift mode; the sidebar's foot: "Send a gift" or who it's for
+function Shop:_paintGiftHeader()
+	local header = self._frame.Panel.Header
+	if not self._headerColour then
+		self._headerColour = header.BackgroundColor3
+	end
+	local colour = if gift then HEADER_GIFT else self._headerColour
+	header.BackgroundColor3 = colour
+	local square = header:FindFirstChild("SquareBottom")
+	if square then
+		square.BackgroundColor3 = colour
+	end
+	local sidebar = self._frame.Panel:FindFirstChild("Sidebar")
+	if not sidebar then
+		return
+	end
+	-- (the button lives at the foot of the sidebar, the tag in the middle of the header)
+	for name, show in { GiftButton = gift == nil, GiftTag = gift ~= nil } do
+		local home = if name == "GiftTag" then header else sidebar
+		local thing = home:FindFirstChild(name)
+		local shadow = home:FindFirstChild(name .. "Shadow")
+		if thing then
+			thing.Visible = show
+		end
+		if shadow then
+			shadow.Visible = show
+		end
+	end
+	if gift and header:FindFirstChild("GiftTag") then
+		header.GiftTag.Label.Text = gift.Name
+	end
+	-- codes are redeemed for yourself, so the code box (and its tab) go while gifting
+	for _, name in { "CodesTitle", "Codes" } do
+		local section = self._scroll and self._scroll:FindFirstChild(name)
+		if section then
+			section.Visible = gift == nil
+		end
+	end
+	for _, name in { "Codes", "CodesShadow" } do
+		local tab = sidebar:FindFirstChild(name)
+		if tab then
+			tab.Visible = gift == nil
+		end
+	end
+	self._activeTab = nil -- repaint the tabs for the new page
+	self:_paintTabs()
+end
+
+-- into gift mode for a player in this server (the page repaints once their inventory is in)
+function Shop:StartGift(userId: number)
+	local target = Players:GetPlayerByUserId(userId)
+	if not target or target == LOCAL_PLAYER then
+		return
+	end
+	gift = { UserId = userId, Name = target.DisplayName, Owned = nil, Debut = false, Bundles = {} }
+	GiftRemote:Fire({ Action = "Owned", To = userId })
+	self:_showPicker(false)
+	self:_paintGiftHeader()
+	self:_refresh()
+end
+
+function Shop:StopGift()
+	if not gift then
+		return
+	end
+	gift = nil
+	self:_paintGiftHeader()
+	self:_refresh()
+end
+
+-- a coin gift: the server checks the price and their inventory
+function Shop:_giftCoins(kind: string, id: string)
+	if not gift then
+		return
+	end
+	if not gift.Owned then
+		return -- (still loading what they own)
+	end
+	GiftRemote:Fire({ Action = "Coins", Kind = kind, Id = id, To = gift.UserId })
+end
+
+-- Shop.GiftPick: everyone else in the server (rows cloned from List.Template), pick one,
+-- then SHOP FOR <NAME>
+function Shop:_showPicker(show: boolean)
+	local picker = self._frame:FindFirstChild("GiftPick")
+	if not picker then
+		return
+	end
+	picker.Visible = show
+	if not show then
+		return
+	end
+	local card = picker.Card
+	local list = card.List
+	local template = list:FindFirstChild("Template")
+	for _, row in list:GetChildren() do
+		if row:IsA("GuiButton") and row ~= template then
+			row:Destroy()
+		end
+	end
+	self._picked = nil
+	local others = {}
+	for _, p in Players:GetPlayers() do
+		if p ~= LOCAL_PLAYER then
+			table.insert(others, p)
+		end
+	end
+	table.sort(others, function(a, b)
+		return a.DisplayName:lower() < b.DisplayName:lower()
+	end)
+	local rows = {}
+	local function paintGo()
+		local target = self._picked and Players:GetPlayerByUserId(self._picked)
+		card.Go.Label.Text = if target then `SHOP FOR {string.upper(target.DisplayName)}` else "PICK SOMEONE"
+		card.Go.BackgroundColor3 = if target then HEADER_GIFT else GREY
+		card.Go.Active = target ~= nil
+		for id, row in rows do
+			row.BackgroundColor3 = if id == self._picked then PICK_TINT else WHITE
+		end
+	end
+	for i, p in others do
+		local row = template:Clone()
+		row.Name = "Player" .. i
+		row.LayoutOrder = i
+		row.Visible = true
+		row.PlayerName.Text = p.DisplayName
+		local level = p:GetAttribute("Level")
+		local title = p:GetAttribute("Title")
+		row.Sub.Text = (if level then `Lv {level}` else "")
+			.. (if type(title) == "string" and title ~= "" then ` · {title}` else "")
+		row.Avatar.Image = `rbxthumb://type=AvatarHeadShot&id={p.UserId}&w=150&h=150`
+		row.Parent = list
+		rows[p.UserId] = row
+		row.Activated:Connect(function()
+			self._picked = p.UserId
+			Sounds.Play("Click")
+			paintGo()
+		end)
+	end
+	card.Empty.Visible = #others == 0
+	paintGo()
 end
 
 -- --------------------------------- Actions ---------------------------------- --
@@ -712,6 +1201,9 @@ end
 function Shop:_setAction(setId: string?)
 	if not setId then
 		return
+	end
+	if gift then
+		return self:_giftCoins("Set", setId)
 	end
 	local set = ShopCatalog.GetSet(setId)
 	if owns(PlayerData.Inventory.Sets, setId) then
@@ -729,6 +1221,9 @@ function Shop:_setAction(setId: string?)
 end
 
 function Shop:_itemAction(kind: string, id: string?)
+	if id and gift then
+		return self:_giftCoins(kind, id)
+	end
 	if not id or PlayerData.Inventory[ITEM_EQUIPPED[kind]].Get() == id then
 		return
 	end
@@ -748,6 +1243,9 @@ end
 function Shop:_styleAction(kind: string, id: string?)
 	if not id then
 		return
+	end
+	if gift then
+		return self:_giftCoins(if kind == "Set" then "StyleSet" else kind, id)
 	end
 	local action, price = styleAction(kind, id)
 	if action == "Equip" then
@@ -834,10 +1332,11 @@ function Shop:Initialize(interface)
 	-- Robux: debut pack, coin bundles, passes
 	j:Add(scroll.Debut.Face.Buy.Activated:Connect(function()
 		local pack = ShopCatalog.DebutPack
-		if pack and owns(PlayerData.Rewards.Claimed, pack.Id) then
+		if pack and hasDebut() then
 			return -- already theirs (the button reads "Bought")
 		end
-		promptProduct(pack and pack.ProductId)
+		-- the starter bonus (same price, + tickets) while it runs
+		promptProduct(if pack and not gift and bonusLeft() > 0 then pack.Bonus.ProductId else pack and pack.ProductId)
 	end))
 	-- bundles: whichever bundle the banner shows (fillBundle sets BundleId)
 	local bundleFaces = {}
@@ -887,6 +1386,124 @@ function Shop:Initialize(interface)
 	for card, id in PASS_CARDS do
 		j:Add(scroll.Passes[card].Action.Activated:Connect(function()
 			promptPass(ShopCatalog.GetPass(id))
+		end))
+	end
+	-- boost potions
+	local boosts = scroll:FindFirstChild("Boosts")
+	for i, boost in ShopCatalog.Boosts do
+		local slot = boosts and boosts.Face:FindFirstChild("Potion" .. i)
+		if slot then
+			j:Add(slot.Buy.Activated:Connect(function()
+				promptProduct(boost.ProductId)
+			end))
+		end
+	end
+
+	-- VIP perks popup
+	local perks = self._frame:FindFirstChild("Perks")
+	if perks then
+		ButtonScale.ApplyToDescendants(perks.Card)
+		local vipCard = scroll.Passes.VIP
+		j:Add(vipCard.Info.Activated:Connect(function()
+			self:_showPerks(true)
+		end))
+		j:Add(perks.Card.Close.Activated:Connect(function()
+			self:_showPerks(false)
+		end))
+		j:Add(perks.Scrim.Activated:Connect(function()
+			self:_showPerks(false)
+		end))
+		j:Add(perks.Card.Buy.Activated:Connect(function()
+			local pass = ShopCatalog.GetPass("VIP")
+			if pass and not ownsPass(pass.Id) then
+				promptPass(pass)
+			end
+		end))
+	end
+
+	-- gifting: the sidebar's "Send a gift" → picker → gift mode; the tag's ✕ leaves it
+	local giftHome = panel:FindFirstChild("Sidebar")
+	if giftHome and giftHome:FindFirstChild("GiftButton") then
+		j:Add(giftHome.GiftButton.Activated:Connect(function()
+			Sounds.Play("Click")
+			self:_showPicker(true)
+		end))
+	end
+	if panel.Header:FindFirstChild("GiftTag") then
+		j:Add(panel.Header.GiftTag.Exit.Activated:Connect(function()
+			Sounds.Play("Click")
+			self:StopGift()
+		end))
+	end
+	local picker = self._frame:FindFirstChild("GiftPick")
+	if picker then
+		ButtonScale.ApplyToDescendants(picker.Card)
+		for _, close in { picker.Scrim, picker.Card.Close } do
+			j:Add(close.Activated:Connect(function()
+				self:_showPicker(false)
+			end))
+		end
+		j:Add(picker.Card.Go.Activated:Connect(function()
+			if self._picked then
+				Sounds.Play("Click")
+				self:StartGift(self._picked)
+			end
+		end))
+	end
+	j:Add(GiftRemote:Connect(function(packet)
+		if type(packet) ~= "table" then
+			return
+		end
+		if packet.Message == "Owned" and gift and packet.To == gift.UserId then
+			local owned = {}
+			for _, key in { "Passes", "Sets", "Stages", "Mics", "Banners", "Photocards" } do
+				owned[key] = {}
+				for _, id in packet[key] or {} do
+					owned[key][id] = true
+				end
+			end
+			gift.Owned = owned
+			gift.Debut = packet.Debut == true
+			gift.Bundles = packet.Bundles or {}
+			self:_refresh()
+		elseif packet.Message == "Result" then
+			if not packet.Ok then
+				-- no prompt opened, so the next purchase is your own again (PurchasedController)
+				LOCAL_PLAYER:SetAttribute("GiftPrompt", nil)
+			end
+			self:_toast(packet.Text or "")
+			Sounds.Play(if packet.Ok then "Success" else "Wrong")
+		elseif packet.Message == "Sent" then
+			self:_toast(`Gift sent to {packet.To}!`)
+			Sounds.Play("Success")
+			-- what they own changed: ask again so the button reads "has it"
+			if gift then
+				GiftRemote:Fire({ Action = "Owned", To = gift.UserId })
+			end
+		end
+	end), "Disconnect")
+	-- the recipient left: back to shopping for yourself
+	j:Add(Players.PlayerRemoving:Connect(function(p)
+		if gift and p.UserId == gift.UserId then
+			self:StopGift()
+			self:_toast(`{p.DisplayName} left the server`)
+		end
+	end))
+
+	-- sidebar quick-jump
+	local sidebar = panel:FindFirstChild("Sidebar")
+	if sidebar then
+		for _, t in TABS do
+			local tab = sidebar:FindFirstChild(t.Tab)
+			if tab then
+				j:Add(tab.Activated:Connect(function()
+					Sounds.Play("Click")
+					self:ScrollTo(t.Section)
+				end))
+			end
+		end
+		j:Add(scroll:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+			self:_paintTabs()
 		end))
 	end
 
@@ -976,6 +1593,8 @@ function Shop:Activate(section: string?)
 		section = nil
 	elseif section == "Items" then
 		section = "PiecesTitle"
+	elseif section == "Boosts" or section == "Passes" then
+		section ..= "Title" -- (the section's heading, so it shows above the cards)
 	end
 	self:ScrollTo(section, true)
 	if section then
@@ -1000,6 +1619,9 @@ function Shop:Deactivate()
 	self.State = "Deactivating"
 	return FrameTransition.Close(self._frame):andThen(function()
 		self._frame.Visible = false
+		self:_showPerks(false) -- the perks popup never reopens with the shop
+		self:_showPicker(false)
+		self:StopGift() -- (and gift mode ends with the shop)
 		self.State = "Inactive"
 	end)
 end

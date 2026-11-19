@@ -99,10 +99,25 @@ return table.freeze({
 	SUSPECT_INSTANT = 1, -- seconds: right on tier 1 sooner than this
 	SUSPECT_SLOW = 5, -- seconds: right on tier 1 after at least this long
 
-	-- ghost recordings (Engine/GhostRecorder): finished 1v1 duels saved for a future ghost
-	-- opponent. Recording only; nothing in the game reads or shows them yet.
+	-- ghost recordings (Engine/GhostRecorder): finished 1v1 duels saved for the ghost rival
 	GHOST_RECORDING = true,
 	GHOST_MIN_ANSWERS = 4, -- rounds a player must have answered for their side to be kept
+	-- ghost rival (Engine/GhostPool + Duels.Ghost): alone on a stage this long, a recorded
+	-- duel is replayed as your rival. Always shown as a ghost, never by its player's name.
+	GHOST_ENABLED = true,
+	GHOST_AFTER = 18, -- seconds alone on a stage before a ghost steps up (after the 15 s QUICK SOLO nudge)
+	GHOST_AFTER_FIRST = 3, -- the same, for a player who hasn't finished a duel yet
+	-- while waiting, every this many seconds the server looks for a real rival on another stage
+	-- (someone else waiting alone, open practice, or a ghost game's results) and moves you there instead
+	GHOST_MATCH_EVERY = 3,
+	GHOST_COIN_SCALE = 0.8, -- beating a ghost pays this share of the stake (losing: LOSER_COINS)
+	-- past this many ghost wins in a day (UTC, saved on the profile) a win pays GHOST_TAPER_SCALE
+	GHOST_DAILY_WINS = 10,
+	GHOST_TAPER_SCALE = 0.25,
+	-- the ghost's id in packets (scores, picks, profiles). Never a real player: real ids are
+	-- positive, and Studio's local test players are -1, -2, … (so not -1, which is Player1's)
+	GHOST_USER_ID = -9999,
+	GHOST_NAME = "Ghost Rival",
 
 	-- Save Streak developer product. 0 = not set up yet (button is disabled).
 	SAVE_STREAK_PRODUCT_ID = 3726066704,

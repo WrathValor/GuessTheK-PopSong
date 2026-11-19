@@ -31,6 +31,8 @@ local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 local Catalog = require(ReplicatedStorage.Constants.RewardsCatalog)
 local Currencies = require(ReplicatedStorage.Constants.Currencies)
+local ShopCatalog = require(ReplicatedStorage.Constants.ShopCatalog)
+local StreakReminders = require(script.Parent.StreakReminders)
 local Levels = require(ReplicatedStorage.Modules.Levels)
 local Analytics = require(script.Parent.Analytics)
 local SeasonService = require(script.Parent.SeasonService)
@@ -125,16 +127,40 @@ local function claimDaily(player: Player, data)
 	if not canClaim then
 		return reply(player, "ClaimDaily", false, "Come back tomorrow")
 	end
-	local coins = Catalog.DAILY[index]
+	local reward = Catalog.DAILY[index]
+	local boosts = Catalog.DailyBoosts(reward)
+	local _, day = Catalog.DailyWeek(index)
 	PlayerData.Batch(player, function()
 		data.Rewards.DailyStreak.Set(nextStreak)
 		data.Rewards.LastDailyClaim.Set(now)
-		data.Currencies.Won.Increment(coins)
+		grant(data, reward)
+		-- potion time, like a bought potion (Engine/BoostService runs the clock)
+		for _, b in boosts do
+			local clock = data.Boosts[b.Kind]
+			clock.Set(math.min(clock.Get() + b.Minutes * 60, ShopCatalog.BOOST_MAX_SECONDS))
+		end
 	end)
-	Analytics.Event(player, "DailyClaimed", coins, `Day{index}`)
-	Analytics.Economy(player, "Source", "Coins", coins, data.Currencies.Won.Get(), "DailyReward", "DailyReward") -- the day is in DailyClaimed
-	reply(player, "ClaimDaily", true, `Day {index}: +{coins} coins`, coins, {
-		Toast = { Source = `Daily login · Day {index}`, Items = { { Kind = "Coins", Amount = coins } }, Streak = nextStreak },
+	local coins = reward.Coins or 0
+	StreakReminders.Schedule(player, data) -- today's claimed: tomorrow's reminder instead
+	Analytics.Event(player, "DailyClaimed", coins, `Day{index}`) -- 1–14 (8–14 = the second week)
+	logReward(player, data, reward, "DailyReward", "DailyReward")
+	-- what it gave, for the reveal (DailyLoginController) and the Rewards screen's claim toast
+	local items = {}
+	for _, r in Catalog.RewardList(reward) do
+		table.insert(items, { Kind = r.Kind, Amount = r.Amount })
+	end
+	for _, b in boosts do
+		table.insert(items, { Kind = "Boost", Boost = b.Kind, Amount = b.Minutes })
+	end
+	local text = Catalog.RewardText(reward)
+	for _, b in boosts do
+		text ..= `{if text == "" then "" else " · "}{b.Minutes} min 2× {b.Kind} potion`
+	end
+	reply(player, "ClaimDaily", true, `Day {day}: {text}`, coins, {
+		Toast = { Source = `Daily login · Day {day}`, Items = items, Streak = nextStreak },
+		Day = day,
+		Index = index,
+		Streak = nextStreak,
 	})
 end
 
@@ -364,6 +390,9 @@ local function codeSummary(rewards: { any }): string
 			local c = Currencies.Get(r.Key)
 			local name = if c then (if r.Amount == 1 then c.Name else c.Plural or c.Name) else r.Key
 			table.insert(parts, `+{r.Amount} {string.lower(name)}`)
+		elseif r.Kind == "Boost" then
+			local k = ShopCatalog.BOOST_KINDS[r.Boost]
+			table.insert(parts, `{r.Amount} min {k and k.Name or r.Boost} potion`)
 		else
 			table.insert(parts, r.Id)
 		end
@@ -396,6 +425,10 @@ local function redeemCode(player: Player, data, packet)
 		for _, r in rewards do
 			if r.Kind == "Currency" then
 				Currencies.Data(data, r.Key).Increment(r.Amount)
+			elseif r.Kind == "Boost" then
+				-- potion time, like a bought potion (Engine/BoostService runs the clock)
+				local clock = data.Boosts[r.Boost]
+				clock.Set(math.min(clock.Get() + r.Amount * 60, ShopCatalog.BOOST_MAX_SECONDS))
 			elseif r.Kind == "Title" then
 				if not data.Inventory.Titles.Has(r.Id) then
 					data.Inventory.Titles.Add(r.Id)

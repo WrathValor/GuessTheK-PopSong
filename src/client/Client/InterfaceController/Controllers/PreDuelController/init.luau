@@ -18,6 +18,8 @@ local FrameTransition = require(ReplicatedStorage.Modules.UI.Animations.FrameTra
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local SeasonArt = require(ReplicatedStorage.Modules.UI.SeasonArt)
+local GhostArt = require(ReplicatedStorage.Modules.UI.GhostArt) -- the ghost rival's face
+local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 local StakeReel = require(script.StakeReel)
 
@@ -27,8 +29,7 @@ local DuelRemote = Bridgenet.ReferenceBridge("DuelRemote")
 
 -- --------------------------------- Helpers -------------------------------- --
 local function thumb(userId: number): string
-	local ok, img = pcall(Players.GetUserThumbnailAsync, Players, userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
-	return ok and img or ""
+	return GhostArt.Thumbnail(userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
 end
 
 local PreDuel = {}
@@ -55,7 +56,7 @@ function PreDuel:_fillRecord(packet, rival)
 	if not chip then
 		return
 	end
-	local show = not packet.Solo and not packet.Party and rival ~= nil
+	local show = not packet.Solo and not packet.Party and not packet.Ghost and rival ~= nil
 	chip.Visible = show
 	local shadow = f:FindFirstChild("RecordShadow")
 	if shadow then
@@ -241,8 +242,18 @@ function PreDuel:_fillPlayer(card, profile)
 	task.spawn(function()
 		card.Avatar.Thumbnail.Image = thumb(profile.UserId)
 	end)
+	-- the ghost rival's card wears the GHOST sticker (built in Studio on both cards)
+	local ghostTag = card:FindFirstChild("GhostTag")
+	if ghostTag then
+		ghostTag.Visible = profile.Ghost == true
+	end
 	-- season: their banner strip + tier chip (party and solo games aren't rated)
 	local player = Players:GetPlayerByUserId(profile.UserId)
+	-- VIP Pass owners wear the ★ VIP sticker under their avatar (built in Studio on both cards)
+	local vipTag = card:FindFirstChild("VIPTag")
+	if vipTag then
+		vipTag.Visible = profile.Ghost ~= true and player ~= nil and player:GetAttribute("VIP") == true
+	end
 	local _, tierInfo, banner = SeasonArt.Of(player)
 	SeasonArt.PaintBanner(card:FindFirstChild("Banner"), banner)
 	local chip = card:FindFirstChild("Tier")
@@ -256,7 +267,7 @@ end
 
 function PreDuel:Setup(packet)
 	self._session:Cleanup()
-	self._unrated = packet.Party ~= nil or packet.Solo == true
+	self._unrated = packet.Party ~= nil or packet.Solo == true or packet.Ghost == true
 	self._votes = { Song = {}, Choreography = {} }
 	self._myVote = nil
 	self._voteOpen = false
@@ -304,8 +315,11 @@ function PreDuel:Setup(packet)
 	-- solo: the banner reads SOLO PRACTICE (RivalFound.SoloLabel) instead of RIVAL FOUND!
 	local soloLabel = f.RivalFound:FindFirstChild("SoloLabel")
 	if soloLabel then
-		soloLabel.Visible = packet.Solo == true
-		f.RivalFound.Label.Visible = packet.Solo ~= true
+		-- (a ghost rival: the same text label reads GHOST RIVAL! instead of the RIVAL FOUND! art)
+		local textOnly = packet.Solo == true or packet.Ghost == true
+		soloLabel.Visible = textOnly
+		soloLabel.Text = if packet.Ghost then "GHOST RIVAL!" else "SOLO PRACTICE"
+		f.RivalFound.Label.Visible = not textOnly
 	end
 	-- Party free-for-all: no "you vs rival" row (the whole stage is your rival)
 	if packet.Party and packet.Kind ~= "Duel" then
@@ -321,6 +335,7 @@ function PreDuel:Setup(packet)
 	f.StakeShadow.Visible = true
 	local party = packet.Party == true
 	f.Stake.Rule.Text = if solo then "Solo practice · right answers win the stake as XP"
+		elseif packet.Ghost then `Beat the ghost for {math.floor(DuelConstants.GHOST_COIN_SCALE * 100 + 0.5)}% · lose for {DuelConstants.LOSER_COINS}`
 		elseif party and packet.Kind == "Duel" then "Pot paid by place · 1st 100% · 2nd 30%"
 		elseif party then "Pot paid by place · 1st 100% · 2nd 70% · 3rd 50%"
 		else "Winner takes it · loser gets 10"

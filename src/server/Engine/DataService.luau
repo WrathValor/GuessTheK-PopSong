@@ -42,14 +42,24 @@ local function onPlayerAdded(Player: Player)
         Player:SetAttribute("Streak", streak)
     end)
     -- VIP Pass (ShopCatalog.Passes): the "VIP" attribute (the gold name tag, early restocks in
-    -- the shop) and its gold platform (ShopCatalog.VIP_STAGE), given while the pass is owned
+    -- the shop), its gold platform (ShopCatalog.VIP_STAGE) and the VIP Gold banner + photocard,
+    -- given while the pass is owned
     data.GamePasses.Observe(function()
         local vip = data.GamePasses.Has("VIP")
         Player:SetAttribute("VIP", if vip then true else nil)
+        -- 2× Coins pass: the HUD's boost tag says a coin potion makes it 3×
+        Player:SetAttribute("DoubleCoins", if data.GamePasses.Has("DoubleCoins") then true else nil)
         if vip then
             task.defer(function()
                 if not data.Inventory.Stages.Has(ShopCatalog.VIP_STAGE) then
                     data.Inventory.Stages.Add(ShopCatalog.VIP_STAGE)
+                end
+                -- and the VIP Gold banner + photocard (SeasonConstants, Tag "VIP")
+                if not data.Inventory.Banners.Has("VIPGold") then
+                    data.Inventory.Banners.Add("VIPGold")
+                end
+                if not data.Inventory.Photocards.Has("VIPGold") then
+                    data.Inventory.Photocards.Add("VIPGold")
                 end
             end)
         end

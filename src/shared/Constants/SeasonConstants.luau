@@ -259,6 +259,10 @@ SeasonConstants.BANNERS = table.freeze({
 	-- Invite friends: 10 friends played (Constants/ReferralConstants), never sold (the group
 	-- chat, a photo booth strip and a SQUAD friendship bracelet)
 	table.freeze({ Id = "Squad", Name = "Squad", Fill = C("FFE9F3"), Tag = "FRIENDS", Source = "Invite friends · 10 friends played", Art = "rbxassetid://137503742226955" }),
+	-- the VIP Pass: yours while you own it (Engine/DataService), never sold. A gold banner with a
+	-- crown pattern; its photocard has a crown bobbing on top and a breathing gold halo (BANNER_FX /
+	-- PHOTOCARDS Fx)
+	table.freeze({ Id = "VIPGold", Name = "VIP Gold", Fill = C("FFE9A8"), Gradient = seq("FFE9A8", "FFE29A", "F5C542", "C9971C"), Tag = "VIP", Source = "VIP Pass · yours while you have it", Animated = true, Art = "rbxassetid://122317298536303" }),
 	table.freeze({ Id = "S0Star", Name = "S0 Star", Fill = C("FFE07A"), Gradient = seq("FFE07A", "FFD24A", "FFE07A", "FFF1A8"), Tag = "TIER", Source = "Reach Star in S0", Art = "rbxassetid://125201482845414" }),
 	table.freeze({ Id = "S0Icon", Name = "S0 Icon", Fill = C("FF9EC4"), Gradient = seq("FF9EC4", "FFD2CE", "FF9EC4", "FFB3C7"), Tag = "ANIMATED", Source = "Reach Icon in S0", Animated = true, Art = "rbxassetid://121431333266715" }),
 	table.freeze({ Id = "S0Legend", Name = "S0 Legend", Fill = C("FFFFFF"), Gradient = HOLO, Tag = "HOLO", Source = "Reach Legend in S0 · never returns", Animated = true, Art = "rbxassetid://106791514235927" }),
@@ -295,6 +299,7 @@ SeasonConstants.PHOTOCARDS = table.freeze({
 	table.freeze({ Id = "CheerSlogan", Face = "rbxassetid://95188645492301", Photo = "rbxassetid://129770402001717", Deco = "rbxassetid://109761433262707", Fx = { { Kind = "Glow", Layer = "Photo", At = { { 0.498, 0.385, 1.073, "FF9EC4" } } }, { Kind = "Sway", Bounce = true, At = { { "HeartPink", 0.893, 0.097, 0.259 }, { "HeartRed", 0.08, 0.719, 0.161 } } }, { Kind = "Sparkle", At = { { 0.92, 0.712, 0.082 } } } } }),
 	table.freeze({ Id = "BiasDoodle", Face = "rbxassetid://93542400721314", Photo = "rbxassetid://98639927579793", Deco = "rbxassetid://109271029648876", Fx = { { Kind = "Masked", Mode = "Pulse", Fill = "BiasTagFill", Line = "BiasTagLine", At = { 0.83, 0.112, 0.375 } }, { Kind = "Sway", Layer = "Photo", At = { { "DoodleStar", 0.146, 0.187, 0.205 }, { "DoodleSpiral", 0.859, 0.198, 0.283 } } }, { Kind = "Sway", At = { { "HeartRed", 0.08, 0.719, 0.161 } } }, { Kind = "Sparkle", At = { { 0.92, 0.712, 0.082 } } } } }),
 	table.freeze({ Id = "Squad", Face = "rbxassetid://119278956942061", Photo = "rbxassetid://109408215595176", Deco = "rbxassetid://107091325135758" }),
+	table.freeze({ Id = "VIPGold", Face = "rbxassetid://116605820147521", Photo = "rbxassetid://129475362176220", Deco = "rbxassetid://96894658237921", Fx = { { Kind = "Aura", Colour = "FFE07A" }, { Kind = "Bob", At = { { "VIPCrown", 0.5, -0.01, 0.26 } } }, { Kind = "Glow", Layer = "Photo", At = { { 0.5, 0.36, 0.9, "FFF6D6" } } }, { Kind = "Sparkle", At = { { -0.02, 0.33, 0.07 }, { 1.02, 0.6, 0.06 }, { 0.93, 0.08, 0.05 } } } } }),
 	table.freeze({ Id = "S0Star", Face = "rbxassetid://104586905526639", Photo = "rbxassetid://116362065962637", Deco = "rbxassetid://133164242791332", Fx = { { Kind = "Masked", Mode = "Pulse", Fill = "StarCardFill", Line = "StarCardLine", At = { 0.886, 0.09, 0.229 } }, { Kind = "Sparkle", At = { { 0.907, 0.754, 0.089 } } } } }),
 	table.freeze({ Id = "S0Icon", Face = "rbxassetid://125414317299661", Photo = "rbxassetid://87307637208247", Deco = "rbxassetid://114201224274124", Fx = { { Kind = "Spin", Image = "Vinyl", At = { { 0.879, 0.09, 0.189, 50 } } }, { Kind = "Spin", Image = "Vinyl", Layer = "Photo", At = { { 0.109, 0.825, 0.292, -35 } } }, { Kind = "Sparkle", At = { { 0.1, 0.754, 0.099 }, { 0.907, 0.766, 0.079 } } } } }),
 	table.freeze({ Id = "S0Legend", Face = "rbxassetid://114220390054677", Photo = "rbxassetid://93930596805719", Deco = "rbxassetid://84244901864688", Fx = { { Kind = "Holo", Alpha = 0.8 }, { Kind = "Rays", Layer = "Photo", At = { 0.5, 0.43, 1.4 }, Speed = 10 }, { Kind = "Sparkle", At = { { 0.893, 0.084, 0.179 }, { 0.107, 0.09, 0.119 }, { 0.1, 0.754, 0.129 }, { 0.907, 0.76, 0.099 } } } } }),
@@ -302,6 +307,7 @@ SeasonConstants.PHOTOCARDS = table.freeze({
 -- banner animations (SeasonFx), by banner Id; positions are fractions of the banner art
 SeasonConstants.BANNER_FX = table.freeze({
 	S0Comeback = { { Kind = "Confetti", Area = { 0.45, 0, 1, 1 }, Count = 26 } },
+	VIPGold = { { Kind = "Sparkle", At = { { 0.6, 0.18, 0.03 }, { 0.79, 0.63, 0.024 }, { 0.93, 0.22, 0.034 }, { 0.69, 0.84, 0.02 }, { 0.87, 0.46, 0.018 } } } },
 	S0Glow = { { Kind = "Glow", At = { { 0.517, 0.667, 0.087, "FFFFFF" }, { 0.6, 0.3, 0.113, "FF9EC4" }, { 0.708, 0.633, 0.14, "FFE07A" }, { 0.817, 0.267, 0.1, "FFFFFF" }, { 0.9, 0.667, 0.127, "FF9EC4" }, { 0.967, 0.233, 0.08, "FFE07A" } } }, { Kind = "Sparkle", At = { { 0.658, 0.133, 0.032 }, { 0.775, 0.867, 0.028 }, { 0.942, 0.9, 0.028 } } } },
 	ChromeDream = { { Kind = "Holo", Alpha = 0.82 }, { Kind = "Sparkle", Soft = true, At = { { 0.547, 0.156, 0.026 }, { 0.85, 0.898, 0.022 }, { 0.977, 0.156, 0.03 }, { 0.508, 0.898, 0.017 }, { 0.674, 0.117, 0.015 }, { 0.918, 0.547, 0.013 } } } },
 	NeonSeoul = { { Kind = "Glow", Flicker = true, At = { { 0.62, 0.578, 0.186, "FF5FA8" }, { 0.776, 0.535, 0.225, "5FF2FF" }, { 0.938, 0.156, 0.146, "FFF6C8" }, { 0.903, 0.723, 0.107, "FF5FA8" } } } },
@@ -321,6 +327,7 @@ SeasonConstants.FX_IMAGES = table.freeze({
 	Rays = "rbxassetid://140372449518848",
 	Glow = "rbxassetid://118244830983530",
 	Sparkle = "rbxassetid://91554616661236",
+	VIPCrown = "rbxassetid://131353192492921", -- the VIP Gold photocard's crown (the shop's VIP crown)
 	SparkleSoft = "rbxassetid://132383516641236",
 	LegendIconFill = "rbxassetid://91164921444574",
 	LegendIconLine = "rbxassetid://120888042439632",

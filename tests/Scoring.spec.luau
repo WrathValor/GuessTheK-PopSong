@@ -228,3 +228,34 @@ describe("same-rival guard", function()
 		expect(Scoring.RivalCoins(45) % 1).toBe(0)
 	end)
 end)
+
+describe("ghost rival coins", function()
+	local FULL, TAPER, DAILY = DuelConstants.GHOST_COIN_SCALE, DuelConstants.GHOST_TAPER_SCALE, DuelConstants.GHOST_DAILY_WINS
+
+	it("pays GHOST_COIN_SCALE of the stake for today's first GHOST_DAILY_WINS wins", function()
+		for before = 0, DAILY - 1 do
+			local coins, scale, tapered = Scoring.GhostCoins(50, before)
+			expect(coins).toBe(math.floor(50 * FULL + 0.5))
+			expect(scale).toBe(FULL)
+			expect(tapered).toBe(false)
+		end
+	end)
+
+	it("drops to GHOST_TAPER_SCALE from the next win on", function()
+		for _, before in { DAILY, DAILY + 1, DAILY + 40 } do
+			local coins, scale, tapered = Scoring.GhostCoins(50, before)
+			expect(coins).toBe(math.floor(50 * TAPER + 0.5))
+			expect(scale).toBe(TAPER)
+			expect(tapered).toBe(true)
+		end
+	end)
+
+	it("pays less than a real duel win and whole coins for every stake", function()
+		for _, stake in DuelConstants.STAKES do
+			local coins = Scoring.GhostCoins(stake, 0)
+			expect(coins % 1).toBe(0)
+			expect(coins < stake).toBe(true)
+			expect(Scoring.GhostCoins(stake, DAILY) <= coins).toBe(true)
+		end
+	end)
+end)

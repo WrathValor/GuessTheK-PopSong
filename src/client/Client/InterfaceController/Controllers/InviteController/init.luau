@@ -127,7 +127,7 @@ function Invite:Initialize(interface)
 		end))
 	end
 
-	-- the HUD button (HUD.Buttons.Invite, right side under News + Settings: ./Build.HUDButton)
+	-- the HUD button (HUD.Buttons.Invite: the pink square left of News + Settings)
 	local screenGui = interface.PlayerGui:WaitForChild("Interface")
 	local hud = screenGui:WaitForChild("HUD")
 	local hudButton = hud:FindFirstChild("Buttons") and hud.Buttons:FindFirstChild("Invite")

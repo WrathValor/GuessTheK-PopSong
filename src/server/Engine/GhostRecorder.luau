@@ -1,10 +1,9 @@
 --| GhostRecorder
--- Saves finished 1v1 duels so a "ghost" opponent can replay them later (nothing reads them
--- yet: this only records, so the ghost has real games to draw on the day it's built).
--- Players see nothing; DuelConstants.GHOST_RECORDING turns it off.
+-- Saves finished 1v1 duels for the ghost rival to replay (Engine/GhostPool reads them back,
+-- DuelService/Duels plays them). Recording shows nothing; DuelConstants.GHOST_RECORDING turns it off.
 --   • recorded: each player's side of a full 1v1 duel (the songs, and per round their tier,
 --     answer time, pick and whether it was right), with their level and Season Points
---   • not recorded: solo, the tutorial, party matches, forfeits, a player who answered fewer
+--   • not recorded: solo, ghost games, the tutorial, party matches, forfeits, a player who answered fewer
 --     than GHOST_MIN_ANSWERS rounds or has left, a game Scoring.Suspect flagged, and Studio
 --   • stored: DataStore STORE, one recording per player per level band (their latest game
 --     there replaces the last), under "B<band>/<userId % 100>/<userId>". So no player fills

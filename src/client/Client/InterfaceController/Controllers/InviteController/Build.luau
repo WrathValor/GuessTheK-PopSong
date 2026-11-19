@@ -409,10 +409,10 @@ function Build.Build(frames: Instance)
 	friendToast(frames)
 end
 
--- the HUD button ("HUD right · Invite + Debut Pack buttons", style B), on the right under News
--- + Settings (HUD.Buttons, pinned to the right edge): a pink card with a tilted white tile (the
--- add-friend icon), "Invite" / "Friends play, you earn", a green +300 sticker on the corner,
--- and a red CLAIM badge in the sticker's place while a milestone is ready (InviteController)
+-- the HUD button: a pink square in the top-right row, left of News + Settings (same 44 px
+-- size, one 54 px step apart), with the add-friend icon, a green +300 tag on its bottom edge
+-- (the reward per friend), and a red CLAIM tag in its place while a milestone is ready
+-- (InviteController)
 function Build.HUDButton(hud: Instance)
 	local group = hud:FindFirstChild("Buttons")
 	assert(group, "Build.HUDButton: no HUD.Buttons")
@@ -422,25 +422,20 @@ function Build.HUDButton(hud: Instance)
 			old:Destroy()
 		end
 	end
-	local w, h = 176, 52
-	local x, y = 1260 - w, 88 -- right edge in line with Settings, a gap under it
-	local shadow = new("Frame", { Name = "InviteShadow", Position = UDim2.fromOffset(x + 4, y + 4), Size = UDim2.fromOffset(w, h), BackgroundColor3 = INK, BorderSizePixel = 0 }, group)
-	corner(shadow, 13)
-	local b = new("TextButton", { Name = "Invite", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(x + w / 2, y + h / 2), Size = UDim2.fromOffset(w, h), BackgroundColor3 = PINK, AutoButtonColor = false, Text = "" }, group)
-	corner(b, 13)
+	local size = 44
+	local cx, cy = 1130, 40 -- News is at 1184, Settings at 1238
+	local shadow = new("Frame", { Name = "InviteShadow", Position = UDim2.fromOffset(cx - size / 2 + 3, cy - size / 2 + 3), Size = UDim2.fromOffset(size, size), BackgroundColor3 = INK, BorderSizePixel = 0 }, group)
+	corner(shadow, 12)
+	local b = new("TextButton", { Name = "Invite", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(cx, cy), Size = UDim2.fromOffset(size, size), BackgroundColor3 = PINK, AutoButtonColor = false, Text = "" }, group)
+	corner(b, 12)
 	stroke(b, 3)
-	local tile = new("Frame", { Name = "Tile", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 9, 0.5, 0), Size = UDim2.fromOffset(34, 34), Rotation = -6, BackgroundColor3 = WHITE }, b)
-	corner(tile, 9)
-	stroke(tile, 3)
-	new("ImageLabel", { Name = "Icon", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(21, 21), BackgroundTransparency = 1, Image = Build.ICONS.UserPlus }, tile)
-	text(b, "Label", { Position = UDim2.fromOffset(52, 8), Size = UDim2.fromOffset(w - 58, 18), FontFace = HEAD, TextSize = 15, Text = "Invite" })
-	text(b, "Sub", { Position = UDim2.fromOffset(52, 26), Size = UDim2.fromOffset(w - 58, 16), TextSize = 12, Text = "Friends play, you earn" })
-	-- the corner sticker: +300 (the reward per friend), or CLAIM while a milestone is ready
-	local sticker = new("TextLabel", { Name = "Sticker", AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -2, 0, -12), Size = UDim2.fromOffset(0, 22), AutomaticSize = Enum.AutomaticSize.X, Rotation = 6, BackgroundColor3 = MINT, FontFace = HEAD, TextSize = 12, TextColor3 = INK, Text = `+{ReferralConstants.INVITER_GIFT}`, ZIndex = 3 }, b)
+	new("ImageLabel", { Name = "Icon", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(26, 26), BackgroundTransparency = 1, Image = Build.ICONS.UserPlus }, b)
+	-- the tag on the bottom edge: +300, or CLAIM while a milestone is ready
+	local sticker = new("TextLabel", { Name = "Sticker", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 1, 4), Size = UDim2.fromOffset(0, 18), AutomaticSize = Enum.AutomaticSize.X, Rotation = 6, BackgroundColor3 = MINT, FontFace = HEAD, TextSize = 11, TextColor3 = INK, Text = `+{ReferralConstants.INVITER_GIFT}`, ZIndex = 3 }, b)
 	corner(sticker, 9)
 	stroke(sticker, 3)
 	pad(sticker, 7)
-	local badge = new("TextLabel", { Name = "ClaimBadge", AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -2, 0, -12), Size = UDim2.fromOffset(0, 24), AutomaticSize = Enum.AutomaticSize.X, Rotation = 6, BackgroundColor3 = RED, FontFace = HEAD, TextSize = 12, TextColor3 = WHITE, Text = "CLAIM", Visible = false, ZIndex = 4 }, b)
+	local badge = new("TextLabel", { Name = "ClaimBadge", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 1, 4), Size = UDim2.fromOffset(0, 18), AutomaticSize = Enum.AutomaticSize.X, Rotation = 6, BackgroundColor3 = RED, FontFace = HEAD, TextSize = 11, TextColor3 = WHITE, Text = "CLAIM", Visible = false, ZIndex = 4 }, b)
 	corner(badge, 9)
 	stroke(badge, 3)
 	pad(badge, 8)

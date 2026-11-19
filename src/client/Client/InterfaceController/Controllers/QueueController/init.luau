@@ -17,6 +17,7 @@ local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
 local PadBinds = require(ReplicatedStorage.Modules.UI.PadBinds)
 local TitleChip = require(ReplicatedStorage.Modules.UI.TitleChip)
 local SeasonArt = require(ReplicatedStorage.Modules.UI.SeasonArt)
+local GhostArt = require(ReplicatedStorage.Modules.UI.GhostArt) -- the ghost rival's face
 local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
 local Themes = require(ReplicatedStorage.Modules.Library.Themes)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Client
@@ -63,6 +64,9 @@ local RING_TIME = 1.2
 local function preloadCards(players: { Player })
 	local assets = {}
 	for _, p in players do
+		if GhostArt.Is(p.UserId) then
+			continue -- the ghost rival: its art is a plain image, nothing to fetch
+		end
 		table.insert(assets, `rbxthumb://type=AvatarHeadShot&id={p.UserId}&w=150&h=150`)
 		local _, _, bannerId = SeasonArt.Of(p)
 		local spec = SeasonConstants.Banner(bannerId)
@@ -380,10 +384,12 @@ function QueueController:ShowWalkOn(spots, aLeft: boolean)
 		return
 	end
 	self._walkOnSlots = { ChipA = if aLeft then "A" else "B", ChipB = if aLeft then "B" else "A" }
+	-- a ghost rival stands on the other spot (no player there): its chip says so
+	local ghost = type(self._opponent) == "table" and self._opponent.Ghost == true
 	for chipName, slot in self._walkOnSlots do
 		local chip = w[chipName]
 		local player = spots[slot]
-		chip.PlayerName.Text = if player then player.DisplayName else "…"
+		chip.PlayerName.Text = if player then player.DisplayName elseif ghost then `👻 {DuelConstants.GHOST_NAME}` else "…"
 		fillBadges(chip.Badges, player)
 		chip.BackgroundColor3 = CHIP_OFF
 	end
@@ -754,8 +760,8 @@ function QueueController:UpdateOpponent(opponent: Player?)
 		opponentNameLabel.Text = opponent.DisplayName
 		opponentAvatar.Thumbnail.Image = ""
 		task.spawn(function()
-			local ok, img = pcall(Players.GetUserThumbnailAsync, Players, opponent.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
-			if ok and self._opponent == opponent then
+			local img = GhostArt.Thumbnail(opponent.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+			if img ~= "" and self._opponent == opponent then
 				opponentAvatar.Thumbnail.Image = img
 			end
 		end)

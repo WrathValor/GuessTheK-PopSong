@@ -6,8 +6,11 @@
 --           prompt: cancelled = back to the offer, bought = Saved.
 --   Saved   Panel.Saved: STREAK SAVED!, the badge turns mint, LET'S GO closes it (or it closes
 --           itself after SAVED_HOLD).
--- Logs ScreenOpened (SaveStreak) when it shows and SaveStreakOffer (Bought / Cancelled /
--- NoThanks, value = the streak) when it's answered.
+-- VIP Pass owners get one free save a day (Engine/VIPService): while the "VIPSaveFree"
+-- attribute is set, the Save button's price reads FREE with a "★ VIP · 1 free a day" sticker
+-- (Save.VIPFree, made in Studio), and Save asks VIPRemote instead of opening Roblox's prompt.
+-- Logs ScreenOpened (SaveStreak) when it shows and SaveStreakOffer (Bought / VIPFree /
+-- Cancelled / NoThanks, value = the streak) when it's answered.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
@@ -15,6 +18,7 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local TweenService = game:GetService("TweenService")
 
 local Janitor = require(ReplicatedStorage.Packages.janitor)
+local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local Promise = require(ReplicatedStorage.Packages.promise)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
@@ -25,6 +29,8 @@ local Prices = require(ReplicatedStorage.Modules.Prices)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 
 local LOCAL_PLAYER = Players.LocalPlayer
+local VIPRemote = Bridgenet.ReferenceBridge("VIPRemote")
+local VIP_FREE = "VIPSaveFree" -- player attribute: today's free VIP save is still there
 
 local RED = Color3.fromHex("FF5A4E")
 local MINT = Color3.fromHex("A7E9B8")
@@ -87,6 +93,14 @@ function SaveStreak:Initialize(interface)
 		self:Hide()
 	end))
 	self._janitor:Add(panel.Save.Activated:Connect(function()
+		if self:_free() then
+			if self._buying then
+				return
+			end
+			self:_setBuying(true)
+			VIPRemote:Fire({ Request = "SaveStreak" })
+			return
+		end
 		local id = DuelConstants.SAVE_STREAK_PRODUCT_ID
 		if not (id and id > 0 and panel.Save.Active) or self._buying then
 			return
@@ -109,6 +123,27 @@ function SaveStreak:Initialize(interface)
 		else
 			AnalyticsClient.Event("SaveStreakOffer", self._streak, "Cancelled")
 			Juice.Shake(panel.Save, 0.5)
+		end
+	end))
+	-- the free VIP save's answer
+	self._janitor:Add(VIPRemote:Connect(function(packet)
+		if type(packet) ~= "table" or packet.Message ~= "SaveStreak" or not self._buying then
+			return
+		end
+		self:_setBuying(false)
+		if not self._frame.Visible then
+			return
+		end
+		if packet.Ok then
+			AnalyticsClient.Event("SaveStreakOffer", self._streak, "VIPFree")
+			self:_showSaved()
+		else
+			Juice.Shake(panel.Save, 0.5)
+		end
+	end), "Disconnect")
+	self._janitor:Add(LOCAL_PLAYER:GetAttributeChangedSignal(VIP_FREE):Connect(function()
+		if self._frame.Visible and not self._buying then
+			self:_price()
 		end
 	end))
 	self._janitor:Add(panel.Saved.Done.Activated:Connect(function()
@@ -189,16 +224,36 @@ function SaveStreak:_showSaved()
 	end)
 end
 
--- the live price on the Save button (Modules/Prices); off until it's known
+-- today's free VIP save is there to use
+function SaveStreak:_free(): boolean
+	return LOCAL_PLAYER:GetAttribute(VIP_FREE) == true
+end
+
+-- the live price on the Save button (Modules/Prices); off until it's known. A VIP with today's
+-- free save left: FREE, no Robux icon, and the VIP sticker.
 function SaveStreak:_price()
 	local panel = self._frame.Panel
-	local price, forSale = Prices.Get("Product", DuelConstants.SAVE_STREAK_PRODUCT_ID)
-	local value = panel.Save:FindFirstChild("Value", true)
-	if value then
-		value.Text = if price then tostring(price) elseif forSale == nil then "…" else "—"
+	local save = panel.Save
+	local value = save.Price.Value
+	local free = self:_free()
+	if not self._valueAt then
+		self._valueAt = { value.Position, value.Size }
 	end
-	panel.Save.Active = price ~= nil and not self._buying
-	panel.Save.AutoButtonColor = price ~= nil
+	save.Price.Robux.Visible = not free
+	save.VIPFree.Visible = free
+	if free then
+		value.Text = "FREE"
+		value.Position = UDim2.fromOffset(0, 0)
+		value.Size = UDim2.new(1, 0, 0, self._valueAt[2].Y.Offset)
+		save.Active = not self._buying
+		save.AutoButtonColor = true
+		return
+	end
+	value.Position, value.Size = self._valueAt[1], self._valueAt[2]
+	local price, forSale = Prices.Get("Product", DuelConstants.SAVE_STREAK_PRODUCT_ID)
+	value.Text = if price then tostring(price) elseif forSale == nil then "…" else "—"
+	save.Active = price ~= nil and not self._buying
+	save.AutoButtonColor = price ~= nil
 end
 
 function SaveStreak:Hide()

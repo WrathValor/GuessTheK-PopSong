@@ -521,6 +521,8 @@ local function dailySection(content: Instance)
 				Visible = k <= Build.DAY_STACKS[i],
 			}, coins)
 		end
+		-- a day that isn't coins alone shows its art here instead (ticket, upgrade, potion)
+		new("ImageLabel", { Name = "Icon", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 34), Size = UDim2.fromOffset(78, 78), BackgroundTransparency = 1, ScaleType = Enum.ScaleType.Fit, Image = "", Visible = false }, face)
 		text(face, "Amount", { Position = UDim2.fromOffset(0, 120), Size = UDim2.new(1, 0, 0, 22), FontFace = HEAD, TextSize = 20, TextXAlignment = Enum.TextXAlignment.Center, Text = "50" })
 		local unit = new("Frame", { Name = "Unit", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 143), Size = UDim2.fromOffset(56, 14), BackgroundTransparency = 1 }, face)
 		new("ImageLabel", { Name = "Coin", Size = UDim2.fromOffset(14, 14), BackgroundTransparency = 1, Image = COIN }, unit)

@@ -130,7 +130,7 @@ local function handle(player: Player, packet)
 			settings.Hints.Add(packet.Id)
 		end
 	elseif action == "SeenNews" then
-		local newest = News.Entries[1]
+		local newest = News.Updates[1] -- (the What's New card: only the newest update counts as seen)
 		if newest and packet.Id == newest.Id then
 			settings.NewsSeen.Set(newest.Id)
 		end

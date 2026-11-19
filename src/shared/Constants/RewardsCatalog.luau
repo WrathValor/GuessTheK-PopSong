@@ -3,8 +3,10 @@
 -- and the client (draws it). Days are UTC days: Day(t) = floor(t / 86400), so the daily
 -- login and the daily quests roll over at 00:00 UTC for everyone.
 --
---   • Daily login – a 7-day ladder (DAILY coins). Claim once a day; claiming on the next day
---                   moves up a step, missing a day starts again at day 1, after day 7 it loops.
+--   • Daily login – two 7-day weeks of rewards (DAILY) that take turns: Week 1, Week 2, Week 1…
+--                   Claim once a day; claiming on the next day moves up a step, missing a day
+--                   starts again at Week 1, day 1. The screen (DailyLoginController) never
+--                   names the weeks; the rewards just change.
 --   • Daily quests – 3 quests a day picked from QUEST_POOL (same 3 for everyone that day),
 --                   each paying its Reward (coins capped at DAILY_COIN_CAP); finishing all 3
 --                   unlocks BONUS. One quest a day can be swapped for another (SwapCandidates).
@@ -24,7 +26,27 @@
 
 local RewardsCatalog = {}
 
-RewardsCatalog.DAILY = table.freeze({ 50, 100, 150, 200, 250, 300, 350 })
+-- The daily login, Week 1 then Week 2 (the "Daily login 1–3" boards). Each day is a reward
+-- table (Coins / Tickets / Upgrades) plus CoinsBoost / XPBoost = minutes of 2× potion time.
+RewardsCatalog.DAILY_DAYS = 7 -- days in a week of the ladder
+RewardsCatalog.DAILY = table.freeze({
+	-- Week 1
+	{ Coins = 100 },
+	{ Tickets = 1 },
+	{ Coins = 200 },
+	{ Upgrades = 1 },
+	{ XPBoost = 30 },
+	{ Coins = 300, Tickets = 1 },
+	{ Coins = 500, CoinsBoost = 30 },
+	-- Week 2
+	{ Coins = 150 },
+	{ CoinsBoost = 30 },
+	{ Tickets = 2 },
+	{ Coins = 250 },
+	{ Upgrades = 1 },
+	{ Coins = 200, XPBoost = 30 },
+	{ Coins = 750, CoinsBoost = 120 },
+})
 RewardsCatalog.DAY_COLOURS = table.freeze({ "EDE4D4", "EDE4D4", "FFD2CE", "9ED8F5", "B9A6FF", "A7E9B8", "FFE07A" })
 
 -- Stat = the counter in Rewards.Quest (daily) / Rewards.WeekQuest (weekly) it reads
@@ -101,6 +123,8 @@ RewardsCatalog.GROUP = table.freeze({
 --   Stage / Mic = a ShopCatalog stage / mic id
 --   Banner / Photocard = a SeasonConstants banner / photocard id
 --   Title = a title (TitleTier 1 Normal / 2 Gold / 3 Rainbow, default 1)
+--   CoinsBoost / XPBoost = minutes of 2× Coins / 2× XP potion time (added to the clock like a
+--             bought potion, capped at ShopCatalog.BOOST_MAX_SECONDS)
 --   Expires = when it stops working, in UTC (os.time with a date, or a unix time); no
 --             Expires = it never does
 -- e.g.
@@ -113,7 +137,9 @@ RewardsCatalog.CODES = table.freeze({})
 --   LAUNCH   coins=500 tickets=2
 --   SPOOKY   coins=250 upgrades=1 mic=PumpkinMic   expires=2026-11-01
 --   CHAMP    title="S0 Champion" tier=3 banner=S0Glow   expires=2026-12-24T18:00
--- Keys: coins, tickets, upgrades, stage, mic, banner, photocard, title, tier, expires (a UTC
+--   POTION   coinsboost=30 xpboost=30   (minutes of 2× Coins / 2× XP potion time)
+-- Keys: coins, tickets, upgrades, stage, mic, banner, photocard, title, tier, coinsboost,
+-- xpboost, expires (a UTC
 -- date, date + time, or a unix time). Ids (stage, mic…) are written exactly as in the game;
 -- a value with spaces goes in quotes. tier = the title's tier (1 Normal, 2 Gold, 3 Rainbow).
 -- The file can be JSON instead (it starts with "{"): one object per code, same keys:
@@ -125,8 +151,9 @@ local CODE_KEYS = {
 	coins = "Coins", tickets = "Tickets", upgrades = "Upgrades",
 	stage = "Stage", mic = "Mic", banner = "Banner", photocard = "Photocard",
 	title = "Title", tier = "TitleTier", expires = "Expires",
+	coinsboost = "CoinsBoost", xpboost = "XPBoost",
 }
-local NUMBER_KEYS = { Coins = true, Tickets = true, Upgrades = true, TitleTier = true }
+local NUMBER_KEYS = { Coins = true, Tickets = true, Upgrades = true, TitleTier = true, CoinsBoost = true, XPBoost = true }
 
 -- "2026-11-01", "2026-11-01T18:00" (UTC) or "1793577600" → os.time, or nil
 local function parseTime(s: string): number?
@@ -233,15 +260,22 @@ RewardsCatalog.CODE_REWARDS = table.freeze({
 	{ Key = "Banner", Kind = "Style" },
 	{ Key = "Photocard", Kind = "Style" },
 	{ Key = "Title", Kind = "Title" },
+	{ Key = "CoinsBoost", Kind = "Boost", Boost = "Coins" },
+	{ Key = "XPBoost", Kind = "Boost", Boost = "XP" },
 })
 
--- a code's rewards as a list: { Key, Kind, Amount? (currencies), Id? (items, styles, titles) }
+-- a code's rewards as a list: { Key, Kind, Amount? (currencies; minutes for boosts), Boost?
+-- (the boost kind), Id? (items, styles, titles) }
 function RewardsCatalog.CodeRewards(entry): { any }
 	local out = {}
 	for _, spec in RewardsCatalog.CODE_REWARDS do
 		local value = entry[spec.Key]
 		if spec.Kind == "Currency" and type(value) == "number" and value > 0 then
 			table.insert(out, { Key = spec.Key, Kind = spec.Kind, Amount = math.floor(value) })
+		elseif spec.Kind == "Boost" then
+			if type(value) == "number" and value >= 1 then
+				table.insert(out, { Key = spec.Key, Kind = spec.Kind, Boost = spec.Boost, Amount = math.floor(value) })
+			end
 		elseif spec.Kind ~= "Currency" and type(value) == "string" and value ~= "" then
 			table.insert(out, { Key = spec.Key, Kind = spec.Kind, Id = value, Tier = if spec.Key == "Title" then entry.TitleTier else nil })
 		end
@@ -296,16 +330,65 @@ function RewardsCatalog.QuestsFor(day: number): { any }
 end
 
 -- Where the daily login stands. `streak` = Rewards.DailyStreak, `last` = Rewards.LastDailyClaim.
--- Returns: canClaim, nextStreak (what the streak becomes on claiming), dayIndex (1–7 of the
--- step that is claimable or was claimed today).
+-- Returns: canClaim, nextStreak (what the streak becomes on claiming), dayIndex (1 … #DAILY,
+-- the step that is claimable or was claimed today; DailyWeek splits it into week + day).
 function RewardsCatalog.DailyState(streak: number, last: number, now: number): (boolean, number, number)
 	local today = RewardsCatalog.Day(now)
 	local lastDay = if last > 0 then RewardsCatalog.Day(last) else -1000
+	local steps = #RewardsCatalog.DAILY
 	if lastDay == today then
-		return false, streak, ((math.max(streak, 1) - 1) % 7) + 1
+		return false, streak, ((math.max(streak, 1) - 1) % steps) + 1
 	end
 	local nextStreak = if lastDay == today - 1 then streak + 1 else 1
-	return true, nextStreak, ((nextStreak - 1) % 7) + 1
+	return true, nextStreak, ((nextStreak - 1) % steps) + 1
+end
+
+-- a ladder index (1 … #DAILY) → the index of its week's day 1, and the day in the week (1–7)
+function RewardsCatalog.DailyWeek(index: number): (number, number)
+	local day = ((index - 1) % RewardsCatalog.DAILY_DAYS) + 1
+	return index - day + 1, day
+end
+
+-- "30 min" / "2 h" (potion time on the daily cards)
+function RewardsCatalog.MinutesText(minutes: number): string
+	return if minutes >= 60 and minutes % 60 == 0 then `{minutes // 60} h` else `{minutes} min`
+end
+
+-- a daily reward's two card lines: the big one ("500 + 30 min") and the small one under it
+-- ("coins + 2× Coins potion"); one item spells its name out ("roll ticket", "2× XP potion")
+function RewardsCatalog.DailyLabel(reward): (string, string)
+	local parts = {} -- { big, name (alone), short (in a pair) }
+	local names = { Coins = { "coins", "coins" }, Tickets = { "roll ticket", "roll tickets" }, Upgrades = { "card upgrade", "card upgrades" } }
+	local short = { Coins = "coins", Tickets = "ticket", Upgrades = "upgrade" }
+	for _, r in RewardsCatalog.RewardList(reward) do
+		local n = names[r.Kind]
+		table.insert(parts, { tostring(r.Amount), n[if r.Amount == 1 then 1 else 2], short[r.Kind] .. (if r.Amount > 1 and r.Kind ~= "Coins" then "s" else "") })
+	end
+	for _, b in RewardsCatalog.DailyBoosts(reward) do
+		local potion = `2× {b.Kind} potion`
+		table.insert(parts, { RewardsCatalog.MinutesText(b.Minutes), potion, potion })
+	end
+	if #parts == 1 then
+		return parts[1][1], parts[1][2]
+	end
+	local big, small = {}, {}
+	for _, p in parts do
+		table.insert(big, p[1])
+		table.insert(small, p[3])
+	end
+	return table.concat(big, " + "), table.concat(small, " + ")
+end
+
+-- the potion time in a daily reward, Coins first: { { Kind = "Coins" | "XP", Minutes } }
+function RewardsCatalog.DailyBoosts(reward): { { Kind: string, Minutes: number } }
+	local out = {}
+	for _, pair in { { "CoinsBoost", "Coins" }, { "XPBoost", "XP" } } do
+		local n = reward and reward[pair[1]]
+		if type(n) == "number" and n > 0 then
+			table.insert(out, { Kind = pair[2], Minutes = n })
+		end
+	end
+	return out
 end
 
 -- [[ Weeks ]]
