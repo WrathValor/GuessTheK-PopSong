@@ -91,12 +91,12 @@ AnalyticsEvents.Custom = {
 		Screen = { "Shop", "Roll", "UGC", "Inventory", "Index", "Rewards", "News", "Settings", "Queue", "Results", "SaveStreak", "Tutorial", "Party", "Profile", "PlayerCard", "Invite" },
 	} },
 	ShopTabOpened = { Fields = { "Tab" }, Client = true, Allowed = {
-		Tab = { "Featured", "Sets", "Items", "Songs", "UGC", "Coins" },
+		Tab = { "Featured", "Perks", "Bundles", "Looks", "Coins", "Codes" }, -- the sidebar quick-jump tabs
 	} },
 	SoloPickerOpened = { Client = true },
 	-- the Save Streak popup answered (value: the streak on offer); shown = ScreenOpened SaveStreak
 	SaveStreakOffer = { Fields = { "Result" }, Client = true, Allowed = {
-		Result = { "Bought", "Cancelled", "NoThanks" },
+		Result = { "Bought", "Cancelled", "NoThanks", "VIPFree" },
 	} },
 	-- the Invite Friends button opened Roblox's invite pop-up (or couldn't)
 	InvitePrompt = { Fields = { "Result" }, Client = true, Allowed = {
@@ -104,7 +104,7 @@ AnalyticsEvents.Custom = {
 	} },
 	-- a Robux offer tapped outside the shop (Money boards); value 1. Where = the moment
 	MoneyOffer = { Fields = { "Offer", "Where" }, Client = true, Allowed = {
-		Offer = { "DoubleCoins", "Starter", "Coins", "Tickets" },
+		Offer = { "DoubleCoins", "Starter", "Coins", "Tickets", "VIP" },
 		Where = { "Results", "Popup", "HUD", "Short" },
 	} },
 	-- the second favourite ask answered (FavouriteAskController); value 1
@@ -119,7 +119,7 @@ AnalyticsEvents.Custom = {
 		Result = { "Joined", "AlreadyMember", "Pending", "Cancelled", "Error" },
 	} },
 	ClipFailed = { Fields = { "Song", "Reason" }, Client = true, Allowed = {
-		Reason = { "NotLoaded", "PastEnd" },
+		Reason = { "NotLoaded", "PastEnd", "FetchFailed" },
 	} }, -- Song is checked against the library on the server
 	ClipLoadTime = { Fields = { "Song" }, Client = true }, -- value: seconds until the clip was ready
 	UGCPrompt = { Fields = { "Item", "Where" }, Client = true, Allowed = {
@@ -163,7 +163,8 @@ AnalyticsEvents.Transactions = {
 	ShopStylePhotocard = "ShopStylePhotocard",
 	ShopSong = "ShopSong",
 	ShopPack = "ShopPack",
-	Roll = "SongRoll",
+	Roll = "SongRoll", -- also the Tickets sink (sku TicketRoll) and the Upgrades sink (sku CardUpgrade):
+	-- Roblox allows 20 transaction types per experience and this list is past that already
 	RollRefund = "RollRefund", -- source: coins back for duplicates
 }
 

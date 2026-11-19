@@ -29,7 +29,6 @@ local ServerStorage = game:GetService("ServerStorage")
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 local Catalog = require(ReplicatedStorage.Constants.RewardsCatalog)
 local ShopCatalog = require(ReplicatedStorage.Constants.ShopCatalog)
-local Analytics = require(script.Parent.Analytics)
 
 -- the notification strings (Creator Hub asset ids, live game only)
 local MESSAGES = {
@@ -221,7 +220,6 @@ local function poll()
 		end, TTL)
 		if won then
 			local sent, why = send(userId, reminder)
-			Analytics.Event(nil, "StreakReminder", 1, reminder.Kind, if sent then "Sent" else "Failed")
 			if not sent then
 				warn(`[StreakReminders] {userId} {reminder.Kind}: {why}`)
 			end

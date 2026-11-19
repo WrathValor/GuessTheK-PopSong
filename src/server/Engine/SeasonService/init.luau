@@ -337,6 +337,7 @@ local function useUpgrade(player: Player, data, packet)
 		task.spawn(Collection.Check, data, { song }) -- a card levelling up can level its set's title
 	end
 	Analytics.Event(player, "CardUpgrade", have + 1, id)
+	Analytics.Economy(player, "Sink", "Upgrades", 1, Currencies.Data(data, "Upgrades").Get(), "SongRoll", "CardUpgrade")
 	out.Ok, out.Text, out.Copies = true, "Upgraded!", have + 1
 	reply(player, out)
 end

@@ -198,6 +198,7 @@ local function roll(player: Player, count: number, groupId: string?)
 	local balance = data.Currencies.Won.Get()
 	if group then
 		Analytics.Event(player, "TicketRoll", 1, group.Name, if pulls[1].New then "New" else "Duplicate")
+		Analytics.Economy(player, "Sink", "Tickets", 1, Currencies.Data(data, "Tickets").Get(), "SongRoll", "TicketRoll")
 	else
 		Analytics.Economy(player, "Sink", "Coins", price, balance - refund, "SongRoll", `Roll{count}`)
 	end
