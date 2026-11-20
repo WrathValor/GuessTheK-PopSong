@@ -89,6 +89,10 @@ function DuelController.Start()
 			call("Queue", "RivalFinishing", packet.Opponent, packet.Seconds)
 		elseif message == "RivalReady" then
 			call("Queue", "RivalReady", packet.Count) -- their round's done: the hand-over countdown
+		elseif message == "RestartSoon" then
+			-- a server restart is close (Engine/ShutdownService): no new duels, solo still works
+			Sounds.Play("Wrong")
+			call("HUD", "Toast", "Server restarting soon · no new duels. Practise solo or hop to a new server!")
 		elseif message == "NoStages" then
 			-- every stage is taken (Quick Play), or every tutorial lane and stage (the tutorial:
 			-- its Welcome comes back so they can try again or skip)

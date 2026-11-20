@@ -89,4 +89,39 @@ Migrations[2] = function(data)
 	end
 end
 
+-- [3] LNGSHOT - Masterpiece came out of the library (it had the wrong audio). Anyone who owned
+-- it (pulled from a roll or bought) gets REMOVED_REFUND coins back, once, however many copies;
+-- the song goes from their cards, copies, the legacy Index, their showcase and their
+-- background music. (Its pack, Shotties, is complete or not by the songs left: nothing to do.)
+-- (only number keys in Migrations: Scribe reads every key as a step)
+local REMOVED_SONGS = { "Masterpiece - LNGSHOT" }
+local REMOVED_REFUND = 150
+Migrations[3] = function(data)
+	local inv = data.Inventory
+	for _, id in REMOVED_SONGS do
+		local owned = has(inv.Songs, id) or (inv.Copies[id] or 0) > 0
+		remove(inv.Songs, id)
+		remove(inv.Index, id)
+		inv.Copies[id] = nil
+		if owned then
+			data.Currencies.Won += REMOVED_REFUND
+		end
+		local profile = data.Profile
+		for slot, song in profile.Showcase do
+			if song == id then
+				profile.Showcase[slot] = ""
+			end
+		end
+		if profile.BgMusic == id then
+			profile.BgMusic = ""
+		end
+		local guesses = data.DailySong.Guesses
+		for i, guess in guesses do
+			if guess == id then
+				guesses[i] = "" -- (today's guesses only: shown as a skip)
+			end
+		end
+	end
+end
+
 return Migrations

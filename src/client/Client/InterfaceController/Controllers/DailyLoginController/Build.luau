@@ -38,8 +38,10 @@ local Build = {}
 
 -- the layout (1280 × 720 canvas), shared with the controller
 Build.CARD_W, Build.CARD_H, Build.GAP, Build.BIG_W = 136, 156, 14, 230
-Build.PANEL = { X = 266, Y = 46, W = 748, H = 548 }
-Build.GRID_X, Build.GRID_Y = 298, 168
+-- (panel centred on the canvas: higher up, the close button slid under the Roblox top bar
+-- and the top half of it stopped taking clicks)
+Build.PANEL = { X = 266, Y = 78, W = 748, H = 548 }
+Build.GRID_X, Build.GRID_Y = 298, 200
 Build.BIG_X = Build.GRID_X + 3 * Build.CARD_W + 2 * Build.GAP + 18
 Build.COLOURS = { Done = C("E4F7E9"), Today = YELLOW, Next = WHITE }
 

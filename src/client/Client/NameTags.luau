@@ -12,7 +12,7 @@
 -- VIP Pass owners (the "VIP" attribute): a gold plate (the Face's "Gold" gradient, pale at the
 -- ends) with a white band sweeping across it every few seconds (Face.Gloss: a white frame whose
 -- "Band" gradient is see-through except one stripe, slid along with Offset, so it keeps to the
--- rounded corners and stays under the name), a crown bobbing on its top-left corner and three
+-- rounded corners and stays under the name), a crown on its top-left corner and three
 -- twinkling sparkles (looping tweens, only while the tag is a VIP's), plus the ★ VIP chip.
 -- UIScale doesn't thin outlines, so a scaled-down tag scales its UIStrokes itself.
 -- Streak comes from the "Streak" player attribute, which DataService mirrors from PlayerData.
@@ -36,7 +36,8 @@ local ORANGE = C("FF9A5C") -- hot streak (10+)
 local HOT_STREAK = 10
 local MULT_FONT = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.Heavy)
 
-local CROWN_AT = UDim2.fromOffset(2, -4) -- the crown's rest spot on the plate (it bobs 4 px up)
+local CROWN_AT = UDim2.fromOffset(2, -4) -- the crown's spot on the plate (it stays still)
+local CROWN_TILT = -14
 local SHINE_FROM, SHINE_TO = Vector2.new(-1.1, 0), Vector2.new(1.1, 0) -- the band's sweep (gradient Offset)
 local SHINE_TIME, SHINE_GAP = 1.1, 1.5 -- seconds across, then a pause
 local SELF_SCALE = 0.95 -- the local player's own tag, relative to everyone else's
@@ -74,15 +75,13 @@ local function stopEffects(player: Player)
 	effects[player] = nil
 end
 
--- the VIP crown bobs and the sparkles twinkle, each sparkle a little out of step
+-- the VIP crown sits still; the sparkles twinkle, each sparkle a little out of step
 local function startEffects(player: Player, plate: Frame)
 	stopEffects(player)
 	local list = {}
 	local crown = plate:FindFirstChild("Crown") :: ImageLabel
 	crown.Position = CROWN_AT
-	table.insert(list, TweenService:Create(crown, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
-		Position = CROWN_AT - UDim2.fromOffset(0, 4),
-	}))
+	crown.Rotation = CROWN_TILT
 	for i, sparkle in (plate:FindFirstChild("Sparkles") :: Frame):GetChildren() do
 		if sparkle:IsA("ImageLabel") then
 			sparkle.ImageTransparency = 1

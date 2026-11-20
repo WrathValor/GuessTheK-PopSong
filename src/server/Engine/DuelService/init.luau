@@ -203,7 +203,8 @@ end
 
 local function firstDuel(player: Player): boolean
 	local ok, data = pcall(PlayerData.Get, player)
-	return ok and data ~= nil and data.Statistics.Duels.Get() == 0
+	-- (a finished ghost game counts too, or a ghost-only player would keep the short wait)
+	return ok and data ~= nil and data.Statistics.Duels.Get() == 0 and data.Statistics.GhostGames.Get() == 0
 end
 
 -- The ghost's see-through figure on the free spot (ServerStorage.GhostRig, built in Studio).
@@ -240,7 +241,7 @@ end
 
 -- A ghost rival for `player`, alone on `stage`. Returns whether it started.
 local function startGhost(stage: Stage, player: Player, how: string): boolean
-	if not DuelConstants.GHOST_ENABLED or stage.State ~= "Waiting" or stage.Duel then
+	if not DuelConstants.GHOST_ENABLED or stage.State ~= "Waiting" or stage.Duel or Duels.NoNewDuels then
 		return false
 	end
 	local record = GhostPool.Take(player, levelOf(player))
@@ -307,6 +308,10 @@ local function scheduleGhost(stage: Stage, player: Player)
 	local started = os.clock()
 	task.spawn(function()
 		while stage.GhostTimer == token do
+			if Duels.NoNewDuels then
+				stage.GhostTimer = nil -- a restart is close: no ghost, no moving them to a rival
+				return
+			end
 			-- (the last check lands right on the ghost's time; past it, every GHOST_MATCH_EVERY)
 			local left = wait - (os.clock() - started)
 			task.wait(if left > 0.05 then math.min(DuelConstants.GHOST_MATCH_EVERY, left) else DuelConstants.GHOST_MATCH_EVERY)
@@ -355,6 +360,12 @@ function join(stage: Stage, slot: Slot, player: Player, how: string?)
 		return -- on a Party Stage (Engine/PartyService)
 	end
 	if stage.Players[slot] then
+		return
+	end
+	-- a server restart is close (Engine/ShutdownService): stepping on next to someone would
+	-- start a duel that could be cut off. An empty stage is still fine (solo practice).
+	if Duels.NoNewDuels and stage.Players[otherSlot(slot)] then
+		QueueRemote:Fire(player, { Message = "RestartSoon" })
 		return
 	end
 	-- someone's practising here with "Rivals can join my practice" on: stepping on ends their
@@ -819,6 +830,18 @@ function tryStart(stage: Stage, soloStage: boolean?, rematch: boolean?, skipInte
 		return
 	end
 
+	-- a server restart is close (Engine/ShutdownService): no new duel, it could be cut off.
+	-- Both step off with a toast; solo practice is still fine.
+	if Duels.NoNewDuels and (not soloStage or ghost) then
+		for _, p in { a, b } do
+			if p then
+				leave(p)
+				QueueRemote:Fire(p, { Message = "RestartSoon" })
+			end
+		end
+		return
+	end
+
 	-- solo: "Rivals can join my practice" (Settings) keeps the other spot open while they play.
 	-- Read every game, so a change in Settings counts from their next Play again.
 	if soloStage then
@@ -913,6 +936,10 @@ end
 -- the first fully empty stage.
 local function quickPlay(player: Player)
 	if DuelService.PlayerStage[player] then
+		return
+	end
+	if Duels.NoNewDuels then
+		QueueRemote:Fire(player, { Message = "RestartSoon" }) -- a server restart is close
 		return
 	end
 

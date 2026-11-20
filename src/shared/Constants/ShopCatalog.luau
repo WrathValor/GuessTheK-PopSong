@@ -237,9 +237,9 @@ function ShopCatalog.BundleContents(bundle): { any }
 end
 
 ShopCatalog.Passes = {
-	{ Id = "DoubleCoins", Name = "2× Coins", Sub = "Double coins from every match, forever", Line = "Double coins from\nevery match!", GamePassId = 2063766272, Bg = "9ED8F5", Icon = "2×" },
+	{ Id = "DoubleCoins", Name = "2× Coins", Sub = "Double coins from every match, forever", Line = "Double coins from\nevery match!", GamePassId = 2063766272, Bg = "9ED8F5", Icon = "2×", Art = "rbxassetid://113425820963640" }, -- assets/ui/DoubleCoins.png
 	-- (the daily perks are Engine/VIPService's; the looks are NameTags, VIPChat and the ★ VIP chips)
-	{ Id = "VIP", Name = "VIP Pass", Title = "VIP!", Sub = "Gold name tag · daily free ticket + Save Streak", Line = "Gold name tag, daily\nrewards & more!", GamePassId = 2063596588, Bg = "FFE07A", Icon = "Crown",
+	{ Id = "VIP", Name = "VIP Pass", Title = "VIP!", Sub = "Gold name tag · daily free ticket + Save Streak", Line = "Gold name tag, daily\nrewards & more!", GamePassId = 2063596588, Bg = "FFE07A", Icon = "Crown", Art = "rbxassetid://127211190617908", -- assets/ui/VIPPass.png
 		-- the shop's VIP perks popup (ShopController, "Money 12b"), top to bottom
 		Perks = {
 			{ Name = "Gold name tag", Desc = "Shiny gold plate + crown above your head", Icon = "rbxassetid://93316822259435" },

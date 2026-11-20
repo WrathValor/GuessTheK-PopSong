@@ -6,6 +6,7 @@
 --| Services
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 --| Imports
 
@@ -197,7 +198,7 @@ end
 
 --| Template
 
-return Scribe({
+local PlayerData = Scribe({
 	Template = {
 		Player = {
 			XP = Count(), -- level is worked out from XP (Modules/Levels)
@@ -418,3 +419,21 @@ return Scribe({
 	ProfileKeyPrefix = "PLAYER_",
 	Mode = "Live",
 })
+
+-- Server.Get returns nil while a save is still loading (or has gone), like the callers all
+-- expect ("if not data then return"), instead of Scribe's error. The error used to escape from
+-- loops that check every player (referral credits, the potion clock), stopping them for the
+-- whole server whenever one player's data was slow to load.
+-- (a running server only: in edit mode Scribe.Server is a stub that errors when touched)
+if RunService:IsServer() and RunService:IsRunning() then
+	local server = PlayerData.Server
+	if server and not table.isfrozen(server) then
+		local get = server.Get
+		server.Get = function(player: Player)
+			local ok, data = pcall(get, player)
+			return if ok then data else nil
+		end
+	end
+end
+
+return PlayerData

@@ -56,8 +56,8 @@ local C = Color3.fromHex
 local OFFERS = {
 	Bonus = { Colour = C("FFE07A"), Icon = Currencies.Tickets.Icon, Title = "Debut Pack" },
 	Debut = { Colour = C("FFE07A"), Icon = "rbxassetid://115794843985239", Title = "Debut Pack", Sub = "2,500 coins + a set" }, -- assets/ui/DebutPack.png
-	DoubleCoins = { Colour = C("9ED8F5"), Glyph = "2×", Title = "2× Coins", Sub = "Every win, forever", Pass = "DoubleCoins" },
-	VIP = { Colour = C("B9A6FF"), Icon = "rbxassetid://131353192492921", Title = "VIP Pass", Sub = "Gold tag + daily perks", Pass = "VIP" },
+	DoubleCoins = { Colour = C("9ED8F5"), Icon = "rbxassetid://113425820963640", Title = "2× Coins", Sub = "Every win, forever", Pass = "DoubleCoins" },
+	VIP = { Colour = C("B9A6FF"), Icon = "rbxassetid://127211190617908", Title = "VIP Pass", Sub = "Gold tag + daily perks", Pass = "VIP" },
 }
 local RED, WHITE, INK = C("FF5A4E"), C("FFFFFF"), C("1E1B2E")
 local HINT = "Starter"

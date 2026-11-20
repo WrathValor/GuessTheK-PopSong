@@ -334,12 +334,27 @@ function DailySongService.Start()
 		shares[player] = nil
 	end)
 
-	-- keep the chart fresh while anyone is here
+	-- keep the chart fresh while anyone is here, and at midnight (UTC) hand everyone still in
+	-- the server the new day's state: the booth screen, the jumbotron reminder and the sign over
+	-- the booth (Client/StreetScreens) only change when a State arrives
 	task.spawn(function()
+		local day = today()
 		while true do
 			task.wait(DailySongConstants.STATS_REFRESH)
 			if #Players:GetPlayers() > 0 then
 				refreshStats(today())
+			end
+			if today() ~= day then
+				day = today()
+				for _, player in Players:GetPlayers() do
+					local data = PlayerData.Get(player)
+					if data and not busy[player] then
+						task.spawn(function()
+							startDay(player, data)
+							sendState(player, data)
+						end)
+					end
+				end
 			end
 		end
 	end)

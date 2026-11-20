@@ -118,6 +118,9 @@ Duels.__index = Duels
 -- set by Engine/ShutdownService when the server is closing: leaving then cancels a match (no
 -- result, no streak or stake change) instead of forfeiting it
 Duels.Halted = false
+-- Engine/ShutdownService: a server restart is close, so no new duels or ghost games start (one
+-- started now could be cut off). Solo practice still starts; games already running play out.
+Duels.NoNewDuels = false
 Duels.StreakMultiplier = streakMultiplier
 Duels.ProfileOf = profileOf -- the invite cards show the same Level / Streak
 

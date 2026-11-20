@@ -35,6 +35,7 @@ AnalyticsEvents.Custom = {
 	-- How Queue (nobody came) / Rematch (Play Again); Source Recorded / Synthetic
 	GhostMatched = { Fields = { "How", "Source" } },
 	GhostStarted = { Fields = { "Source" } },
+	RestartHop = { Fields = {} }, -- HOP OVER NOW on the server restart banner (Engine/ShutdownService)
 	GhostLimit = { Fields = {} }, -- a ghost win past GHOST_DAILY_WINS today. value: that win's number today
 	-- waiting alone, moved to a real rival on another stage instead of getting a ghost
 	-- (DuelService.scheduleGhost). value: seconds waited; To Waiting (someone alone) / Practice (open practice or a ghost game's results)

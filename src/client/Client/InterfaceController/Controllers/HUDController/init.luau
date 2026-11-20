@@ -34,6 +34,7 @@ local SLIDE = {
 	BottomLeft = Vector2.new(-480, 0),
 	Buttons = Vector2.new(480, 0),
 	Menu = Vector2.new(0, 340),
+	TopCenter = Vector2.new(0, -260), -- the server restart banner (RestartController)
 }
 local SLIDE_OUT = TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In)
 local SLIDE_IN = TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out)

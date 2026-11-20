@@ -121,3 +121,48 @@ describe("step 2", function()
 		end
 	end)
 end)
+
+describe("step 3 (LNGSHOT - Masterpiece removed)", function()
+	local migrate = DataMigrations[3]
+	local ID = "Masterpiece - LNGSHOT"
+
+	local function full(inventory, coins)
+		local data = save(inventory)
+		data.Inventory.Songs = data.Inventory.Songs or {}
+		data.Inventory.Index = data.Inventory.Index or {}
+		data.Inventory.Copies = data.Inventory.Copies or {}
+		data.Currencies = { Won = coins or 0 }
+		data.Profile = { Showcase = { S1 = "", S2 = "", S3 = "", S4 = "", S5 = "" }, BgMusic = "" }
+		data.DailySong = { Guesses = {} }
+		return data
+	end
+
+	it("takes the song away and refunds 150 coins once, whatever the copies", function()
+		local data = full({ Songs = { ID, "Moonwalkin' - LNGSHOT" }, Copies = { [ID] = 4, ["Moonwalkin' - LNGSHOT"] = 2 }, Index = { ID } }, 100)
+		data.Profile.Showcase.S2 = ID
+		data.Profile.BgMusic = ID
+		data.DailySong.Guesses = { ID, "Moonwalkin' - LNGSHOT" }
+		migrate(data)
+		expect(table.find(data.Inventory.Songs, ID)).toBeNil()
+		expect(table.find(data.Inventory.Songs, "Moonwalkin' - LNGSHOT")).never.toBeNil()
+		expect(data.Inventory.Copies[ID]).toBeNil()
+		expect(data.Inventory.Copies["Moonwalkin' - LNGSHOT"]).toBe(2)
+		expect(table.find(data.Inventory.Index, ID)).toBeNil()
+		expect(data.Currencies.Won).toBe(250)
+		expect(data.Profile.Showcase.S2).toBe("")
+		expect(data.Profile.BgMusic).toBe("")
+		expect(data.DailySong.Guesses[1]).toBe("")
+		expect(data.DailySong.Guesses[2]).toBe("Moonwalkin' - LNGSHOT")
+	end)
+
+	it("refunds copies-only saves too, and leaves everyone else alone", function()
+		local copiesOnly = full({ Copies = { [ID] = 1 } }, 0)
+		migrate(copiesOnly)
+		expect(copiesOnly.Currencies.Won).toBe(150)
+
+		local never = full({ Songs = { "Moonwalkin' - LNGSHOT" } }, 500)
+		migrate(never)
+		expect(never.Currencies.Won).toBe(500)
+		expect(#never.Inventory.Songs).toBe(1)
+	end)
+end)

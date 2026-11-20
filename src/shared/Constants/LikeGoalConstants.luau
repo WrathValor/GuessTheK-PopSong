@@ -60,6 +60,18 @@ LikeGoalConstants.GOALS = table.freeze({
 		Reward = table.freeze({ Tickets = 7, Upgrades = 3, Coins = 250 }),
 		Text = "7 roll tickets + 3 upgrades + 250 coins",
 	}),
+	table.freeze({
+		Likes = 150,
+		Id = "LIKES150",
+		Reward = table.freeze({ Tickets = 10, Upgrades = 5, Coins = 500 }),
+		Text = "10 roll tickets + 5 upgrades + 500 coins",
+	}),
+	table.freeze({
+		Likes = 200,
+		Id = "LIKES200",
+		Reward = table.freeze({ Tickets = 15, Upgrades = 7, Coins = 500 }),
+		Text = "15 roll tickets + 7 upgrades + 500 coins",
+	}),
 })
 
 -- how many GOALS this many likes hits
