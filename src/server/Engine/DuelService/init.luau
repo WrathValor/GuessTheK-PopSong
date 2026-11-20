@@ -190,8 +190,8 @@ function notifyOpponents(stage: Stage)
 end
 
 -- [[ Ghost rival ]]
--- Alone on a stage for GHOST_AFTER seconds (GHOST_AFTER_FIRST before your first finished
--- duel), a ghost steps up: a recorded game (Engine/GhostPool) replayed as your rival. It's a
+-- Alone on a stage for GHOST_AFTER seconds (shorter for new players and on quiet servers: see
+-- ghostWait), a ghost steps up: a recorded game (Engine/GhostPool) replayed as your rival. It's a
 -- solo game underneath but plays like a real duel, so the stage is closed while it runs
 -- (whatever Settings.SoloOpen says). On its results screen the free spot opens: a real rival
 -- stepping on then gets the "A rival stepped up!" hand-over, as from open practice.
@@ -201,10 +201,24 @@ local function levelOf(player: Player): number
 	return if ok and data then (Levels.FromXP(data.Player.XP.Get())) else 1
 end
 
-local function firstDuel(player: Player): boolean
+-- seconds alone on a stage before a ghost steps up: GHOST_AFTER_FIRST before a first finished
+-- duel, GHOST_AFTER_NEW while still new (under GHOST_NEW_GAMES games), GHOST_AFTER_QUIET on a
+-- server with too few players to bring a real rival in time, GHOST_AFTER otherwise
+local function ghostWait(player: Player): number
 	local ok, data = pcall(PlayerData.Get, player)
-	-- (a finished ghost game counts too, or a ghost-only player would keep the short wait)
-	return ok and data ~= nil and data.Statistics.Duels.Get() == 0 and data.Statistics.GhostGames.Get() == 0
+	if not (ok and data) then
+		return DuelConstants.GHOST_AFTER
+	end
+	-- (finished ghost games count too, or a ghost-only player would keep the short wait)
+	local games = data.Statistics.Duels.Get() + data.Statistics.GhostGames.Get()
+	if games == 0 then
+		return DuelConstants.GHOST_AFTER_FIRST
+	elseif games < DuelConstants.GHOST_NEW_GAMES then
+		return DuelConstants.GHOST_AFTER_NEW
+	elseif #Players:GetPlayers() < DuelConstants.GHOST_QUIET_PLAYERS then
+		return DuelConstants.GHOST_AFTER_QUIET
+	end
+	return DuelConstants.GHOST_AFTER
 end
 
 -- The ghost's see-through figure on the free spot (ServerStorage.GhostRig, built in Studio).
@@ -304,7 +318,7 @@ local function scheduleGhost(stage: Stage, player: Player)
 	end
 	local token = {}
 	stage.GhostTimer = token
-	local wait = if firstDuel(player) then DuelConstants.GHOST_AFTER_FIRST else DuelConstants.GHOST_AFTER
+	local wait = ghostWait(player)
 	local started = os.clock()
 	task.spawn(function()
 		while stage.GhostTimer == token do

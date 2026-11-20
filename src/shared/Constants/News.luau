@@ -37,7 +37,7 @@ return table.freeze({
 			Date = "Nov 20th, 2026",
 			Art = { Icon = "rbxassetid://139628311844369", Back = "FFE07A", Front = "FAF6E9", Top = "B9A6FF", Bottom = "FF9EC4" },
 			Featured = {
-				{ Icon = "rbxassetid://139628311844369", Colour = "B9A6FF", Title = "Ghost Rivals", Body = "Nobody on the stage? A ghost of a real duel steps up after 18 s." },
+				{ Icon = "rbxassetid://139628311844369", Colour = "B9A6FF", Title = "Ghost Rivals", Body = "Nobody on the stage? A ghost of a real duel steps up within seconds." },
 				{ Icon = "rbxassetid://115794843985239", Colour = "FF9EC4", Title = "Gifting", Body = "Tap a player's card, hit Gift and send them anything in the shop." },
 				{ Icon = "rbxassetid://120664233001275", Colour = "FFE07A", Title = "Potions", Body = "2× Coins and 2× XP. They only tick down while you play." },
 				{ Icon = "rbxassetid://93616403173926", Colour = "A7E9B8", Title = "Invite + earn", Body = "New button top right: 300 coins for every friend who plays." },

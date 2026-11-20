@@ -171,7 +171,7 @@ function StarterOffer:Initialize(interface)
 	task.spawn(function()
 		for _, id in { PACK.ProductId, BONUS and BONUS.ProductId or 0 } do
 			if id > 0 then
-				local ok, info = pcall(MarketplaceService.GetProductInfo, MarketplaceService, id, Enum.InfoType.Product)
+				local ok, info = Prices.Fetch(id, Enum.InfoType.Product) -- (regional price)
 				if ok and info and info.PriceInRobux then
 					self._prices[id] = tostring(info.PriceInRobux)
 				end

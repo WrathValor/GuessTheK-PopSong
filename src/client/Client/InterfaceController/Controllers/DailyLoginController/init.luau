@@ -48,7 +48,7 @@ local DROP = TweenInfo.new(0.42, Enum.EasingStyle.Back, Enum.EasingDirection.Out
 -- the pop-up on join: this long after the loading screen / tutorial, with the lobby free
 local JOIN_DELAY = 1.5
 local LIFT = 6 -- today's card sits this much higher, tilted
-local OPT_IN_STREAK = 2 -- after claiming with a streak this long, offer the streak reminder
+local OPT_IN_STREAK = 1 -- after claiming with a streak this long, offer the streak reminder (1: day one too, so new players can get the Day 2 nudge)
 
 -- --------------------------------- Helpers -------------------------------- --
 local function now(): number
@@ -352,7 +352,7 @@ function DailyLogin:_claimed(packet)
 		end
 	end)
 
-	-- a streak worth keeping: offer the streak reminder (Engine/StreakReminders)
+	-- a streak to keep (day 1 too): offer the streak reminder (Engine/StreakReminders)
 	local streak = tonumber(packet.Streak)
 	if streak and streak >= OPT_IN_STREAK then
 		task.delay(1.4, function()

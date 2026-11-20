@@ -14,6 +14,8 @@
 -- The Season bar moves into the Level card's place; ResultsController shows one or the other
 -- (SeasonConstants.ENABLED). Run once in Studio, Edit mode (safe to run again):
 --   require(<this module>).Build(game.StarterGui.Interface.Frames.Results)
+-- Only the auto-next bar on REMATCH (ResultsController's countdown), on a frame built before it:
+--   require(<this module>).AutoFill(game.StarterGui.Interface.Frames.Results.Panel.Winner.Rematch)
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SeasonArt = require(ReplicatedStorage.Modules.UI.SeasonArt)
@@ -341,6 +343,7 @@ local function winner(panel: Instance)
 	find.TextSize = 15
 	find.Visible, w.FindRivalShadow.Visible = false, false
 	local rematch = button(w, "Rematch", P + 231, 564, 220, 52, MINT, "")
+	Build.AutoFill(rematch)
 	text(rematch, "Label", { Size = UDim2.fromScale(1, 1), FontFace = HEAD, TextSize = 18, Text = "REMATCH", TextXAlignment = Enum.TextXAlignment.Center })
 	text(rematch, "SoloLabel", { Size = UDim2.fromScale(1, 1), FontFace = HEAD, TextSize = 18, Text = "PLAY AGAIN", TextXAlignment = Enum.TextXAlignment.Center, Visible = false })
 	local count = new("Frame", { Name = "Count", AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 8, 0, -12), Size = UDim2.fromOffset(40, 22), Rotation = 6, BackgroundColor3 = WHITE }, rematch)
@@ -348,6 +351,26 @@ local function winner(panel: Instance)
 	stroke(count, 2)
 	text(count, "Value", { Size = UDim2.fromScale(1, 1), FontFace = HEAD, TextSize = 12, Text = "0/2", TextXAlignment = Enum.TextXAlignment.Center })
 	return w
+end
+
+-- the auto-next countdown bar: an ink tint that fills the button from the left, under its
+-- labels (ResultsController tweens its width; hidden otherwise). Replaces an old one.
+function Build.AutoFill(rematch: Instance): Frame
+	local old = rematch:FindFirstChild("AutoFill")
+	if old then
+		old:Destroy()
+	end
+	local fill = new("Frame", {
+		Name = "AutoFill",
+		Size = UDim2.fromScale(0, 1),
+		BackgroundColor3 = INK,
+		BackgroundTransparency = 0.82,
+		BorderSizePixel = 0,
+		ZIndex = 0, -- under Label / SoloLabel / Count
+		Visible = false,
+	}, rematch)
+	corner(fill, 14)
+	return fill
 end
 
 function Build.Build(results: Instance)

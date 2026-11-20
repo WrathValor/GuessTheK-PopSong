@@ -5,9 +5,9 @@
 return {
 	Name = "notifyme",
 	Aliases = {},
-	Description = "Sends you the streak reminder notification now (Streak or BigDay). Live game only.",
+	Description = "Sends you the streak reminder notification now (Streak, BigDay or DayTwo). Live game only.",
 	Group = "Testing",
 	Args = {
-		{ Type = "string", Name = "kind", Description = "Streak or BigDay", Optional = true }
+		{ Type = "string", Name = "kind", Description = "Streak, BigDay or DayTwo", Optional = true }
 	},
 }

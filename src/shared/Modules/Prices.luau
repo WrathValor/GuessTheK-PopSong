@@ -7,6 +7,8 @@
 --       nil, nil = still loading (fetches in the background, then fires Changed)
 --       nil, false = not for sale (offsale pass / product)
 --   Prices.Changed – Signal: a price arrived
+--   Prices.Fetch(id, infoType) -> (ok, info) – one uncached read (yields), the player's regional
+--       price included; for code that reads PriceInRobux itself
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local MarketplaceService = game:GetService("MarketplaceService")
@@ -38,6 +40,8 @@ local function fetch(id: number, infoType: Enum.InfoType)
 	end
 	return ok, info
 end
+
+Prices.Fetch = fetch
 
 function Prices.Get(kind: string, id: number?): (number?, boolean?)
 	local infoType = INFO_TYPE[kind]

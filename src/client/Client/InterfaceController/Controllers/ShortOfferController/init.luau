@@ -28,6 +28,7 @@ local FrameTransition = require(ReplicatedStorage.Modules.UI.Animations.FrameTra
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
 local AnalyticsClient = require(ReplicatedStorage.Modules.AnalyticsClient)
+local Prices = require(ReplicatedStorage.Modules.Prices)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 local Build = require(script.Build)
 
@@ -86,7 +87,7 @@ local function price(productId: number): string
 	if prices[productId] then
 		return prices[productId]
 	end
-	local ok, info = pcall(MarketplaceService.GetProductInfo, MarketplaceService, productId, Enum.InfoType.Product)
+	local ok, info = Prices.Fetch(productId, Enum.InfoType.Product) -- (regional price)
 	if ok and info and info.PriceInRobux then
 		prices[productId] = tostring(info.PriceInRobux)
 		return prices[productId]

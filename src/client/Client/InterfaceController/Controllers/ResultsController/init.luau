@@ -4,11 +4,16 @@
 -- CONTINUE / REMATCH on the right.
 -- Solo practice swaps the copied "rival" for its own layout: a GUESSED AT column (how much of
 -- the clip you needed), a rank stamp and personal best, Play again and Find a rival.
+-- Auto next: once the reveal is done, REMATCH / PLAY AGAIN counts down AUTO_NEXT seconds (its
+-- AutoFill bar fills, the note reads "Next game in 5…") and then presses itself. Any tap or key
+-- stops it. Not when a Save Streak offer is up. (Only ~16% of solo players and ~48% of duellists
+-- played on when they had to choose, Nov 2026.)
 
 -- -------------------------------- Services -------------------------------- --
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 local MarketplaceService = game:GetService("MarketplaceService")
 
 -- --------------------------------- Imports -------------------------------- --
@@ -35,6 +40,7 @@ local ShopCatalog = require(ReplicatedStorage.Constants.ShopCatalog)
 local LikeGoalConstants = require(ReplicatedStorage.Constants.LikeGoalConstants)
 local Currencies = require(ReplicatedStorage.Constants.Currencies)
 local AnalyticsClient = require(ReplicatedStorage.Modules.AnalyticsClient)
+local Prices = require(ReplicatedStorage.Modules.Prices)
 
 -- -------------------------------- Variables ------------------------------- --
 local LOCAL_PLAYER = Players.LocalPlayer
@@ -72,6 +78,16 @@ local STICKER = {
 	Solo = { X = 568, Width = 96, Colour = C("FFE07A") },
 }
 local TITLE_TAG = { Duel = C("FFE07A"), Solo = C("9ED8F5") }
+-- seconds REMATCH / PLAY AGAIN counts down before the next game starts by itself
+local AUTO_NEXT = 6
+-- the inputs that stop the countdown (a tap, a click, a key or a pad button; not mouse moves)
+local STOP_INPUTS = {
+	[Enum.UserInputType.MouseButton1] = true,
+	[Enum.UserInputType.MouseButton2] = true,
+	[Enum.UserInputType.Touch] = true,
+	[Enum.UserInputType.Keyboard] = true,
+	[Enum.UserInputType.Gamepad1] = true,
+}
 
 -- points → snippet tier (1 = the shortest clip); nil for a miss
 local function tierOf(points: number): number?
@@ -310,7 +326,7 @@ function Results:Initialize(interface)
 
 	-- the 2× Coins row: its price (once), and BUY opens Roblox's pass prompt
 	task.spawn(function()
-		local ok, info = pcall(MarketplaceService.GetProductInfo, MarketplaceService, DOUBLE.GamePassId, Enum.InfoType.GamePass)
+		local ok, info = Prices.Fetch(DOUBLE.GamePassId, Enum.InfoType.GamePass) -- (regional price)
 		if ok and info and info.PriceInRobux then
 			self._doublePrice = tostring(info.PriceInRobux)
 			w.Double.Buy.Inner.Label.Text = self._doublePrice
@@ -337,7 +353,9 @@ end
 function Results:Show(packet, info)
 	local panel = self._frame.Panel
 	local w = panel.Winner
+	self:_stopAuto()
 	self._solo = packet.Solo
+	self._ghost = packet.Ghost == true
 	self._wasDuel = not packet.Solo and not packet.Tutorial
 	self._staying = false
 	self._max = maxScore(packet.Rounds)
@@ -808,6 +826,10 @@ function Results:_reveal(packet, rivalKey: string?, mine)
 			if self.State ~= "Inactive" and w.Rematch.Visible then
 				Juice.Pop(w.Rematch, 0.2)
 				-- duel: the Rematch pop; solo: Play again's own bounce
+				-- then the next game counts down, unless a Save Streak offer is up
+				if (mine.StreakLost or 0) < 2 then
+					self:_startAuto()
+				end
 			end
 		end)
 
@@ -823,7 +845,71 @@ function Results:_reveal(packet, rivalKey: string?, mine)
 	end)
 end
 
+-- [[ Auto next ]]
+
+function Results:_startAuto()
+	self:_stopAuto()
+	local w = self._frame.Panel.Winner
+	if self.State == "Inactive" or not (w.Rematch.Visible and w.Rematch.Active) then
+		return
+	end
+	local token = {}
+	self._auto = token
+	self._autoNote = true
+	local label = if self._solo or self._ghost then "Next game" else "Rematch"
+	local fill = w.Rematch:FindFirstChild("AutoFill") :: Frame?
+	if fill then
+		fill.Size = UDim2.fromScale(0, 1)
+		fill.Visible = true
+		self._autoTween = TweenService:Create(fill, TweenInfo.new(AUTO_NEXT, Enum.EasingStyle.Linear), { Size = UDim2.fromScale(1, 1) })
+		self._autoTween:Play()
+	end
+	self._autoInput = UserInputService.InputBegan:Connect(function(input)
+		if STOP_INPUTS[input.UserInputType] then
+			self:_stopAuto() -- (tapping REMATCH itself stops it too, then Activated runs the rematch)
+		end
+	end)
+	task.spawn(function()
+		for left = AUTO_NEXT, 1, -1 do
+			if self._auto ~= token then
+				return
+			end
+			if self._autoNote then
+				w.RematchNote.Visible = true
+				w.RematchNote.Text = `{label} in {left}… · tap to stay`
+			end
+			task.wait(1)
+		end
+		if self._auto == token and self.State ~= "Inactive" and w.Rematch.Active then
+			self:_stopAuto()
+			self._rematch()
+		end
+	end)
+end
+
+function Results:_stopAuto()
+	self._auto = nil
+	if self._autoInput then
+		self._autoInput:Disconnect()
+		self._autoInput = nil
+	end
+	if self._autoTween then
+		self._autoTween:Cancel()
+		self._autoTween = nil
+	end
+	local w = self._frame and self._frame.Panel.Winner
+	local fill = w and w.Rematch:FindFirstChild("AutoFill")
+	if fill then
+		fill.Visible = false
+	end
+	if self._autoNote and w then
+		w.RematchNote.Visible = false
+	end
+	self._autoNote = false
+end
+
 function Results:UpdateRematch(wants)
+	self._autoNote = false -- the rival's state takes the note (the bar keeps counting)
 	local note = self._frame.Panel.Winner.RematchNote
 	local mine, theirs = false, false
 	for _, id in wants do
@@ -876,6 +962,7 @@ function Results:Deactivate()
 		return Promise.resolve()
 	end
 	self.State = "Deactivating"
+	self:_stopAuto()
 	if self._unpad then
 		self._unpad()
 		self._unpad = nil

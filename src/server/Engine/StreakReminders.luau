@@ -5,6 +5,12 @@
 --   • "Daily Streak"  "Your {days}-day streak resets in 4 hours. Claim today's reward to keep it!"
 --   • "Big Day!"      on a day 7: "Your day 7 reward is waiting: {coins} coins + a 2× Coins
 --                     potion. Claim it before it resets!"
+-- and one for a player who claimed day 1 of a streak today (new players: ~96% never came back
+-- for a day 2, Nov 2026), about DAY_TWO_AFTER hours after that claim, inside tomorrow's UTC day:
+--   • "Day 2"         "Your Day 2 reward is ready: a free Song Roll ticket! Come back and
+--                     claim it 🎁" (no parameters: day 2 of the ladder is always 1 ticket)
+--                     (until its string id is in MESSAGES.DayTwo, the "Daily Streak" message is
+--                     sent instead at its usual time, with days = 1)
 -- (the strings live in the Creator Hub: the live game → Engagement → Notifications)
 -- The Join button brings them in; the daily login pops up on join as usual.
 -- Each player's next reminder sits in a MemoryStore sorted map (key: user id, sort key: when
@@ -34,11 +40,14 @@ local ShopCatalog = require(ReplicatedStorage.Constants.ShopCatalog)
 local MESSAGES = {
 	Streak = "e4a0631b-06fa-aa4e-a2be-8b4c9ded682c", -- "Daily Streak"
 	BigDay = "c8e0cfbe-3477-cc42-809d-07d0b1f6073c", -- "Big Day!"
+	DayTwo = "02ebce73-2f70-3f49-86ea-04a4ab48454c", -- "Day 2"
 }
 local ENABLED = ShopCatalog.LIVE -- (the strings belong to the live game)
 
 local REMIND_AT = 20 * 3600 -- seconds into the UTC day: 4 hours before the reset
 local MIN_STREAK = 2 -- a streak this long or longer is worth a reminder
+local DAY_TWO_AFTER = 20 * 3600 -- a day-1 claim's reminder comes this long after the claim…
+local DAY_TWO_EARLIEST, DAY_TWO_LATEST = 1 * 3600, 22 * 3600 -- …but between these, into the next UTC day
 local POLL = 60 -- seconds between checks of the map
 local BATCH = 50 -- reminders read per check
 local TTL = 3 * 86400 -- a reminder that's never sent drops out of the map after this
@@ -75,8 +84,12 @@ end
 -- [[ Pure parts (tests/StreakReminders.spec) ]]
 
 -- the reminder a player should get next, or nil: { Due, Day, Kind, Days, Coins }
--- streak / last = Rewards.DailyStreak / LastDailyClaim, now = os.time()
-function StreakReminders.Next(streak: number, last: number, now: number)
+-- streak / last = Rewards.DailyStreak / LastDailyClaim, now = os.time(). dayTwo: whether the
+-- "Day 2" message exists (defaults to MESSAGES.DayTwo being set)
+function StreakReminders.Next(streak: number, last: number, now: number, dayTwo: boolean?)
+	if dayTwo == nil then
+		dayTwo = MESSAGES.DayTwo ~= ""
+	end
 	local today = Catalog.Day(now)
 	local lastDay = if last > 0 then Catalog.Day(last) else -1000
 	local day, days
@@ -89,13 +102,24 @@ function StreakReminders.Next(streak: number, last: number, now: number)
 	else
 		return nil -- the streak's gone (or today's reminder time has passed)
 	end
-	if days < MIN_STREAK then
-		return nil
-	end
 	-- the step they'd claim that day: day 7 of a week gets the Big Day message
 	local index = (days % #Catalog.DAILY) + 1
-	local _, dayOfWeek = Catalog.DailyWeek(index)
 	local reward = Catalog.DAILY[index]
+	if days < MIN_STREAK then
+		-- day 1 of a streak, claimed today: the day-2 nudge. (A day 1 claimed yesterday already had
+		-- its reminder set then; coming back today without claiming doesn't set another.)
+		if days ~= 1 or lastDay ~= today then
+			return nil
+		end
+		if not dayTwo then
+			-- no "Day 2" string yet: the streak message at its usual time
+			return { Due = day * 86400 + REMIND_AT, Day = day, Kind = "Streak", Days = days, Coins = reward and reward.Coins or 0 }
+		end
+		local start = day * 86400
+		local due = math.clamp(last + DAY_TWO_AFTER, start + DAY_TWO_EARLIEST, start + DAY_TWO_LATEST)
+		return { Due = due, Day = day, Kind = "DayTwo", Days = days, Coins = reward and reward.Coins or 0 }
+	end
+	local _, dayOfWeek = Catalog.DailyWeek(index)
 	local big = dayOfWeek == Catalog.DAILY_DAYS
 	return {
 		Due = day * 86400 + REMIND_AT,
@@ -110,6 +134,7 @@ end
 function StreakReminders.Payload(reminder)
 	local parameters = if reminder.Kind == "BigDay"
 		then { coins = { int64Value = reminder.Coins } }
+		elseif reminder.Kind == "DayTwo" then nil
 		else { days = { int64Value = reminder.Days } }
 	return {
 		payload = {
@@ -173,9 +198,12 @@ function StreakReminders.Send(player: Player, kind: string?): (boolean, string?)
 	if not data then
 		return false, "no data"
 	end
-	local streak = math.max(data.Rewards.DailyStreak.Get(), MIN_STREAK)
+	local streak = if kind == "DayTwo" then 1 else math.max(data.Rewards.DailyStreak.Get(), MIN_STREAK)
 	local index = (streak % #Catalog.DAILY) + 1
-	local reminder = { Kind = if kind == "BigDay" then "BigDay" else "Streak", Days = streak, Coins = (Catalog.DAILY[index].Coins or 500) }
+	local reminder = { Kind = if kind == "BigDay" or kind == "DayTwo" then kind else "Streak", Days = streak, Coins = (Catalog.DAILY[index].Coins or 500) }
+	if reminder.Kind == "DayTwo" and MESSAGES.DayTwo == "" then
+		return false, "the Day 2 message isn't set up yet (StreakReminders MESSAGES.DayTwo)"
+	end
 	if reminder.Kind == "BigDay" and reminder.Coins <= 0 then
 		reminder.Coins = 500
 	end

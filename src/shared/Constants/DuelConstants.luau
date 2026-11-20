@@ -107,6 +107,14 @@ return table.freeze({
 	GHOST_ENABLED = true,
 	GHOST_AFTER = 18, -- seconds alone on a stage before a ghost steps up (after the 15 s QUICK SOLO nudge)
 	GHOST_AFTER_FIRST = 3, -- the same, for a player who hasn't finished a duel yet
+	-- still new (fewer than GHOST_NEW_GAMES duels + ghost games finished): a short wait. The
+	-- Duel funnel lost 27% of queuers before a match on the full GHOST_AFTER (Nov 2026)
+	GHOST_NEW_GAMES = 5,
+	GHOST_AFTER_NEW = 6,
+	-- a quiet server (fewer than GHOST_QUIET_PLAYERS in it) is unlikely to bring a real rival
+	-- in time, so regulars wait this long instead of GHOST_AFTER
+	GHOST_QUIET_PLAYERS = 6,
+	GHOST_AFTER_QUIET = 8,
 	-- while waiting, every this many seconds the server looks for a real rival on another stage
 	-- (someone else waiting alone, open practice, or a ghost game's results) and moves you there instead
 	GHOST_MATCH_EVERY = 3,
