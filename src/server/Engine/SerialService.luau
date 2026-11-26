@@ -29,7 +29,8 @@
 -- History: every numbered copy (a serial, One of Ones included) keeps who rolled it and who has
 -- owned it since, in AlbumConstants.HISTORY_STORE (Albums.HistoryKey):
 --   SerialService.Record(cardId, serial, player)    the roll (AlbumService, after the pull is saved)
---   SerialService.Transfer(cardId, serial, player)  a new owner (for trading, later)
+--   SerialService.Transfer(cardId, serial, player)  a new owner (Engine/MarketService)
+--   SerialService.SetOwner(cardId, player)          a One of One's owner record moves (the Market)
 --   SerialService.History(cardId, serial) → { Rolled, Owners }? (yields; cached a minute)
 
 local DataStoreService = game:GetService("DataStoreService")
@@ -252,6 +253,23 @@ function SerialService.Claim(cardId: string, player: Player): boolean
 		owners[cardId] = { Name = record.Name, At = os.clock() }
 	end
 	return type(record) == "table" and record.UserId == player.UserId
+end
+
+-- a One of One changed hands (bought on the Market): its owner record follows (yields)
+function SerialService.SetOwner(cardId: string, player: Player)
+	local s = store(AlbumConstants.ONE_OF_ONE_STORE)
+	if not s then
+		return
+	end
+	budget()
+	local record = { UserId = player.UserId, Name = player.Name, At = os.time() }
+	local ok, err = pcall(s.SetAsync, s, Albums.StoreKey(cardId), record)
+	if ok then
+		claimed[cardId] = true
+		owners[cardId] = { Name = player.Name, At = os.clock() }
+	else
+		warn(`[SerialService] couldn't move the One of One {cardId} to {player.Name}: {err}`)
+	end
 end
 
 -- who owns each of these One of One card ids: { [card id] = name } (unclaimed ones are left out).

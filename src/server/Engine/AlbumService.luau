@@ -44,13 +44,15 @@
 --                      { Action = "Open", Kind = "Group", Group, Count = 1 | 5 | 10 }
 --                      { Action = "Open", Kind = "Premium", Pack = key, Count = 1 | 5 | 10 }
 --                      { Action = "Open", Kind = "Free", Ticket = true } (Unopened: use a ticket)
+--                      { Action = "Open", Kind = "Gen", Gen?, Owned = true } (Unopened: a gen pack
+--                        bought with Robux, Currencies.GenPacks; no Gen = the Full Shuffle)
 --                      { Action = "Star", Group } → { Message = "Starred", Ok, Text?, Favourites }
 --                      { Action = "First", Group = artist }
 -- Reply:               { Message = "Opened", Ok, Text?, Kind, Group?, Gen?, How, Packs, Size, Short?,
 --                        Pulls = { { Card, Album, Artist, Member, Rarity, New, Copies, Level, LevelUp, Sold, Serial? } },
 --                        Sold (coins for copies past Rainbow), Complete? = { album ids whose page just filled },
 --                        SetBonus? = coins paid for them (Engine/BinderService.ClaimSets) }
---   How = "Coins" | "Free" | "Ticket" | "First". Pulls run pack after pack, Size cards each.
+--   How = "Coins" | "Free" | "Ticket" | "Owned" | "First". Pulls run pack after pack, Size cards each.
 --   Short = { Kind = "Coins" | "Tickets", Need, Name } when you can't pay (ShortOfferController).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -60,6 +62,7 @@ local PolicyService = game:GetService("PolicyService")
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 local Albums = require(ReplicatedStorage.Modules.Library.Albums)
+local Upgrades = require(ReplicatedStorage.Modules.Library.Upgrades)
 local AlbumConstants = require(ReplicatedStorage.Constants.AlbumConstants)
 local Currencies = require(ReplicatedStorage.Constants.Currencies)
 local AnalyticsEvents = require(ReplicatedStorage.Constants.AnalyticsEvents)
@@ -143,18 +146,23 @@ end
 
 -- brings the free-pack bank up to date (refills, today's daily pack, a new player's first ones).
 -- Call inside a Batch. Returns the free packs banked now.
+-- (Engine/ShopService calls it too, before a Stash or Refill upgrade changes the clock)
 local function settleFree(data, now: number): number
 	local packs, at = data.Inventory.FreePacks.Get(), data.Inventory.FreePackAt.Get()
 	local day = now // 86400
+	local lv = Upgrades.Levels(data)
+	local cap = Upgrades.StashCap(lv)
 	if at == 0 then
 		packs, at = AlbumConstants.FREE_PACK_START, now
 		data.Inventory.FreePackDay.Set(day)
 	end
-	packs, at = Albums.FreePacks(packs, at, now)
+	packs, at = Albums.FreePacks(packs, at, now, lv)
 	if data.Inventory.FreePackDay.Get() ~= day then
 		data.Inventory.FreePackDay.Set(day)
-		packs = math.min(packs + 1, AlbumConstants.FREE_PACK_CAP)
-		if packs >= AlbumConstants.FREE_PACK_CAP then
+		-- the daily pack always counts: it can go one over a full bank, and never takes any
+		-- away (a bank above the cap, from before FREE_PACK_CAP went 6 → 3, is kept)
+		packs = math.max(packs, math.min(packs + 1, cap + 1))
+		if packs >= cap then
 			at = now
 		end
 	end
@@ -184,9 +192,13 @@ local function validGen(gen: any): boolean
 	return false
 end
 
-local function open(player: Player, kind: string, packet, how: "Coins" | "Free" | "Ticket" | "First")
+local function open(player: Player, kind: string, packet, how: "Coins" | "Free" | "Ticket" | "Owned" | "First")
 	local artist = if kind == "Group" then packet.Group else nil
 	local gen = if (kind == "Gen" or kind == "Free") and validGen(packet.Gen) then packet.Gen else nil
+	if kind == "Gen" and packet.Owned == true then
+		how = "Owned" -- a gen pack bought with Robux: free, any gen (no pick = the Full Shuffle)
+		gen = gen or "All"
+	end
 	local premium = if kind == "Premium" then Albums.Premium(packet.Pack) else nil
 	local extra: { [string]: any } = { Kind = kind, Group = artist, Gen = gen, Pack = premium and premium.Key, How = how }
 	if kind == "Premium" and not premium then
@@ -232,6 +244,10 @@ local function open(player: Player, kind: string, packet, how: "Coins" | "Free" 
 			return reply(player, false, "No free packs yet: the next one is on its way", extra)
 		end
 		extra.How = how
+	elseif how == "Owned" then
+		if Currencies.Data(data, "GenPacks").Get() < 1 then
+			return reply(player, false, "You don't have a gen pack", extra)
+		end
 	else
 		if kind == "Group" and not Albums.InRotation(artist, bias, now, data.Inventory.FavGroups.Get()) then
 			return reply(player, false, "That group's pack has rotated out: check today's groups", extra)
@@ -252,6 +268,7 @@ local function open(player: Player, kind: string, packet, how: "Coins" | "Free" 
 	local pulls, sold = {}, 0
 	local premiumPity = data.Inventory.PremiumPity.Get()
 	local guaranteeRank = Albums.RarityRank(AlbumConstants.GUARANTEE_RARITY)
+	local luck = Upgrades.Luck(Upgrades.Levels(data))
 	for _ = 1, packs do
 		local pack = {}
 		local guaranteed = premium ~= nil and premiumPity >= AlbumConstants.PREMIUM_GUARANTEE - 1
@@ -263,9 +280,9 @@ local function open(player: Player, kind: string, packet, how: "Coins" | "Free" 
 			end
 			local album, memberKey, rarityKey
 			if kind == "Group" then
-				album, memberKey, rarityKey = Albums.RollGroup(artist, bias, rng)
+				album, memberKey, rarityKey = Albums.RollGroup(artist, bias, rng, nil, nil, nil, luck)
 			else
-				album, memberKey, rarityKey = Albums.RollGen(gen, rng, nil, nil, minKey)
+				album, memberKey, rarityKey = Albums.RollGen(gen, rng, nil, nil, minKey, luck)
 			end
 			assert(album and memberKey and rarityKey, "no album to pull from")
 			-- One of One: only if nobody in any server owns this one yet
@@ -344,11 +361,14 @@ local function open(player: Player, kind: string, packet, how: "Coins" | "Free" 
 		Currencies.Data(data, "Coins").Increment(sold - price)
 		if how == "Ticket" then
 			Currencies.Data(data, "Tickets").Increment(-1)
+		elseif how == "Owned" then
+			Currencies.Data(data, "GenPacks").Increment(-1)
 		elseif how == "Free" then
 			local banked = settleFree(data, now)
 			local left = math.max(0, banked - packs)
+			local cap = Upgrades.StashCap(Upgrades.Levels(data))
 			data.Inventory.FreePacks.Set(left)
-			if banked >= AlbumConstants.FREE_PACK_CAP and left < AlbumConstants.FREE_PACK_CAP then
+			if banked >= cap and left < cap then
 				data.Inventory.FreePackAt.Set(now) -- the clock starts again from now
 			end
 		elseif how == "First" then
@@ -389,6 +409,8 @@ local function open(player: Player, kind: string, packet, how: "Coins" | "Free" 
 		Analytics.Economy(player, "Sink", "Coins", price, balance - sold, AnalyticsEvents.Transactions.Album, sku)
 	elseif how == "Ticket" then
 		Analytics.Economy(player, "Sink", "Tickets", 1, Currencies.Data(data, "Tickets").Get(), AnalyticsEvents.Transactions.Album, "Ticket")
+	elseif how == "Owned" then
+		Analytics.Economy(player, "Sink", "GenPacks", 1, Currencies.Data(data, "GenPacks").Get(), AnalyticsEvents.Transactions.Album, "GenPack")
 	end
 	if sold > 0 then
 		Analytics.Economy(player, "Source", "Coins", sold, balance, AnalyticsEvents.Transactions.CardSell, "PastRainbow")
@@ -404,13 +426,23 @@ local function open(player: Player, kind: string, packet, how: "Coins" | "Free" 
 			table.insert(complete, id)
 		end
 	end
-	local fresh = 0
+	-- the quests: packs opened, new cards, Lucky Draw or better, cards reaching Gold, albums done
+	local fresh, lucky, gold = 0, 0, 0
+	local luckyRank = Albums.RarityRank("luckydraw")
 	for _, pull in pulls do
 		if pull.New then
 			fresh += 1
 		end
+		if Albums.RarityRank(pull.Rarity) >= luckyRank then
+			lucky += 1
+		end
 	end
-	RewardsService.RecordNewCards(player, fresh) -- the "new photocards" quests
+	for id in changed do
+		if (before[id] or 0) < AlbumConstants.GOLD_COPIES and (cards[id] or 0) >= AlbumConstants.GOLD_COPIES then
+			gold += 1
+		end
+	end
+	RewardsService.RecordStats(player, { Packs = packs, NewSongs = fresh, Lucky = lucky, Gold = gold, Albums = #complete })
 
 	extra.Packs = packs
 	extra.Size = size
@@ -473,6 +505,8 @@ local function onPlayerAdded(player: Player)
 	end)
 	BinderService.ClaimSets(player, data) -- (albums completed before set bonuses existed)
 end
+
+AlbumService.SettleFree = settleFree
 
 function AlbumService.Start()
 	for _, player in Players:GetPlayers() do

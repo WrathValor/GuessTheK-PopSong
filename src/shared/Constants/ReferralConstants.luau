@@ -28,7 +28,7 @@ ReferralConstants.MAX = 10 -- the last milestone (the track on the screen is out
 ReferralConstants.FRIENDS_SHOWN = 3
 
 -- the line Roblox's invite pop-up sends with the invite
-ReferralConstants.INVITE_MESSAGE = "Come guess K-pop songs with me!"
+ReferralConstants.INVITE_MESSAGE = "Come play K-POPPED! with me!"
 
 -- [[ Server ]]
 -- each inviter's friends live in this DataStore (key = the inviter's UserId), so a friend in

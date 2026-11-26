@@ -44,15 +44,31 @@ Currencies.Coins = table.freeze({
 
 Currencies.Tickets = table.freeze({
 	Id = "Tickets",
-	Name = "Roll ticket",
-	Plural = "Roll tickets",
+	Name = "Pack ticket",
+	Plural = "Pack tickets",
 	Label = "TICKETS",
 	Icon = "rbxassetid://106180506046153",
 	Colour = C("DCD3FF"),
 	Attribute = "Tickets",
 	Path = table.freeze({ "Inventory", "Tickets" }),
 	Wallet = true, -- tap: the Packs page (a ticket opens one pack)
-	Robux = true, -- sold in the shop's ticket bundles + Bundles
+	Robux = false, -- rewards only since 26 Nov 2026: the Robux bundles give GenPacks instead
+} :: Currency)
+
+-- Gen packs: bought with Robux (the shop's pack bundles, the Debut Pack bonus, Bundles). Each
+-- opens a whole PACK_SIZE-card gen pack for free (Engine/AlbumService, How = "Owned"), unlike a
+-- pack ticket, which rewards hand out and opens a 1-card free pack (26 Nov 2026).
+Currencies.GenPacks = table.freeze({
+	Id = "GenPacks",
+	Name = "Gen pack",
+	Plural = "Gen packs",
+	Label = "GEN PACKS",
+	Icon = "rbxassetid://91499562174663", -- the HUD's Packs icon
+	Colour = C("FFE07A"),
+	Attribute = "GenPacks",
+	Path = table.freeze({ "Inventory", "GenPacks" }),
+	Wallet = false,
+	Robux = true,
 } :: Currency)
 
 Currencies.Upgrades = table.freeze({
@@ -75,7 +91,7 @@ Currencies.Upgrades = table.freeze({
 Currencies.UPGRADE_COINS = 150
 
 -- display order
-local ORDER = { "Coins", "Tickets", "Upgrades" }
+local ORDER = { "Coins", "Tickets", "GenPacks", "Upgrades" }
 
 local all, wallet = {}, {}
 for _, id in ORDER do

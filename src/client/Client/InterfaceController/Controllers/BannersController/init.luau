@@ -50,6 +50,7 @@ local TAG_COLOUR = {
 }
 local TABS = { "Sets", "Banners", "Cards" }
 local GRID = { Sets = "Sets", Banners = "Grid", Cards = "Cards" } -- the grid frame each tab shows
+local TAB_TITLE = { Sets = "Sets", Banners = "Banners", Cards = "Photocards" } -- the grid page's heading
 local NOUN = { Sets = { "set", "sets" }, Banners = { "banner", "banners" }, Cards = { "photocard", "photocards" } }
 
 -- ---------------------------------- Class --------------------------------- --
@@ -138,7 +139,7 @@ function BannersController:Initialize(interface)
 			warn(`[Banners] {gridName} has no Template tile; re-run SeasonController/Build.Banners`)
 		end
 	end
-	FitPanel.Watch(self._frame, self._janitor)
+	-- (full screen now, board 61: no FitPanel)
 	ButtonScale.ApplyToDescendants(panel)
 
 	local j = self._janitor
@@ -146,6 +147,14 @@ function BannersController:Initialize(interface)
 		-- back to the profile it was opened from
 		self._interface:Open("Profile")
 	end))
+	-- MORE IN THE SHOP: the Shop's Profile style tab
+	local shop = panel.Header:FindFirstChild("Shop")
+	if shop then
+		j:Add(shop.Activated:Connect(function()
+			Sounds.Play("Click")
+			self._interface:Open("Shop", "Profile")
+		end))
+	end
 	local tabs = panel.Header:FindFirstChild("Tabs")
 	for _, tab in TABS do
 		local t = tabs and tabs:FindFirstChild(tab)
@@ -297,13 +306,19 @@ function BannersController:_fill()
 	local have = owned()[tab]
 	local banner, card = equipped()
 
-	-- tabs: the open one is solid
+	-- tabs: the open one is cream with an outline (the full-screen tabs, like Shop / Quests)
 	local tabs = panel.Header:FindFirstChild("Tabs")
 	for _, name in TABS do
 		local t = tabs and tabs:FindFirstChild(name)
 		if t then
-			t.BackgroundTransparency = if name == tab then 0 else 0.55
-			t.BackgroundColor3 = if name == tab then YELLOW else CREAM
+			local on = name == tab
+			t.BackgroundColor3 = CREAM
+			t.BackgroundTransparency = if on then 0 else 1
+			t.TextColor3 = if on then INK else CREAM
+			local s = t:FindFirstChildOfClass("UIStroke")
+			if s then
+				s.Enabled = on
+			end
 		end
 		local g = panel:FindFirstChild(GRID[name])
 		if g then
@@ -355,7 +370,14 @@ function BannersController:_fill()
 		end
 	end
 	local noun = NOUN[tab]
-	panel.Header.Tabs.Owned.Text = if #list == 1 then `1 {noun[1]}` else `{#list} {noun[2]}`
+	local owned = panel:FindFirstChild("Owned", true)
+	if owned then
+		owned.Text = if #list == 1 then `1 {noun[1]}` else `{#list} {noun[2]}`
+	end
+	local head = panel:FindFirstChild("PageHead")
+	if head then
+		head.Title.Text = string.upper(TAB_TITLE[tab] or tab)
+	end
 	local pager = panel.Header:FindFirstChild("Pager")
 	if pager then
 		pager.Visible = maxPage > 1

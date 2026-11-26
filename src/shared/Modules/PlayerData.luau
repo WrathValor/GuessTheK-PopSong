@@ -115,7 +115,7 @@ do
 					data.Rewards.Claimed.Add(pack.Id)
 				end
 				data.Currencies.Won.Increment(pack.Coins)
-				Currencies.Data(data, "Tickets").Increment(bonus.Tickets)
+				Currencies.Data(data, "GenPacks").Increment(bonus.GenPacks)
 				if pack.Stage and not data.Inventory.Stages.Has(pack.Stage) then
 					data.Inventory.Stages.Add(pack.Stage)
 				end
@@ -135,7 +135,10 @@ for _, bundle in ShopCatalog.Bundles do
 			Category = "Bundle",
 			Grant = function(data)
 				data.Rewards.Bundles[bundle.Id].Increment(1) -- (the shop stops at bundle.Limit)
-				if (bundle.Tickets or 0) > 0 then
+				if (bundle.GenPacks or 0) > 0 then
+					Currencies.Data(data, "GenPacks").Increment(bundle.GenPacks)
+				end
+				if (bundle.Tickets or 0) > 0 then -- (none since 26 Nov: Robux bundles give gen packs)
 					Currencies.Data(data, "Tickets").Increment(bundle.Tickets)
 				end
 				if (bundle.Coins or 0) > 0 then
@@ -252,6 +255,8 @@ local PlayerData = Scribe({
 			-- roll tickets: each opens a free pack (Engine/AlbumService). Upgrades: card upgrades,
 			-- gone with the song Index (Currencies.UPGRADE_COINS); kept so old saves still read
 			Tickets = Count(),
+			-- gen packs bought with Robux: each opens a whole gen pack (Currencies.GenPacks)
+			GenPacks = Count(),
 			Upgrades = Count(),
 			Packs = Scribe.SetOf(Id(80)), -- song packs completed (pack ids, see Modules/Library/Packs)
 			Songs = Scribe.SetOf(Id(80)), -- songs owned (bought in the shop or pulled from a roll), by Song Id
@@ -263,6 +268,10 @@ local PlayerData = Scribe({
 			-- group badges (Modules/Library/Ladders): the highest rung paid, by ladder key ("C:aespa",
 			-- "S:aespa"; "L:aespa" = 1 once Legend is paid). Kept for good, so a sold card never drops a rung
 			Ladders = Scribe.MapOf("string", Count(), { MaxKeys = 400, MaxKeyLength = 64 }),
+			-- the Gifts inbox (Engine/GiftInbox): gift Id → the gift as JSON, until it's claimed
+			Gifts = Scribe.MapOf("string", Scribe.String("", { MaxLength = 600 }), { MaxKeys = 40, MaxKeyLength = 40 }),
+			-- claimed gift Ids → when (os.time), so a repeated delivery isn't paid twice (kept 90 days)
+			GiftsSeen = Scribe.MapOf("string", Count(), { MaxKeys = 600, MaxKeyLength = 40 }),
 			DupesInRow = Count(), -- song roll: duplicates since the last new song (RollConstants.PITY)
 			DuelPack = Scribe.String("", { MaxLength = 80 }), -- legacy: bias packs are gone (owned songs just count)
 			-- K-POPPED! photocards (Modules/Library/Albums, Engine/AlbumService): copies owned, by
@@ -285,6 +294,8 @@ local PlayerData = Scribe({
 			-- starred groups ("A|B", AlbumConstants.FAVOURITES_MAX): their group packs are always on
 			-- sale. And premium packs opened since the last Signed Polaroid (PREMIUM_GUARANTEE).
 			FavGroups = Scribe.String("", { MaxLength = 120 }),
+			-- the Shop's coin upgrades (Modules/Library/Upgrades): key → level bought
+			ShopUpgrades = Scribe.MapOf("string", Count(), { MaxKeys = 16, MaxKeyLength = 16 }),
 			PremiumPity = Count(),
 			-- serial numbers of numbered cards (AlbumConstants rarity Serial = true), by card id:
 			-- "3,17", lowest first (Modules/Library/Albums.Serials, Engine/SerialService). Copies
@@ -295,6 +306,9 @@ local PlayerData = Scribe({
 			-- on the card ("Rolled 25 Nov 2026", a Signed Polaroid's date stamp).
 			CardDates = Scribe.MapOf("string", Count(), { MaxKeys = 2500, MaxKeyLength = 80 }),
 			SerialsPending = Scribe.MapOf("string", Count(), { MaxKeys = 200, MaxKeyLength = 80 }),
+			-- the Market (Engine/MarketService): your cards on sale, and sold ones waiting to be
+			-- collected, by listing id → JSON { C, R, P, A, E, S, B? } (MarketConstants.Decode)
+			Listings = Scribe.MapOf("string", Scribe.String("", { MaxLength = 300 }), { MaxKeys = 40, MaxKeyLength = 40 }),
 		},
 
 		-- boost potions: seconds of play left on each clock (Engine/BoostService)
@@ -309,6 +323,9 @@ local PlayerData = Scribe({
 			Claimed = Scribe.SetOf(Id(40)), -- one-off rewards already collected ("Group", codes…)
 			StarterAt = Count(), -- os.time the starter offer began (0 = not yet; ShopCatalog.DebutPack.Bonus)
 			Bundles = Scribe.MapOf("string", Count(), { MaxKeys = 20, MaxKeyLength = 20 }), -- times each ShopCatalog.Bundles entry was bought
+			-- coin-item gifts sent today (Engine/GiftService.DAILY_COIN_GIFTS): the UTC day, the coins
+			GiftDay = Count(),
+			GiftCoins = Count(),
 			-- VIP Pass daily perks (Engine/VIPService): the UTC day (os.time() // 86400) each was last used
 			VIPTicketDay = Count(), -- the free roll ticket
 			VIPSaveDay = Count(), -- the free Save Streak
@@ -322,8 +339,17 @@ local PlayerData = Scribe({
 				Duels = Count(),
 				Solo = Count(),
 				Perfect = Count(),
-				NewSongs = Count(),
+				NewSongs = Count(), -- (new photocards)
 				DailySong = Count(), -- Daily Songs solved
+				-- K-POPPED! loops (RewardsService.RecordStats)
+				Packs = Count(),
+				Lucky = Count(),
+				Gold = Count(),
+				Albums = Count(),
+				Collects = Count(),
+				BinderCoins = Count(),
+				Pins = Count(),
+				Sold = Count(),
 			},
 			QuestClaimed = Scribe.SetOf(Id(20)), -- quest Ids claimed today, plus "Bonus"
 			-- today's one quest swap (RewardsCatalog.DailyQuests): the quest swapped out and in
@@ -342,6 +368,14 @@ local PlayerData = Scribe({
 				Perfect = Count(),
 				NewSongs = Count(),
 				DailySong = Count(), -- Daily Songs solved this week
+				Packs = Count(),
+				Lucky = Count(),
+				Gold = Count(),
+				Albums = Count(),
+				Collects = Count(),
+				BinderCoins = Count(),
+				Pins = Count(),
+				Sold = Count(),
 			},
 			WeekClaimed = Scribe.SetOf(Id(20)), -- weekly quest Ids claimed this week, plus "Bonus"
 			LevelClaimed = Scribe.SetOf(Id(8)), -- level rewards claimed (RewardsCatalog.LEVEL_REWARDS), as "5", "10"…
@@ -400,6 +434,9 @@ local PlayerData = Scribe({
 			-- opened full size still plays its effects (Modules/UI/CardDecor)
 			LowEffects = false,
 			TutorialDone = false, -- finished or skipped the first-join tutorial
+			-- the K-POPPED! onboarding (design boards 62–62e, TutorialController/Flow): the last
+			-- step reached ("" = not started, "Done" = finished or skipped; SettingsService)
+			Onboard = Scribe.String("", { MaxLength = 16 }),
 			FavoritePrompted = false, -- shown the one-time "favourite the game" prompt (Client/FavoritePrompt)
 			Hints = Scribe.SetOf(Id(16)), -- one-time hints already seen: lobby nudges ("Money", "Rewards") + screen guides ("Guide…")
 		},

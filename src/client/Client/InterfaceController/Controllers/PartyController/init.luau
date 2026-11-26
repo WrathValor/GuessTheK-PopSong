@@ -24,6 +24,7 @@ local Promise = require(ReplicatedStorage.Packages.promise)
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
+local Notify = require(ReplicatedStorage.Modules.UI.Notify)
 local PadBinds = require(ReplicatedStorage.Modules.UI.PadBinds)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
@@ -887,30 +888,7 @@ end
 -- [[ Toast ]]
 
 function Party:_toast(text: string)
-	local t = self._frame.Toast
-	t.Text = text
-	t.Visible = true
-	Juice.SlideIn(t, -10)
-	local token = {}
-	self._toastToken = token
-	task.delay(2.6, function()
-		if self._toastToken == token then
-			t.Visible = false
-		end
-	end)
-	-- the toast lives in the Party frame: show the frame even when the card is closed
-	if not self._frame.Visible then
-		self._frame.Visible = true
-		for _, p in PAGES do
-			self._frame[p].Visible = false
-			self._frame[p .. "Shadow"].Visible = false
-		end
-		task.delay(2.7, function()
-			if self._toastToken == token and self.State == "Inactive" then
-				self._frame.Visible = false
-			end
-		end)
-	end
+	Notify.Toast(text)
 end
 
 -- [[ Packets ]]

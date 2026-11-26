@@ -28,6 +28,8 @@ local Collection = require(script.Parent.Collection)
 local Ladders = require(ReplicatedStorage.Modules.Library.Ladders)
 local Albums = require(ReplicatedStorage.Modules.Library.Albums)
 local BinderService = require(script.Parent.BinderService)
+local AlbumService = require(script.Parent.AlbumService)
+local Upgrades = require(ReplicatedStorage.Modules.Library.Upgrades)
 
 local ShopRemote = Bridgenet.ReferenceBridge("ShopRemote")
 
@@ -308,7 +310,37 @@ local function starterStart(player: Player, data, packet)
 	data.Rewards.StarterAt.Set(os.time())
 end
 
+-- [[ Upgrades ]]
+-- The next level of one coin upgrade (Modules/Library/Upgrades, board 50). What it changes is
+-- settled at the old level first, in the same batch: the binder (Slots, Payout, Storage) and
+-- the free-pack clock (Stash, Refill), so no hours are paid at the new level twice.
+
+local function buyUpgrade(player: Player, data, packet)
+	local key = packet.Id
+	local up = type(key) == "string" and Upgrades.Get(key)
+	if not up then
+		return reply(player, packet, false, "That upgrade isn't in the shop")
+	end
+	local level = Upgrades.Levels(data)[key]
+	local price = Upgrades.Cost(key, level)
+	if not price then
+		return reply(player, packet, false, `{up.Name} is maxed`)
+	end
+	local now = os.time()
+	local ok = spend(player, data, price, function()
+		BinderService.Bank(data, now)
+		AlbumService.SettleFree(data, now)
+		data.Inventory.ShopUpgrades[key].Set(level + 1)
+	end, "Roll", `Upgrade{key}`)
+	if not ok then
+		packet = table.clone(packet)
+		packet.Short = { Kind = "Coins", Need = price, Name = up.Name }
+	end
+	reply(player, packet, ok, if ok then `{up.Name} upgraded: {Upgrades.Effect(key, level + 1)}` else "Not enough coins")
+end
+
 local ACTIONS = {
+	Upgrade = buyUpgrade,
 	StarterStart = starterStart,
 	BuyStyle = buyStyle,
 	EquipStyle = equipStyle,
@@ -353,7 +385,7 @@ end
 ShopService.CheckPacksComplete = checkPacksComplete
 
 -- [[ Robux analytics ]]
--- productId → { Key, Kind, Sku, Coins?, Tickets?, Upgrades? } for every Robux product
+-- productId → { Key, Kind, Sku, Coins?, GenPacks?, Upgrades? } for every Robux product
 local robuxProducts: { [number]: any } = {}
 for _, b in ShopCatalog.CoinBundles do
 	robuxProducts[b.ProductId] = { Key = b.Id, Kind = "Coins", Sku = "CoinBundle", Coins = b.Amount }
@@ -365,11 +397,11 @@ if ShopCatalog.DebutPack then
 	local d = ShopCatalog.DebutPack
 	robuxProducts[d.ProductId] = { Key = d.Id, Kind = "Bundle", Sku = "DebutPack", Coins = d.Coins }
 	if d.Bonus and (d.Bonus.ProductId or 0) > 0 then
-		robuxProducts[d.Bonus.ProductId] = { Key = d.Id .. "Bonus", Kind = "Bundle", Sku = "DebutPackBonus", Coins = d.Coins, Tickets = d.Bonus.Tickets }
+		robuxProducts[d.Bonus.ProductId] = { Key = d.Id .. "Bonus", Kind = "Bundle", Sku = "DebutPackBonus", Coins = d.Coins, GenPacks = d.Bonus.GenPacks }
 	end
 end
 for _, b in ShopCatalog.Bundles do
-	robuxProducts[b.ProductId] = { Key = b.Id, Kind = "Bundle", Sku = "Bundle", Coins = b.Coins, Tickets = b.Tickets, Upgrades = b.Upgrades }
+	robuxProducts[b.ProductId] = { Key = b.Id, Kind = "Bundle", Sku = "Bundle", Coins = b.Coins, GenPacks = b.GenPacks, Upgrades = b.Upgrades }
 end
 if (DuelConstants.SAVE_STREAK_PRODUCT_ID or 0) > 0 then
 	robuxProducts[DuelConstants.SAVE_STREAK_PRODUCT_ID] = { Key = "SaveStreak", Kind = "Streak", Sku = "SaveStreak" }
@@ -397,7 +429,7 @@ local function logRobuxPrompt(player: Player, key: string, kind: string, purchas
 		if not ok or not data then
 			return
 		end
-		for _, currency in { "Coins", "Tickets", "Upgrades" } do
+		for _, currency in { "Coins", "Tickets", "GenPacks", "Upgrades" } do
 			local amount = product[currency]
 			if amount and amount > 0 then
 				Analytics.Economy(player, "Source", currency, amount, Currencies.Data(data, currency).Get(), "RobuxBundle", product.Sku)

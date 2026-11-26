@@ -21,6 +21,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local AlbumConstants = require(ReplicatedStorage.Constants.AlbumConstants)
 local Songs = require(script.Parent.Songs)
+local Upgrades = require(script.Parent.Upgrades)
 
 local Albums = {}
 
@@ -59,6 +60,8 @@ function Albums.Rarity(key: string): Rarity?
 end
 
 -- 1 (Standard) … 7 (One of One); 0 for an unknown key
+local LUCKY_FROM = "luckydraw" -- Luck (Upgrades) lifts this rarity and every one above it
+
 function Albums.RarityRank(key: string): number
 	return rarityRank[key] or 0
 end
@@ -67,17 +70,30 @@ end
 -- or is closed for this album (`closed[key]`, a claimed One of One)
 -- gives its share to FALLBACK_RARITY.
 -- `minKey` (premium packs) leaves out every rarity below it and scales the rest up to 1.
-function Albums.RarityOdds(closed: { [string]: boolean }?, minKey: string?): { { Rarity: Rarity, Odds: number } }
+-- `luck` (Upgrades.Luck, 1 = none) multiplies Lucky Draw and up; Standard gives up the difference.
+function Albums.RarityOdds(closed: { [string]: boolean }?, minKey: string?, luck: number?): { { Rarity: Rarity, Odds: number } }
+	local base: { [string]: number } = {}
+	local extra = 0
+	for _, rarity in AlbumConstants.RARITIES do
+		local odds = rarity.Odds
+		if luck and luck ~= 1 and (rarityRank[rarity.Key] or 0) >= (rarityRank[LUCKY_FROM] or 99) then
+			extra += odds * (luck - 1)
+			odds *= luck
+		end
+		base[rarity.Key] = odds
+	end
+	local first = AlbumConstants.RARITIES[1].Key
+	base[first] = math.max(0, base[first] - extra)
 	local moved = 0
 	for _, rarity in AlbumConstants.RARITIES do
 		if not rarity.Live or (closed and closed[rarity.Key]) then
-			moved += rarity.Odds
+			moved += base[rarity.Key]
 		end
 	end
 	local out = {}
 	for _, rarity in AlbumConstants.RARITIES do
 		if rarity.Live and not (closed and closed[rarity.Key]) then
-			local odds = rarity.Odds + (if rarity.Key == AlbumConstants.FALLBACK_RARITY then moved else 0)
+			local odds = base[rarity.Key] + (if rarity.Key == AlbumConstants.FALLBACK_RARITY then moved else 0)
 			table.insert(out, { Rarity = rarity, Odds = odds })
 		end
 	end
@@ -366,9 +382,9 @@ end
 
 -- The odds for the album page, as they apply to this player: { [member key] = { [rarity key] =
 -- chance } }, adding up to 1 over the whole album. `closed` as in RarityOdds.
-function Albums.Odds(album: Album, bias: string?, closed: { [string]: boolean }?): { [string]: { [string]: number } }
+function Albums.Odds(album: Album, bias: string?, closed: { [string]: boolean }?, luck: number?): { [string]: { [string]: number } }
 	local weights, total = memberWeights(album, bias)
-	local rarities = Albums.RarityOdds(closed)
+	local rarities = Albums.RarityOdds(closed, nil, luck)
 	local out = {}
 	for i, member in album.Members do
 		local row = {}
@@ -382,8 +398,8 @@ end
 
 -- One pull: (member key, rarity key). The rarity is rolled first, then the member (bias
 -- weighted). `fresh(cardId)` (pity) limits the member to cards it says are new, when any are.
-function Albums.Roll(album: Album, bias: string?, rng: Random, closed: { [string]: boolean }?, fresh: ((string) -> boolean)?, minKey: string?): (string, string)
-	local rarities = Albums.RarityOdds(closed, minKey)
+function Albums.Roll(album: Album, bias: string?, rng: Random, closed: { [string]: boolean }?, fresh: ((string) -> boolean)?, minKey: string?, luck: number?): (string, string)
+	local rarities = Albums.RarityOdds(closed, minKey, luck)
 	local roll = rng:NextNumber()
 	local rarity = rarities[#rarities].Rarity
 	for _, entry in rarities do
@@ -423,11 +439,11 @@ end
 
 -- The odds for a group's pull page: { [album id] = { [member key] = { [rarity key] = chance } } },
 -- adding up to 1 over the whole group.
-function Albums.GroupOdds(artist: string, bias: string?, closed: { [string]: boolean }?): { [string]: { [string]: { [string]: number } } }
+function Albums.GroupOdds(artist: string, bias: string?, closed: { [string]: boolean }?, luck: number?): { [string]: { [string]: { [string]: number } } }
 	local albums = Albums.PullAlbums(artist)
 	local out = {}
 	for _, album in albums do
-		local odds = Albums.Odds(album, bias, closed)
+		local odds = Albums.Odds(album, bias, closed, luck)
 		for _, row in odds do
 			for key, p in row do
 				row[key] = p / #albums
@@ -440,23 +456,23 @@ end
 
 -- One pull from a group: (album, member key, rarity key), or nil if the group has no albums
 -- with art (PullAlbums).
-function Albums.RollGroup(artist: string, bias: string?, rng: Random, closed: { [string]: boolean }?, fresh: ((string) -> boolean)?, minKey: string?): (Album?, string?, string?)
+function Albums.RollGroup(artist: string, bias: string?, rng: Random, closed: { [string]: boolean }?, fresh: ((string) -> boolean)?, minKey: string?, luck: number?): (Album?, string?, string?)
 	local albums = Albums.PullAlbums(artist)
 	if #albums == 0 then
 		return nil, nil, nil
 	end
 	local album = albums[rng:NextInteger(1, #albums)]
-	local member, rarity = Albums.Roll(album, bias, rng, closed, fresh, minKey)
+	local member, rarity = Albums.Roll(album, bias, rng, closed, fresh, minKey, luck)
 	return album, member, rarity
 end
 
 -- A pack's cards are shown worst to best, so its last card is the best of `size`: the chance
 -- the last card is each rarity, { [rarity key] = chance } (the per-card odds for size 1).
 -- Premium packs roll size - 1 cards from `cardMin` up and one from `lastMin` up.
-function Albums.LastOdds(size: number, closed: { [string]: boolean }?, cardMin: string?, lastMin: string?): { [string]: number }
+function Albums.LastOdds(size: number, closed: { [string]: boolean }?, cardMin: string?, lastMin: string?, luck: number?): { [string]: number }
 	local function cumulative(minKey: string?): { [string]: number }
 		local out, total = {}, 0
-		for _, entry in Albums.RarityOdds(closed, minKey) do
+		for _, entry in Albums.RarityOdds(closed, minKey, luck) do
 			total += entry.Odds
 			out[entry.Rarity.Key] = math.min(1, total)
 		end
@@ -465,7 +481,7 @@ function Albums.LastOdds(size: number, closed: { [string]: boolean }?, cardMin: 
 	local cards, last = cumulative(cardMin), cumulative(lastMin or cardMin)
 	local out = {}
 	local belowCards, belowLast = 0, 0
-	for _, entry in Albums.RarityOdds(closed) do
+	for _, entry in Albums.RarityOdds(closed, nil, luck) do
 		local key = entry.Rarity.Key
 		local c = cards[key] or belowCards
 		local l = last[key] or belowLast
@@ -510,12 +526,12 @@ Albums.ArtistsInGen = Albums.ArtistsIn
 
 -- One card from a random group of a pool (ArtistsIn; nil = any group): every group is equally
 -- likely, then RollGroup with no bias (your bias only counts in its own group's packs).
-function Albums.RollGen(gen: string?, rng: Random, closed: { [string]: boolean }?, fresh: ((string) -> boolean)?, minKey: string?): (Album?, string?, string?)
+function Albums.RollGen(gen: string?, rng: Random, closed: { [string]: boolean }?, fresh: ((string) -> boolean)?, minKey: string?, luck: number?): (Album?, string?, string?)
 	local artists = Albums.ArtistsIn(gen)
 	if #artists == 0 then
 		return nil, nil, nil
 	end
-	return Albums.RollGroup(artists[rng:NextInteger(1, #artists)], nil, rng, closed, fresh, minKey)
+	return Albums.RollGroup(artists[rng:NextInteger(1, #artists)], nil, rng, closed, fresh, minKey, luck)
 end
 
 -- starred groups, from Inventory.FavGroups ("A|B")
@@ -569,10 +585,11 @@ function Albums.InRotation(artist: string, bias: string?, now: number, favourite
 end
 
 -- The free-pack clock: (free packs now, when the current refill started, seconds until the
--- next one or nil while full). One refills every FREE_PACK_SECONDS up to FREE_PACK_CAP; the
--- clock doesn't run while the bank is full, so `at` comes back as `now` then.
-function Albums.FreePacks(packs: number, at: number, now: number): (number, number, number?)
-	local cap, period = AlbumConstants.FREE_PACK_CAP, AlbumConstants.FREE_PACK_SECONDS
+-- next one or nil while full). One refills every FREE_PACK_SECONDS up to FREE_PACK_CAP (both
+-- moved by the Refill and Stash upgrades: lv = Upgrades.Levels); the clock doesn't run while
+-- the bank is full, so `at` comes back as `now` then.
+function Albums.FreePacks(packs: number, at: number, now: number, lv: Upgrades.Levels?): (number, number, number?)
+	local cap, period = Upgrades.StashCap(lv), Upgrades.RefillSeconds(lv)
 	if packs >= cap then
 		return packs, now, nil
 	end
@@ -619,17 +636,17 @@ function Albums.PinValue(list: { string }): string
 	return table.concat(list, "|")
 end
 
--- how many pin slots a player has unlocked (the same for everyone for now)
-function Albums.PinSlots(): number
-	return AlbumConstants.PIN_SLOTS
+-- how many pin slots a player has unlocked: PIN_SLOTS + the Slots upgrade (lv = Upgrades.Levels)
+function Albums.PinSlots(lv: Upgrades.Levels?): number
+	return Upgrades.PinSlots(lv)
 end
 
 -- The groups your duels lean towards: your bias's group ("Bias") and the groups of your pinned
 -- cards ("Pinned"), artist → kind. Their songs come up more often (DuelConstants.OWNED_WEIGHT).
-function Albums.FavouredGroups(cards: { [string]: number }, bias: string?, pins: string?): { [string]: string }
+function Albums.FavouredGroups(cards: { [string]: number }, bias: string?, pins: string?, lv: Upgrades.Levels?): { [string]: string }
 	local out = {}
 	for i, id in Albums.Pins(pins) do
-		if i > Albums.PinSlots() then
+		if i > Albums.PinSlots(lv) then
 			break
 		end
 		local info = (cards[id] or 0) > 0 and Albums.Card(id)
@@ -645,18 +662,20 @@ function Albums.FavouredGroups(cards: { [string]: number }, bias: string?, pins:
 end
 
 -- the pinned-card multiplier: ×2 with the 2× Coins pass (ShopCatalog.Passes "DoubleCoins"),
--- the same pass that doubles duel coins. Potions stay duel-only. passes = data.GamePasses.
+-- the same pass that doubles duel coins, × the Payout upgrade (lv = Upgrades.Levels). Potions
+-- stay duel-only. passes = data.GamePasses.
 Albums.PIN_PASS = "DoubleCoins"
-function Albums.Boost(passes): number
-	return if passes and passes.Has(Albums.PIN_PASS) == true then 2 else 1
+function Albums.Boost(passes, lv: Upgrades.Levels?): number
+	local pass = if passes and passes.Has(Albums.PIN_PASS) == true then 2 else 1
+	return pass * Upgrades.Payout(lv)
 end
 
 -- the binder's coins an hour: the pinned cards you still own (Inventory.Cards, Inventory.Pins),
--- × boost (Albums.Boost; 1 when left out)
-function Albums.Rate(cards: { [string]: number }, bias: string?, pins: string?, boost: number?): number
+-- × boost (Albums.Boost; 1 when left out), over the slots unlocked (lv = Upgrades.Levels)
+function Albums.Rate(cards: { [string]: number }, bias: string?, pins: string?, boost: number?, lv: Upgrades.Levels?): number
 	local total = 0
 	for i, id in Albums.Pins(pins) do
-		if i > Albums.PinSlots() then
+		if i > Albums.PinSlots(lv) then
 			break
 		end
 		total += Albums.EarnPerHour(id, cards[id] or 0, bias)
@@ -676,10 +695,11 @@ end
 
 -- Coins waiting in the binder (Engine/BinderService): `bank` centi-coins already banked plus
 -- what `rate` (coins an hour) earned since `since`, at `share` of it (1 online, OFFLINE_EARN for
--- time spent offline). Never more than BINDER_CAP_SECONDS of full-rate earnings.
+-- time spent offline). Never more than BINDER_CAP_SECONDS (+ the Storage upgrade, lv =
+-- Upgrades.Levels) of full-rate earnings.
 -- Returns (whole coins, exact amount) – the exact one is for a ticking counter.
-function Albums.Waiting(bank: number, since: number, rate: number, now: number, share: number?): (number, number)
-	local cap = AlbumConstants.BINDER_CAP_SECONDS
+function Albums.Waiting(bank: number, since: number, rate: number, now: number, share: number?, lv: Upgrades.Levels?): (number, number)
+	local cap = Upgrades.CapSeconds(lv)
 	local elapsed = math.clamp(now - since, 0, cap)
 	local exact = math.min(bank / 100 + rate * (share or 1) * elapsed / 3600, rate * cap / 3600)
 	exact = math.max(exact, 0)

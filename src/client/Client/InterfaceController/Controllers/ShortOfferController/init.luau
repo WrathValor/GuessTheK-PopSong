@@ -72,7 +72,7 @@ end
 -- the POPULAR ticket bundle (else the smallest)
 local function ticketPack()
 	local list = forSale(ShopCatalog.RollBundles, function(b)
-		return b.Currency == "Tickets"
+		return b.Currency == "GenPacks"
 	end)
 	for _, b in list do
 		if b.Tag == "POPULAR" then

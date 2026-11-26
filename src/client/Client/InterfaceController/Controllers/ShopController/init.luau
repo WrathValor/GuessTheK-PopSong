@@ -1,6 +1,9 @@
 --| ShopController
--- The shop (Interface.Frames.Shop, built in Studio from the "Shop v3" board): one scrolling
--- page under the usual header. The order (design board "Money 4 · shop order for new players",
+-- The shop (Interface.Frames.Shop, built in Studio from the "Shop v3" board, made full screen
+-- by Build.FullScreen from boards 50 + 51): six tabs down the left (TABS: Featured, Upgrades,
+-- Stage style, Profile style, Boosts + passes, Coins), each its own page. The sections below
+-- all live in one scroll and each tab shows its own; Upgrades is a page of its own
+-- (Shop:_fillUpgrades, Modules/Library/Upgrades). The order (design board "Money 4 · shop order for new players",
 -- Shop:_order): a player without the Debut Pack sees it first, then the passes, then the
 -- featured set; once it's bought the passes lead and the pack drops into "Bundles". Then the
 -- Headliner (the featured bundle), "Bundles" (ShopCatalog.Bundles: tickets + upgrades +
@@ -18,8 +21,8 @@
 -- what they already own reads "<name> has it", and buys go to GiftRemote (Engine/GiftService)
 -- instead. The header's GiftTag (centre top) says who it's for; its ✕ leaves gift mode. Shop:StartGift(userId) jumps straight in
 -- (the player card's GIFT).
--- Down the left, Panel.Sidebar's tabs jump to a stretch of the page (TABS) and the one you're
--- in stays lit as you scroll.
+-- Down the left, Panel.Sidebar's tabs each open their page (TABS, Shop:SetTab); ScrollTo opens
+-- the tab a section is on first.
 -- The VIP card's ⓘ opens Shop.Perks: the pass's perks from ShopCatalog
 -- ("Money 12b") with a Get VIP button that prompts the pass.
 -- Fills everything from ShopCatalog + the player's data;
@@ -39,15 +42,17 @@ local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Client
 local ShopCatalog = require(ReplicatedStorage.Constants.ShopCatalog)
 local CosmeticView = require(ReplicatedStorage.Modules.UI.CosmeticView)
-local FitPanel = require(ReplicatedStorage.Modules.UI.FitPanel)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local AnalyticsClient = require(ReplicatedStorage.Modules.AnalyticsClient)
 local FrameTransition = require(ReplicatedStorage.Modules.UI.Animations.FrameTransition)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
+local Notify = require(ReplicatedStorage.Modules.UI.Notify)
 local ShortOffer = require(script.Parent.ShortOfferController)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 local Prices = require(ReplicatedStorage.Modules.Prices)
+local Albums = require(ReplicatedStorage.Modules.Library.Albums)
+local Upgrades = require(ReplicatedStorage.Modules.Library.Upgrades)
 local SeasonArt = require(ReplicatedStorage.Modules.UI.SeasonArt)
 local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
 
@@ -73,10 +78,10 @@ local SCROLL_TWEEN = TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirec
 local ITEM_OWNED = { Stage = "Stages", Mic = "Mics" }
 local ITEM_EQUIPPED = { Stage = "EquippedStage", Mic = "EquippedMic" }
 local PASS_CARDS = { VIP = "VIP", DoubleCoins = "DoubleCoins" } -- card name → ShopCatalog pass id
--- the Rolls section's cards, by Currencies id. Card upgrades went with the song Index; the
--- whole section is hidden in Studio (Visible = false) until we decide what ticket bundles
--- become now that a ticket opens a free pack (claude/Things to take note of.md).
-local ROLL_CARDS = { "Tickets" }
+-- The Rolls section's card (instance name) → the currency its bundles sell. Card upgrades went
+-- with the song Index. The "Tickets" card sells gen packs since 26 Nov 2026 (a whole gen pack
+-- each, ShopCatalog.RollBundles); the section is still hidden in Studio (Visible = false).
+local ROLL_CARDS = { Tickets = "GenPacks" }
 
 local fmt = ShopCatalog.Format
 
@@ -108,6 +113,8 @@ type GiftState = {
 	Owned: { [string]: { [string]: boolean } }?, -- Passes / Sets / Stages / Mics / Banners / Photocards
 	Debut: boolean,
 	Bundles: { [string]: number },
+	Note: string?, -- the Gifts screen's note, sent with coin gifts
+	Away: boolean?, -- not in this server (what they own isn't known)
 }
 local gift: GiftState? = nil
 
@@ -291,17 +298,40 @@ end
 local ORDER_NEW = { "Debut", "Featured", "Headliner", "PassesTitle", "Passes", "BoostsTitle", "Boosts", "BundlesTitle", "Bundles", "RollsTitle", "Rolls", "SetsTitle", "Sets", "PiecesTitle", "Pieces", "StyleTitle", "Style", "Coins", "CodesTitle", "Codes", "Thanks" }
 local ORDER_OWNED = { "Featured", "Headliner", "PassesTitle", "Passes", "BoostsTitle", "Boosts", "BundlesTitle", "Debut", "Bundles", "RollsTitle", "Rolls", "SetsTitle", "Sets", "PiecesTitle", "Pieces", "StyleTitle", "Style", "Coins", "CodesTitle", "Codes", "Thanks" }
 
--- the sidebar's quick-jump tabs (Panel.Sidebar, "Shop v4b"), top to bottom: each scrolls the
--- page to its first section, and lights up while the page is in its stretch
+-- the sidebar's tabs (Panel.Sidebar, design boards 50 + 51), top to bottom. Each opens its own
+-- page: the Scroll sections it lists (in the page's usual order, Shop:_order), or a page of
+-- its own (Panel.Upgrades).
 local TABS = {
-	{ Tab = "Featured", Section = "Featured" },
-	{ Tab = "Perks", Section = "PassesTitle" }, -- passes + boosts
-	{ Tab = "Bundles", Section = "BundlesTitle" }, -- bundles + rolls
-	{ Tab = "Looks", Section = "SetsTitle" }, -- sets, pieces, styles
-	{ Tab = "Coins", Section = "Coins" },
-	{ Tab = "Codes", Section = "CodesTitle" },
+	{ Tab = "Featured", Sections = { "Debut", "Headliner", "BundlesTitle", "Bundles", "RollsTitle", "Rolls" } },
+	{ Tab = "Upgrades", Page = "Upgrades" },
+	{ Tab = "Stage", Sections = { "Featured", "SetsTitle", "Sets", "PiecesTitle", "Pieces" } },
+	{ Tab = "Profile", Sections = { "StyleTitle", "Style" } },
+	{ Tab = "Boosts", Sections = { "PassesTitle", "Passes", "BoostsTitle", "Boosts" } },
+	{ Tab = "Coins", Sections = { "Coins", "CodesTitle", "Codes", "Thanks" } },
 }
-local TAB_ON = C("FFE07A")
+-- the line under "Shop" for each tab
+local TAB_LINES = {
+	Featured = "Packs, bundles and pack tickets",
+	Upgrades = "Upgrades last for good · paid with coins",
+	Stage = "Stage sets, stages and mics in the rotation",
+	Profile = "Banners and photocards",
+	Boosts = "VIP, 2× Coins and potions",
+	Coins = "Coin bundles and codes",
+}
+local TAB_SPEC = {} -- tab name → its TABS entry
+local TAB_OF = {} -- section (or page) name → the tab it's on
+for _, t in TABS do
+	TAB_SPEC[t.Tab] = t
+	for _, name in t.Sections or {} do
+		TAB_OF[name] = t.Tab
+	end
+	if t.Page then
+		TAB_OF[t.Page] = t.Tab
+	end
+end
+local TAB_ON = C("FBF7F0") -- the open tab (cream); the others are cream text on the dark backdrop
+local TAB_YELLOW = C("FFE07A")
+local INK = C("1E1B2E")
 
 -- the coin bundles on sale (a Hidden bundle still grants if bought before, but isn't shown)
 local function shownBundles(): { any }
@@ -317,20 +347,7 @@ end
 -- ----------------------------------- Toast ---------------------------------- --
 
 function Shop:_toast(message: string)
-	local toast = self._frame:FindFirstChild("Toast")
-	if not toast or message == "" then
-		return
-	end
-	toast.Text = message
-	toast.Visible = true
-	Juice.SlideIn(toast, 24)
-	self._toastToken = (self._toastToken or 0) + 1
-	local token = self._toastToken
-	task.delay(2.2, function()
-		if self._toastToken == token then
-			toast.Visible = false
-		end
-	end)
+	Notify.Toast(message)
 end
 
 -- short for something: the "not enough" card offers the pack that covers it (Money 3);
@@ -348,47 +365,25 @@ end
 
 -- --------------------------------- Scrolling -------------------------------- --
 
--- lights the tab for whichever stretch of the page sits at the top of the scroll
+-- the tabs light up: the open one is a cream card with an outline and a hard shadow
 function Shop:_paintTabs()
 	local sidebar = self._frame.Panel:FindFirstChild("Sidebar")
 	if not sidebar then
 		return
 	end
-	local scroll = self._scroll
-	local top = scroll.AbsolutePosition.Y + 40 -- a little way into the page
-	local active = TABS[1].Tab
-	if scroll.CanvasPosition.Y >= scroll.AbsoluteCanvasSize.Y - scroll.AbsoluteWindowSize.Y - 2 and scroll.CanvasPosition.Y > 0 then
-		-- scrolled to the bottom: the last tab that's showing, even if its section is short
-		for i = #TABS, 1, -1 do
-			local tab = sidebar:FindFirstChild(TABS[i].Tab)
-			if tab and tab.Visible then
-				active = TABS[i].Tab
-				break
-			end
-		end
-	else
-		local best = -math.huge
-		for _, t in TABS do
-			local section = scroll:FindFirstChild(t.Section)
-			local y = section and section.Visible and section.AbsolutePosition.Y
-			if y and y <= top and y > best then
-				best, active = y, t.Tab
-			end
-		end
-	end
-	if self._activeTab == active then
-		return
-	end
-	self._activeTab = active
 	for _, t in TABS do
 		local tab = sidebar:FindFirstChild(t.Tab)
 		if tab then
-			local on = t.Tab == active
+			local on = t.Tab == self._tab
 			tab.BackgroundTransparency = if on then 0 else 1
 			tab.BackgroundColor3 = TAB_ON
 			local stroke = tab:FindFirstChildWhichIsA("UIStroke")
 			if stroke then
 				stroke.Enabled = on
+			end
+			local label = tab:FindFirstChild("Label")
+			if label then
+				label.TextColor3 = if on then INK else TAB_ON
 			end
 			local shadow = sidebar:FindFirstChild(t.Tab .. "Shadow")
 			if shadow then
@@ -398,9 +393,65 @@ function Shop:_paintTabs()
 	end
 end
 
+-- shows the open tab's own sections (the ones whose content is there: _showSection) and hides
+-- the rest; the Upgrades tab swaps the scroll for its own page
+function Shop:_applyTab()
+	local spec = TAB_SPEC[self._tab] or TABS[1]
+	for _, t in TABS do
+		for _, name in t.Sections or {} do
+			local section = self._scroll:FindFirstChild(name)
+			if section then
+				section.Visible = t == spec and not self._off[name]
+			end
+		end
+	end
+	self._scroll.Visible = spec.Page == nil
+	local upgrades = self._frame.Panel:FindFirstChild("Upgrades")
+	if upgrades then
+		upgrades.Visible = spec.Page == "Upgrades"
+	end
+	local sub = self._frame.Panel.Header:FindFirstChild("Sub")
+	if sub then
+		sub.Text = TAB_LINES[spec.Tab] or ""
+	end
+	self:_paintTabs()
+end
 
--- Scrolls the page so a section (Featured, Sets, Pieces, Coins, Passes, Codes) sits at the top.
+-- a section's content says whether it shows (no featured set, no Debut Pack…); it only ever
+-- does on its own tab
+function Shop:_showSection(section: GuiObject, show: boolean)
+	self._off[section.Name] = not show or nil
+	section.Visible = show and TAB_OF[section.Name] == self._tab
+end
+
+-- opens a tab (TABS) at the top of its page
+function Shop:SetTab(name: string?)
+	if not (name and TAB_SPEC[name]) then
+		name = TABS[1].Tab
+	end
+	local changed = self._tab ~= name
+	self._tab = name
+	self:_applyTab()
+	if changed then
+		self._scroll.CanvasPosition = Vector2.zero
+	end
+	if name == "Upgrades" then
+		self:_fillUpgrades()
+	end
+end
+
+-- Opens the tab a section is on and scrolls it to the top of the page. Sections: any in TABS
+-- (Featured, Sets, Pieces, Coins, PassesTitle, Codes…) or "Upgrades".
 function Shop:ScrollTo(section: string?, instant: boolean?)
+	local tab = section and TAB_OF[section]
+	if tab and tab ~= self._tab then
+		self:SetTab(tab)
+		-- (the page lays itself out a frame later)
+		task.defer(function()
+			self:ScrollTo(section, true)
+		end)
+		return
+	end
 	local scroll = self._scroll
 	local target = section and scroll:FindFirstChild(section)
 	local y = 0
@@ -417,12 +468,104 @@ function Shop:ScrollTo(section: string?, instant: boolean?)
 	end
 end
 
+-- ---------------------------------- Upgrades -------------------------------- --
+-- Panel.Upgrades (board 50): six cards (Modules/Library/Upgrades), each with its level, what
+-- it gives now → after the next level, a bar, and the next level's price; MAXED once done.
+-- The strip under them adds up what they do for you now. The tab's red count = upgrades you
+-- can afford right now.
+
+local function hm(seconds: number): string
+	return Upgrades.HoursText(seconds)
+end
+
+function Shop:_fillUpgrades()
+	local panel = self._frame.Panel
+	local page = panel:FindFirstChild("Upgrades")
+	local lv = Upgrades.Levels(PlayerData)
+	local coins = PlayerData.Currencies.Won.Get() or 0
+	local affordable = 0
+	self._upLevels = self._upLevels or {}
+	for _, up in Upgrades.LIST do
+		local level = lv[up.Key]
+		local price = Upgrades.Cost(up.Key, level)
+		if price and coins >= price then
+			affordable += 1
+		end
+		local card = page and page:FindFirstChild(up.Key)
+		if card then
+			card.Title.Text = up.Name
+			card.Line.Text = up.Line
+			card.Level.Text = Upgrades.LevelText(up.Key, level)
+			card.Now.Text = if price
+				then `<b>{Upgrades.Effect(up.Key, level)}</b>  →  <b>{Upgrades.Effect(up.Key, level + 1, true)}</b>`
+				else `<b>{Upgrades.Effect(up.Key, level)}</b>`
+			card.Bar.Fill.Size = UDim2.fromScale(level / up.Max, 1)
+			local glow = card:FindFirstChild("Glow")
+			if glow then
+				glow.Enabled = up.Key == "Luck"
+			end
+			local buy = card.Buy
+			buy.Coin.Visible = price ~= nil
+			buy.Amount.Text = if price then fmt(price) else "MAXED"
+			buy.BackgroundColor3 = if price then TAB_YELLOW else MINT
+			buy.Active = price ~= nil
+			buy.AutoButtonColor = false
+			local shadow = card:FindFirstChild("BuyShadow")
+			if shadow then
+				shadow.Visible = price ~= nil
+			end
+			-- a level just bought: the card hops
+			local before = self._upLevels[up.Key]
+			if before and level > before then
+				Juice.Pop(card, 0.12)
+			end
+			self._upLevels[up.Key] = level
+		end
+	end
+	local tab = panel:FindFirstChild("Sidebar") and panel.Sidebar:FindFirstChild("Upgrades")
+	if tab and tab:FindFirstChild("Count") then
+		tab.Count.Visible = affordable > 0 and gift == nil
+		tab.Count.Text = tostring(affordable)
+	end
+	local strip = page and page:FindFirstChild("Summary")
+	if strip then
+		local slots = Albums.PinSlots(lv)
+		local rate = Albums.Rate(PlayerData.Inventory.Cards.Get() or {}, PlayerData.Inventory.Bias.Get(), PlayerData.Inventory.Pins.Get(), Albums.Boost(PlayerData.GamePasses, lv), lv)
+		local rateText = if rate % 1 == 0 then fmt(rate) else string.format("%.1f", rate)
+		local sep = '<font transparency="0.65">  |  </font>'
+		strip.Text.Text = `{slots} pin slots · <b>+{lv.Payout * 2}%</b> · <b>{rateText}</b>/hr`
+			.. sep .. `keeps earning <b>{hm(Upgrades.CapSeconds(lv))}</b> away`
+			.. sep .. `free packs: <b>{Upgrades.StashCap(lv)}</b> banked, 1 every <b>{hm(Upgrades.RefillSeconds(lv))}</b>`
+			.. sep .. `luck <b>+{lv.Luck}%</b>`
+	end
+end
+
+function Shop:_buyUpgrade(key: string)
+	local up = Upgrades.Get(key)
+	if not up then
+		return
+	end
+	if gift then
+		self:_toast("Upgrades are just for you: they can't be gifted")
+		return
+	end
+	local price = Upgrades.Cost(key, Upgrades.Levels(PlayerData)[key])
+	if not price then
+		return
+	end
+	if (PlayerData.Currencies.Won.Get() or 0) < price then
+		self:_notEnoughCoins(price, up.Name)
+		return
+	end
+	ShopRemote:Fire({ Action = "Upgrade", Id = key })
+end
+
 -- ---------------------------------- Sections -------------------------------- --
 
 function Shop:_fillFeatured()
 	local face = self._scroll.Featured.Face
 	local set, ends = ShopCatalog.Featured()
-	self._scroll.Featured.Visible = set ~= nil
+	self:_showSection(self._scroll.Featured, set ~= nil)
 	face:SetAttribute("SetId", set and set.Id or nil)
 	if not set then
 		return
@@ -445,7 +588,7 @@ function Shop:_fillDebut()
 	-- shown once the product exists. Once bought it stays, with a "Bought" button: a pack
 	-- that vanishes from the shop reads as "my data got wiped"
 	local show = pack ~= nil and (pack.ProductId or 0) > 0
-	section.Visible = show
+	self:_showSection(section, show)
 	if not show then
 		return
 	end
@@ -457,7 +600,7 @@ function Shop:_fillDebut()
 	local list = pack.Items
 	if left > 0 then
 		list = table.clone(pack.Items)
-		table.insert(list, { Label = `×{pack.Bonus.Tickets}`, Sub = "Roll tickets", Colour = "FFD2DE", Image = Currencies.Tickets.Icon, Bonus = true })
+		table.insert(list, { Label = `×{pack.Bonus.GenPacks}`, Sub = "Gen packs", Colour = "FFE07A", Image = Currencies.GenPacks.Icon, Bonus = true })
 	end
 	self._debutBonus = left > 0
 	if face:FindFirstChild("Count") then
@@ -542,8 +685,8 @@ function Shop:_order()
 end
 
 -- [[ Bundles ]] one banner from a ShopCatalog.Bundles entry (Build.AddBundles made them)
-local BUNDLE_KIND = { Tickets = "Roll tickets", Upgrades = "Card upgrades", Coins = "Coins" }
-local BUNDLE_ART = { Tickets = "DCD3FF", Upgrades = "9ED8F5", Coins = "FFE07A", Stage = "D8F6F2", Mic = "D8F6F2" } -- (the Spotlight set's teal)
+local BUNDLE_KIND = { GenPacks = "Gen packs", Tickets = "Pack tickets", Upgrades = "Card upgrades", Coins = "Coins" }
+local BUNDLE_ART = { GenPacks = "FFF3B8", Tickets = "DCD3FF", Upgrades = "9ED8F5", Coins = "FFE07A", Stage = "D8F6F2", Mic = "D8F6F2" } -- (the Spotlight set's teal)
 
 -- the shop's coin pile that fits an amount
 local function pileFor(amount: number): string
@@ -905,8 +1048,8 @@ function Shop:_fillRolls()
 	if not section then
 		return
 	end
-	for _, id in ROLL_CARDS do
-		local face = section:FindFirstChild(id)
+	for cardName, id in ROLL_CARDS do
+		local face = section:FindFirstChild(cardName)
 		if face then
 			face.Have.Text = `You have {fmt(Currencies.Count(LOCAL_PLAYER, id))}`
 			local bundles = ShopCatalog.RollBundlesFor(id)
@@ -1047,7 +1190,8 @@ function Shop:_refresh()
 	self:_fillCoins()
 	self:_fillPasses()
 	self:_fillBoosts()
-	self:_paintTabs()
+	self:_fillUpgrades()
+	self:_applyTab()
 end
 
 -- ---------------------------------- Gifting ---------------------------------- --
@@ -1083,6 +1227,10 @@ function Shop:_paintGiftHeader()
 			shadow.Visible = show
 		end
 	end
+	local divider = sidebar:FindFirstChild("GiftDivider")
+	if divider then
+		divider.Visible = gift == nil
+	end
 	if gift and header:FindFirstChild("GiftTag") then
 		header.GiftTag.Label.Text = gift.Name
 	end
@@ -1090,7 +1238,7 @@ function Shop:_paintGiftHeader()
 	for _, name in { "CodesTitle", "Codes" } do
 		local section = self._scroll and self._scroll:FindFirstChild(name)
 		if section then
-			section.Visible = gift == nil
+			self:_showSection(section, gift == nil)
 		end
 	end
 	for _, name in { "Codes", "CodesShadow" } do
@@ -1099,17 +1247,17 @@ function Shop:_paintGiftHeader()
 			tab.Visible = gift == nil
 		end
 	end
-	self._activeTab = nil -- repaint the tabs for the new page
-	self:_paintTabs()
+	self:_applyTab()
 end
 
 -- into gift mode for a player in this server (the page repaints once their inventory is in)
-function Shop:StartGift(userId: number)
+-- (the Gifts screen passes a name and note: they can be anyone, in any server or offline)
+function Shop:StartGift(userId: number, name: string?, note: string?)
 	local target = Players:GetPlayerByUserId(userId)
-	if not target or target == LOCAL_PLAYER then
+	if userId == LOCAL_PLAYER.UserId or (not target and not name) then
 		return
 	end
-	gift = { UserId = userId, Name = target.DisplayName, Owned = nil, Debut = false, Bundles = {} }
+	gift = { UserId = userId, Name = if target then target.DisplayName else name :: string, Owned = nil, Debut = false, Bundles = {}, Note = note }
 	GiftRemote:Fire({ Action = "Owned", To = userId })
 	self:_showPicker(false)
 	self:_paintGiftHeader()
@@ -1133,7 +1281,7 @@ function Shop:_giftCoins(kind: string, id: string)
 	if not gift.Owned then
 		return -- (still loading what they own)
 	end
-	GiftRemote:Fire({ Action = "Coins", Kind = kind, Id = id, To = gift.UserId })
+	GiftRemote:Fire({ Action = "Coins", Kind = kind, Id = id, To = gift.UserId, Note = gift.Note })
 end
 
 -- Shop.GiftPick: everyone else in the server (rows cloned from List.Template), pick one,
@@ -1287,7 +1435,9 @@ function Shop:Initialize(interface)
 	local panel = self._frame.Panel
 	local scroll = panel.Scroll
 	self._scroll = scroll
-	FitPanel.Watch(self._frame, self._janitor)
+	-- (full screen now: no FitPanel)
+	self._off = {} -- sections whose content is hidden (_showSection)
+	self._tab = TABS[1].Tab
 	ButtonScale.ApplyToDescendants(panel)
 
 	local j = self._janitor
@@ -1370,8 +1520,8 @@ function Shop:Initialize(interface)
 		end))
 	end
 	local rolls = scroll:FindFirstChild("Rolls")
-	for _, id in ROLL_CARDS do
-		local face = rolls and rolls:FindFirstChild(id)
+	for cardName, id in ROLL_CARDS do
+		local face = rolls and rolls:FindFirstChild(cardName)
 		for i = 1, 3 do
 			local tile = face and face:FindFirstChild("Bundle" .. i)
 			if tile then
@@ -1466,6 +1616,7 @@ function Shop:Initialize(interface)
 				end
 			end
 			gift.Owned = owned
+			gift.Away = packet.Away == true
 			gift.Debut = packet.Debut == true
 			gift.Bundles = packet.Bundles or {}
 			self:_refresh()
@@ -1474,8 +1625,8 @@ function Shop:Initialize(interface)
 				-- no prompt opened, so the next purchase is your own again (PurchasedController)
 				LOCAL_PLAYER:SetAttribute("GiftPrompt", nil)
 			end
-			self:_toast(packet.Text or "")
 			Sounds.Play(if packet.Ok then "Success" else "Wrong")
+			self:_toast(packet.Text or "")
 		elseif packet.Message == "Sent" then
 			self:_toast(`Gift sent to {packet.To}!`)
 			Sounds.Play("Success")
@@ -1493,22 +1644,35 @@ function Shop:Initialize(interface)
 		end
 	end))
 
-	-- sidebar quick-jump
+	-- sidebar tabs
 	local sidebar = panel:FindFirstChild("Sidebar")
 	if sidebar then
 		for _, t in TABS do
 			local tab = sidebar:FindFirstChild(t.Tab)
 			if tab then
 				j:Add(tab.Activated:Connect(function()
+					if self._tab == t.Tab then
+						return
+					end
 					Sounds.Play("Click")
 					AnalyticsClient.Event("ShopTabOpened", 1, t.Tab)
-					self:ScrollTo(t.Section)
+					self:SetTab(t.Tab)
 				end))
 			end
 		end
-		j:Add(scroll:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
-			self:_paintTabs()
-		end))
+	end
+
+	-- upgrades
+	local upgrades = panel:FindFirstChild("Upgrades")
+	if upgrades then
+		for _, up in Upgrades.LIST do
+			local card = upgrades:FindFirstChild(up.Key)
+			if card then
+				j:Add(card.Buy.Activated:Connect(function()
+					self:_buyUpgrade(up.Key)
+				end))
+			end
+		end
 	end
 
 	-- codes
@@ -1566,6 +1730,7 @@ function Shop:Initialize(interface)
 		PlayerData.Rewards.Claimed,
 		PlayerData.Rewards.Bundles,
 		PlayerData.GamePasses,
+		PlayerData.Inventory.ShopUpgrades,
 	} do
 		j:Add(path.Observe(function()
 			self:_refresh()
@@ -1593,13 +1758,20 @@ function Shop:Activate(section: string?)
 	self._frame.Visible = true
 	self:_refresh()
 	-- old tab names other screens may still open with
-	if section == "Featured" or section == "Sets" then
-		section = nil
+	-- "Gift": the HUD's Gifts button: the shop, then "who's it for?" (Shop.GiftPick)
+	local giftPick = section == "Gift"
+	if section == "Featured" or giftPick then
+		section = nil -- (the Featured tab, not the set of the week)
+	elseif section == "Sets" or section == "Stage" then
+		section = "Featured" -- the Stage style page, from the top
 	elseif section == "Items" then
 		section = "PiecesTitle"
 	elseif section == "Boosts" or section == "Passes" then
 		section ..= "Title" -- (the section's heading, so it shows above the cards)
+	elseif section == "Profile" then
+		section = "StyleTitle"
 	end
+	self:SetTab(if section then TAB_OF[section] else nil)
 	self:ScrollTo(section, true)
 	if section then
 		-- the canvas size settles a frame after the first fill
@@ -1613,6 +1785,9 @@ function Shop:Activate(section: string?)
 	self.State = "Activating"
 	return FrameTransition.Open(self._frame):andThen(function()
 		self.State = "Active"
+		if giftPick and not gift then
+			self:_showPicker(true)
+		end
 	end)
 end
 

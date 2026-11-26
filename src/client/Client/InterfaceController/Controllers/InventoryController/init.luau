@@ -30,6 +30,7 @@ local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local FrameTransition = require(ReplicatedStorage.Modules.UI.Animations.FrameTransition)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
+local Notify = require(ReplicatedStorage.Modules.UI.Notify)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 
 local Build = require(script.Build)
@@ -381,20 +382,7 @@ function Inventory:ShowCategory(name: string)
 end
 
 function Inventory:_toast(message: string)
-	local toast = self._frame:FindFirstChild("Toast")
-	if not toast then
-		return
-	end
-	toast.Text = message
-	toast.Visible = true
-	Juice.SlideIn(toast, 24)
-	self._toastToken = (self._toastToken or 0) + 1
-	local token = self._toastToken
-	task.delay(2, function()
-		if self._toastToken == token then
-			toast.Visible = false
-		end
-	end)
+	Notify.Toast(message)
 end
 
 -- -------------------------------- Lifecycle ------------------------------- --

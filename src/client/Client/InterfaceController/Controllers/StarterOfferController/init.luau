@@ -1,6 +1,6 @@
 --| StarterOfferController
 -- The starter offer (design board "Money 2"): for ShopCatalog.DebutPack.Bonus.Hours after a
--- new player's first duel, the Debut Pack comes with +Bonus.Tickets roll tickets, sold as its
+-- new player's first duel, the Debut Pack comes with +Bonus.GenPacks gen packs, sold as its
 -- own product at the same price.
 --   • Back in the lobby with the tutorial done (or the moment it's finished / skipped), no
 --     Debut Pack and no offer yet: the server
@@ -105,7 +105,7 @@ end
 
 -- what the HUD offer button shows right now (nil = nothing left to offer, or still in the tutorial)
 local function nextOffer(): string?
-	if get(PlayerData.Settings.TutorialDone, false) ~= true then
+	if get(PlayerData.Settings.Onboard, "") ~= "Done" then
 		return nil
 	end
 	if PACK and ((PACK.ProductId or 0) > 0 or RunService:IsStudio()) and not owned() then
@@ -234,10 +234,10 @@ function StarterOffer:Initialize(interface)
 	task.delay(5, function()
 		self:_try()
 	end)
-	-- the tutorial just finished or was skipped: don't wait for the next menu to close
-	j:Add(PlayerData.Settings.TutorialDone.Observe(function(done)
+	-- the onboarding just finished or was skipped: don't wait for the next menu to close
+	j:Add(PlayerData.Settings.Onboard.Observe(function(done)
 		-- (on join this fires straight away: the 5 s try above covers that, after the loading screen)
-		if done == true and LOCAL_PLAYER:GetAttribute("LoadingDone") then
+		if done == "Done" and LOCAL_PLAYER:GetAttribute("LoadingDone") then
 			self:_try()
 		end
 	end))
@@ -269,7 +269,7 @@ function StarterOffer:_tick()
 			chip.Info.Bar.Visible = offer == "Bonus"
 			if offer == "Bonus" then
 				chip.Info.Timer.Text = `Bonus ends {clock(left())}`
-				chip.Sticker.Text = `+{BONUS.Tickets} FREE`
+				chip.Sticker.Text = `+{BONUS.GenPacks} PACKS`
 				chip.Sticker.BackgroundColor3, chip.Sticker.TextColor3 = RED, WHITE
 				chip.Info.Bar.Fill.Size = UDim2.fromScale(math.clamp(left() / (BONUS.Hours * 3600), 0, 1), 1)
 				-- the bar as wide as the timer line (screen px back to the HUD's design px)
@@ -309,7 +309,7 @@ function StarterOffer:_try()
 	if self._waiting or self._shownThisSession or not enabled() or owned() then
 		return
 	end
-	if get(PlayerData.Settings.TutorialDone, false) ~= true or has(PlayerData.Settings.Hints, HINT) then
+	if get(PlayerData.Settings.Onboard, "") ~= "Done" or has(PlayerData.Settings.Hints, HINT) then
 		return
 	end
 	self._waiting = true

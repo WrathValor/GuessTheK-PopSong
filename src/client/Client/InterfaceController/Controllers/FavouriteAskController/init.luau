@@ -55,7 +55,7 @@ end
 -- as done there: otherwise this one could never be tried.)
 local function eligible(): boolean
 	local firstDone = RunService:IsStudio() or get(PlayerData.Settings.FavoritePrompted, false) == true
-	return firstDone and get(PlayerData.Settings.TutorialDone, false) == true and not seen()
+	return firstDone and get(PlayerData.Settings.Onboard, "") == "Done" and not seen()
 end
 
 local function rainbowSongs(map: any): { [string]: boolean }

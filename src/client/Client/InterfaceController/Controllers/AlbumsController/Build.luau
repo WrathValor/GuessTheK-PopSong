@@ -149,6 +149,27 @@ local function button(parent: Instance, name: string, cx: number, cy: number, w:
 	end
 	return b
 end
+-- the pink Bias button (design board "55 · Bias button"): left of ×1 / ×5 / ×10, opens the
+-- Bias page, where you see your bias and can change it
+local function biasButton(cluster: Instance): TextButton
+	local b = new("TextButton", {
+		Name = "Bias",
+		LayoutOrder = -3,
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, 38),
+		BackgroundColor3 = PINK,
+		FontFace = BODY,
+		TextSize = 15,
+		TextColor3 = INK,
+		Text = "Bias",
+		AutoButtonColor = false,
+	}, cluster)
+	corner(b, 12)
+	stroke(b, 3, INK)
+	pad(b, 18)
+	return b
+end
+
 local function closeButton(parent: Instance, cx: number, cy: number): TextButton
 	return button(parent, "Close", cx, cy, 46, 46, RED, "X", 20, nil, 3)
 end
@@ -185,6 +206,25 @@ local function setZ(root: Instance, z: number)
 		if d:IsA("GuiObject") then
 			d.ZIndex = z
 		end
+	end
+end
+
+-- The Unopened box's rows (Shop.Side.Unopened): pack tickets (a 1-card free pack each) and
+-- gen packs bought with Robux (a whole gen pack each, Currencies.GenPacks; 26 Nov 2026). Safe to
+-- run again on a built frame: it rebuilds just the two rows.
+function Build.UnopenedRows(unopened: Instance)
+	for _, name in { "Tickets", "GenPacks" } do
+		local old = unopened:FindFirstChild(name)
+		if old then
+			old:Destroy()
+		end
+	end
+	for i, spec in { { "Tickets", "Pack tickets ×25", LILAC }, { "GenPacks", "Gen packs ×5", YELLOW } } do
+		local r = new("Frame", { Name = spec[1], Position = UDim2.fromOffset(12, 68 + (i - 1) * 64), Size = UDim2.fromOffset(292, 56), BackgroundColor3 = CREAM, BackgroundTransparency = 0.94 }, unopened)
+		corner(r, 14)
+		stroke(r, 2, CREAM, 0.86)
+		text(r, "Label", { Position = UDim2.fromOffset(14, 0), Size = UDim2.fromOffset(180, 56), TextSize = 14, TextColor3 = CREAM, Text = spec[2] })
+		button(r, "Open", 236, 28, 88, 34, spec[3], "OPEN", 13, nil, 3)
 	end
 end
 
@@ -508,7 +548,7 @@ local function shop(root: Frame)
 	soft(page, "Blocked", { Position = UDim2.fromOffset(420, 98), Size = UDim2.fromOffset(500, 20), Text = "Photocard packs aren't available for your account.", Visible = false })
 
 	-- ×1 / ×5 / ×10 (paid packs) and Rarities, centred at the top
-	local cluster = new("Frame", { Name = "Controls", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromOffset(640, 60), Size = UDim2.fromOffset(400, 38), BackgroundTransparency = 1 }, page)
+	local cluster = new("Frame", { Name = "Controls", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromOffset(640, 60), Size = UDim2.fromOffset(480, 38), BackgroundTransparency = 1 }, page)
 	new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center, Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, cluster)
 	local counts = new("Frame", { Name = "Counts", LayoutOrder = -2, Size = UDim2.fromOffset(186, 38), BackgroundColor3 = CREAM, BackgroundTransparency = 0.9 }, cluster)
 	corner(counts, 12)
@@ -520,6 +560,7 @@ local function shop(root: Frame)
 		corner(b, 9)
 	end
 	ghost(cluster, "Odds", "Rarities", 14, { LayoutOrder = -1, Size = UDim2.fromOffset(0, 38) })
+	biasButton(cluster)
 
 	-- the main column scrolls (design board "26 · Packs v3"); the premium sidebar beside it
 	local main = new("ScrollingFrame", {
@@ -565,7 +606,7 @@ local function shop(root: Frame)
 	corner(all, 12)
 	stroke(all, 3)
 	text(free, "Timer", { Position = UDim2.fromOffset(520, 82), Size = UDim2.fromOffset(200, 18), TextSize = 12, Text = "Next free pack in 1h 12m" })
-	text(free, "Cap", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromOffset(764, 82), Size = UDim2.fromOffset(110, 18), FontFace = BODY_BOLD, TextSize = 12, TextColor3 = MUTED, TextXAlignment = Enum.TextXAlignment.Right, Text = "holds up to 6" })
+	text(free, "Cap", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromOffset(764, 82), Size = UDim2.fromOffset(110, 18), FontFace = BODY_BOLD, TextSize = 12, TextColor3 = MUTED, TextXAlignment = Enum.TextXAlignment.Right, Text = "holds up to 3" })
 	oddsLink(free, 816, 81, INK)
 	local ftrack = new("Frame", { Name = "Track", Position = UDim2.fromOffset(520, 108), Size = UDim2.fromOffset(296, 10), BackgroundColor3 = C("EDE5D6") }, free)
 	corner(ftrack, 5)
@@ -652,7 +693,7 @@ local function shop(root: Frame)
 		BorderSizePixel = 0,
 		ScrollBarThickness = 0,
 		ScrollBarImageTransparency = 1,
-		CanvasSize = UDim2.fromOffset(0, 870),
+		CanvasSize = UDim2.fromOffset(0, 934),
 		ScrollingDirection = Enum.ScrollingDirection.Y,
 	}, page)
 	local prem = new("Frame", { Name = "Premium", Position = UDim2.fromOffset(4, 10), Size = UDim2.fromOffset(316, 690), BackgroundColor3 = INK, BackgroundTransparency = 0.6 }, side)
@@ -685,16 +726,12 @@ local function shop(root: Frame)
 	corner(gfill, 4)
 	soft(prem, "GuaranteeNote", { Position = UDim2.fromOffset(16, 618), Size = UDim2.fromOffset(284, 60), TextSize = 12, TextWrapped = true, TextYAlignment = Enum.TextYAlignment.Top, Text = "Go 99 premium packs without a Signed Polaroid and the next one ends with one." })
 
-	local unopened = new("Frame", { Name = "Unopened", Position = UDim2.fromOffset(4, 716), Size = UDim2.fromOffset(316, 140), BackgroundColor3 = INK, BackgroundTransparency = 0.6 }, side)
+	local unopened = new("Frame", { Name = "Unopened", Position = UDim2.fromOffset(4, 716), Size = UDim2.fromOffset(316, 204), BackgroundColor3 = INK, BackgroundTransparency = 0.6 }, side)
 	corner(unopened, 20)
 	stroke(unopened, 2, PURPLE, 0.4)
 	text(unopened, "Title", { Position = UDim2.fromOffset(16, 14), Size = UDim2.fromOffset(280, 26), FontFace = HEAD, TextSize = 19, TextColor3 = CREAM, Text = "Unopened" })
-	soft(unopened, "Line", { Position = UDim2.fromOffset(16, 40), Size = UDim2.fromOffset(280, 18), TextSize = 12, Text = "Roll tickets open a free pack each" })
-	local trow = new("Frame", { Name = "Tickets", Position = UDim2.fromOffset(12, 68), Size = UDim2.fromOffset(292, 56), BackgroundColor3 = CREAM, BackgroundTransparency = 0.94 }, unopened)
-	corner(trow, 14)
-	stroke(trow, 2, CREAM, 0.86)
-	text(trow, "Label", { Position = UDim2.fromOffset(14, 0), Size = UDim2.fromOffset(180, 56), TextSize = 14, TextColor3 = CREAM, Text = "Ticket packs ×25" })
-	button(trow, "Open", 236, 28, 88, 34, LILAC, "OPEN", 13, nil, 3)
+	soft(unopened, "Line", { Position = UDim2.fromOffset(16, 40), Size = UDim2.fromOffset(280, 18), TextSize = 12, Text = "Tickets open 1 card · gen packs open 5" })
+	Build.UnopenedRows(unopened)
 
 	-- one pack's odds, shown by hovering (or tapping) its Odds link: each card, and the last one
 	local pop = new("Frame", { Name = "Popover", Size = UDim2.fromOffset(330, 326), BackgroundColor3 = INK, Visible = false, ZIndex = 20 }, page)
@@ -1061,6 +1098,18 @@ local function pull(root: Frame)
 	end
 	new("Frame", { Name = "Flash", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(640, 360), Size = UDim2.fromOffset(4000, 4000), BackgroundColor3 = WHITE, BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 20 }, page)
 	Build.RevealFx(page)
+end
+
+-- Adds just the Bias button to an Albums frame built before it existed (Edit mode, then save):
+--   require(<this>).BiasButton(game.StarterGui.Interface.Frames)
+function Build.BiasButton(frames: Instance)
+	local cluster = frames.Albums.Shop.Controls
+	local old = cluster:FindFirstChild("Bias")
+	if old then
+		old:Destroy()
+	end
+	cluster.Size = UDim2.fromOffset(480, 38)
+	return biasButton(cluster)
 end
 
 function Build.Build(frames: Instance): Frame

@@ -1,8 +1,10 @@
 --| RewardsController ("Rewards")
--- The Rewards screen (Interface.Frames.Rewards, built by ./Build from the "Rewards — Level
--- rewards" + "Rewards — Quests" boards): level rewards (six cards a page), daily / weekly
--- quests (tabs, one free swap a day, a bonus per tab), the daily login ladder and the one-time
--- group reward. All the rules live in Constants/RewardsCatalog; claims are requests to
+-- The Quests screen (Interface.Frames.Rewards, built by ./Build, made full screen by
+-- Build.FullScreen from boards 59 / 59b / 59c): three tabs top centre, each with a red count
+-- of what's ready. Daily and Weekly show the quests (one free swap a day on Daily, a bonus
+-- bar per tab), Levels shows the level rewards (six cards a page) and the one-time group
+-- reward. The daily login has its own screen (DailyLoginController); its section here stays
+-- hidden. All the rules live in Constants/RewardsCatalog; claims are requests to
 -- RewardsService.
 -- Also keeps the HUD Rewards badge up to date (how many things are ready to claim), even
 -- while the screen is closed.
@@ -26,6 +28,7 @@ local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local FrameTransition = require(ReplicatedStorage.Modules.UI.Animations.FrameTransition)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
+local Notify = require(ReplicatedStorage.Modules.UI.Notify)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 local AnalyticsClient = require(ReplicatedStorage.Modules.AnalyticsClient)
 local CosmeticView = require(ReplicatedStorage.Modules.UI.CosmeticView)
@@ -42,6 +45,7 @@ local RewardsRemote = Bridgenet.ReferenceBridge("RewardsRemote")
 local C = Color3.fromHex
 local INK = C("1E1B2E")
 local WHITE = C("FFFFFF")
+local CREAM = C("FBF7F0")
 local YELLOW = C("FFE07A")
 local MINT = C("A7E9B8")
 local GREY = C("EDE4D4")
@@ -82,7 +86,7 @@ function Rewards.new()
 	self._frame = nil :: any
 	self._janitor = Janitor.new()
 	self._inGroup = false
-	self._tab = "Daily" -- quests tab
+	self._tab = "Daily" -- "Daily" | "Weekly" | "Levels"
 	self._page = nil :: number? -- level rewards page (nil = pick the page to show)
 	return (self :: any) :: UITypes.Controller
 end
@@ -169,14 +173,77 @@ function Rewards:_updateBadge()
 	local count = self:_readyCount()
 	local hud = self._interface and self._interface:GetController("HUD")
 	if hud and hud.SetRewardsBadge then
+		-- the daily login has its own button on the HUD (Daily Rewards): tell it first, so
+		-- the Quests count leaves it out
+		if hud.SetDailyBadge then
+			hud:SetDailyBadge((self:_daily()) == true)
+		end
 		-- (level rewards + quests: what the HUD's one-time Rewards nudge waits for)
 		hud:SetRewardsBadge(count, self:_questsReady("Daily") + self:_questsReady("Weekly") + self:_levelsReady())
 	end
 	if self._frame then
-		local chip = self._frame.Panel.Header.TitleRow.Ready
-		chip.Visible = count > 0
-		chip.Text = `{count} ready to claim`
+		self._frame.Panel.Header.TitleRow.Ready.Visible = false -- (the tabs carry the counts)
+		self:_paintTabs()
 	end
+end
+
+-- [[ Tabs ]]
+
+-- what's ready on each tab (the red counts): Daily / Weekly quests (+ their bonus), Levels =
+-- level rewards + the group reward
+function Rewards:_tabReady(tab: string): number
+	if tab == "Levels" then
+		local n = self:_levelsReady()
+		if self._inGroup and not has(PlayerData.Rewards.Claimed, Catalog.GROUP.ClaimedKey) then
+			n += 1
+		end
+		return n
+	end
+	return self:_questsReady(tab)
+end
+
+function Rewards:_paintTabs()
+	local tabs = self._frame and self._frame.Panel.Header:FindFirstChild("Tabs")
+	if not tabs then
+		return
+	end
+	for _, name in Build.TABS do
+		local b = tabs:FindFirstChild(name)
+		if b then
+			local on = name == self._tab
+			b.BackgroundTransparency = if on then 0 else 1
+			local st = b:FindFirstChildOfClass("UIStroke")
+			if st then
+				st.Enabled = on
+			end
+			b.Label.TextColor3 = if on then INK else CREAM
+			local n = self:_tabReady(name)
+			b.Badge.Visible = n > 0
+			b.Badge.Text = tostring(n)
+		end
+	end
+end
+
+-- shows the open tab's sections (Content keeps them in a list, so hidden ones take no room)
+function Rewards:_applyTab()
+	local content = self._frame.Panel.Body.Content
+	local levels = self._tab == "Levels"
+	content.Levels.Visible = levels
+	content.GroupReward.Visible = levels
+	content.Quests.Visible = not levels
+	content.Daily.Visible = false -- (the daily login has its own screen)
+	self:_paintTabs()
+end
+
+function Rewards:SetTab(tab: string)
+	if not table.find(Build.TABS, tab) then
+		tab = "Daily"
+	end
+	if self._tab ~= tab then
+		self._tab = tab
+		self._frame.Panel.Body.CanvasPosition = Vector2.zero
+	end
+	self:_refresh()
 end
 
 -- [[ Drawing ]]
@@ -521,6 +588,9 @@ local function paintQuestIcon(img: ImageLabel, stat: string)
 end
 
 function Rewards:_fillQuests()
+	if self._tab == "Levels" then
+		return
+	end
 	local s = self._frame.Panel.Body.Content.Quests
 	local tab = self._tab
 	local weekly = tab == "Weekly"
@@ -536,9 +606,10 @@ function Rewards:_fillQuests()
 	end
 	local left = if weekly then Catalog.WeekSecondsLeft(now()) else Catalog.SecondsLeft(now())
 	h.Reset.Text = `Resets in {ShopCatalog.Countdown(left)}`
+	h.Title.Text = if weekly then "WEEKLY QUESTS" else "DAILY QUESTS"
 
 	local quests, bonusClaimed, swapUsed = self:_quests(tab)
-	h.Note.Text = if weekly then "New quests every Monday." elseif swapUsed then "Today's swap is used." else "One free swap a day."
+	h.Note.Text = if weekly then "4 a week, the bigger ones · no swaps" elseif swapUsed then "3 a day · today's swap is used" else "3 a day · one free swap"
 	Build.LayoutQuests(s, #quests)
 	local claimedCount = 0
 	for i = 1, Build.QUEST_ROWS do
@@ -557,7 +628,7 @@ function Rewards:_fillQuests()
 		row.Bar.Fill.Visible = q.Have > 0
 		row.Bar.Fill.BackgroundColor3 = if q.Done then C("3FBF6A") else C("FF5A4E")
 		row.Progress.Text = if q.Done then "Done!" else `{q.Have} / {quest.Need}`
-		paintChips(row.Rewards, quest.Reward, if weekly then 0 else Catalog.DAILY_QUEST_XP)
+		paintChips(row.Rewards, quest.Reward, if weekly then Catalog.WEEKLY_QUEST_XP else Catalog.DAILY_QUEST_XP)
 		row.BackgroundColor3 = if q.Claimed then SAND else WHITE
 		local canSwap = not weekly and not swapUsed and not q.Done and not q.Claimed
 		row.Swap.Visible = canSwap
@@ -573,14 +644,14 @@ function Rewards:_fillQuests()
 	end
 
 	local bonus = s.Bonus
-	bonus.BonusTitle.Text = if weekly then `WEEKLY BONUS · finish all {#quests} quests` else `BONUS · finish all {#quests} quests`
+	bonus.BonusTitle.Text = if weekly then `WEEKLY BONUS · claim all {#quests} weekly quests` else `TODAY'S BONUS · claim all {#quests} daily quests`
 	for i = 1, Build.QUEST_ROWS do
 		local pip = bonus.Pips["Pip" .. i]
 		pip.Visible = i <= #quests
 		pip.BackgroundColor3 = if i <= claimedCount then C("3FBF6A") else WHITE
 	end
 	bonus.Pips.Sub.Text = `{claimedCount} of {#quests} claimed`
-	paintChips(bonus.Rewards, if weekly then Catalog.WEEKLY_BONUS else Catalog.BONUS, if weekly then 0 else Catalog.DAILY_BONUS_XP)
+	paintChips(bonus.Rewards, if weekly then Catalog.WEEKLY_BONUS else Catalog.BONUS, if weekly then Catalog.WEEKLY_BONUS_XP else Catalog.DAILY_BONUS_XP)
 	if bonusClaimed then
 		styleClaim(bonus.Claim, "Claimed")
 	elseif claimedCount >= #quests then
@@ -613,31 +684,14 @@ function Rewards:_refresh()
 	if not self._frame.Visible then
 		return
 	end
+	self:_applyTab()
 	self:_fillLevels()
 	self:_fillQuests()
-	self:_fillDaily()
 	self:_fillGroup()
 end
 
 function Rewards:_toast(message: string)
-	local toast = self._frame:FindFirstChild("Toast")
-	if not toast then
-		return
-	end
-	toast.Text = message
-	toast.Visible = true
-	local claim = self._frame:FindFirstChild("ClaimToast")
-	if claim then
-		claim.Visible = false
-	end
-	Juice.SlideIn(toast, 24)
-	self._toastToken = (self._toastToken or 0) + 1
-	local token = self._toastToken
-	task.delay(2.2, function()
-		if self._toastToken == token then
-			toast.Visible = false
-		end
-	end)
+	Notify.Toast(message)
 end
 
 -- the claim toast (Build.ClaimToast) for a small claim: info = the server's Toast
@@ -755,6 +809,22 @@ function Rewards:Initialize(interface)
 				claim(face, { Action = "ClaimLevel", Level = face:GetAttribute("Level") })
 			end
 		end))
+	end
+
+	-- the tabs top centre
+	local topTabs = panel.Header:FindFirstChild("Tabs")
+	if topTabs then
+		for _, name in Build.TABS do
+			local b = topTabs:FindFirstChild(name)
+			if b then
+				j:Add(b.Activated:Connect(function()
+					if self._tab ~= name then
+						Sounds.Play("Click")
+						self:SetTab(name)
+					end
+				end))
+			end
+		end
 	end
 
 	-- quests
@@ -894,9 +964,11 @@ function Rewards:Initialize(interface)
 	end), true)
 end
 
-function Rewards:Activate()
+-- tab: "Daily" (the default) | "Weekly" | "Levels"
+function Rewards:Activate(tab: string?)
 	self._frame.Visible = true
 	self._frame.Panel.Body.CanvasPosition = Vector2.zero
+	self._tab = if tab and table.find(Build.TABS, tab) then tab else "Daily"
 	self._page = nil -- reopen on the page worth looking at
 	self:_refresh()
 	if self.State == "Active" or self.State == "Activating" then

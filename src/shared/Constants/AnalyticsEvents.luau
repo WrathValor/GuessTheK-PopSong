@@ -15,6 +15,7 @@ local AnalyticsEvents = {}
 AnalyticsEvents.Custom = {
 	-- [[ Gifting ]] (Engine/GiftService)
 	GiftSent = { Fields = { "Paid", "What" } }, -- value: coins spent (Coins) or 1 (Robux)
+	GiftClaimed = { Fields = { "Kind", "From" } }, -- a gift claimed from the inbox (Engine/GiftInbox); From = "Dev" | "Player"
 	-- [[ Rounds + games ]]
 	RoundResult = { Fields = { "Song", "Result", "Tier" } }, -- value: seconds to answer (0 = no answer)
 	SongStar = { Fields = { "Song" } }, -- value: the song's new star count (Modules/Library/Mastery)
@@ -97,7 +98,7 @@ AnalyticsEvents.Custom = {
 
 	-- [[ From the client ]]
 	ScreenOpened = { Fields = { "Screen" }, Client = true, Allowed = {
-		Screen = { "Shop", "Roll", "UGC", "Inventory", "Index", "Rewards", "News", "Settings", "Queue", "Results", "SaveStreak", "Tutorial", "Party", "Profile", "PlayerCard", "Invite" },
+		Screen = { "Shop", "Roll", "UGC", "Inventory", "Index", "Rewards", "News", "Settings", "Queue", "Results", "SaveStreak", "Tutorial", "Party", "Profile", "PlayerCard", "Invite", "Market" },
 	} },
 	ShopTabOpened = { Fields = { "Tab" }, Client = true, Allowed = {
 		Tab = { "Featured", "Perks", "Bundles", "Looks", "Coins", "Codes" }, -- the sidebar quick-jump tabs
@@ -144,7 +145,7 @@ AnalyticsEvents.Custom = {
 -- so SKUs are kinds, not items: shop sinks use the rarity ("Legendary", "Animated"), Robux
 -- sources the product kind ("CoinBundle"), the season track "Track". Per-item detail is in the
 -- ItemBought / RobuxPrompt events instead.
-AnalyticsEvents.Currencies = { Coins = "Coins", XP = "XP", Tickets = "Tickets", Upgrades = "Upgrades" }
+AnalyticsEvents.Currencies = { Coins = "Coins", XP = "XP", Tickets = "Tickets", GenPacks = "GenPacks", Upgrades = "Upgrades" }
 AnalyticsEvents.Transactions = {
 	-- sources
 	DuelWin = "DuelWin",
@@ -161,6 +162,9 @@ AnalyticsEvents.Transactions = {
 	LikeGoal = "LikeGoal", -- a like goal hit: everyone's reward
 	VIPDaily = "VIPDaily", -- the VIP Pass's free roll ticket each day
 	Robux = "RobuxBundle",
+	Onboard = "Onboarding", -- the onboarding's gifts: 500 for the first upgrade, the All set rewards
+	MarketSale = "MarketSale", -- a card sold on the Market, collected (sku: its rarity)
+	MarketBuy = "MarketBuy", -- (a sink) a card bought on the Market (sku: its rarity)
 	-- sinks
 	ShopSet = "ShopSet",
 	Gift = "Gift", -- a coin item gifted to someone (sku: Set / Stage / Mic / StyleSet / Banner / Photocard)
@@ -202,6 +206,9 @@ AnalyticsEvents.Funnels = {
 	-- the first-join tutorial, one session per player (their UserId). Skipping it is the
 	-- "Tutorial" "Skipped" setting event (SettingsService).
 	Tutorial = { "Started", "Finished" },
+	-- the K-POPPED! onboarding (TutorialController/Flow), one session per player (their UserId).
+	-- Returning players skip Practice and Collect. Skipping it is the "Onboard" "Skipped" setting event.
+	Onboard = { "Welcome", "Bias", "FirstPack", "Pin", "Upgrade", "Practice", "FreePacks", "Collect", "Done" },
 }
 
 return AnalyticsEvents

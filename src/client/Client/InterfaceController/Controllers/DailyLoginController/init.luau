@@ -387,10 +387,10 @@ function DailyLogin:_joinPopup()
 	while not LOCAL_PLAYER:GetAttribute("LoadingDone") and os.clock() < deadline do
 		task.wait(0.25)
 	end
-	-- the player's data has to be there, and the tutorial done (a new player gets it after)
+	-- the player's data has to be there, and the onboarding done (TutorialController/Flow)
 	while true do
-		local ok, done = pcall(PlayerData.Settings.TutorialDone.Get)
-		if ok and done == true then
+		local ok, done = pcall(PlayerData.Settings.Onboard.Get)
+		if ok and done == "Done" then
 			break
 		end
 		task.wait(0.5)

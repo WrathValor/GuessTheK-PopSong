@@ -42,6 +42,7 @@ local Promise = require(ReplicatedStorage.Packages.promise)
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Client
 local Albums = require(ReplicatedStorage.Modules.Library.Albums)
+local Upgrades = require(ReplicatedStorage.Modules.Library.Upgrades)
 local CardDecor = require(ReplicatedStorage.Modules.UI.CardDecor)
 local Packs = require(ReplicatedStorage.Modules.Library.Packs)
 local AlbumConstants = require(ReplicatedStorage.Constants.AlbumConstants)
@@ -51,6 +52,7 @@ local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local FrameTransition = require(ReplicatedStorage.Modules.UI.Animations.FrameTransition)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
+local Notify = require(ReplicatedStorage.Modules.UI.Notify)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 
 local ShortOffer = require(script.Parent.ShortOfferController)
@@ -294,20 +296,7 @@ function AlbumsController.new()
 end
 
 function AlbumsController:_toast(message: string?)
-	local toast = self._frame:FindFirstChild("Toast")
-	if not toast or not message or message == "" then
-		return
-	end
-	toast.Text = message
-	toast.Visible = true
-	Juice.SlideIn(toast, -24)
-	self._toastToken = (self._toastToken or 0) + 1
-	local token = self._toastToken
-	task.delay(2.2, function()
-		if self._toastToken == token then
-			toast.Visible = false
-		end
-	end)
+	Notify.Toast(message)
 end
 
 function AlbumsController:_showPage(name: string)
@@ -497,6 +486,7 @@ function AlbumsController:_afterBias()
 	elseif self._opts.Page == "Bias" then
 		self._interface:Close(self.Name)
 	else
+		self._biasFromShop = false
 		self:_showPage("Shop")
 		self:_fillShop()
 	end
@@ -532,7 +522,7 @@ local function freePacks(): (number, number?)
 	if at == 0 then
 		return AlbumConstants.FREE_PACK_START, nil -- (the server sets the clock up on join)
 	end
-	local packs, _, wait = Albums.FreePacks(PlayerData.Inventory.FreePacks.Get() or 0, at, os.time())
+	local packs, _, wait = Albums.FreePacks(PlayerData.Inventory.FreePacks.Get() or 0, at, os.time(), Upgrades.Levels(PlayerData))
 	return packs, wait
 end
 
@@ -593,10 +583,11 @@ function AlbumsController:_fillFree()
 	free.Open.Text = if packs == 0 and tickets > 0 then "OPEN WITH A TICKET" elseif wide then "OPEN FREE PACK" else "OPEN"
 	free.OpenShadow.Size = free.Open.Size
 	free.OpenShadow.Position = free.Open.Position + UDim2.fromOffset(4, 4)
-	free.Cap.Text = `holds up to {AlbumConstants.FREE_PACK_CAP}`
+	local lv = Upgrades.Levels(PlayerData)
+	free.Cap.Text = `holds up to {Upgrades.StashCap(lv)}`
 	if wait then
 		free.Timer.Text = `Next free pack in {clock(wait)}`
-		free.Track.Fill.Size = UDim2.fromScale(1 - wait / AlbumConstants.FREE_PACK_SECONDS, 1)
+		free.Track.Fill.Size = UDim2.fromScale(1 - wait / Upgrades.RefillSeconds(lv), 1)
 	else
 		free.Timer.Text = "Full! Open some to start the clock"
 		free.Track.Fill.Size = UDim2.fromScale(1, 1)
@@ -763,8 +754,15 @@ function AlbumsController:_fillShop()
 	-- unopened
 	local tickets = Currencies.Count(player, "Tickets")
 	local unopened = page.Side.Unopened
-	unopened.Tickets.Label.Text = `Ticket packs ×{tickets}`
+	unopened.Tickets.Label.Text = `Pack tickets ×{tickets}`
 	showWithShadow(unopened.Tickets, "Open", allowed and tickets > 0)
+	-- gen packs bought with Robux: a whole gen pack each (the free pack's gen pick, else any)
+	local genPacks = Currencies.Count(player, "GenPacks")
+	local genRow = unopened:FindFirstChild("GenPacks")
+	if genRow then
+		genRow.Label.Text = `Gen packs ×{genPacks}`
+		showWithShadow(genRow, "Open", allowed and genPacks > 0)
+	end
 
 	self:_fillRotation()
 	self:_balance()
@@ -781,8 +779,9 @@ function AlbumsController:_showOdds(link: GuiObject, kind: string, target: strin
 	local pop = page.Popover
 	local size = if kind == "Free" then 1 else AlbumConstants.PACK_SIZE
 	local premium = if kind == "Premium" then Albums.Premium(target) else nil
-	local each = Albums.LastOdds(1, nil, premium and premium.CardMin)
-	local last = Albums.LastOdds(size, nil, premium and premium.CardMin, premium and premium.LastMin)
+	local luck = Upgrades.Luck(Upgrades.Levels(PlayerData)) -- (the odds shown are the ones you pull with)
+	local each = Albums.LastOdds(1, nil, premium and premium.CardMin, nil, luck)
+	local last = Albums.LastOdds(size, nil, premium and premium.CardMin, premium and premium.LastMin, luck)
 	if kind == "Free" then
 		pop.Title.Text = if target ~= "Any" then `Free pack · {target} gen` else "Free pack · any gen"
 	elseif premium then
@@ -795,7 +794,7 @@ function AlbumsController:_showOdds(link: GuiObject, kind: string, target: strin
 	end
 	pop.Header.Each.Text = if size > 1 then `CARDS 1-{size - 1}` else ""
 	pop.Header.Last.Text = if size > 1 then "LAST" else "THE CARD"
-	local rarities = Albums.RarityOdds()
+	local rarities = Albums.RarityOdds(nil, nil, luck)
 	for i = 1, 7 do
 		local r = pop:FindFirstChild("Row" .. i)
 		local entry = rarities[i]
@@ -939,7 +938,7 @@ function AlbumsController:_fillOdds()
 		end
 	end
 	local live = {}
-	for _, entry in Albums.RarityOdds() do
+	for _, entry in Albums.RarityOdds(nil, nil, Upgrades.Luck(Upgrades.Levels(PlayerData))) do
 		live[entry.Rarity.Key] = entry.Odds
 	end
 	local order = 0
@@ -1012,6 +1011,11 @@ function AlbumsController:_open(kind: string, count: any, target: string?)
 			Sounds.Play("Wrong")
 			return
 		end
+	elseif kind == "Owned" then
+		if Currencies.Count(player, "GenPacks") < 1 then
+			Sounds.Play("Wrong")
+			return
+		end
 	elseif kind == "Free" then
 		local packs = freePacks()
 		if packs < 1 and Currencies.Count(player, "Tickets") < 1 then
@@ -1030,6 +1034,9 @@ function AlbumsController:_open(kind: string, count: any, target: string?)
 		AlbumRemote:Fire({ Action = "Open", Kind = "Free", Gen = if target ~= "Any" then target else nil, Count = count })
 	elseif kind == "Ticket" then
 		AlbumRemote:Fire({ Action = "Open", Kind = "Free", Ticket = true, Count = 1 })
+	elseif kind == "Owned" then
+		local gen = target or self._freeGen
+		AlbumRemote:Fire({ Action = "Open", Kind = "Gen", Gen = if gen and gen ~= "Any" then gen else nil, Owned = true, Count = 1 })
 	elseif kind == "Gen" then
 		AlbumRemote:Fire({ Action = "Open", Kind = "Gen", Gen = target, Count = count })
 	elseif kind == "Premium" then
@@ -1561,8 +1568,10 @@ function AlbumsController:_showSummary()
 	if album then
 		chips.Chip2.Text = `{album.Name} {albumOwned(album, cards())} / {#album.Members}`
 	end
-	local rate = Albums.Rate(cards(), bias(), PlayerData.Inventory.Pins.Get(), Albums.Boost(PlayerData.GamePasses))
-	chips.Chip3.Text = `Pins earn: {if rate % 1 == 0 then fmt(rate) else string.format("%.1f", rate)} coins / min`
+	local lv = Upgrades.Levels(PlayerData)
+	local rate = Albums.Rate(cards(), bias(), PlayerData.Inventory.Pins.Get(), Albums.Boost(PlayerData.GamePasses, lv), lv)
+	-- (Albums.Rate is coins an hour)
+	chips.Chip3.Text = `Pins earn: {if rate % 1 == 0 then fmt(rate) else string.format("%.1f", rate)} coins an hour`
 	if #p.Pulls > 10 then
 		chips.Chip1.Text ..= ` · {#p.Pulls} cards`
 	end
@@ -1637,6 +1646,12 @@ function AlbumsController:_showSummary()
 		again = packs > 0 or Currencies.Count(player, "Tickets") > 0
 		if again then
 			setButtonRow(summary.Again, if packs > 0 then `OPEN NEXT ({packs} LEFT)` else "OPEN WITH A TICKET", nil)
+		end
+	elseif again and p.How == "Owned" then
+		local left = Currencies.Count(player, "GenPacks")
+		again = left > 0
+		if again then
+			setButtonRow(summary.Again, `OPEN NEXT ({left} LEFT)`, nil)
 		end
 	elseif again then
 		local x = if p.Packs > 1 then ` ×{p.Packs}` else ""
@@ -1811,8 +1826,25 @@ function AlbumsController:Initialize(interface)
 
 	-- bias
 	j:Add(f.Bias.Close.Activated:Connect(function()
+		-- opened from the Packs page's Bias button: back to the packs, not out
+		if self._biasFromShop then
+			self._biasFromShop = false
+			self:_showPage("Shop")
+			self:_fillShop()
+			return
+		end
 		self._interface:Close(self.Name)
 	end))
+	local biasButton = f.Shop.Controls:FindFirstChild("Bias")
+	if biasButton then
+		j:Add(biasButton.Activated:Connect(function()
+			Sounds.Play("Click")
+			self._biasFromShop = true
+			self._group, self._pick = nil, nil
+			self:_showPage("Bias")
+			self:_fillBias()
+		end))
+	end
 	j:Add(f.Bias.Confirm.Activated:Connect(function()
 		self:_confirmBias()
 	end))
@@ -1891,6 +1923,12 @@ function AlbumsController:Initialize(interface)
 	j:Add(shopPage.Side.Unopened.Tickets.Open.Activated:Connect(function()
 		self:_open("Ticket", 1)
 	end))
+	local genRow = shopPage.Side.Unopened:FindFirstChild("GenPacks")
+	if genRow then
+		j:Add(genRow.Open.Activated:Connect(function()
+			self:_open("Owned", 1)
+		end))
+	end
 	for _, field in { PlayerData.Inventory.FavGroups, PlayerData.Inventory.PremiumPity } do
 		j:Add(field.Observe(function()
 			if self.State == "Active" and self._page == "Shop" then
@@ -2008,6 +2046,11 @@ function AlbumsController:Initialize(interface)
 			self:_balance()
 		end
 	end))
+	j:Add(player:GetAttributeChangedSignal(Currencies.GenPacks.Attribute):Connect(function()
+		if self.State == "Active" and self._page == "Shop" and not self._pull then
+			self:_fillShop()
+		end
+	end))
 
 	-- Studio only: the LocalPlayer's "AlbumsTest" attribute ("Bias", "Shop" or "First") opens a page
 	if RunService:IsStudio() then
@@ -2052,6 +2095,7 @@ function AlbumsController:Activate(opts: any?)
 		self._shopGroup = self._opts.Group
 	end
 	self._group, self._pick = nil, nil
+	self._biasFromShop = false
 	if self._opts.Page == "Bias" or (self._opts.First and bias() == "") then
 		self:_showPage("Bias")
 		self:_fillBias()
@@ -2070,6 +2114,28 @@ function AlbumsController:Activate(opts: any?)
 	return FrameTransition.Open(self._frame):andThen(function()
 		self.State = "Active"
 	end)
+end
+
+-- Behind the loading screen (Interface.Start): build and lay out the default page once,
+-- off-screen, so the first real open is instant. Leaves the screen closed.
+function AlbumsController:Prewarm()
+	local f = self._frame
+	if f.Visible or self.State ~= "Inactive" then
+		return
+	end
+	local home = f.Position
+	f.Position = home + UDim2.fromOffset(20000, 0)
+	f.Visible = true
+	self._opts = {}
+	self:_showPage("Shop")
+	self:_fillShop()
+	for _ = 1, 2 do
+		RunService.RenderStepped:Wait()
+	end
+	if self.State == "Inactive" then
+		f.Visible = false
+	end
+	f.Position = home
 end
 
 -- controller B: the odds sheet, then the pull (to its summary, then back to the shop)

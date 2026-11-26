@@ -287,6 +287,33 @@ local function header(root: Frame)
 	list(coins, true, 7)
 	new("ImageLabel", { Name = "Icon", Size = UDim2.fromOffset(22, 22), BackgroundTransparency = 1, Image = COIN, ScaleType = Enum.ScaleType.Fit, LayoutOrder = 1 }, coins)
 	text(coins, "Amount", { AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 38), TextSize = 17, TextColor3 = CREAM, Text = "5,068", LayoutOrder = 2 })
+	Build.BiasButton(root)
+end
+
+-- the pink Bias button (design board "55 · Bias button"): left of the coins, opens the Bias
+-- page in Packs (BinderController keeps it 12 px left of the coins as they grow)
+function Build.BiasButton(root: Instance): TextButton
+	local old = root:FindFirstChild("Bias")
+	if old then
+		old:Destroy()
+	end
+	local b = new("TextButton", {
+		Name = "Bias",
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.fromOffset(870, 81),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, 38),
+		BackgroundColor3 = PINK,
+		FontFace = BODY,
+		TextSize = 15,
+		TextColor3 = INK,
+		Text = "Bias",
+		AutoButtonColor = false,
+	}, root)
+	corner(b, 12)
+	stroke(b, 3, INK)
+	pad(b, 18)
+	return b
 end
 
 -- [[ Binder: the group list ]]

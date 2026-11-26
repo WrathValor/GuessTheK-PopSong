@@ -977,7 +977,8 @@ function Build.AddRolls(frames: Instance)
 	local CW = math.floor((W - GAP) / 2)
 	local section = new("Frame", { Name = "Rolls", LayoutOrder = after + 2, Size = UDim2.new(1, 0, 0, CH + 5), BackgroundTransparency = 1 }, scroll)
 	for i, spec in {
-		{ Id = "Tickets", Colour = C("FFE4EF"), Title = "Roll tickets", Body = "A free song roll from any group you pick", Unit = "tickets" },
+		-- (named "Tickets", but it sells gen packs since 26 Nov 2026: ShopController ROLL_CARDS)
+		{ Id = "Tickets", Currency = "GenPacks", Colour = C("FFE4EF"), Title = "Gen packs", Body = "A whole 5-card gen pack each: pick any gen when you open it", Unit = "packs" },
 		{ Id = "Upgrades", Colour = C("EFEAFF"), Title = "Card upgrades", Body = "+1 copy on any song you own. Gold at 3, Rainbow at 5", Unit = "upgrades" },
 	} do
 		local x = (i - 1) * (CW + GAP)
@@ -986,7 +987,7 @@ function Build.AddRolls(frames: Instance)
 		local tile = new("Frame", { Name = "IconTile", Position = UDim2.fromOffset(16, 16), Size = UDim2.fromOffset(78, 78), BackgroundColor3 = WHITE }, face)
 		corner(tile, 14)
 		stroke(tile, 3)
-		new("ImageLabel", { Name = "Icon", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(62, 62), BackgroundTransparency = 1, Image = Currencies.Get(spec.Id).Icon, ScaleType = Enum.ScaleType.Fit }, tile)
+		new("ImageLabel", { Name = "Icon", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(62, 62), BackgroundTransparency = 1, Image = Currencies.Get(spec.Currency or spec.Id).Icon, ScaleType = Enum.ScaleType.Fit }, tile)
 		text(face, "CardTitle", { Position = UDim2.fromOffset(108, 22), Size = UDim2.new(1, -230, 0, 28), FontFace = HEAD, TextSize = 21, Text = spec.Title })
 		text(face, "Body", { Position = UDim2.fromOffset(108, 52), Size = UDim2.new(1, -124, 0, 38), FontFace = BODY_BOLD, TextSize = 13, TextWrapped = true, TextTruncate = Enum.TextTruncate.None, TextYAlignment = Enum.TextYAlignment.Top, Text = spec.Body })
 		local have = text(face, "Have", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -14, 0, 18), Size = UDim2.fromOffset(0, 22), AutomaticSize = Enum.AutomaticSize.X, BackgroundTransparency = 0, BackgroundColor3 = WHITE, TextSize = 12, TextTruncate = Enum.TextTruncate.None, Text = "You have 0" })
@@ -1285,6 +1286,340 @@ function Build.AddBundles(frames: Instance)
 		end
 	end
 	return list
+end
+
+-- ------------------------------- Full screen ------------------------------ --
+-- Design boards "50 · Shop rework · tabs + Upgrades" and "51 · Featured tab": the shop takes
+-- the whole screen. A dark backdrop, "Shop" top left, the balance and ✕ top right, six tabs
+-- down the left that each open their own page (ShopController TABS), and the page itself on a
+-- cream card. The existing sections stay in Panel.Scroll (the controller shows a tab's own);
+-- the Upgrades tab is its own page, Panel.Upgrades. Run once in Edit on the built Shop:
+--   local m = game.StarterPlayer.StarterPlayerScripts.Client.Client.InterfaceController.Controllers.ShopController.Build
+--   local c = m:Clone(); c.Parent = m.Parent; require(c).FullScreen(game.StarterGui.Interface.Frames); c:Destroy()
+-- Running it again rebuilds the tabs and the Upgrades page.
+
+-- (title, ✕ and content top match the other full-screen screens, Binder / Profile / Packs:
+-- "Shop" at 40, 54 under the Roblox buttons, its line at 40, 90, ✕ at 1219, 81, content from 128)
+local PAGE_X, PAGE_Y, PAGE_W, PAGE_H = 228, 128, 1020, 568
+local SIDE_X, SIDE_W = 36, 176
+local DARK_TOP, DARK_MID, DARK_LOW = C("3B2F66"), C("2A2340"), C("221C36")
+local PAPER = C("F3EEE0")
+
+-- the tabs, top to bottom: { name, label, dot colour } (ShopController TABS uses the names)
+Build.TABS = {
+	{ "Featured", "Featured", "FFE07A" },
+	{ "Upgrades", "Upgrades", "A7E9B8" },
+	{ "Stage", "Stage style", "B9A6FF" },
+	{ "Profile", "Profile style", "FF9EC4" },
+	{ "Boosts", "Boosts + passes", "9ED8F5" },
+	{ "Coins", "Coins", "FFD2CE" },
+}
+-- the upgrade icons (assets/UI/Shop/Upgrades, from board 50)
+Build.UPGRADE_ICONS = {
+	Slots = "rbxassetid://108689827818959",
+	Payout = "rbxassetid://98250579180874",
+	Storage = "rbxassetid://139873703332324",
+	Stash = "rbxassetid://77198343373653",
+	Refill = "rbxassetid://128505538173409",
+	Luck = "rbxassetid://121040016252721",
+}
+
+-- a hard drop shadow `offset` px down-right of a frame with a `line` px outline. (UIStroke's
+-- Border mode draws the outline OUTSIDE the frame, so the shadow is grown by the outline too,
+-- or the outline covers most of it.)
+local function shadowOf(parent: Instance, name: string, of: GuiObject, offset: number, radius: number, line: number?)
+	local l = line or 0
+	local a = of.AnchorPoint
+	local s = new("Frame", {
+		Name = name,
+		AnchorPoint = a,
+		Position = of.Position + UDim2.fromOffset(offset + l * (2 * a.X - 1), offset + l * (2 * a.Y - 1)),
+		Size = of.Size + UDim2.fromOffset(2 * l, 2 * l),
+		BackgroundColor3 = INK,
+		BorderSizePixel = 0,
+		ZIndex = of.ZIndex - 1,
+	}, parent)
+	corner(s, radius)
+	return s
+end
+
+local function sidebarTabs(sidebar: Instance)
+	for _, child in sidebar:GetChildren() do
+		if child:IsA("GuiButton") and child.Name ~= "GiftButton" then
+			child:Destroy()
+		elseif child:IsA("Frame") and child.Name ~= "GiftButtonShadow" then
+			child:Destroy() -- old tab shadows, the square-off corners and the dividing line
+		end
+	end
+	for i, t in Build.TABS do
+		local name, label, dot = t[1], t[2], t[3]
+		local tab = new("TextButton", {
+			Name = name,
+			Position = UDim2.fromOffset(0, (i - 1) * 50),
+			Size = UDim2.fromOffset(SIDE_W, 42),
+			BackgroundColor3 = CREAM,
+			BackgroundTransparency = 1,
+			AutoButtonColor = false,
+			Text = "",
+			ZIndex = 3,
+			LayoutOrder = i,
+		}, sidebar)
+		corner(tab, 12)
+		new("UIStroke", { Color = INK, Thickness = 3, Enabled = false, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, tab)
+		local d = new("Frame", { Name = "Dot", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 14, 0.5, 0), Size = UDim2.fromOffset(12, 12), BackgroundColor3 = C(dot), ZIndex = 4 }, tab)
+		corner(d, 6)
+		stroke(d, 2)
+		text(tab, "Label", { Position = UDim2.fromOffset(36, 0), Size = UDim2.new(1, -44, 1, 0), FontFace = BODY, TextSize = 16, TextColor3 = CREAM, Text = label, ZIndex = 4 })
+		-- (Upgrades: how many you can afford right now)
+		local count = text(tab, "Count", {
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -10, 0.5, 0),
+			Size = UDim2.fromOffset(0, 20),
+			AutomaticSize = Enum.AutomaticSize.X,
+			BackgroundTransparency = 0,
+			BackgroundColor3 = RED,
+			TextColor3 = WHITE,
+			FontFace = BODY,
+			TextSize = 12,
+			TextXAlignment = Enum.TextXAlignment.Center,
+			Text = "2",
+			Visible = false,
+			ZIndex = 5,
+		})
+		corner(count, 7)
+		stroke(count, 2)
+		pad(count, 6)
+		local sh = shadowOf(sidebar, name .. "Shadow", tab, 3, 12, 3)
+		sh.Visible = false
+		sh.ZIndex = 2
+	end
+end
+
+local function upgradeCard(page: Instance, key: string, colour: string, x: number, y: number)
+	local w, h = 310, 196
+	local card = new("Frame", { Name = key, Position = UDim2.fromOffset(x, y), Size = UDim2.fromOffset(w, h), BackgroundColor3 = WHITE, ZIndex = 3 }, page)
+	corner(card, 16)
+	stroke(card, 4)
+	local grad = new("UIGradient", { Name = "Glow", Rotation = 70, Color = ColorSequence.new(WHITE, C("FFF6D6")), Enabled = false }, card)
+	grad.Enabled = false
+	shadowOf(page, key .. "Shadow", card, 5, 16, 4)
+
+	local box = new("Frame", { Name = "IconBox", Position = UDim2.fromOffset(14, 14), Size = UDim2.fromOffset(56, 56), BackgroundColor3 = C(colour), ZIndex = 4 }, card)
+	corner(box, 12)
+	stroke(box, 3)
+	new("ImageLabel", { Name = "Icon", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(44, 44), BackgroundTransparency = 1, Image = Build.UPGRADE_ICONS[key] or "", ScaleType = Enum.ScaleType.Fit, ZIndex = 5 }, box)
+
+	text(card, "Title", { Position = UDim2.fromOffset(82, 16), Size = UDim2.fromOffset(150, 22), FontFace = HEAD, TextSize = 17, Text = key, ZIndex = 4 })
+	text(card, "Line", { Position = UDim2.fromOffset(82, 40), Size = UDim2.fromOffset(212, 32), FontFace = BODY_BOLD, TextSize = 13, TextColor3 = MUTED, TextWrapped = true, TextYAlignment = Enum.TextYAlignment.Top, TextTruncate = Enum.TextTruncate.None, Text = "What it does", ZIndex = 4 })
+
+	local level = text(card, "Level", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromOffset(w - 12, 12),
+		Size = UDim2.fromOffset(0, 18),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundTransparency = 0,
+		BackgroundColor3 = CREAM,
+		FontFace = BODY,
+		TextSize = 11,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Text = "Lv 1 / 2",
+		ZIndex = 5,
+	})
+	corner(level, 7)
+	stroke(level, 2)
+	pad(level, 6)
+
+	text(card, "Now", { Position = UDim2.fromOffset(14, 80), Size = UDim2.fromOffset(w - 28, 22), FontFace = BODY, TextSize = 15, RichText = true, Text = "<b>4</b> slots → <b>5</b>", ZIndex = 4 })
+
+	local bar = new("Frame", { Name = "Bar", Position = UDim2.fromOffset(14, 108), Size = UDim2.fromOffset(w - 28, 12), BackgroundColor3 = PAPER, ClipsDescendants = true, ZIndex = 4 }, card)
+	corner(bar, 6)
+	stroke(bar, 2)
+	local fill = new("Frame", { Name = "Fill", Size = UDim2.fromScale(0.5, 1), BackgroundColor3 = INK, BorderSizePixel = 0, ZIndex = 5 }, bar)
+	corner(fill, 6)
+
+	local buy = new("TextButton", { Name = "Buy", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(w / 2, 154), Size = UDim2.fromOffset(w - 28, 40), BackgroundColor3 = YELLOW, AutoButtonColor = false, Text = "", ZIndex = 5 }, card)
+	corner(buy, 11)
+	stroke(buy, 3)
+	row(buy, 6, Enum.HorizontalAlignment.Center)
+	icon(buy, "Coin", ICONS.Coin, 20, 1).ZIndex = 6
+	text(buy, "Amount", { Size = UDim2.fromOffset(0, 24), AutomaticSize = Enum.AutomaticSize.X, FontFace = HEAD, TextSize = 16, Text = "25,000", LayoutOrder = 2, ZIndex = 6, TextTruncate = Enum.TextTruncate.None })
+	local bs = shadowOf(card, "BuyShadow", buy, 3, 11, 3)
+	bs.ZIndex = 4
+	return card
+end
+
+local function upgradesPage(panel: Instance)
+	local old = panel:FindFirstChild("Upgrades")
+	if old then
+		old:Destroy()
+	end
+	local page = new("Frame", {
+		Name = "Upgrades",
+		Position = UDim2.fromOffset(PAGE_X + 4, PAGE_Y + 4),
+		Size = UDim2.fromOffset(PAGE_W - 8, PAGE_H - 8),
+		BackgroundTransparency = 1,
+		Visible = false,
+		ZIndex = 2,
+	}, panel)
+	text(page, "Title", { Position = UDim2.fromOffset(24, 16), Size = UDim2.fromOffset(160, 30), FontFace = HEAD, TextSize = 22, Text = "UPGRADES", ZIndex = 3, TextTruncate = Enum.TextTruncate.None })
+	text(page, "Sub", { Position = UDim2.fromOffset(184, 21), Size = UDim2.fromOffset(780, 22), FontFace = BODY_BOLD, TextSize = 14, TextColor3 = MUTED, Text = "Your binder and packs, for good. Small steps, lots of levels: every one costs a bit more.", ZIndex = 3 })
+	local list = {
+		{ "Slots", "FFE07A" },
+		{ "Payout", "A7E9B8" },
+		{ "Storage", "9ED8F5" },
+		{ "Stash", "FF9EC4" },
+		{ "Refill", "B9A6FF" },
+		{ "Luck", "FFE07A" },
+	}
+	for i, u in list do
+		local col, r = (i - 1) % 3, (i - 1) // 3
+		upgradeCard(page, u[1], u[2], 24 + col * 328, 56 + r * 212)
+	end
+	local strip = new("Frame", { Name = "Summary", Position = UDim2.fromOffset(24, 484), Size = UDim2.fromOffset(966, 46), BackgroundColor3 = INK, ZIndex = 3 }, page)
+	corner(strip, 14)
+	pad(strip, 18, 18)
+	row(strip, 14)
+	text(strip, "Head", { Size = UDim2.fromOffset(0, 24), AutomaticSize = Enum.AutomaticSize.X, FontFace = HEAD, TextSize = 14, TextColor3 = YELLOW, Text = "YOUR BINDER NOW", LayoutOrder = 1, ZIndex = 4, TextTruncate = Enum.TextTruncate.None })
+	text(strip, "Text", { Size = UDim2.fromOffset(0, 24), AutomaticSize = Enum.AutomaticSize.X, FontFace = BODY, TextSize = 14, TextColor3 = CREAM, RichText = true, Text = "4 pins · <b>+14%</b> · <b>760</b>/hr", LayoutOrder = 2, ZIndex = 4, TextTruncate = Enum.TextTruncate.None })
+	return page
+end
+
+function Build.FullScreen(frames: Instance)
+	local shop = frames:FindFirstChild("Shop")
+	assert(shop, "build the Shop first")
+	local panel = shop.Panel
+
+	-- the backdrop: the scrim goes dark and opaque (a gradient top to bottom across the canvas)
+	local scrim = shop.Scrim
+	scrim.BackgroundColor3 = WHITE -- (a UIGradient multiplies this: white keeps its colours true)
+	scrim.BackgroundTransparency = 0
+	local g = scrim:FindFirstChildOfClass("UIGradient") or new("UIGradient", {}, scrim)
+	g.Rotation = 90
+	-- (the scrim is 4000 tall, centred on the canvas: the canvas spans about 0.41 to 0.59)
+	g.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, DARK_TOP),
+		ColorSequenceKeypoint.new(0.41, DARK_TOP),
+		ColorSequenceKeypoint.new(0.5, DARK_MID),
+		ColorSequenceKeypoint.new(0.59, DARK_LOW),
+		ColorSequenceKeypoint.new(1, DARK_LOW),
+	})
+	g.Transparency = NumberSequence.new(0)
+	if shop:FindFirstChild("PanelShadow") then
+		shop.PanelShadow.Visible = false
+	end
+
+	-- the panel becomes the whole canvas, see-through
+	panel.Position = UDim2.fromOffset(0, 0)
+	panel.Size = UDim2.fromOffset(1280, 720)
+	panel.BackgroundTransparency = 1
+	local ps = panel:FindFirstChildOfClass("UIStroke")
+	if ps then
+		ps.Enabled = false
+	end
+	if panel:FindFirstChild("Rule") then
+		panel.Rule.Visible = false
+	end
+
+	-- header: "Shop" top left, the balance and ✕ top right, the gift tag in the middle
+	local header = panel.Header
+	header.BackgroundTransparency = 1
+	header.Size = UDim2.new(1, 0, 0, PAGE_Y - 8)
+	if header:FindFirstChild("SquareBottom") then
+		header.SquareBottom.Visible = false
+	end
+	local title = header.Title
+	title.Text = "Shop"
+	title.FontFace = HEAD
+	title.TextSize = 30
+	title.TextColor3 = CREAM
+	title.Position = UDim2.fromOffset(40, 54)
+	title.Size = UDim2.fromOffset(300, 36)
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	local oldSub = header:FindFirstChild("Sub")
+	if oldSub then
+		oldSub:Destroy()
+	end
+	-- (what the open tab is: ShopController TAB_LINES)
+	text(header, "Sub", { Position = UDim2.fromOffset(40, 90), Size = UDim2.fromOffset(400, 18), FontFace = BODY_BOLD, TextSize = 14, TextColor3 = CREAM, TextTransparency = 0.4, Text = "Upgrades last for good · paid with coins" })
+	local balance = header.Balance
+	balance.BackgroundColor3 = CREAM
+	balance.BackgroundTransparency = 0.9
+	local bstroke = balance:FindFirstChildOfClass("UIStroke")
+	if bstroke then
+		bstroke.Color = CREAM
+		bstroke.Transparency = 0.8
+		bstroke.Thickness = 2
+	end
+	balance.Amount.TextColor3 = CREAM
+	if balance:FindFirstChild("Plus") then
+		balance.Plus.Visible = false -- (the Coins tab is right there)
+	end
+	header.Close.Position = UDim2.fromOffset(1219, 81)
+	header.CloseShadow.Position = UDim2.fromOffset(1219 - 21, 81 - 21)
+	header.CloseShadow.Size = UDim2.fromOffset(48, 48)
+	header.Balance.Position = UDim2.fromOffset(1219 - 21 - 16, 81)
+	if header:FindFirstChild("GiftTag") then
+		header.GiftTag.Position = UDim2.fromOffset(640, 81)
+		local tagShadow = header:FindFirstChild("GiftTagShadow")
+		if tagShadow then
+			tagShadow.Position = UDim2.fromOffset(643, 84)
+		end
+	end
+
+	-- the page card, behind the scroll and the Upgrades page
+	for _, name in { "Page", "PageShadow" } do
+		local old = panel:FindFirstChild(name)
+		if old then
+			old:Destroy()
+		end
+	end
+	local pageShadow = new("Frame", { Name = "PageShadow", Position = UDim2.fromOffset(PAGE_X + 8 - 4, PAGE_Y + 8 - 4), Size = UDim2.fromOffset(PAGE_W + 8, PAGE_H + 8), BackgroundColor3 = INK, ZIndex = -1 }, panel)
+	corner(pageShadow, 22)
+	local page = new("Frame", { Name = "Page", Position = UDim2.fromOffset(PAGE_X, PAGE_Y), Size = UDim2.fromOffset(PAGE_W, PAGE_H), BackgroundColor3 = CREAM, ZIndex = 0 }, panel)
+	corner(page, 22)
+	new("UIStroke", { Color = INK, Thickness = 4, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, page)
+
+	local scroll = panel.Scroll
+	scroll.Position = UDim2.fromOffset(PAGE_X + 4, PAGE_Y + 4)
+	scroll.Size = UDim2.fromOffset(PAGE_W - 8, PAGE_H - 8)
+	scroll.BackgroundTransparency = 1
+	scroll.ZIndex = 1
+
+	-- sidebar: the six tabs, then "Send a gift" as a quiet pink row under a divider (board 58 A)
+	local sidebar = panel.Sidebar
+	sidebar.Position = UDim2.fromOffset(SIDE_X, PAGE_Y)
+	sidebar.Size = UDim2.fromOffset(SIDE_W, PAGE_H)
+	sidebar.BackgroundTransparency = 1
+	local sc = sidebar:FindFirstChildOfClass("UICorner")
+	if sc then
+		sc:Destroy()
+	end
+	local oldGift = sidebar:FindFirstChild("GiftButton")
+	local giftIcon = oldGift and oldGift:FindFirstChild("Icon") and oldGift.Icon.Image or ""
+	for _, name in { "GiftButton", "GiftButtonShadow", "GiftDivider" } do
+		local old = sidebar:FindFirstChild(name)
+		if old then
+			old:Destroy()
+		end
+	end
+	sidebarTabs(sidebar)
+	local giftY = #Build.TABS * 50
+	new("Frame", { Name = "GiftDivider", Position = UDim2.fromOffset(12, giftY + 6), Size = UDim2.fromOffset(SIDE_W - 24, 2), BackgroundColor3 = CREAM, BackgroundTransparency = 0.82, BorderSizePixel = 0, ZIndex = 3 }, sidebar)
+	local gift = new("TextButton", {
+		Name = "GiftButton",
+		Position = UDim2.fromOffset(0, giftY + 18),
+		Size = UDim2.fromOffset(SIDE_W, 42),
+		BackgroundTransparency = 1,
+		AutoButtonColor = false,
+		Text = "",
+		ZIndex = 3,
+	}, sidebar)
+	corner(gift, 12)
+	new("ImageLabel", { Name = "Icon", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 8, 0.5, 0), Size = UDim2.fromOffset(24, 24), BackgroundTransparency = 1, Image = giftIcon, ScaleType = Enum.ScaleType.Fit, ZIndex = 4 }, gift)
+	text(gift, "Label", { Position = UDim2.fromOffset(40, 0), Size = UDim2.new(1, -48, 1, 0), FontFace = BODY, TextSize = 16, TextColor3 = C("FF9EC4"), Text = "Send a gift", ZIndex = 4 })
+
+	upgradesPage(panel)
+	return shop
 end
 
 return Build

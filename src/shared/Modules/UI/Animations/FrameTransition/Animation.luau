@@ -7,6 +7,7 @@ export type FrameTransitionConfig = {
 	OpenFrom: number, -- scale the panel starts at when opening
 	CloseTo: number, -- scale it shrinks to when closing
 	Rise: number, -- px the panel rises while opening / drops while closing
+	HeavyRise: number, -- px a big screen (no scaling, FrameTransition HEAVY) slides up from
 }
 
 local Animation: FrameTransitionConfig = {
@@ -18,6 +19,7 @@ local Animation: FrameTransitionConfig = {
 	OpenFrom = 0.82,
 	CloseTo = 0.9,
 	Rise = 28,
+	HeavyRise = 60,
 }
 
 return Animation

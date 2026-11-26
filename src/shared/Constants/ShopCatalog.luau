@@ -147,11 +147,12 @@ ShopCatalog.CoinBundles = {
 -- ProductId is still 0 shows "Soon" and can't be bought; Hidden ones aren't shown but still
 -- grant (like CoinBundles). Bought ones show the purchase reveal (PurchasedController).
 ShopCatalog.RollBundles = {
-	-- pack tickets (one opens a free pack): dev copies at the cut prices (15 / 59 / 129, 25 Nov
-	-- 2026) to test before the live ones (19 / 79 / 169) change in Creator Hub
-	{ Id = "Tickets1", Currency = "Tickets", Amount = 1, ProductId = pick(3730112610, 3736256022) },
-	{ Id = "Tickets5", Currency = "Tickets", Amount = 5, ProductId = pick(3730112632, 3736256078), Tag = "POPULAR" },
-	{ Id = "Tickets12", Currency = "Tickets", Amount = 12, ProductId = pick(3730112656, 3736256092), Tag = "BEST VALUE" },
+	-- gen packs (each opens a whole 5-card gen pack; Currencies.GenPacks). They were pack tickets
+	-- (1 card each) until 26 Nov 2026; the product Ids stay. Dev copies at the cut prices
+	-- (15 / 59 / 129, 25 Nov 2026) to test before the live ones (19 / 79 / 169) change in Creator Hub
+	{ Id = "Tickets1", Currency = "GenPacks", Amount = 1, ProductId = pick(3730112610, 3736256022) },
+	{ Id = "Tickets5", Currency = "GenPacks", Amount = 5, ProductId = pick(3730112632, 3736256078), Tag = "POPULAR" },
+	{ Id = "Tickets12", Currency = "GenPacks", Amount = 12, ProductId = pick(3730112656, 3736256092), Tag = "BEST VALUE" },
 	{ Id = "Upgrades1", Currency = "Upgrades", Amount = 1, ProductId = 3730112680, Hidden = true },
 	{ Id = "Upgrades5", Currency = "Upgrades", Amount = 5, ProductId = 3730112697, Tag = "POPULAR", Hidden = true },
 	{ Id = "Upgrades12", Currency = "Upgrades", Amount = 12, ProductId = 3730112726, Tag = "BEST VALUE", Hidden = true },
@@ -187,10 +188,10 @@ ShopCatalog.DebutPack = {
 	-- duel the pack comes with Tickets extra, sold as its own product at the same price. After
 	-- that the bonus is gone for good and the shop's pack is the plain one. ProductId 0 = the
 	-- offer is off (in Studio it still shows, selling the plain pack, so it can be tested).
-	Bonus = { ProductId = 3732070614, Tickets = 3, Hours = 48 },
+	Bonus = { ProductId = 3732070614, GenPacks = 3, Hours = 48 },
 }
 
--- Bundles: Robux packs of roll tickets and coins ("Shop v3 · Bundles" board). (They had card
+-- Bundles: Robux packs of gen packs (pack tickets until 26 Nov 2026) and coins ("Shop v3 · Bundles" board). (They had card
 -- upgrades too until 25 Nov 2026: each became Currencies.UPGRADE_COINS coins.)
 -- Big = the featured one: drawn like the Debut Pack, at the very top of the shop; the rest
 -- are the shorter banners under the Debut Pack, in the "Bundles" section.
@@ -201,13 +202,13 @@ ShopCatalog.DebutPack = {
 ShopCatalog.Bundles = {
 	{ Id = "Headliner", Name = "Headliner", Sub = "Spotlight Stage + Mic, only here", ProductId = 3730244515, Big = true, Limit = 1,
 		Tag = "FEATURED", TagColour = "FF5A4E", Gradient = { "D8F6F2", "FFE3DE" }, -- the Spotlight set's teal → coral
-		Stage = "SpotlightStage", Mic = "SpotlightMic", Tickets = 15, Coins = 7500 },
+		Stage = "SpotlightStage", Mic = "SpotlightMic", GenPacks = 15, Coins = 7500 },
 	{ Id = "WarmUp", Name = "Warm-up", Sub = "A few packs to get going", ProductId = 3730244340, Limit = 2,
-		Gradient = { "F1ECFF", "FFFFFF" }, Tickets = 3, Coins = 650 },
+		Gradient = { "F1ECFF", "FFFFFF" }, GenPacks = 3, Coins = 650 },
 	{ Id = "Practice", Name = "Practice", Sub = "Packs + coins for your binder", ProductId = 3730244371, Limit = 2,
-		Tag = "POPULAR", TagColour = "FFE07A", Gradient = { "FFE4EF", "FFF6F3" }, Tickets = 6, Coins = 1950 },
+		Tag = "POPULAR", TagColour = "FFE07A", Gradient = { "FFE4EF", "FFF6F3" }, GenPacks = 6, Coins = 1950 },
 	{ Id = "Comeback", Name = "Comeback", Sub = "Back in the game, fully stocked", ProductId = 3730244488, Limit = 2, Hidden = true,
-		Gradient = { "E3F3FC", "F4FBFF" }, Tickets = 10, Coins = 4900 },
+		Gradient = { "E3F3FC", "F4FBFF" }, GenPacks = 10, Coins = 4900 },
 }
 -- the Headliner's set: only in that bundle, never in the shop rotation
 -- (a concert runway: teal LED strips, a coral centre line, a tile video wall, fan lightsticks)
@@ -223,8 +224,8 @@ function ShopCatalog.GetBundle(id: string)
 	return nil
 end
 
--- What a bundle's banner shows, in order: its stage + mic, then tickets, upgrades, coins.
--- { Kind = "Stage" | "Mic" | "Tickets" | "Upgrades" | "Coins", Id?, Amount? }
+-- What a bundle's banner shows, in order: its stage + mic, then gen packs, tickets, upgrades, coins.
+-- { Kind = "Stage" | "Mic" | "GenPacks" | "Tickets" | "Upgrades" | "Coins", Id?, Amount? }
 function ShopCatalog.BundleContents(bundle): { any }
 	local out = {}
 	if bundle.Stage then
@@ -233,7 +234,7 @@ function ShopCatalog.BundleContents(bundle): { any }
 	if bundle.Mic then
 		table.insert(out, { Kind = "Mic", Id = bundle.Mic })
 	end
-	for _, kind in { "Tickets", "Upgrades", "Coins" } do
+	for _, kind in { "GenPacks", "Tickets", "Upgrades", "Coins" } do
 		if (bundle[kind] or 0) > 0 then
 			table.insert(out, { Kind = kind, Amount = bundle[kind] })
 		end
@@ -357,7 +358,9 @@ function ShopCatalog.GiftName(product: string): string?
 	end
 	for _, b in ShopCatalog.RollBundles do
 		if b.Id == product then
-			return if b.Currency == "Tickets" then `{b.Amount} roll ticket{if b.Amount == 1 then "" else "s"}` else `{b.Amount} card upgrade{if b.Amount == 1 then "" else "s"}`
+			return if b.Currency == "GenPacks" then `{b.Amount} gen pack{if b.Amount == 1 then "" else "s"}`
+				elseif b.Currency == "Tickets" then `{b.Amount} pack ticket{if b.Amount == 1 then "" else "s"}`
+				else `{b.Amount} card upgrade{if b.Amount == 1 then "" else "s"}`
 		end
 	end
 	for _, b in ShopCatalog.Bundles do

@@ -43,8 +43,8 @@ return table.freeze({
 	GUARANTEE_RARITY = "polaroid",
 	ROTATION_SIZE = 6, -- group packs on sale at a time (plus your bias's group)
 	ROTATION_SECONDS = 24 * 3600, -- they change at midnight UTC
-	FREE_PACK_SECONDS = 2 * 3600, -- one free pack refills this often
-	FREE_PACK_CAP = 6, -- free packs bank up to this many (the clock stops while full)
+	FREE_PACK_SECONDS = 2 * 3600, -- one free pack refills this often (the Refill upgrade: −5 min a level)
+	FREE_PACK_CAP = 3, -- free packs bank up to this many: 6 h of refills (the clock stops while full; the Stash upgrade: +1 a level, to 9). Was 6; the daily pack can go one over
 	FREE_PACK_START = 3, -- a new player's first free packs
 	FREE_OPEN_MAX = 10, -- "Open all" opens up to this many free packs at once
 	FIRST_ALBUM_KEY = "FirstAlbum", -- Rewards.Claimed key: the free group pack after the bias pick is used
@@ -115,8 +115,8 @@ return table.freeze({
 	-- the binder (Engine/BinderService): your PINNED cards earn coins an hour (rarity Earn × level
 	-- × bias), while you're away too (at OFFLINE_EARN of the rate), up to BINDER_CAP_SECONDS of it.
 	-- Economy model: assets/KPOPPED_Economy.xlsx (rates and sell values set Nov 2026). Everyone has PIN_SLOTS
-	-- slots; PIN_SLOTS_MAX - PIN_SLOTS more unlock later (how: not decided yet).
-	BINDER_CAP_SECONDS = 8 * 3600,
+	-- slots; the Slots upgrade unlocks the other PIN_SLOTS_MAX - PIN_SLOTS (Modules/Library/Upgrades).
+	BINDER_CAP_SECONDS = 6 * 3600, -- the base: the Storage upgrade adds 30 min a level, up to 12 h (Modules/Library/Upgrades)
 	OFFLINE_EARN = 0.5, -- pins earn at this share of their rate while you're offline
 	ONLINE_BANK_SECONDS = 60, -- online players' earnings are banked at full rate this often
 	PIN_SLOTS = 3,

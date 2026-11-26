@@ -44,6 +44,7 @@ local Promise = require(ReplicatedStorage.Packages.promise)
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Client
 local Albums = require(ReplicatedStorage.Modules.Library.Albums)
+local Upgrades = require(ReplicatedStorage.Modules.Library.Upgrades)
 local CardDecor = require(ReplicatedStorage.Modules.UI.CardDecor)
 local AlbumConstants = require(ReplicatedStorage.Constants.AlbumConstants)
 local Currencies = require(ReplicatedStorage.Constants.Currencies)
@@ -52,6 +53,7 @@ local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local FrameTransition = require(ReplicatedStorage.Modules.UI.Animations.FrameTransition)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
+local Notify = require(ReplicatedStorage.Modules.UI.Notify)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 local SongsTab = require(script.Songs)
 local Ladders = require(ReplicatedStorage.Modules.Library.Ladders)
@@ -172,9 +174,14 @@ local function pinValue(): string
 	return PlayerData.Inventory.Pins.Get() or ""
 end
 
--- ×2 with the 2× Coins pass (Albums.Boost)
+-- ×2 with the 2× Coins pass, × the Payout upgrade (Albums.Boost)
 local function boost(): number
-	return Albums.Boost(PlayerData.GamePasses)
+	return Albums.Boost(PlayerData.GamePasses, Upgrades.Levels(PlayerData))
+end
+
+-- the Shop's upgrade levels (Slots, Storage… Modules/Library/Upgrades)
+local function lv(): Upgrades.Levels
+	return Upgrades.Levels(PlayerData)
 end
 
 -- a group's photo for its icons (its PackArt), "" if none
@@ -337,20 +344,7 @@ function BinderController.new()
 end
 
 function BinderController:_toast(message: string?)
-	local toast = self._frame:FindFirstChild("Toast")
-	if not toast or not message or message == "" then
-		return
-	end
-	toast.Text = message
-	toast.Visible = true
-	Juice.SlideIn(toast, -24)
-	self._toastToken = (self._toastToken or 0) + 1
-	local token = self._toastToken
-	task.delay(2.2, function()
-		if self._toastToken == token then
-			toast.Visible = false
-		end
-	end)
+	Notify.Toast(message)
 end
 
 -- [[ Header ]]
@@ -387,8 +381,8 @@ end
 
 function BinderController:_waiting(): number
 	local owned = cards()
-	local rate = Albums.Rate(owned, bias(), pinValue(), boost())
-	local coins = Albums.Waiting(PlayerData.Rewards.BinderBank.Get() or 0, PlayerData.Rewards.BinderAt.Get() or os.time(), rate, os.time())
+	local rate = Albums.Rate(owned, bias(), pinValue(), boost(), lv())
+	local coins = Albums.Waiting(PlayerData.Rewards.BinderBank.Get() or 0, PlayerData.Rewards.BinderAt.Get() or os.time(), rate, os.time(), nil, lv())
 	return coins
 end
 
@@ -402,8 +396,8 @@ function BinderController:_fillHeader()
 		have += stats[artist][1]
 		total += stats[artist][2]
 	end
-	local rate = Albums.Rate(owned, bias(), pinValue(), boost())
-	local pinned = math.min(#pins(), Albums.PinSlots())
+	local rate = Albums.Rate(owned, bias(), pinValue(), boost(), lv())
+	local pinned = math.min(#pins(), Albums.PinSlots(lv()))
 	f.Sub.Text = `{fmt(have)} of {fmt(total)} cards · {#artists} groups · {pinned} pinned, earning {rateText(rate)} coins an hour`
 	self:_fillPins()
 	f.Coins.Amount.Text = fmt(PlayerData.Currencies.Won.Get() or 0)
@@ -452,7 +446,7 @@ function BinderController:_fillPins()
 	local owned = cards()
 	local b = bias()
 	local list = pins()
-	local slots = Albums.PinSlots()
+	local slots = Albums.PinSlots(lv())
 	local used = 0
 	for i = 1, AlbumConstants.PIN_SLOTS_MAX do
 		local slot = panel.Slots:FindFirstChild("Slot" .. i)
@@ -479,7 +473,7 @@ function BinderController:_fillPins()
 		end
 	end
 	panel.Title.Text = `MY PINS · {used}/{slots}`
-	panel.Rate.Amount.Text = `{rateText(Albums.Rate(owned, b, pinValue(), boost()))} an hour`
+	panel.Rate.Amount.Text = `{rateText(Albums.Rate(owned, b, pinValue(), boost(), lv()))} an hour`
 end
 
 -- [[ The group list ]]
@@ -1218,7 +1212,7 @@ end
 function BinderController:_fillPinButton(id: string)
 	local b = self._frame.Detail.Window.Panel.Info.Actions.Pin
 	local list = pins()
-	local slots = Albums.PinSlots()
+	local slots = Albums.PinSlots(lv())
 	local used = 0
 	for i, pinId in list do
 		if i <= slots and (cards()[pinId] or 0) > 0 then
@@ -1270,7 +1264,7 @@ function BinderController:_showSwap()
 	local mine = Albums.EarnPerHour(id, owned[id] or 1, b)
 	sheet.Gain.Text = `{info.Member.Name} earns +{rateText(mine)}/hr`
 	local list = pins()
-	local slots = Albums.PinSlots()
+	local slots = Albums.PinSlots(lv())
 	local weakest, weakestRate = nil, math.huge
 	for i = 1, slots do
 		local pinId = list[i]
@@ -1477,6 +1471,21 @@ function BinderController:Initialize(interface)
 	j:Add(f.Collect.Activated:Connect(function()
 		self:_collect()
 	end))
+	-- Bias: the Bias page in Packs; it sits 12 px left of the coins, which grow with the amount
+	local biasButton = f:FindFirstChild("Bias")
+	if biasButton then
+		local function place()
+			local scale = f.AbsoluteSize.X / 1280
+			if scale > 0 then
+				biasButton.Position = UDim2.fromOffset(f.Coins.Position.X.Offset - f.Coins.AbsoluteSize.X / scale - 12, f.Coins.Position.Y.Offset)
+			end
+		end
+		place()
+		j:Add(f.Coins:GetPropertyChangedSignal("AbsoluteSize"):Connect(place))
+		j:Add(biasButton.Activated:Connect(function()
+			self._interface:Open("Albums", { Page = "Bias" })
+		end))
+	end
 	for _, name in { "Binder", "Songs" } do
 		j:Add(f.Tabs[name].Activated:Connect(function()
 			if self._tab ~= name then
@@ -1641,6 +1650,7 @@ function BinderController:Initialize(interface)
 		j:Add(field.Observe(function()
 			self._stats = nil
 			self._allDirty = true
+			self._cleanKey = nil -- (the next open repaints)
 			self:_refresh()
 		end))
 	end
@@ -1678,10 +1688,19 @@ function BinderController:Activate(opts: any?)
 			end
 		end
 	end
-	self._shownAlbum = nil -- rebuild the rows (cards may have changed while closed)
+	-- reopening on the same page with nothing changed since it closed: keep what's painted
+	-- (a full repaint is a whole page of cards + every group row, a hitch on open)
+	local wantTab = if opts.Tab == "Songs" then "Songs" else "Binder"
+	local wantMode = if opts.Tab == "All" then "All" else "Group"
+	local same = self._cleanKey ~= nil and self._cleanKey == self:_pageKey(wantTab, wantMode)
+	if not same then
+		self._shownAlbum = nil -- rebuild the rows (cards may have changed while closed)
+	end
 	self._frame.Visible = true
 	self.State = if self.State == "Active" then "Active" else "Activating"
-	if opts.Tab == "Songs" then
+	if same then
+		self:_fillHeader()
+	elseif opts.Tab == "Songs" then
 		self:_showTab("Songs", "Group")
 	elseif opts.Tab == "All" then
 		self:_showTab("Binder", "All")
@@ -1710,6 +1729,34 @@ function BinderController:Activate(opts: any?)
 	end)
 end
 
+-- Behind the loading screen (Interface.Start): build and lay out the default page once,
+-- off-screen, so the first real open is instant. Leaves the screen closed.
+function BinderController:Prewarm()
+	local f = self._frame
+	if f.Visible or self.State ~= "Inactive" then
+		return
+	end
+	local home = f.Position
+	f.Position = home + UDim2.fromOffset(20000, 0)
+	f.Visible = true
+	self._group = self._group or self:_defaultGroup()
+	self._album = 1
+	self:_showTab("Binder", "Group")
+	for _ = 1, 2 do
+		RunService.RenderStepped:Wait()
+	end
+	if self.State == "Inactive" then
+		f.Visible = false
+	end
+	f.Position = home
+	self._cleanKey = self:_pageKey(self._tab, self._mode) -- (the first open keeps this page)
+end
+
+-- what's on screen (the tab, mode, group, album), to tell whether a reopen can skip the repaint
+function BinderController:_pageKey(tab: string?, mode: string?): string
+	return `{tab}|{mode}|{self._group}|{self._album}|{self._songGroup}|{self._filter}`
+end
+
 -- controller B: the preview first
 function BinderController:PadBack(): boolean
 	if self._preview then
@@ -1726,6 +1773,7 @@ function BinderController:Deactivate()
 	self.State = "Deactivating"
 	self._token += 1
 	self:_hidePreview()
+	self._cleanKey = self:_pageKey(self._tab, self._mode)
 	return FrameTransition.Close(self._frame):andThen(function()
 		self._frame.Visible = false
 		self.State = "Inactive"

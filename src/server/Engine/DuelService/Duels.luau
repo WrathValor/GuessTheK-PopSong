@@ -13,6 +13,7 @@ local Themes = require(ReplicatedStorage.Modules.Library.Themes)
 local Cards = require(ReplicatedStorage.Modules.Library.Cards)
 local Mastery = require(ReplicatedStorage.Modules.Library.Mastery)
 local Albums = require(ReplicatedStorage.Modules.Library.Albums)
+local Upgrades = require(ReplicatedStorage.Modules.Library.Upgrades)
 local Levels = require(ReplicatedStorage.Modules.Levels)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 local Analytics = require(script.Parent.Parent.Analytics)
@@ -94,7 +95,7 @@ local function ownedOf(player: Player): ({ any }, { [string]: string })
 	if not ok or not data then
 		return {}, {}
 	end
-	local groups = Albums.FavouredGroups(data.Inventory.Cards.Get() or {}, data.Inventory.Bias.Get(), data.Inventory.Pins.Get())
+	local groups = Albums.FavouredGroups(data.Inventory.Cards.Get() or {}, data.Inventory.Bias.Get(), data.Inventory.Pins.Get(), Upgrades.Levels(data))
 	local list, kinds = {}, {}
 	for _, song in SongLibrary.GetAllSongs() do
 		local kind = song.Artist and groups[song.Artist]

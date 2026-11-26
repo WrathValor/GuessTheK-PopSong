@@ -10,6 +10,9 @@
 --                          { Action = "SeenNews", Id = newsId } (clears the News button dot)
 --                          { Action = "FavoritePrompted" }       (the one-time favourite prompt was shown)
 --                          { Action = "HintSeen", Id = "Money" | "Rewards" | "Tickets" | "Upgrades" | "Guide…" } (a nudge or a screen guide: HINTS)
+--                          { Action = "Onboard", Step = step }  (the onboarding reached a step: saved + funnel)
+--                          { Action = "OnboardGift" }  (500 coins for the first Payout upgrade, once, only at level 0)
+--                          { Action = "OnboardDone", Skipped? }  (finished: +ONBOARD_REWARD once; skipped: nothing)
 --                          { Action = "Blocked", Ids = { userId } } (the player's Roblox block list,
 --                            sent by Client/SettingsController; kept in memory, never saved)
 -- Invites (Engine/InviteService duels, Engine/PartyService parties) ask AcceptsInvitesFrom:
@@ -44,6 +47,15 @@ local Analytics = require(script.Parent.Analytics)
 local SettingsRemote = Bridgenet.ReferenceBridge("SettingsRemote")
 
 local VOLUMES = { MusicVolume = true, SfxVolume = true, ClipVolume = true }
+-- the onboarding (TutorialController/Flow, boards 62–62e)
+local ONBOARD_STEPS = {}
+for _, step in require(ReplicatedStorage.Constants.AnalyticsEvents).Funnels.Onboard do
+	ONBOARD_STEPS[step] = true
+end
+local ONBOARD_GIFT = 500 -- for the first Payout level (Upgrades.Cost("Payout", 1))
+local ONBOARD_REWARD = { Coins = 250, Tickets = 1, XP = 50 } -- the All set card
+local Currencies = require(ReplicatedStorage.Constants.Currencies)
+local AnalyticsTransactions = require(ReplicatedStorage.Constants.AnalyticsEvents).Transactions
 local MAX_BLOCKED = 1000 -- ids kept per player's block list
 local MIN_GAP = 0.1 -- requests closer together than this are dropped (slider spam)
 
@@ -128,6 +140,50 @@ local function handle(player: Player, packet)
 			settings.TutorialDone.Set(true)
 			logSetting(player, "Tutorial", "Skipped")
 		end
+	elseif action == "Onboard" then
+		if ONBOARD_STEPS[packet.Step] and settings.Onboard.Get() ~= "Done" then
+			settings.Onboard.Set(packet.Step)
+			Analytics.Funnel(player, "Onboard", tostring(player.UserId), packet.Step)
+		end
+	elseif action == "OnboardGift" then
+		local data = PlayerData.Get(player)
+		local claimed = data and data.Rewards.Claimed.Has("OnboardGift")
+		local level = data and (data.Inventory.ShopUpgrades.Payout.Get() or 0) or 1
+		if data and not claimed and level == 0 and settings.Onboard.Get() ~= "Done" then
+			PlayerData.Batch(player, function()
+				data.Rewards.Claimed.Add("OnboardGift")
+				Currencies.Data(data, "Coins").Increment(ONBOARD_GIFT)
+			end)
+			Analytics.Economy(player, "Source", "Coins", ONBOARD_GIFT, Currencies.Data(data, "Coins").Get(), AnalyticsTransactions.Onboard, "UpgradeGift")
+		end
+		SettingsRemote:Fire(player, { Message = "OnboardGift" })
+	elseif action == "OnboardDone" then
+		local data = PlayerData.Get(player)
+		if data and settings.Onboard.Get() ~= "Done" then
+			local skipped = packet.Skipped == true
+			local pay = not skipped and not data.Rewards.Claimed.Has("Onboard")
+			PlayerData.Batch(player, function()
+				settings.Onboard.Set("Done")
+				settings.TutorialDone.Set(true)
+				if pay then
+					data.Rewards.Claimed.Add("Onboard")
+					Currencies.Data(data, "Coins").Increment(ONBOARD_REWARD.Coins)
+					Currencies.Data(data, "Tickets").Increment(ONBOARD_REWARD.Tickets)
+					data.Player.XP.Increment(ONBOARD_REWARD.XP)
+				end
+			end)
+			if skipped then
+				logSetting(player, "Onboard", "Skipped")
+			else
+				Analytics.Funnel(player, "Onboard", tostring(player.UserId), "Done")
+			end
+			if pay then
+				Analytics.Economy(player, "Source", "Coins", ONBOARD_REWARD.Coins, Currencies.Data(data, "Coins").Get(), AnalyticsTransactions.Onboard, "AllSet")
+			end
+		end
+	elseif action == "OnboardReplay" then
+		-- Settings → Replay tutorial: the tour again (no rewards the second time)
+		settings.Onboard.Set("")
 	elseif action == "FavoritePrompted" then
 		if settings.FavoritePrompted.Get() ~= true then
 			settings.FavoritePrompted.Set(true)

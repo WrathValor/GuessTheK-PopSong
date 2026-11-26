@@ -20,8 +20,9 @@
 --                          the client can show the purchase reveal
 --
 -- RewardsService.Record(player, facts) is called by DuelService after each match to move the
--- daily + weekly quest counters (facts: Correct, Win, Lost, Solo, Perfect; new songs from
--- RecordNewCards). Rewards are currency tables ({ Coins, Tickets }: grant()).
+-- daily + weekly quest counters (facts: Correct, Win, Lost, Solo, Perfect). The photocard
+-- loops move theirs through RecordStats (AlbumService: packs, new cards, Lucky Draws, Gold,
+-- albums; BinderService: collects, pins, sells). Rewards are currency tables ({ Coins, Tickets }: grant()).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
@@ -52,6 +53,18 @@ local function reply(player: Player, action: string, ok: boolean, text: string, 
 	RewardsRemote:Fire(player, packet)
 end
 
+-- pays a reward table ({ Coins, Tickets }); call inside PlayerData.Batch. (Card upgrades are
+-- gone: an Upgrades left in a code or reward pays Currencies.UPGRADE_COINS each.)
+local function grant(data, reward)
+	for _, r in Catalog.RewardList(reward) do
+		if r.Kind == "Upgrades" then
+			Currencies.Data(data, "Coins").Increment(r.Amount * Currencies.UPGRADE_COINS)
+		else
+			Currencies.Data(data, r.Kind).Increment(r.Amount)
+		end
+	end
+end
+
 -- New UTC day: the quest counters and claims start over. Safe to call any time.
 local function rollQuestDay(data, now: number)
 	local today = Catalog.Day(now)
@@ -67,11 +80,31 @@ local function rollQuestDay(data, now: number)
 	data.Rewards.QuestSwapTo.Set("")
 end
 
--- New week (Monday 00:00 UTC): the weekly counters and claims start over.
+-- New week (Monday 00:00 UTC): the weekly counters and claims start over. Weekly quests that
+-- were finished but never claimed are paid first (and the bonus, if every one was), so a
+-- finished week is never lost (board 59b). (No analytics here: it can run inside any Batch.)
 local function rollQuestWeek(data, now: number)
 	local week = Catalog.Week(now)
-	if data.Rewards.QuestWeek.Get() == week then
+	local old = data.Rewards.QuestWeek.Get()
+	if old == week then
 		return
+	end
+	if old ~= 0 then
+		local list, counters, claimed = Catalog.WeeklyFor(old), data.Rewards.WeekQuest, data.Rewards.WeekClaimed
+		local done = 0
+		for _, q in list do
+			if claimed.Has(q.Id) then
+				done += 1
+			elseif (counters[q.Stat].Get() or 0) >= q.Need then
+				done += 1
+				grant(data, q.Reward)
+				data.Player.XP.Increment(Catalog.WEEKLY_QUEST_XP)
+			end
+		end
+		if done >= #list and not claimed.Has("Bonus") then
+			grant(data, Catalog.WEEKLY_BONUS)
+			data.Player.XP.Increment(Catalog.WEEKLY_BONUS_XP)
+		end
 	end
 	data.Rewards.QuestWeek.Set(week)
 	for _, stat in Catalog.QUEST_STATS do
@@ -105,17 +138,6 @@ local function claimedCount(list, claimed): number
 	return n
 end
 
--- pays a reward table ({ Coins, Tickets }); call inside PlayerData.Batch. (Card upgrades are
--- gone: an Upgrades left in a code or reward pays Currencies.UPGRADE_COINS each.)
-local function grant(data, reward)
-	for _, r in Catalog.RewardList(reward) do
-		if r.Kind == "Upgrades" then
-			Currencies.Data(data, "Coins").Increment(r.Amount * Currencies.UPGRADE_COINS)
-		else
-			Currencies.Data(data, r.Kind).Increment(r.Amount)
-		end
-	end
-end
 
 -- the economy events for a reward just paid (after the Batch)
 local function logReward(player: Player, data, reward, transaction: string, sku: string)
@@ -191,7 +213,7 @@ local function claimQuest(player: Player, data, id, scope: string)
 	if counters[quest.Stat].Get() < quest.Need then
 		return reply(player, "ClaimQuest", false, "Not finished yet")
 	end
-	local xp = if scope == "Daily" then Catalog.DAILY_QUEST_XP else 0
+	local xp = if scope == "Daily" then Catalog.DAILY_QUEST_XP else Catalog.WEEKLY_QUEST_XP
 	PlayerData.Batch(player, function()
 		claimed.Add(quest.Id)
 		grant(data, quest.Reward)
@@ -200,7 +222,7 @@ local function claimQuest(player: Player, data, id, scope: string)
 		end
 	end)
 	if xp > 0 then
-		Analytics.Economy(player, "Source", "XP", xp, data.Player.XP.Get(), "Quest", "DailyQuest")
+		Analytics.Economy(player, "Source", "XP", xp, data.Player.XP.Get(), "Quest", scope .. "Quest")
 	end
 	Analytics.Event(player, "QuestClaimed", quest.Reward.Coins or 0, quest.Id)
 	logReward(player, data, quest.Reward, "Quest", scope .. "Quest") -- the quest is in QuestClaimed (SKUs are capped at 100)
@@ -225,7 +247,7 @@ local function claimBonus(player: Player, data, scope: string)
 		return reply(player, "ClaimBonus", false, `Claim all {#list} quests first`)
 	end
 	local reward = if scope == "Weekly" then Catalog.WEEKLY_BONUS else Catalog.BONUS
-	local xp = if scope == "Daily" then Catalog.DAILY_BONUS_XP else 0
+	local xp = if scope == "Daily" then Catalog.DAILY_BONUS_XP else Catalog.WEEKLY_BONUS_XP
 	PlayerData.Batch(player, function()
 		claimed.Add("Bonus")
 		grant(data, reward)
@@ -234,7 +256,7 @@ local function claimBonus(player: Player, data, scope: string)
 		end
 	end)
 	if xp > 0 then
-		Analytics.Economy(player, "Source", "XP", xp, data.Player.XP.Get(), "QuestBonus", "DailyBonus")
+		Analytics.Economy(player, "Source", "XP", xp, data.Player.XP.Get(), "QuestBonus", scope .. "Bonus")
 	end
 	Analytics.Event(player, "QuestBonusClaimed", reward.Coins or 0)
 	logReward(player, data, reward, "QuestBonus", scope .. "Bonus")
@@ -492,14 +514,34 @@ local ACTIONS = {
 -- is still called NewSongs: it counted new songs from the song roll before photocards.)
 -- Call it outside any other Batch.
 function RewardsService.RecordNewCards(player: Player, count: number)
+	RewardsService.RecordStats(player, { NewSongs = count })
+end
+
+-- Moves quest counters by stat name (RewardsCatalog.QUEST_STATS), daily and weekly together:
+-- { Packs = 5, Lucky = 1 } from AlbumService, { Collects = 1, BinderCoins = 420 } from
+-- BinderService. Zeros and unknown stats are skipped. Call it outside any other Batch.
+function RewardsService.RecordStats(player: Player, stats: { [string]: number })
 	local data = PlayerData.Get(player)
-	if not data or count <= 0 then
+	if not data then
+		return
+	end
+	local any = false
+	for stat, n in stats do
+		if n > 0 and table.find(Catalog.QUEST_STATS, stat) then
+			any = true
+		end
+	end
+	if not any then
 		return
 	end
 	PlayerData.Batch(player, function()
 		roll(data, os.time())
-		data.Rewards.Quest.NewSongs.Increment(count)
-		data.Rewards.WeekQuest.NewSongs.Increment(count)
+		for stat, n in stats do
+			if n > 0 and table.find(Catalog.QUEST_STATS, stat) then
+				data.Rewards.Quest[stat].Increment(n)
+				data.Rewards.WeekQuest[stat].Increment(n)
+			end
+		end
 	end)
 end
 

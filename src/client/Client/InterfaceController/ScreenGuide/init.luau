@@ -72,9 +72,10 @@ local function seen(id: string): boolean
 	return ok and v == true
 end
 
+-- (the onboarding, TutorialController/Flow, finished or skipped: it has its own coach marks)
 local function tutorialDone(): boolean
-	local ok, v = pcall(PlayerData.Settings.TutorialDone.Get)
-	return ok and v == true
+	local ok, v = pcall(PlayerData.Settings.Onboard.Get)
+	return ok and v == "Done"
 end
 
 -- ------------------------------- Placement -------------------------------- --

@@ -4,8 +4,10 @@
 -- Built in code: StarterGui hasn't replicated yet when this runs.
 --
 -- It stays up until, in order: the place has loaded (25%), the player's data has arrived (50%),
--- every Interface controller has started (LocalPlayer attribute "UIReady", 80%), and the
--- Interface's images have preloaded (80 → 100%). Then it fades out and sets the LocalPlayer
+-- every Interface controller has started (LocalPlayer attribute "UIReady", 70%), the biggest
+-- screens have been built and laid out behind it ("UIWarm", 80%: Binder + Packs, so their first
+-- open doesn't hitch; at most WARM_WAIT seconds), and the Interface's images have preloaded
+-- (80 → 100%). Then it fades out and sets the LocalPlayer
 -- attribute "LoadingDone" (the tutorial's Welcome card waits for it). Skip shows after
 -- SKIP_AFTER seconds in case something hangs.
 
@@ -24,6 +26,7 @@ local MIN_TIME = 1.5 -- never flash: stay up at least this long
 local SKIP_AFTER = 8
 local GIVE_UP = 45 -- stop waiting on any one step after this long
 local TIP_TIME = 3.2
+local WARM_WAIT = 8 -- the screen warm-up ("UIWarm") gets at most this long
 
 local C = Color3.fromHex
 local INK = C("1E1B2E")
@@ -115,10 +118,11 @@ task.spawn(function()
 	fit()
 end)
 
--- logo: GUESS THE tag + K-POP SONG
-local tag = card(canvas, "Tag", UDim2.fromOffset(640, 110), UDim2.fromOffset(190, 40), YELLOW, -2, 12, 4, 5)
-text(tag, { Size = UDim2.fromScale(1, 1), FontFace = HEAD, TextSize = 24, Text = "GUESS THE" })
-local title = text(canvas, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(640, 180), Size = UDim2.fromOffset(700, 84), FontFace = HEAD, TextSize = 72, TextColor3 = CREAM, Text = "K-POP SONG", Rotation = -2 })
+-- logo: WELCOME TO tag + K-POPPED! (the game's name since the photocard update; it was
+-- "Guess the K-Pop Song")
+local tag = card(canvas, "Tag", UDim2.fromOffset(640, 110), UDim2.fromOffset(210, 40), YELLOW, -2, 12, 4, 5)
+text(tag, { Size = UDim2.fromScale(1, 1), FontFace = HEAD, TextSize = 24, Text = "WELCOME TO" })
+local title = text(canvas, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(640, 180), Size = UDim2.fromOffset(700, 84), FontFace = HEAD, TextSize = 72, TextColor3 = CREAM, Text = "K-POPPED!", Rotation = -2 })
 new("UIStroke", { Color = INK, Thickness = 4 }, title)
 local titleShadow = title:Clone(); titleShadow.Name = "TitleShadow"; titleShadow.TextColor3 = INK; titleShadow.Position = title.Position + UDim2.fromOffset(6, 6); titleShadow.ZIndex = 0; titleShadow.Parent = canvas
 
@@ -253,6 +257,13 @@ end)
 setProgress(50)
 
 waitFor(function() return LOCAL_PLAYER:GetAttribute("UIReady") == true end)
+setProgress(70)
+do
+	local deadline = os.clock() + WARM_WAIT
+	while not skipped and os.clock() < deadline and LOCAL_PLAYER:GetAttribute("UIWarm") ~= true do
+		task.wait(0.1)
+	end
+end
 setProgress(80)
 
 -- preload the Interface's images (counts toward the last 20%)

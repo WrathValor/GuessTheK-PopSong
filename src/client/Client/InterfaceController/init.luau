@@ -326,6 +326,30 @@ function Interface.Start(self: Self)
 	-- the loading screen (ReplicatedFirst/Loading) waits for this before it fades out
 	Players.LocalPlayer:SetAttribute("UIReady", true)
 
+	-- Warm-up: the biggest screens are built and laid out once behind the loading screen, so
+	-- their first open has no hitch (cloning a page of cards + every row, and the first layout
+	-- of thousands of fitted labels, took ~0.3 s). Each controller with a :Prewarm() shows its
+	-- frame off-screen for a couple of frames. The loading screen waits for "UIWarm" too.
+	task.spawn(function()
+		local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Client
+		local deadline = os.clock() + 15
+		while os.clock() < deadline and not pcall(function()
+			return PlayerData.Inventory.Cards.Get()
+		end) do
+			task.wait(0.1)
+		end
+		for _, name in { "Binder", "Albums" } do
+			local controller = self.Controllers[name] :: any
+			if controller and controller.Prewarm then
+				local ok, err = pcall(controller.Prewarm, controller)
+				if not ok then
+					warn(`[Interface] couldn't warm up {name}: {err}`)
+				end
+			end
+		end
+		Players.LocalPlayer:SetAttribute("UIWarm", true)
+	end)
+
 	-- HUD is the default non-exclusive gameplay overlay, so it opens as soon as it's registered.
 	--self:Open("HUD")
 

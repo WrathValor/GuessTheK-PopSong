@@ -44,27 +44,27 @@ local NUDGES = {
 		Title = "You can open a pack!",
 		Body = "Packs are full of photocards for your binder. Tap <b>Packs</b> to open one.",
 		Target = function(hud)
-			return hud.Menu.Tiles.Packs
+			return hud.TopLeft.Packs
 		end,
-		Side = "Above",
+		Side = "Right", -- (v3: the tile is on the left edge)
 		Opens = "Albums",
 	},
 	Rewards = {
 		Title = "Rewards to claim!",
-		Body = "You levelled up or finished a quest. Collect coins, tickets and more in <b>Rewards</b>.",
+		Body = "You levelled up or finished a quest. Collect coins, tickets and more in <b>Quests</b>.",
 		Target = function(hud)
-			return hud.Menu.Tiles.Rewards
+			return hud.TopLeft.Quests
 		end,
-		Side = "Right", -- (above it would cover Quick Play)
+		Side = "Right",
 		Opens = "Rewards",
 	},
 	Tickets = {
 		Title = "You've got a free pack!",
 		Body = "A ticket opens a pack for free. Tap <b>Packs</b> to use it.",
 		Target = function(hud)
-			return hud.Menu.Tiles.Packs
+			return hud.TopLeft.Packs
 		end,
-		Side = "Above",
+		Side = "Right", -- (v3: the tile is on the left edge)
 		Opens = "Albums",
 	},
 }
@@ -114,8 +114,8 @@ function Nudges.new(hud, janitor, interface)
 			end
 		end))
 	end
-	-- the tutorial finishing lets a waiting nudge through
-	janitor:Add(PlayerData.Settings.TutorialDone.Observe(function()
+	-- the onboarding finishing (or skipped) lets a waiting nudge through
+	janitor:Add(PlayerData.Settings.Onboard.Observe(function()
 		self:_next()
 	end))
 	return self
@@ -149,7 +149,7 @@ function Nudges:_free(): boolean
 end
 
 function Nudges:_next()
-	if self._showing or #self._queue == 0 or not get(PlayerData.Settings.TutorialDone, false) then
+	if self._showing or #self._queue == 0 or get(PlayerData.Settings.Onboard, "") ~= "Done" then
 		return
 	end
 	if self._waiting then

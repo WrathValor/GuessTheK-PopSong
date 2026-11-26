@@ -48,7 +48,8 @@ Build.DAYS = 7
 Build.QUESTS = 3 -- daily quests
 Build.QUEST_ROWS = 4 -- rows built (weekly has 4)
 Build.LEVEL_CARDS = 6
-Build.ROW_H, Build.ROW_GAP = 78, 12
+Build.ROW_H, Build.ROW_GAP = 88, 10 -- (the full-screen rows, Build.FullScreen)
+Build.QUESTS_W = 1112 -- the quests section's width on the full-screen page
 Build.ATLAS = ATLAS
 -- the icons the controller paints with (all already in the game)
 Build.ICONS = {
@@ -70,9 +71,19 @@ Build.QUEST_ICONS = {
 	Solo = { SeasonConstants.ICONS.Solo },
 	Perfect = { SeasonConstants.ICONS.Perfect },
 	NewSongs = { ATLAS, Vector2.new(0, 200) }, -- i_cards
-	DailySong = { SeasonConstants.ICONS.Daily }, -- (until it has its own icon)
+	-- K-POPPED! quests: the HUD + Shop upgrade icons (assets/UI/HUD/v3, assets/UI/Shop/Upgrades),
+	-- the card upgrade icon, and quest icons of their own (assets/UI/Quests)
+	DailySong = { "rbxassetid://99918030171670" }, -- QDailySong: a note on a calendar page
+	Packs = { "rbxassetid://91499562174663" },
+	Collects = { "rbxassetid://117698097103164" },
+	BinderCoins = { "rbxassetid://98250579180874" },
+	Pins = { "rbxassetid://99850215744868" }, -- QPin: a photocard with a pushpin
+	Sold = { "rbxassetid://105691732620083" }, -- QSold: a photocard with a price tag
+	Albums = { "rbxassetid://95357474702369" }, -- QAlbum: an album page with a tick
+	Lucky = { "rbxassetid://121040016252721" },
+	Gold = { Currencies.Upgrades.Icon }, -- the card upgrade icon
 }
-Build.QUEST_TILE = { Correct = "9ED8F5", Wins = "FFB38A", BestRun = "FFD2CE", Duels = "B9A6FF", Solo = "A7E9B8", Perfect = "FFE07A", NewSongs = "DCD3FF", DailySong = "FF9EC4" }
+Build.QUEST_TILE = { Correct = "9ED8F5", Wins = "FFB38A", BestRun = "FFD2CE", Duels = "B9A6FF", Solo = "A7E9B8", Perfect = "FFE07A", NewSongs = "DCD3FF", DailySong = "FF9EC4", Packs = "FFE07A", Collects = "FF9EC4", BinderCoins = "A7E9B8", Pins = "FFE07A", Sold = "FFF3B8", Albums = "FFD2E5", Lucky = "A7E9B8", Gold = "FFE07A" }
 Build.REWARD_CHIP = { Coins = "FFE07A", Tickets = "FF9EC4", Upgrades = "A7E9B8", XP = "DCD3FF" }
 Build.ART_BG = { Coins = "FFE07A", Tickets = "DCD3FF", Upgrades = "9ED8F5", Title = "CDEBFA" }
 -- each day card shows one pile of coins, one coin taller per day (2 on day 1 … 8 on day 7),
@@ -384,6 +395,7 @@ end
 -- Places the rows + bonus for `rows` quests and sizes the section (RewardsController calls it
 -- when the tab changes: daily has 3, weekly 4).
 function Build.LayoutQuests(s: Instance, rows: number)
+	local W = Build.QUESTS_W
 	local rowsH = rows * Build.ROW_H + (rows - 1) * Build.ROW_GAP
 	for i = 1, Build.QUEST_ROWS do
 		local r = s.Rows:FindFirstChild("Row" .. i)
@@ -395,12 +407,12 @@ function Build.LayoutQuests(s: Instance, rows: number)
 			sh.Visible = i <= rows
 		end
 	end
-	s.Rows.Size = UDim2.fromOffset(Build.W, rowsH + 4)
+	s.Rows.Size = UDim2.fromOffset(W, rowsH + 8)
 	-- (anchor-aware: the claim punch re-anchors the bar to its centre, Rewards.settle)
 	local bonus = s.Bonus
 	local a, size = bonus.AnchorPoint, bonus.Size
-	bonus.Position = UDim2.new(size.X.Scale * a.X, size.X.Offset * a.X, size.Y.Scale * a.Y, 46 + rowsH + 16 + size.Y.Offset * a.Y)
-	s.Size = UDim2.fromOffset(Build.W, 46 + rowsH + 16 + 72 + 4 + 26)
+	bonus.Position = UDim2.new(size.X.Scale * a.X, size.X.Offset * a.X, size.Y.Scale * a.Y, 46 + rowsH + 18 + size.Y.Offset * a.Y)
+	s.Size = UDim2.fromOffset(W, 46 + rowsH + 18 + size.Y.Offset + 12)
 end
 
 local function questsSection(content: Instance)
@@ -734,6 +746,234 @@ function Build.Build(frames: Instance)
 
 	root.Parent = frames
 	require(game:GetService("ReplicatedStorage").Modules.UI.CenterButtons).Apply(root)
+	return root
+end
+
+-- ------------------------------- Full screen ------------------------------ --
+-- Design boards "59 · Quests" (Daily), "59b" (Weekly) and "59c" (Levels): the Rewards frame
+-- becomes the full-screen Quests screen, like Binder / Profile / the Shop. "Quests" top left
+-- with a line under it, Daily · Weekly · Levels tabs top centre (Header.Tabs, each with a red
+-- Badge), ✕ top right, and one cream page (Panel.Page) holding the scroll. The sections stay
+-- (RewardsController shows a tab's own): Daily + Weekly show Quests, Levels shows Levels and
+-- GroupReward; the daily login has its own screen, so Daily is hidden. Quest rows are re-laid
+-- out big (icon, title, hint, bar + count + rewards, the button on the right) and the bonus
+-- becomes a dark bar. Run once in Edit on the built frame (again = same result):
+--   local m = game.StarterPlayer.StarterPlayerScripts:FindFirstChild("RewardsController", true).Build
+--   local c = m:Clone(); c.Parent = m.Parent; require(c).FullScreen(game.StarterGui.Interface.Frames); c:Destroy()
+
+local PAGE_X, PAGE_Y, PAGE_W, PAGE_H = 40, 128, 1200, 552
+local DARK_TOP, DARK_MID, DARK_LOW = C("3B2F66"), C("2A2340"), C("221C36")
+Build.TABS = { "Daily", "Weekly", "Levels" }
+
+local function restyleRows(s: Instance)
+	local RW = Build.QUESTS_W - 4
+	for i = 1, Build.QUEST_ROWS do
+		local r = s.Rows:FindFirstChild("Row" .. i)
+		local sh = s.Rows:FindFirstChild("Row" .. i .. "Shadow")
+		if not r then
+			continue
+		end
+		local y = (i - 1) * (Build.ROW_H + Build.ROW_GAP)
+		r.Position, r.Size = UDim2.fromOffset(0, y), UDim2.fromOffset(RW, Build.ROW_H)
+		local st = r:FindFirstChildOfClass("UIStroke")
+		if st then
+			st.Thickness = 4
+		end
+		if sh then
+			-- (the outline sits outside the row: grow the shadow by it, then drop it 5 px)
+			sh.Position, sh.Size = UDim2.fromOffset(5 - 4, y + 5 - 4), UDim2.fromOffset(RW + 8, Build.ROW_H + 8)
+		end
+		r.Tile.Position, r.Tile.Size = UDim2.fromOffset(16, 11), UDim2.fromOffset(66, 66)
+		r.Tile.Icon.Size = UDim2.fromOffset(46, 46)
+		r.QuestTitle.Position, r.QuestTitle.Size, r.QuestTitle.TextSize = UDim2.fromOffset(100, 9), UDim2.fromOffset(700, 26), 19
+		r.Hint.Position, r.Hint.Size = UDim2.fromOffset(100, 35), UDim2.fromOffset(700, 18)
+		r.Bar.AnchorPoint = Vector2.new(0, 0.5)
+		r.Bar.Position, r.Bar.Size = UDim2.fromOffset(100, 66), UDim2.fromOffset(450, 14)
+		r.Progress.AnchorPoint = Vector2.new(0, 0.5)
+		r.Progress.Position, r.Progress.Size = UDim2.fromOffset(562, 66), UDim2.fromOffset(70, 20)
+		r.Rewards.Position, r.Rewards.Size = UDim2.fromOffset(640, 50), UDim2.fromOffset(280, 32)
+		-- (weekly quests pay coins + a ticket + XP: a third chip)
+		if not r.Rewards:FindFirstChild("Chip3") then
+			local c3 = r.Rewards.Chip2:Clone()
+			c3.Name, c3.LayoutOrder = "Chip3", 3
+			c3.Parent = r.Rewards
+		end
+		for _, chip in r.Rewards:GetChildren() do
+			if chip:IsA("TextLabel") then
+				chip.Size = UDim2.fromOffset(0, 28)
+				chip.TextSize = 13
+			end
+		end
+		for _, b in { r.Claim, r.Swap } do
+			b.AnchorPoint = Vector2.new(1, 0.5)
+			b.Position, b.Size = UDim2.new(1, -16, 0.5, 0), UDim2.fromOffset(150, 46)
+			b.TextSize = 15
+		end
+	end
+end
+
+local function restyleBonus(s: Instance)
+	local bonus = s.Bonus
+	bonus.Size = UDim2.fromOffset(Build.QUESTS_W - 4, 66)
+	bonus.BackgroundColor3 = INK
+	bonus.BonusTitle.TextColor3 = YELLOW
+	bonus.BonusTitle.Position = UDim2.fromOffset(20, 10)
+	bonus.Pips.Position = UDim2.fromOffset(20, 36)
+	bonus.Pips.Sub.TextColor3 = CREAM
+	bonus.Claim.AnchorPoint = Vector2.new(1, 0.5)
+	bonus.Claim.Position, bonus.Claim.Size = UDim2.new(1, -16, 0.5, 0), UDim2.fromOffset(150, 44)
+	bonus.Rewards.AnchorPoint = Vector2.new(1, 0.5)
+	bonus.Rewards.Position, bonus.Rewards.Size = UDim2.new(1, -16 - 150 - 16, 0.5, 0), UDim2.fromOffset(300, 66)
+end
+
+local function topTabs(header: Instance)
+	local old = header:FindFirstChild("Tabs")
+	if old then
+		old:Destroy()
+	end
+	local tabs = new("Frame", {
+		Name = "Tabs",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.fromOffset(640, 58),
+		Size = UDim2.fromOffset(0, 46),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundColor3 = CREAM,
+		BackgroundTransparency = 0.9,
+	}, header)
+	corner(tabs, 14)
+	new("UIStroke", { Color = CREAM, Transparency = 0.8, Thickness = 2, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, tabs)
+	new("UIPadding", { PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4) }, tabs)
+	row(tabs, 4)
+	for i, name in Build.TABS do
+		local b = new("TextButton", {
+			Name = name,
+			LayoutOrder = i,
+			Size = UDim2.fromOffset(0, 36),
+			AutomaticSize = Enum.AutomaticSize.X,
+			BackgroundColor3 = CREAM,
+			BackgroundTransparency = 1,
+			AutoButtonColor = false,
+			Text = "",
+		}, tabs)
+		corner(b, 10)
+		new("UIStroke", { Color = INK, Thickness = 3, Enabled = false, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, b)
+		new("UIPadding", { PaddingLeft = UDim.new(0, 16), PaddingRight = UDim.new(0, 14) }, b)
+		row(b, 7)
+		text(b, "Label", { LayoutOrder = 1, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 36), FontFace = BODY, TextSize = 16, TextColor3 = CREAM, Text = name, TextTruncate = Enum.TextTruncate.None })
+		local badge = text(b, "Badge", { LayoutOrder = 2, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 20), BackgroundTransparency = 0, BackgroundColor3 = RED, TextColor3 = WHITE, FontFace = BODY, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Center, Text = "1", Visible = false, TextTruncate = Enum.TextTruncate.None })
+		corner(badge, 7)
+		stroke(badge, 2)
+		pad(badge, 5)
+	end
+	return tabs
+end
+
+function Build.FullScreen(frames: Instance)
+	local root = frames:FindFirstChild("Rewards")
+	assert(root, "build the Rewards frame first")
+
+	-- the backdrop (a UIGradient multiplies the background colour, so the base is white)
+	local scrim = root.Scrim
+	scrim.BackgroundColor3 = WHITE
+	scrim.BackgroundTransparency = 0
+	local g = scrim:FindFirstChildOfClass("UIGradient") or new("UIGradient", {}, scrim)
+	g.Rotation = 90
+	g.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, DARK_TOP),
+		ColorSequenceKeypoint.new(0.41, DARK_TOP),
+		ColorSequenceKeypoint.new(0.5, DARK_MID),
+		ColorSequenceKeypoint.new(0.59, DARK_LOW),
+		ColorSequenceKeypoint.new(1, DARK_LOW),
+	})
+	g.Transparency = NumberSequence.new(0)
+	if root:FindFirstChild("PanelShadow") then
+		root.PanelShadow.Visible = false
+	end
+
+	-- the panel is the whole canvas now, see-through
+	local panel = root.Panel
+	panel.Position, panel.Size = UDim2.fromOffset(0, 0), UDim2.fromOffset(1280, 720)
+	panel.BackgroundTransparency = 1
+	panel.ClipsDescendants = false
+	local ps = panel:FindFirstChildOfClass("UIStroke")
+	if ps then
+		ps.Enabled = false
+	end
+	if panel:FindFirstChild("Rule") then
+		panel.Rule.Visible = false
+	end
+
+	-- header: "Quests" + its line top left (where Binder / Profile put theirs), tabs, ✕
+	local header = panel.Header
+	header.BackgroundTransparency = 1
+	header.Size = UDim2.new(1, 0, 0, PAGE_Y - 8)
+	local titleRow = header.TitleRow
+	titleRow.Position, titleRow.Size = UDim2.fromOffset(40, 54), UDim2.fromOffset(500, 36)
+	titleRow.Title.Text = "Quests"
+	titleRow.Title.FontFace = HEAD
+	titleRow.Title.TextSize = 30
+	titleRow.Title.TextColor3 = CREAM
+	titleRow.Title.Size = UDim2.fromOffset(0, 36)
+	titleRow.Ready.Visible = false -- (the tabs carry the counts now)
+	local oldSub = header:FindFirstChild("Sub")
+	if oldSub then
+		oldSub:Destroy()
+	end
+	text(header, "Sub", { Position = UDim2.fromOffset(40, 90), Size = UDim2.fromOffset(500, 18), FontFace = BODY_BOLD, TextSize = 14, TextColor3 = CREAM, TextTransparency = 0.4, Text = "Daily and weekly quests, and your level rewards" })
+	header.Close.Position = UDim2.fromOffset(1219, 81)
+	header.CloseShadow.Position = UDim2.fromOffset(1219 - 21, 81 - 21)
+	header.CloseShadow.Size = UDim2.fromOffset(48, 48)
+	topTabs(header)
+
+	-- the page card, behind the scroll
+	for _, name in { "Page", "PageShadow" } do
+		local old = panel:FindFirstChild(name)
+		if old then
+			old:Destroy()
+		end
+	end
+	local pageShadow = new("Frame", { Name = "PageShadow", Position = UDim2.fromOffset(PAGE_X + 8 - 4, PAGE_Y + 8 - 4), Size = UDim2.fromOffset(PAGE_W + 8, PAGE_H + 8), BackgroundColor3 = INK, ZIndex = -1 }, panel)
+	corner(pageShadow, 22)
+	local page = new("Frame", { Name = "Page", Position = UDim2.fromOffset(PAGE_X, PAGE_Y), Size = UDim2.fromOffset(PAGE_W, PAGE_H), BackgroundColor3 = CREAM, ZIndex = 0 }, panel)
+	corner(page, 22)
+	new("UIStroke", { Color = INK, Thickness = 4, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, page)
+
+	local body = panel.Body
+	body.Position, body.Size = UDim2.fromOffset(PAGE_X + 4, PAGE_Y + 4), UDim2.fromOffset(PAGE_W - 8, PAGE_H - 8)
+	body.ZIndex = 1
+	local content = body.Content
+	content.Position = UDim2.fromOffset((PAGE_W - 8 - Build.QUESTS_W) // 2, 0)
+	content.Size = UDim2.fromOffset(Build.QUESTS_W, 0)
+	local cp = content:FindFirstChildOfClass("UIPadding")
+	if cp then
+		cp.PaddingTop, cp.PaddingBottom = UDim.new(0, 12), UDim.new(0, 6)
+	end
+
+	-- Levels: the heading spans the page; the track + cards (980 wide) sit in the middle
+	local inset = (Build.QUESTS_W - Build.W) // 2
+	local levels = content.Levels
+	levels.Size = UDim2.fromOffset(Build.QUESTS_W, levels.Size.Y.Offset)
+	levels.Heading.Title.Text = "LEVEL REWARDS"
+	for _, name in { "Track", "Cards" } do
+		local f = levels[name]
+		f.Position = UDim2.fromOffset(inset, f.Position.Y.Offset)
+	end
+	local group = content.GroupReward
+	group.Size = UDim2.fromOffset(Build.QUESTS_W, group.Size.Y.Offset)
+	for _, name in { "Group", "GroupShadow" } do
+		local f = group[name]
+		f.Position = UDim2.fromOffset(inset + (if name == "GroupShadow" then 4 else 0), f.Position.Y.Offset)
+	end
+
+	-- Quests: the top tabs pick Daily / Weekly now; big rows; the bonus as a dark bar
+	local quests = content.Quests
+	quests.Heading.Tabs.Visible = false
+	quests.Heading.Title.Text = "DAILY QUESTS"
+	restyleRows(quests)
+	restyleBonus(quests)
+	Build.LayoutQuests(quests, Build.QUESTS)
+
+	content.Daily.Visible = false
 	return root
 end
 

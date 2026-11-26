@@ -33,6 +33,7 @@ local Promise = require(ReplicatedStorage.Packages.promise)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Client
 local Levels = require(ReplicatedStorage.Modules.Levels)
 local Albums = require(ReplicatedStorage.Modules.Library.Albums)
+local Upgrades = require(ReplicatedStorage.Modules.Library.Upgrades)
 local AlbumConstants = require(ReplicatedStorage.Constants.AlbumConstants)
 local Photocard = require(ReplicatedStorage.Modules.UI.Photocard)
 local TitleChip = require(ReplicatedStorage.Modules.UI.TitleChip)
@@ -359,7 +360,7 @@ function Profile:_paintStats()
 	for _, s in sets do
 		allKills += if s.AllKill then 1 else 0
 	end
-	local rate = Albums.Rate(owned, bias(), get(PlayerData.Inventory.Pins, ""), Albums.Boost(PlayerData.GamePasses))
+	local rate = Albums.Rate(owned, bias(), get(PlayerData.Inventory.Pins, ""), Albums.Boost(PlayerData.GamePasses, Upgrades.Levels(PlayerData)), Upgrades.Levels(PlayerData))
 	local values = {
 		Wins = { commas(wins), if duels > 0 then `{math.floor(wins / duels * 100 + 0.5)}% win rate` else "no duels yet" },
 		BestStreak = { commas(get(stats.HighestStreak, 0)), `now on {get(PlayerData.Player.Streak, 0)}` },
@@ -714,7 +715,7 @@ function Profile:_paintAllStats()
 	for _, s in sets do
 		allKills += if s.AllKill then 1 else 0
 	end
-	local rate = Albums.Rate(owned, bias(), get(PlayerData.Inventory.Pins, ""), Albums.Boost(PlayerData.GamePasses))
+	local rate = Albums.Rate(owned, bias(), get(PlayerData.Inventory.Pins, ""), Albums.Boost(PlayerData.GamePasses, Upgrades.Levels(PlayerData)), Upgrades.Levels(PlayerData))
 	local values = {
 		Wins = { commas(wins), if duels > 0 then `{math.floor(wins / duels * 100 + 0.5)}% win rate` else "no duels yet" },
 		Duels = { commas(duels), `{commas(get(stats.Losses, 0))} lost · {commas(get(stats.Draws, 0))} drawn` },

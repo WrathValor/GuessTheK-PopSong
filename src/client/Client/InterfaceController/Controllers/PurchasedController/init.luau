@@ -190,7 +190,20 @@ end
 local function giftCards(packet): { any }
 	local cards = {}
 	local kind, id, product = packet.Kind, packet.Id, packet.Product
-	if (kind == "Set" or kind == "Stage" or kind == "Mic") and type(id) == "string" then
+	local amount = tonumber(packet.Amount) or 0
+	if kind == "Coins" and amount > 0 then
+		-- (a gift from the inbox: the coin pile closest in size)
+		local pile, best = nil, math.huge
+		for _, b in ShopCatalog.CoinBundles do
+			local gap = math.abs(b.Amount - amount)
+			if gap < best then
+				pile, best = b.Pile, gap
+			end
+		end
+		table.insert(cards, coinCard(amount, pile))
+	elseif (kind == "Tickets" or kind == "GenPacks") and amount > 0 then
+		table.insert(cards, currencyCard(kind, amount))
+	elseif (kind == "Set" or kind == "Stage" or kind == "Mic") and type(id) == "string" then
 		table.insert(cards, itemCard(kind, id))
 	elseif kind == "StyleSet" and type(id) == "string" then
 		table.insert(cards, styleCard("Banner", id))
@@ -608,8 +621,8 @@ function Purchased:Initialize(interface)
 			-- free in the lobby, and (a new player) past the tutorial first
 			local interface = self._interface
 			local function tutorialDone(): boolean
-				local ok, v = pcall(PlayerData.Settings.TutorialDone.Get)
-				return ok and v == true
+				local ok, v = pcall(PlayerData.Settings.Onboard.Get) -- (the onboarding, TutorialController/Flow)
+				return ok and v == "Done"
 			end
 			while interface.Mode ~= "Gameplay" or interface.ActiveController ~= nil or LOCAL_PLAYER:GetAttribute("Stage") or not tutorialDone() do
 				task.wait(1)
@@ -715,7 +728,7 @@ function Purchased:Initialize(interface)
 						coinCard(pack.Coins, "rbxassetid://75882247530961"),
 						pack.Stage and itemCard("Stage", pack.Stage),
 						pack.Mic and itemCard("Mic", pack.Mic),
-						withBonus and currencyCard("Tickets", pack.Bonus.Tickets) or nil,
+						withBonus and currencyCard("GenPacks", pack.Bonus.GenPacks) or nil,
 					},
 					Where = "Added to your Inventory",
 					EquipText = "EQUIP STAGE + MIC",
@@ -784,7 +797,8 @@ function Purchased:Initialize(interface)
 						Banner = "YOU GOT!",
 						Sub = if c then `{c.Plural} added` else "",
 						Cards = { currencyCard(bundle.Currency, bundle.Amount) },
-						Where = if bundle.Currency == "Tickets" then "Each one opens a free pack · Packs"
+						Where = if bundle.Currency == "GenPacks" then "Each one opens a 5-card gen pack · Packs"
+							elseif bundle.Currency == "Tickets" then "Each one opens a free pack · Packs"
 							else "Added as coins",
 					})
 				end)

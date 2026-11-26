@@ -39,11 +39,13 @@ local Players = game:GetService("Players")
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 local Albums = require(ReplicatedStorage.Modules.Library.Albums)
+local Upgrades = require(ReplicatedStorage.Modules.Library.Upgrades)
 local Currencies = require(ReplicatedStorage.Constants.Currencies)
 local AlbumConstants = require(ReplicatedStorage.Constants.AlbumConstants)
 local AnalyticsEvents = require(ReplicatedStorage.Constants.AnalyticsEvents)
 local Analytics = require(script.Parent.Analytics)
 local SerialService = require(script.Parent.SerialService)
+local RewardsService = require(script.Parent.RewardsService)
 
 local BinderRemote = Bridgenet.ReferenceBridge("BinderRemote")
 
@@ -58,8 +60,9 @@ local arrived: { [Player]: boolean } = {} -- the time away has been banked (at O
 -- since the last bank (1 online, the default; OFFLINE_EARN for time away).
 function BinderService.Waiting(data, now: number?, share: number?): (number, number)
 	local cards = data.Inventory.Cards.Get() or {}
-	local rate = Albums.Rate(cards, data.Inventory.Bias.Get(), data.Inventory.Pins.Get(), Albums.Boost(data.GamePasses))
-	return Albums.Waiting(data.Rewards.BinderBank.Get(), data.Rewards.BinderAt.Get(), rate, now or os.time(), share)
+	local lv = Upgrades.Levels(data)
+	local rate = Albums.Rate(cards, data.Inventory.Bias.Get(), data.Inventory.Pins.Get(), Albums.Boost(data.GamePasses, lv), lv)
+	return Albums.Waiting(data.Rewards.BinderBank.Get(), data.Rewards.BinderAt.Get(), rate, now or os.time(), share, lv)
 end
 
 -- Banks what the binder has earned at its current rate and restarts the clock. Call it inside
@@ -97,6 +100,7 @@ local function collect(player: Player, data)
 	Analytics.Event(player, "BinderCollected", coins)
 	Analytics.Economy(player, "Source", "Coins", coins, balance, AnalyticsEvents.Transactions.Binder, "Collect")
 	reply(player, "Collect", true, nil, { Coins = coins })
+	RewardsService.RecordStats(player, { Collects = 1, BinderCoins = coins })
 end
 
 local function sell(player: Player, data, cardId: any, where: any, confirm: boolean)
@@ -153,6 +157,7 @@ local function sell(player: Player, data, cardId: any, where: any, confirm: bool
 	Analytics.Event(player, "CardSold", price, card.Rarity.Key, whereName)
 	Analytics.Economy(player, "Source", "Coins", price, Currencies.Data(data, "Coins").Get(), AnalyticsEvents.Transactions.CardSell, card.Rarity.Key)
 	reply(player, "Sell", true, nil, { Card = cardId, Coins = price, Copies = copies - 1 })
+	RewardsService.RecordStats(player, { Sold = 1 })
 end
 
 -- the One of One owners of an album's members, for the binder page
@@ -204,7 +209,7 @@ local function pin(player: Player, data, cardId: any, replace: any)
 	if table.find(pins, cardId) then
 		return reply(player, "Pin", true, nil, { Card = cardId, Pins = Albums.PinValue(pins) })
 	end
-	local slots = Albums.PinSlots()
+	local slots = Albums.PinSlots(Upgrades.Levels(data))
 	-- (pins past the unlocked slots, or of cards no longer owned, make room first)
 	for i = #pins, 1, -1 do
 		if i > slots or (data.Inventory.Cards[pins[i]].Get() or 0) < 1 then
@@ -223,6 +228,7 @@ local function pin(player: Player, data, cardId: any, replace: any)
 		data.Inventory.Pins.Set(Albums.PinValue(pins))
 	end)
 	reply(player, "Pin", true, nil, { Card = cardId, Pins = Albums.PinValue(pins) })
+	RewardsService.RecordStats(player, { Pins = 1 })
 end
 
 local function unpin(player: Player, data, cardId: any)

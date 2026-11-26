@@ -8,7 +8,7 @@
 --   Id           the badge's asset id (0 = not made yet)
 
 return table.freeze({
-	{ Key = "Welcome", Name = "Debut", Blurb = "Joined Guess the K-Pop Song.", Id = 1535597703864158 },
+	{ Key = "Welcome", Name = "Debut", Blurb = "Joined K-POPPED!", Id = 1535597703864158 },
 	{ Key = "FirstWin", Name = "First Win", Blurb = "Won your first 1v1 duel.", Id = 1409403542596021 },
 	{ Key = "Streak5", Name = "On Fire", Blurb = "Won 5 duels in a row.", Id = 926599218820009 },
 	{ Key = "Streak10", Name = "Unstoppable", Blurb = "Won 10 duels in a row.", Id = 4495318588631128 },

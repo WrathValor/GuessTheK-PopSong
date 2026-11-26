@@ -18,6 +18,7 @@ local Themes = require(ReplicatedStorage.Modules.Library.Themes)
 local Packs = require(ReplicatedStorage.Modules.Library.Packs)
 local Songs = require(ReplicatedStorage.Modules.Library.Songs)
 local Albums = require(ReplicatedStorage.Modules.Library.Albums)
+local Upgrades = require(ReplicatedStorage.Modules.Library.Upgrades)
 local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local AnalyticsClient = require(ReplicatedStorage.Modules.AnalyticsClient)
@@ -322,7 +323,7 @@ local function mySongs()
 		local ok, value = pcall(path.Get)
 		return if ok and value ~= nil then value else fallback
 	end
-	local groups = Albums.FavouredGroups(get(PlayerData.Inventory.Cards, {}), get(PlayerData.Inventory.Bias, ""), get(PlayerData.Inventory.Pins, ""))
+	local groups = Albums.FavouredGroups(get(PlayerData.Inventory.Cards, {}), get(PlayerData.Inventory.Bias, ""), get(PlayerData.Inventory.Pins, ""), Upgrades.Levels(PlayerData))
 	local songs = {}
 	for _, song in Songs.GetAllSongs() do
 		if song.Artist and groups[song.Artist] then

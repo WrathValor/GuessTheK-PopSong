@@ -55,36 +55,47 @@ RewardsCatalog.DAILY_COIN_CAP = 100
 RewardsCatalog.WEEKLY_COIN_CAP = 200
 RewardsCatalog.LEVEL_COIN_CAP = 500 -- most coins any one level reward pays
 
+-- The pools follow K-POPPED! (design boards 59 / 59b): packs, the binder, pins and albums sit
+-- next to duels, so a quiet server with nobody to duel is never a dead end. Stats:
+--   Correct / Wins / WinRun / BestRun / Duels / Solo / Perfect   from matches (Record)
+--   NewSongs = new photocards, Packs = packs opened, Lucky = Lucky Draw or better pulled,
+--   Gold = a card reaching Gold, Albums = albums completed          (AlbumService)
+--   Collects = binder collects, BinderCoins = coins collected, Pins = cards pinned,
+--   Sold = cards sold                                              (BinderService)
+--   DailySong = Daily Songs solved                                 (DailySongService)
+-- Tickets are pack tickets (each opens a free pack).
 RewardsCatalog.QUEST_POOL = table.freeze({
-	{ Id = "Correct10", Stat = "Correct", Need = 10, Reward = { Coins = 75 }, Title = "Get 10 answers right", Hint = "Solo games count too" },
-	{ Id = "Correct25", Stat = "Correct", Need = 25, Reward = { Coins = 100 }, Title = "Get 25 answers right", Hint = "Solo games count too" },
-	{ Id = "Wins2", Stat = "Wins", Need = 2, Reward = { Coins = 100 }, Title = "Win 2 duels", Hint = "1v1 or a Party Stage win" },
-	{ Id = "Wins3", Stat = "Wins", Need = 3, Reward = { Coins = 100 }, Title = "Win 3 duels", Hint = "1v1 or a Party Stage win" },
-	{ Id = "Run2", Stat = "BestRun", Need = 2, Reward = { Coins = 100 }, Title = "Win 2 duels in a row", Hint = "A loss starts the run again" },
+	{ Id = "Packs3", Stat = "Packs", Need = 3, Reward = { Coins = 100 }, Title = "Open 3 packs", Hint = "Free packs and tickets count" },
+	{ Id = "Collect1", Stat = "Collects", Need = 1, Reward = { Coins = 75 }, Title = "Collect from your binder", Hint = "Your pinned cards keep earning" },
+	{ Id = "Pin1", Stat = "Pins", Need = 1, Reward = { Coins = 75 }, Title = "Pin a card", Hint = "From its card in your binder" },
+	{ Id = "Correct10", Stat = "Correct", Need = 10, Reward = { Coins = 75 }, Title = "Get 10 answers right", Hint = "Duels, parties and solo all count" },
 	{ Id = "Duels3", Stat = "Duels", Need = 3, Reward = { Coins = 75 }, Title = "Play 3 duels", Hint = "Win or lose" },
-	{ Id = "Duels6", Stat = "Duels", Need = 6, Reward = { Coins = 100 }, Title = "Play 6 duels", Hint = "Win or lose" },
-	{ Id = "Solo2", Stat = "Solo", Need = 2, Reward = { Coins = 50 }, Title = "Finish 2 solo games", Hint = "Any theme" },
-	{ Id = "NewSongs3", Stat = "NewSongs", Need = 3, Reward = { Tickets = 1 }, Title = "Get 3 new photocards", Hint = "Duplicates don't count" }, -- (the NewSongs counter now counts new photocards)
+	{ Id = "Wins2", Stat = "Wins", Need = 2, Reward = { Coins = 100 }, Title = "Win 2 duels", Hint = "1v1 or a Party Stage win" },
+	{ Id = "DailySong1", Stat = "DailySong", Need = 1, Reward = { Coins = 100 }, Title = "Solve the Daily Song", Hint = "One song a day, any try" },
+	{ Id = "NewCards3", Stat = "NewSongs", Need = 3, Reward = { Tickets = 1 }, Title = "Get 3 new photocards", Hint = "Duplicates don't count" },
+	{ Id = "Sell5", Stat = "Sold", Need = 5, Reward = { Coins = 75 }, Title = "Sell 5 duplicates", Hint = "From a card in your binder or the pack summary" },
 })
 RewardsCatalog.WEEKLY_POOL = table.freeze({
-	{ Id = "W_Perfect1", Stat = "Perfect", Need = 1, Reward = { Coins = 200, Tickets = 1 }, Title = "Win a perfect game", Hint = "7–0, every answer within 2 s" },
-	{ Id = "W_Run5", Stat = "BestRun", Need = 5, Reward = { Tickets = 2 }, Title = "Win 5 duels in a row", Hint = "Your best run this week" },
-	{ Id = "W_Correct150", Stat = "Correct", Need = 150, Reward = { Coins = 200 }, Title = "Get 150 answers right", Hint = "Any mode" },
-	{ Id = "W_NewSongs10", Stat = "NewSongs", Need = 10, Reward = { Tickets = 1, Coins = 150 }, Title = "Collect 10 new photocards", Hint = "From any pack" },
+	{ Id = "W_Packs20", Stat = "Packs", Need = 20, Reward = { Coins = 200, Tickets = 1 }, Title = "Open 20 packs", Hint = "Any pack: free, gen, group or premium" },
+	{ Id = "W_Binder3000", Stat = "BinderCoins", Need = 3000, Reward = { Coins = 150, Tickets = 1 }, Title = "Collect 3,000 binder coins", Hint = "From your pinned cards" },
+	{ Id = "W_Album1", Stat = "Albums", Need = 1, Reward = { Coins = 150, Tickets = 1 }, Title = "Complete an album", Hint = "Own every member of one album, any rarity" },
+	{ Id = "W_Lucky1", Stat = "Lucky", Need = 1, Reward = { Tickets = 2 }, Title = "Pull a Lucky Draw or better", Hint = "From any pack" },
+	{ Id = "W_Gold1", Stat = "Gold", Need = 1, Reward = { Coins = 200 }, Title = "Level a card to Gold", Hint = "3 copies of the same card" },
 	{ Id = "W_Wins15", Stat = "Wins", Need = 15, Reward = { Coins = 200 }, Title = "Win 15 duels", Hint = "1v1 or a Party Stage win" },
-	{ Id = "W_Duels25", Stat = "Duels", Need = 25, Reward = { Coins = 150, Tickets = 1 }, Title = "Play 25 duels", Hint = "Win or lose" },
-	{ Id = "W_Solo10", Stat = "Solo", Need = 10, Reward = { Coins = 150 }, Title = "Finish 10 solo games", Hint = "Any theme" },
+	{ Id = "W_Perfect1", Stat = "Perfect", Need = 1, Reward = { Coins = 200, Tickets = 1 }, Title = "Win a perfect game", Hint = "7–0, every answer within 2 s" },
 	{ Id = "W_Daily5", Stat = "DailySong", Need = 5, Reward = { Coins = 150, Tickets = 1 }, Title = "Solve the Daily Song 5 times", Hint = "One song a day, any try" },
 })
-RewardsCatalog.QUEST_STATS = table.freeze({ "Correct", "Wins", "WinRun", "BestRun", "Duels", "Solo", "Perfect", "NewSongs", "DailySong" })
+RewardsCatalog.QUEST_STATS = table.freeze({ "Correct", "Wins", "WinRun", "BestRun", "Duels", "Solo", "Perfect", "NewSongs", "DailySong", "Packs", "Lucky", "Gold", "Albums", "Collects", "BinderCoins", "Pins", "Sold" })
 RewardsCatalog.QUESTS_PER_DAY = 3
 RewardsCatalog.WEEKLY_PER_WEEK = 4
 RewardsCatalog.QUEST_COLOURS = table.freeze({ "9ED8F5", "FFB38A", "B9A6FF" })
-RewardsCatalog.BONUS = table.freeze({ Coins = 250 }) -- all daily quests claimed
--- XP paid on top of a daily quest's Reward / the daily BONUS (kept out of the reward tables,
--- which are currencies only; RewardsService adds it to Player.XP)
+RewardsCatalog.BONUS = table.freeze({ Coins = 250, Tickets = 1 }) -- all daily quests claimed
+-- XP paid on top of a quest's Reward / a bonus (kept out of the reward tables, which are
+-- currencies only; RewardsService adds it to Player.XP)
 RewardsCatalog.DAILY_QUEST_XP = 25
 RewardsCatalog.DAILY_BONUS_XP = 75
+RewardsCatalog.WEEKLY_QUEST_XP = 60
+RewardsCatalog.WEEKLY_BONUS_XP = 150
 RewardsCatalog.WEEKLY_BONUS = table.freeze({ Coins = 400, Tickets = 2 }) -- all weekly quests claimed
 
 -- Level rewards: each level here pays its one Reward once (claimed on the Rewards screen).
@@ -358,7 +369,7 @@ end
 -- ("coins + 2× Coins potion"); one item spells its name out ("roll ticket", "2× XP potion")
 function RewardsCatalog.DailyLabel(reward): (string, string)
 	local parts = {} -- { big, name (alone), short (in a pair) }
-	local names = { Coins = { "coins", "coins" }, Tickets = { "roll ticket", "roll tickets" }, Upgrades = { "card upgrade", "card upgrades" } }
+	local names = { Coins = { "coins", "coins" }, Tickets = { "pack ticket", "pack tickets" }, Upgrades = { "card upgrade", "card upgrades" } }
 	local short = { Coins = "coins", Tickets = "ticket", Upgrades = "upgrade" }
 	for _, r in RewardsCatalog.RewardList(reward) do
 		local n = names[r.Kind]

@@ -270,7 +270,8 @@ function NewsScreen:_joinPopup()
 		if not unread() then
 			return -- opened from the News button meanwhile
 		end
-		local okTut, tutorialDone = pcall(PlayerData.Settings.TutorialDone.Get)
+		local okTut, onboard = pcall(PlayerData.Settings.Onboard.Get)
+		local tutorialDone = onboard == "Done" -- (the onboarding, TutorialController/Flow)
 		local busy = self._interface.ActiveController ~= nil
 			or self._interface.Mode ~= "Gameplay"
 			or LOCAL_PLAYER:GetAttribute("Stage") ~= nil

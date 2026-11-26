@@ -11,7 +11,11 @@
 -- DoneRoll card's free first song card went with the song roll: the first free photocard pack
 -- comes after picking a bias instead, AlbumConstants.FIRST_ALBUM_KEY.)
 -- Settings → "Replay tutorial" opens the Welcome card again.
---   Interface:Open("Tutorial", "Welcome" | "Done", endPacket?)
+-- The K-POPPED! onboarding (./Flow) now runs first join instead: its Hello and All set cards
+-- are views here too, the practice round is one of its steps (its "You're ready!" card is
+-- skipped then), and it resumes at the saved step (Settings.Onboard) until it's "Done".
+-- Replay tutorial restarts it (SettingsService "OnboardReplay").
+--   Interface:Open("Tutorial", "Welcome" | "Done" | "Hello" | "AllSet" | "None", endPacket | opts?)
 
 -- -------------------------------- Services -------------------------------- --
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -29,6 +33,7 @@ local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 local Tips = require(script.Tips)
+local Flow = require(script.Flow)
 local Build = require(script.Build)
 
 -- -------------------------------- Variables ------------------------------- --
@@ -75,6 +80,12 @@ local function tutorialDone(): boolean
 	return ok and v == true
 end
 
+-- the onboarding's saved step ("" = not started, "Done" = finished or skipped)
+local function onboard(): string?
+	local ok, v = pcall(PlayerData.Settings.Onboard.Get)
+	return if ok then v or "" else nil
+end
+
 -- joined from a friend's invite and hasn't collected the welcome gift yet: their
 -- "YOU WERE INVITED!" card (InvitedController) comes before the Welcome card
 local function invitePending(): boolean
@@ -93,6 +104,28 @@ function Tutorial:Initialize(interface)
 	ButtonScale.ApplyToDescendants(self._frame)
 	local j = self._janitor
 	local welcome, done = self._frame.Welcome, self._frame.Done
+	self._flow = Flow.new(self, interface, frames)
+	j:Add(self._flow, "Destroy")
+	local hello, allSet = self._frame.Hello, self._frame.AllSet
+	j:Add(hello.Go.Activated:Connect(function()
+		Sounds.Play("Click")
+		self._flow:Hello("Go")
+	end))
+	j:Add(hello.Skip.Activated:Connect(function()
+		self._flow:Hello("Skip")
+		self._flow:Skip()
+	end))
+	j:Add(allSet.QuickPlay.Activated:Connect(function()
+		Sounds.Play("Click")
+		self._interface:Close(self.Name)
+		task.delay(0.4, function()
+			QueueRemote:Fire("QuickPlay")
+		end)
+	end))
+	j:Add(allSet.Lobby.Activated:Connect(function()
+		Sounds.Play("Click")
+		self._interface:Close(self.Name)
+	end))
 
 	j:Add(welcome.Play.Activated:Connect(function()
 		Sounds.Play("Click")
@@ -121,7 +154,11 @@ function Tutorial:Initialize(interface)
 	local replay = settings and settings:FindFirstChild("ReplayTutorial", true)
 	if replay and replay:IsA("GuiButton") then
 		j:Add(replay.Activated:Connect(function()
-			self._interface:Open(self.Name, "Welcome")
+			if self._flow:Running() then
+				return
+			end
+			SettingsRemote:Fire({ Action = "OnboardReplay" })
+			self._flow:Start(nil, true)
 		end))
 	end
 
@@ -147,6 +184,13 @@ function Tutorial:Initialize(interface)
 	j:Add(QueueRemote:Connect(function(packet)
 		if type(packet) == "table" and packet.Message == "LeftQueue" then
 			self._tips:Hide()
+			if self._flow:Practising() then
+				task.delay(1, function() -- (the End packet comes first when the game finished)
+					if self._flow:Practising() then
+						self._flow:Practised(nil)
+					end
+				end)
+			end
 		end
 	end), "Disconnect")
 
@@ -160,8 +204,7 @@ function Tutorial:Initialize(interface)
 		task.wait(WELCOME_DELAY)
 		local deadline = os.clock() + 20
 		while os.clock() < deadline do
-			local ok = pcall(PlayerData.Settings.TutorialDone.Get)
-			if ok then
+			if onboard() ~= nil and pcall(PlayerData.Settings.TutorialDone.Get) then
 				break
 			end
 			task.wait(0.5)
@@ -174,8 +217,10 @@ function Tutorial:Initialize(interface)
 			end
 			task.wait(0.25)
 		end
-		if not tutorialDone() and not LOCAL_PLAYER:GetAttribute("Stage") and self._interface.ActiveController == nil then
-			self._interface:Open(self.Name, "Welcome")
+		local step = onboard()
+		if step and step ~= "Done" and not LOCAL_PLAYER:GetAttribute("Stage") and self._interface.ActiveController == nil then
+			-- a returning player (done the old tutorial) gets the short version
+			self._flow:Start(if step == "" or step == "Welcome" then nil else step, tutorialDone())
 		end
 	end)
 end
@@ -189,6 +234,37 @@ function Tutorial:_show(view: string, packet: any?)
 	self._frame.WelcomeShadow.Visible = view == "Welcome"
 	self._frame.Done.Visible = view == "Done"
 	self._frame.DoneShadow.Visible = view == "Done"
+	for _, name in { "Hello", "AllSet" } do
+		self._frame[name].Visible = view == name
+		self._frame[name .. "Shadow"].Visible = view == name
+	end
+	local opts = if type(packet) == "table" then packet else {}
+	if view == "Hello" then
+		local hello = self._frame.Hello
+		hello.Badge.Text = if opts.Returning then "WELCOME BACK TO" else "WELCOME TO"
+		hello.Steps.Step4.Visible = not opts.Returning
+		hello.Sub.Text = if opts.Returning
+			then "There's a new way to play: collect photocards, pin them and earn."
+			else "Collect K-pop photocards. Guess the songs. Build your binder."
+	elseif view == "AllSet" then
+		local card = self._frame.AllSet
+		for _, name in { "Coins", "Ticket", "XP" } do
+			card[name].Visible = opts.Paid == true
+			card[name .. "Shadow"].Visible = opts.Paid == true
+		end
+		card.Sub.Text = if opts.Paid then "Your binder is earning. Here's something for the road:" else "Your binder is earning. Have fun out there!"
+		for i, line in opts.Lines or {} do
+			local l = card:FindFirstChild("Line" .. i)
+			if l then
+				l.Text.Text = line
+			end
+		end
+		Sounds.Play("Win")
+		if opts.Paid then
+			Sounds.Play("Success")
+			Juice.Pop(card.Coins, 0.15)
+		end
+	end
 	local done = self._frame.Done
 	if view == "Done" then
 		self._tips:Hide()
@@ -214,6 +290,11 @@ function Tutorial:_show(view: string, packet: any?)
 end
 
 function Tutorial:Activate(view: string?, packet: any?)
+	-- the onboarding's practice round: its End (or "no free stage") goes back to the flow
+	if self._flow:Practising() and (view == "Done" or view == "Welcome") then
+		self._flow:Practised(if view == "Done" then packet else nil)
+		view = "None"
+	end
 	self:_show(view or "Welcome", packet)
 	-- a cheerful sting as the card pops in (the Done card's coins chime follows on its own)
 	-- the Welcome card uses the shared frame "Open" sound (Interface:Open); Done adds the win jingle

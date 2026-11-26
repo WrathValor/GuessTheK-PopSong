@@ -72,6 +72,14 @@ local LIBRARY = {
 	OneLoop = { Id = 94049951477499, Volume = 0.45 }, -- One of One: a 12 s heavenly choir pad that carries on (loops, Sounds.Loop)
 	OneLoopAlt = { Id = 79682352932621, Volume = 0.45 }, -- One of One: the other take (a golden synth hum with choir)
 
+	-- notifications (Modules/UI/Notify plays one per kind). Made for K-POPPED and uploaded to group
+	-- 430052409; the files are in assets/Audio/Notify. Neutral and Error came out quiet, so they're
+	-- turned up to sit level with the other two.
+	NotifySuccess = { Id = 119279721309022, Volume = 0.45 }, -- rising bell chime
+	NotifyBell = { Id = 96600478594728, Volume = 0.45 }, -- bubbly double ding: a gift, a badge
+	NotifyNeutral = { Id = 94314107915255, Volume = 2.2 }, -- soft single tick
+	NotifyError = { Id = 70795520957999, Volume = 1.6 }, -- gentle descending "nope"
+
 }
 
 -- Looping background music. Id = 0 means "not picked yet" and is skipped quietly.
@@ -176,6 +184,19 @@ function Sounds.Loop(name: string, opts: { Pitch: number?, Volume: number?, Fade
 		end)
 		out:Play()
 	end
+end
+
+-- did any of these sounds start in the last `seconds`? (Notify skips its own cue when the
+-- caller already played one, e.g. Wrong with the Shop's "Not enough coins")
+function Sounds.PlayedWithin(names: { string }, seconds: number): boolean
+	local now = os.clock()
+	for _, name in names do
+		local at = lastPlayed[name]
+		if at and now - at < seconds then
+			return true
+		end
+	end
+	return false
 end
 
 -- Play a sound by name. opts.Pitch scales playback speed, opts.Volume scales volume.
