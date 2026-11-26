@@ -28,7 +28,7 @@ local CLOSE_ICON = "rbxassetid://118345756178429"
 
 local Build = {}
 
-Build.CATEGORIES = { "Stages", "Mic stands", "Titles", "Song packs" }
+Build.CATEGORIES = { "Stages", "Mic stands", "Titles" } -- ("Song packs" went with the song roll, 25 Nov 2026)
 Build.PER_PAGE = 8
 Build.RAINBOW = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, C("FFB3C7")),

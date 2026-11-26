@@ -2,10 +2,14 @@
 -- The Settings screen (Interface.Frames.Settings, built by ./Build from the "Settings" board):
 --   • Audio  – Music / Sound effects / Song clips sliders (0–100%), each with a mute button
 --              that remembers the level it muted from
+--   • Graphics – Low effects on/off (Settings.LowEffects: card tiles keep still; tap a card
+--              to see its effects, see Modules/UI/CardDecor)
 --   • Social – Duel invites on/off (Settings.DuelInvites; the server checks it before
 --              delivering an invite, see SettingsService.AcceptsInvites), and Rivals can join
 --              my practice (Settings.SoloOpen, on by default: solo from the queue card keeps
 --              your stage open, see DuelService; the queue card's chip flips the same setting)
+--   The rows sit in Content.List, a scrolling list (Graphics, Audio, Social); the Reset and
+--   Replay tutorial buttons stay pinned under it.
 --   • Reset to default
 -- Dragging a slider applies the volume straight away (Client/SettingsController.Preview);
 -- the value is saved through SettingsRemote when you let go. Opened from the HUD cog.
@@ -64,7 +68,7 @@ end
 -- [[ Drawing ]]
 
 function Settings:_row(spec)
-	return self._frame.Panel.Content[spec.Name]
+	return self._frame.Panel.Content.List[spec.Name]
 end
 
 -- Paints one volume row at `value` (0–1).
@@ -81,7 +85,7 @@ function Settings:_paintVolume(spec, value: number)
 end
 
 function Settings:_paintInvites(on: boolean)
-	local row = self._frame.Panel.Content.Invites
+	local row = self._frame.Panel.Content.List.Invites
 	row.State.Text = if on then "On" else "Off"
 	TweenService:Create(row.Toggle, TOGGLE_TWEEN, { BackgroundColor3 = if on then MINT else GREY }):Play()
 	TweenService:Create(row.Toggle.Knob, TOGGLE_TWEEN, {
@@ -90,7 +94,24 @@ function Settings:_paintInvites(on: boolean)
 end
 
 function Settings:_paintSoloOpen(on: boolean)
-	local row = self._frame.Panel.Content:FindFirstChild("SoloOpen")
+	local row = self._frame.Panel.Content.List:FindFirstChild("SoloOpen")
+	if not row then
+		return
+	end
+	row.State.Text = if on then "On" else "Off"
+	TweenService:Create(row.Toggle, TOGGLE_TWEEN, { BackgroundColor3 = if on then MINT else GREY }):Play()
+	TweenService:Create(row.Toggle.Knob, TOGGLE_TWEEN, {
+		Position = if on then UDim2.new(1, -15, 0.5, 0) else UDim2.new(0, 15, 0.5, 0),
+	}):Play()
+end
+
+local function lowEffects(): boolean
+	local ok, on = pcall(PlayerData.Settings.LowEffects.Get)
+	return ok and on == true -- off by default
+end
+
+function Settings:_paintLowEffects(on: boolean)
+	local row = self._frame.Panel.Content.List:FindFirstChild("LowEffects")
 	if not row then
 		return
 	end
@@ -115,6 +136,7 @@ function Settings:_refresh()
 	local ok, on = pcall(PlayerData.Settings.DuelInvites.Get)
 	self:_paintInvites(not ok or on ~= false)
 	self:_paintSoloOpen(soloOpen())
+	self:_paintLowEffects(lowEffects())
 end
 
 -- [[ Changing values ]]
@@ -192,7 +214,8 @@ function Settings:Initialize(interface)
 		self:_bindVolume(spec)
 	end
 
-	local invites = panel.Content.Invites
+	local list = panel.Content.List
+	local invites = list.Invites
 	j:Add(invites.Toggle.Activated:Connect(function()
 		local ok, on = pcall(PlayerData.Settings.DuelInvites.Get)
 		local nextValue = not (not ok or on ~= false)
@@ -201,12 +224,22 @@ function Settings:Initialize(interface)
 		Sounds.Play("Click")
 	end))
 
-	local practice = panel.Content:FindFirstChild("SoloOpen")
+	local practice = list:FindFirstChild("SoloOpen")
 	if practice then
 		j:Add(practice.Toggle.Activated:Connect(function()
 			local nextValue = not soloOpen()
 			self:_paintSoloOpen(nextValue) -- the server confirms through PlayerData
 			SettingsRemote:Fire({ Action = "SetSoloOpen", Value = nextValue })
+			Sounds.Play("Click")
+		end))
+	end
+
+	local effects = list:FindFirstChild("LowEffects")
+	if effects then
+		j:Add(effects.Toggle.Activated:Connect(function()
+			local nextValue = not lowEffects()
+			self:_paintLowEffects(nextValue) -- the server confirms through PlayerData
+			SettingsRemote:Fire({ Action = "SetLowEffects", Value = nextValue })
 			Sounds.Play("Click")
 		end))
 	end
@@ -218,6 +251,7 @@ function Settings:Initialize(interface)
 		end
 		self:_paintInvites(true)
 		self:_paintSoloOpen(true)
+		self:_paintLowEffects(false)
 		Juice.Pop(panel.Content.Reset, 0.12)
 	end))
 
@@ -228,7 +262,7 @@ function Settings:Initialize(interface)
 			end
 		end))
 	end
-	for _, key in { "DuelInvites", "SoloOpen" } do
+	for _, key in { "DuelInvites", "SoloOpen", "LowEffects" } do
 		j:Add(PlayerData.Settings[key].Observe(function()
 			if self.State ~= "Inactive" then
 				self:_refresh()
@@ -244,9 +278,10 @@ function Settings:Activate()
 		return Promise.resolve()
 	end
 	self.State = "Activating"
-	local content = self._frame.Panel.Content
+	local content = self._frame.Panel.Content.List
+	content.CanvasPosition = Vector2.zero
 	local list = {}
-	for _, name in { "Music", "SoundEffects", "SongClips", "Invites", "SoloOpen" } do
+	for _, name in { "LowEffects", "Music", "SoundEffects", "SongClips", "Invites", "SoloOpen" } do
 		if content:FindFirstChild(name) then
 			table.insert(list, content[name .. "Shadow"])
 			table.insert(list, content[name])

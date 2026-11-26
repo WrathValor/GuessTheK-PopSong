@@ -24,6 +24,17 @@ local BadgeRemote = Bridgenet.ReferenceBridge("BadgeRemote")
 local CHECK_DELAY = 1 -- seconds to gather a burst of stat changes into one check
 local PRIVATE = { Welcome = true } -- badges only the earner hears about
 
+-- different photocards owned
+local function ownedCards(data): number
+	local n = 0
+	for _, copies in data.Inventory.Cards.Get() or {} do
+		if type(copies) == "number" and copies > 0 then
+			n += 1
+		end
+	end
+	return n
+end
+
 -- each badge's condition, from the player's data
 local EARNED: { [string]: (any) -> boolean } = {
 	Welcome = function()
@@ -44,11 +55,12 @@ local EARNED: { [string]: (any) -> boolean } = {
 	Level10 = function(data)
 		return Levels.FromXP(data.Player.XP.Get()) >= 10
 	end,
+	-- photocards (Inventory.Cards: copies by card id); song cards counted until 25 Nov 2026
 	FirstCard = function(data)
-		return #(data.Inventory.Songs.Get() or {}) >= 1
+		return ownedCards(data) >= 1
 	end,
 	Collector = function(data)
-		return #(data.Inventory.Songs.Get() or {}) >= 50
+		return ownedCards(data) >= 50
 	end,
 }
 
@@ -116,7 +128,7 @@ local function onJoin(player: Player)
 		data.Statistics.HighestStreak,
 		data.Statistics.PerfectGames,
 		data.Player.XP,
-		data.Inventory.Songs,
+		data.Inventory.Cards,
 	} do
 		stat.Observe(function()
 			queue(player)

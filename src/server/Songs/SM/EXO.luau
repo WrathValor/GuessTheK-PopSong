@@ -9,6 +9,7 @@ return {
 	Colour = "CFD5E6", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("FFF8E7"), Color3.fromHex("E8D6AE")), -- official: Cosmic Latte
 	Status = "Active",
+	PackArt = "rbxassetid://111442422043957", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "Monster",
@@ -96,6 +97,45 @@ return {
 			PlaybackSpeed = 0.72,
 			TimePosition = 0.5,
 			ChorusPosition = 37.8,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Members are the era's line-up.
+	-- Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "exo-exact",
+			Name = "EX'ACT",
+			Year = 2016,
+			Colour = "BFE7D9",
+			Songs = { "Monster" },
+			Members = { "XIUMIN", "SUHO", "LAY", "BAEKHYUN", "CHEN", "CHANYEOL", "D.O.", "KAI", "SEHUN" },
+			Art = {
+				["XIUMIN"] = "rbxassetid://86678363408399",
+				["SUHO"] = "rbxassetid://98059047262875",
+				["LAY"] = "rbxassetid://100485150673711",
+				["BAEKHYUN"] = "rbxassetid://110465946828201",
+				["CHEN"] = "rbxassetid://77582509649093",
+				["CHANYEOL"] = "rbxassetid://139501859869043",
+				["D.O."] = "rbxassetid://135423570369678",
+				["KAI"] = "rbxassetid://126083865464120",
+				["SEHUN"] = "rbxassetid://140192872637740",
+			},
+		},
+		{
+			Id = "exo-obsession",
+			Name = "Obsession",
+			Year = 2019,
+			Colour = "CFD5E6",
+			Songs = {},
+			Members = { "BAEKHYUN", "CHANYEOL", "CHEN", "KAI", "SEHUN", "SUHO" },
+			Art = {
+				["BAEKHYUN"] = "rbxassetid://86172412327755",
+				["CHANYEOL"] = "rbxassetid://74187285247939",
+				["CHEN"] = "rbxassetid://101095065189114",
+				["KAI"] = "rbxassetid://139880018047592",
+				["SEHUN"] = "rbxassetid://113392097055520",
+				["SUHO"] = "rbxassetid://135773362420847",
+			},
 		},
 	},
 }

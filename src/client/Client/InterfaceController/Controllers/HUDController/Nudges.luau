@@ -4,13 +4,10 @@
 -- swallow clicks, and a yellow Ring), and the HUD's speech bubble (HUD.Nudge: Shadow, Bubble
 -- with Title / Body / GotIt (+ its PadIcon), and a tail: Arrow, a cream square turned 45° under
 -- the bubble's edge, and Join over the outline there) points at it. The lit button still works.
---   Money    – the first time the coins reach a roll's price (RollConstants.COST): points at
---              Roll, and mentions the Shop for the bigger buys
+--   Money    – the first time the coins reach a gen pack's price (AlbumConstants.GEN_PACK_COST): points at Packs
 --   Rewards  – the first time a level reward or a quest is ready to claim (not the daily login
 --              or the group reward, so it can't fire the moment you join): points at Rewards
---   Tickets  – the first time you hold a roll ticket: points at Roll, says what it does
---   Upgrades – the first time you hold a card upgrade: points at the Index tile (bubble above)
---              (design board "Wallet 3 · first-time nudge pointing at Roll / Index")
+--   Tickets  – the first time you hold a roll ticket: points at Packs (a ticket opens one)
 -- Each shows once per player (Settings.Hints, saved through SettingsService "HintSeen"): it
 -- goes on Got it (A on a controller) or when the button it points at is opened. One at a
 -- time; the other waits. The bubble sits in the HUD, so it slides away with it.
@@ -18,7 +15,7 @@
 -- quiet for QUIET seconds (the join pop-ups, daily login then What's New, go first).
 --   local nudges = Nudges.new(hud, janitor, interface)
 --   nudges:RewardsEarned(n)   -- RewardsController (via HUD:SetRewardsBadge): quests + levels ready
---   nudges:Opened(name)       -- HUD: the player opened "Roll" / "Rewards"
+--   nudges:Opened(name)       -- HUD: the player opened "Albums" / "Rewards"
 
 -- -------------------------------- Services -------------------------------- --
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -27,7 +24,7 @@ local RunService = game:GetService("RunService")
 -- --------------------------------- Imports -------------------------------- --
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Client
-local RollConstants = require(ReplicatedStorage.Constants.RollConstants)
+local AlbumConstants = require(ReplicatedStorage.Constants.AlbumConstants)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local PadBinds = require(ReplicatedStorage.Modules.UI.PadBinds)
@@ -44,13 +41,13 @@ local QUIET = 3 -- seconds with no screen open before a nudge shows
 -- "Above" (bubble over it, tail down) or "Right" (bubble beside it, tail left)
 local NUDGES = {
 	Money = {
-		Title = "You can roll a song!",
-		Body = `You've got {RollConstants.COST} coins: enough for a new song card. Saving up? Try the <b>Shop</b>.`,
+		Title = "You can open a pack!",
+		Body = "Packs are full of photocards for your binder. Tap <b>Packs</b> to open one.",
 		Target = function(hud)
-			return hud.TopLeft.Roll
+			return hud.Menu.Tiles.Packs
 		end,
-		Side = "Below", -- (to its right would cover UGC)
-		Opens = "Roll",
+		Side = "Above",
+		Opens = "Albums",
 	},
 	Rewards = {
 		Title = "Rewards to claim!",
@@ -62,22 +59,13 @@ local NUDGES = {
 		Opens = "Rewards",
 	},
 	Tickets = {
-		Title = "You've got a free roll!",
-		Body = "Roll tickets roll any group's songs for free. Tap <b>Roll</b> to use it.",
+		Title = "You've got a free pack!",
+		Body = "A ticket opens a pack for free. Tap <b>Packs</b> to use it.",
 		Target = function(hud)
-			return hud.TopLeft.Roll
+			return hud.Menu.Tiles.Packs
 		end,
-		Side = "Below",
-		Opens = "Roll",
-	},
-	Upgrades = {
-		Title = "You've got a card upgrade!",
-		Body = "It adds +1 copy to any card you own. Open the <b>Index</b> to pick one.",
-		Target = function(hud)
-			return hud.Menu.Tiles.Index
-		end,
-		Side = "Above", -- (beside it would cover the other tiles)
-		Opens = "Index",
+		Side = "Above",
+		Opens = "Albums",
 	},
 }
 
@@ -112,14 +100,14 @@ function Nudges.new(hud, janitor, interface)
 		self:_dismiss()
 	end))
 
-	-- Money: the coins reaching a roll's price
+	-- Money: the coins reaching a pack's price
 	janitor:Add(PlayerData.Currencies.Won.Observe(function(coins: number)
-		if coins >= RollConstants.COST then
+		if coins >= AlbumConstants.GEN_PACK_COST then
 			self:_want("Money")
 		end
 	end))
-	-- Tickets / Upgrades: holding one of either for the first time
-	for id, path in { Tickets = PlayerData.Inventory.Tickets, Upgrades = PlayerData.Inventory.Upgrades } do
+	-- Tickets: holding one for the first time
+	for id, path in { Tickets = PlayerData.Inventory.Tickets } do
 		janitor:Add(path.Observe(function(n: number)
 			if (n or 0) > 0 then
 				self:_want(id)

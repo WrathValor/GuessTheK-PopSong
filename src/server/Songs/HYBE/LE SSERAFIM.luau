@@ -9,6 +9,7 @@ return {
     Colour = "A9C8F0", -- card art + roll glow (pastel hex)
     Gradient = ColorSequence.new(Color3.fromHex("7FB2FF"), Color3.fromHex("0047BB")), -- official: Fearless Blue
     Status = "Active",
+    PackArt = "rbxassetid://82434200655930", -- group art: pack sleeve + binder (assets/Photocards/Groups)
     Songs = {
         {
             Name = "ANTIFRAGILE",
@@ -107,6 +108,39 @@ return {
             PlaybackSpeed = 0.81,
             TimePosition = 1,
             ChorusPosition = 29.5,
+        },
+    },
+    -- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+    Albums = {
+        {
+            Id = "lesserafim-pureflow",
+            Name = "PUREFLOW",
+            Year = 2026,
+            Colour = "BFE3F2",
+            Songs = {}, -- (none of PUREFLOW pt.1's songs are in the game yet)
+            Members = { "CHAEWON", "SAKURA", "YUNJIN", "KAZUHA", "EUNCHAE" },
+            Art = { -- assets/Photocards/LE SSERAFIM/PUREFLOW/<member>
+                CHAEWON = "rbxassetid://78859491254765",
+                SAKURA = "rbxassetid://76606525069814",
+                YUNJIN = "rbxassetid://80628139927660",
+                KAZUHA = "rbxassetid://138818039350328",
+                EUNCHAE = "rbxassetid://79986043261454",
+            },
+        },
+        {
+            Id = "lesserafim-spaghetti",
+            Name = "Spaghetti",
+            Year = 2025,
+            Colour = "A9C8F0",
+            Songs = {},
+            Members = { "CHAEWON", "EUNCHAE", "KAZUHA", "SAKURA", "YUNJIN" },
+            Art = {
+                ["CHAEWON"] = "rbxassetid://100210858174145",
+                ["EUNCHAE"] = "rbxassetid://90187090922388",
+                ["KAZUHA"] = "rbxassetid://73551731168519",
+                ["SAKURA"] = "rbxassetid://139030942568640",
+                ["YUNJIN"] = "rbxassetid://127228773615599",
+            },
         },
     },
 }

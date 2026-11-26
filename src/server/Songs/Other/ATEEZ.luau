@@ -9,6 +9,7 @@ return {
 	Colour = "FFC58A", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("F4C152"), Color3.fromHex("D9541E")), -- no official colour: gold to sunset orange
 	Status = "Active",
+	PackArt = "rbxassetid://128198401136192", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "Guerrilla",
@@ -71,6 +72,35 @@ return {
 			PlaybackSpeed = 0.56,
 			TimePosition = 1,
 			ChorusPosition = 43,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "ateez-movement",
+			Name = "THE WORLD EP.1 : MOVEMENT",
+			Year = 2022,
+			Colour = "FFB08A",
+			Songs = { "Guerrilla", "HALAZIA" },
+			Members = { "HONGJOONG", "SEONGHWA", "YUNHO", "YEOSANG", "SAN", "MINGI", "WOOYOUNG", "JONGHO" },
+		},
+		{
+			Id = "ateez-golden-hour-part-5",
+			Name = "Golden Hour: Part 5",
+			Year = 2026,
+			Colour = "FFC58A",
+			Songs = {},
+			Members = { "HOONGJOONG", "JONGHO", "MINGI", "SAN", "SEONGHWA", "WOOYOUNG", "YEONSANG", "YUNHO" },
+			Art = {
+				["HOONGJOONG"] = "rbxassetid://104035700663022",
+				["JONGHO"] = "rbxassetid://128357365587572",
+				["MINGI"] = "rbxassetid://104194707214927",
+				["SAN"] = "rbxassetid://71686273810476",
+				["SEONGHWA"] = "rbxassetid://128978006963495",
+				["WOOYOUNG"] = "rbxassetid://132862544259301",
+				["YEONSANG"] = "rbxassetid://99522912154695",
+				["YUNHO"] = "rbxassetid://118444218754411",
+			},
 		},
 	},
 }

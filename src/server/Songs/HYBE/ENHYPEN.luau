@@ -9,6 +9,7 @@ return {
     Colour = "F6B98A", -- card art + roll glow (pastel hex)
     Gradient = ColorSequence.new(Color3.fromHex("D9D9E3"), Color3.fromHex("B3122E")), -- no official colour: silver to crimson (vampire-era branding)
     Status = "Active",
+    PackArt = "rbxassetid://108992932452799", -- group art: pack sleeve + binder (assets/Photocards/Groups)
     Songs = {
         {
             Name = "Given-Taken",
@@ -97,4 +98,42 @@ return {
             ChorusPosition = 17.5,
         },
     },
+	-- K-POPPED! photocard albums (see Songs/init.luau). Members are the era's line-up.
+	-- Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "enhypen-romance-untold",
+			Name = "ROMANCE: UNTOLD",
+			Year = 2024,
+			Colour = "E3D2F5",
+			Songs = { "XO (Only If You Say Yes)" },
+			Members = { "Jungwon", "Heeseung", "Jay", "Jake", "Sunghoon", "Sunoo", "Ni-ki" },
+			Art = { -- assets/Photocards/ENHYPEN/ROMANCE_ UNTOLD/<member>
+				["Jungwon"] = "rbxassetid://132433035634545",
+				["Heeseung"] = "rbxassetid://130217902604577",
+				["Jay"] = "rbxassetid://117406821138185",
+				["Jake"] = "rbxassetid://139734596585656",
+				["Sunghoon"] = "rbxassetid://138679898436954",
+				["Sunoo"] = "rbxassetid://103701841614676",
+				["Ni-ki"] = "rbxassetid://99026815045532",
+			},
+		},
+		{
+			Id = "enhypen-border-carnival",
+			Name = "Border: Carnival",
+			Year = 2021,
+			Colour = "F6B98A",
+			Songs = {},
+			Members = { "HEESUNG", "JAKE", "JAY", "JUNGWON", "NI-KI", "SUNGHOON", "SUNOO" },
+			Art = {
+				["HEESUNG"] = "rbxassetid://96189168081528",
+				["JAKE"] = "rbxassetid://77445993904553",
+				["JAY"] = "rbxassetid://132228071493087",
+				["JUNGWON"] = "rbxassetid://97773203697364",
+				["NI-KI"] = "rbxassetid://119393344900551",
+				["SUNGHOON"] = "rbxassetid://95711494265153",
+				["SUNOO"] = "rbxassetid://86664734034134",
+			},
+		},
+	},
 }

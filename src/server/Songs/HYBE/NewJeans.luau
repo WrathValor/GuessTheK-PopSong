@@ -9,6 +9,7 @@ return {
 	Colour = "9ED8F5", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("9FD3FF"), Color3.fromHex("2D5BFF")), -- no official colour: blue from the bunny branding
 	Status = "Active",
+	PackArt = "rbxassetid://83918202439471", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "Hype Boy",
@@ -97,6 +98,25 @@ return {
 			PlaybackSpeed = 0.52,
 			TimePosition = 1.2,
 			ChorusPosition = 38.4,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Members are the era's line-up.
+	-- Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "newjeans-new-jeans",
+			Name = "New Jeans",
+			Year = 2022,
+			Colour = "BFE3F7",
+			Songs = { "Attention", "Hype Boy", "Cookie" },
+			Members = { "Minji", "Hanni", "Danielle", "Haerin", "Hyein" },
+			Art = { -- assets/Photocards/NewJeans/New Jeans/<member>
+				Minji = "rbxassetid://124466612786221",
+				Hanni = "rbxassetid://116019772926447",
+				Danielle = "rbxassetid://81069640330697",
+				Haerin = "rbxassetid://134318706710337",
+				Hyein = "rbxassetid://109309216305679",
+			},
 		},
 	},
 }

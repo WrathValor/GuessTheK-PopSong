@@ -9,6 +9,7 @@ return {
 	Colour = "FFD2A8", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("7BE495"), Color3.fromHex("22A35A")), -- no official colour: GREENGREEN era green
 	Status = "Active",
+	PackArt = "rbxassetid://111570954510708", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "GO!",
@@ -97,6 +98,24 @@ return {
 			PlaybackSpeed = 0.88,
 			TimePosition = 1,
 			ChorusPosition = 26,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "cortis-color-outside-the-lines",
+			Name = "COLOR OUTSIDE THE LINES",
+			Year = 2025,
+			Colour = "FFB8A8",
+			Songs = { "What You Want", "GO!", "JoyRide", "FaSHioN" },
+			Members = { "MARTIN", "JAMES", "JUHOON", "SEONGHYEON", "KEONHO" },
+			Art = { -- assets/Photocards/CORTIS/COLOR OUTSIDE THE LINES/<member>
+				MARTIN = "rbxassetid://94146005987968",
+				JAMES = "rbxassetid://121971740723114",
+				JUHOON = "rbxassetid://132874626757835",
+				SEONGHYEON = "rbxassetid://93584621787973",
+				KEONHO = "rbxassetid://76709977492777",
+			},
 		},
 	},
 }

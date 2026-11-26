@@ -10,12 +10,18 @@ local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
 local EventRsvp = require(ReplicatedStorage.Modules.EventRsvp)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Client
+local CardDecor = require(ReplicatedStorage.Modules.UI.CardDecor)
 local Levels = require(ReplicatedStorage.Modules.Levels)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
 local HUDConstants = require(ReplicatedStorage.Constants.HUDConstants)
 local PadBinds = require(ReplicatedStorage.Modules.UI.PadBinds)
 local Currencies = require(ReplicatedStorage.Constants.Currencies)
+local Albums = require(ReplicatedStorage.Modules.Library.Albums)
+local AlbumConstants = require(ReplicatedStorage.Constants.AlbumConstants)
+local ShopCatalog = require(ReplicatedStorage.Constants.ShopCatalog)
+local Ladders = require(ReplicatedStorage.Modules.Library.Ladders)
+local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 
 local Effects = require(script.Effects)
@@ -25,6 +31,7 @@ local Boosts = require(script.Boosts)
 -- -------------------------------- Variables ------------------------------- --
 local LOCAL_PLAYER = Players.LocalPlayer
 local QueueRemote = Bridgenet.ReferenceBridge("QueueRemote")
+local BinderRemote = Bridgenet.ReferenceBridge("BinderRemote")
 
 local FILL_TWEEN = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
@@ -41,11 +48,13 @@ local SLIDE_IN = TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.
 
 -- Frames opened by the HUD buttons. Missing controllers are skipped with a warning, so
 -- buttons start working as soon as the matching controller is added.
+-- (K-POPPED! layout, HUDController/BuildKPopped: Packs in the middle, the Binder beside it;
+-- Profile is a small button top right)
 local TILE_TARGETS = {
-	Profile = "Profile",
-	Index = "Index",
-	Shop = "Shop",
 	Inventory = "Inventory",
+	Binder = "Binder",
+	Packs = "Albums",
+	Shop = "Shop",
 	Rewards = "Rewards",
 }
 
@@ -133,8 +142,9 @@ function HUDController.Initialize(self: Self, interface: any)
 		self:_open("Shop", "Boosts")
 	end)
 	self:_bindExtras()
+	self:_bindKPopped()
 	self:_applyStatic()
-	-- one-time lobby hints: Roll / Shop once you can afford something, Rewards once one's earned
+	-- one-time lobby hints: Packs once you can afford one, Rewards once one's earned
 	self._nudges = Nudges.new(hud, self._janitor, self._interface)
 	self._nudges:RewardsEarned(self._rewardsEarned or 0)
 	-- looping eye-catchers: rainbow Shop outline, Quick Play sheen, Rewards badge hop
@@ -217,17 +227,16 @@ function HUDController._bindCurrency(self: Self)
 	end))
 end
 
--- [[ Roll tickets / card upgrades: the coins wallet ]]
+-- [[ Roll tickets: the coins wallet ]]
 
 -- The coins card always shows its wallet tab (Coins.WalletTab, SeasonController/Build.WalletTab):
--- each wallet currency's icon + count (Constants/Currencies.Wallet: roll tickets, card upgrades;
--- 0 too, "99+" past 99). Tapping it opens the Wallet card under it (a row each, hidden at 0);
+-- each wallet currency's icon + count (Constants/Currencies.Wallet: roll tickets; 0 too, "99+"
+-- past 99). Tapping it opens the Wallet card under it (a row each, hidden at 0);
 -- with nothing to use the tab just shakes. Tap a row to use it (WALLET_USE). Claiming one never
 -- opens anything.
 -- The card (and its shadow) is as tall as the rows showing; its top edge stays put.
 local WALLET_USE = {
-	Tickets = { "Roll", { Picker = true } }, -- Pick a Group
-	Upgrades = { "Index", { Upgrade = true } }, -- the Index's card picker
+	Tickets = { "Albums", { Page = "Shop" } }, -- a ticket opens a pack
 }
 
 -- a wallet count as shown: "99+" past 99 (the tab has room for two digits each)
@@ -364,7 +373,7 @@ function HUDController._open(self: Self, name: string, ...: any)
 	end
 end
 
--- the season card under Roll / UGC: season name, how much of it has gone, days left; opens
+-- the season card under the coins card: season name, how much of it has gone, days left; opens
 -- Season. It shows no rank on purpose.
 function HUDController._bindSeason(self: Self)
 	local card = self._hud.TopLeft:FindFirstChild("Season")
@@ -417,12 +426,14 @@ end
 -- what to open (pale blue, yellow tile). Hidden when there's no event or it's over.
 function HUDController._bindEvent(self: Self)
 	local topLeft = self._hud.TopLeft
-	local card = topLeft:FindFirstChild("Event")
+	-- (top right in the K-POPPED! layout, under your bias)
+	local group = if self._hud.Buttons:FindFirstChild("Event") then self._hud.Buttons else topLeft
+	local card = group:FindFirstChild("Event")
 	if not card then
 		return
 	end
-	local shadow = topLeft:FindFirstChild("EventShadow")
-	if not SeasonConstants.ENABLED then
+	local shadow = group:FindFirstChild("EventShadow")
+	if not SeasonConstants.ENABLED and group == topLeft then
 		local season, seasonShadow = topLeft:FindFirstChild("Season"), topLeft:FindFirstChild("SeasonShadow")
 		if season then
 			card.Position = season.Position
@@ -518,20 +529,221 @@ function HUDController._bindButtons(self: Self)
 	self._janitor:Add(hud.TopLeft.Coins.Buy.Activated:Connect(function()
 		self:_open("Shop", "Coins")
 	end))
-	-- the two small buttons under the currencies: the song roll, and the group's UGC
-	self._janitor:Add(hud.TopLeft.Roll.Activated:Connect(function()
-		self:_open("Roll")
-	end))
-	self._janitor:Add(hud.TopLeft.UGC.Activated:Connect(function()
-		hud.TopLeft.UGC.New.Visible = false -- the NEW sticker goes once you've looked
-		self:_open("UGC")
-	end))
+	-- the group's UGC (top right in the K-POPPED! layout)
+	local ugc = hud.Buttons:FindFirstChild("UGC") or hud.TopLeft:FindFirstChild("UGC")
+	if ugc then
+		self._janitor:Add(ugc.Activated:Connect(function()
+			ugc.New.Visible = false -- the NEW sticker goes once you've looked
+			self:_open("UGC")
+		end))
+	end
+	local profile = hud.Buttons:FindFirstChild("Profile")
+	if profile then
+		self._janitor:Add(profile.Activated:Connect(function()
+			self:_open("Profile")
+		end))
+	end
 	self._janitor:Add(hud.Buttons.News.Activated:Connect(function()
 		self:_open("News")
 	end))
 	self._janitor:Add(hud.Buttons.Settings.Activated:Connect(function()
 		self:_open("Settings")
 	end))
+end
+
+-- [[ K-POPPED!: the Binder card, your bias, the Packs / Binder badges ]]
+-- (HUDController/BuildKPopped made them; a HUD without them is skipped)
+
+local function rate(n: number): string
+	return if n % 1 == 0 then ShopCatalog.Format(n) else string.format("%.1f", n)
+end
+
+function HUDController._bindKPopped(self: Self)
+	local hud = self._hud
+	local card = hud.TopLeft:FindFirstChild("Binder")
+	local biasButton = hud.Buttons:FindFirstChild("Bias")
+	local tiles = hud.Menu.Tiles
+	local packs, binderTile = tiles:FindFirstChild("Packs"), tiles:FindFirstChild("Binder")
+	local collecting = false
+
+	local function cards(): { [string]: number }
+		return PlayerData.Inventory.Cards.Get() or {}
+	end
+	local function waiting(): (number, number)
+		local r = Albums.Rate(cards(), PlayerData.Inventory.Bias.Get(), PlayerData.Inventory.Pins.Get(), Albums.Boost(PlayerData.GamePasses))
+		local coins = Albums.Waiting(PlayerData.Rewards.BinderBank.Get() or 0, PlayerData.Rewards.BinderAt.Get() or os.time(), r, os.time())
+		return coins, r
+	end
+
+	-- the Binder card: coins waiting, the rate from your pins, the pins as tiny cards
+	local function fillBinder()
+		if not card then
+			return
+		end
+		local coins, r = waiting()
+		card.Label.Text = `BINDER · {rate(r)}/HR`
+		card.Amount.Text = `+{ShopCatalog.Format(coins)}`
+		card.Collect.BackgroundColor3 = if coins >= 1 then Color3.fromHex("FFE07A") else Color3.fromHex("E9E2CF")
+	end
+	local function fillPins()
+		if not card then
+			return
+		end
+		local owned = cards()
+		local list = Albums.Pins(PlayerData.Inventory.Pins.Get())
+		local slots = Albums.PinSlots()
+		for i = 1, AlbumConstants.PIN_SLOTS_MAX do
+			local slot = card.Pins:FindFirstChild("Pin" .. i)
+			if not slot then
+				continue
+			end
+			local id = list[i]
+			local info = if i <= slots and id and (owned[id] or 0) > 0 then Albums.Card(id) else nil
+			slot.Art.Visible = info ~= nil
+			slot.Empty.Visible = info == nil
+			CardDecor.PaintMini(slot, if info then id else nil) -- the rarity's frame
+			if info then
+				slot.Art.Image = info.Member.Art or ""
+				slot.Art.BackgroundColor3 = Color3.fromHex(info.Album.Colour or "FFD2E5")
+				slot.UIStroke.Transparency = 0
+			else
+				slot.Empty.Mark.Text = if i > slots then "" else "+"
+				slot.UIStroke.Transparency = if i > slots then 0.7 else 0.35
+			end
+		end
+	end
+	-- your bias: their card art from your best owned card of them (else the newest album's)
+	local function fillBias()
+		if not biasButton then
+			return
+		end
+		local artist, memberKey = Albums.BiasParts(PlayerData.Inventory.Bias.Get())
+		local albums = artist and Albums.PullAlbums(artist) or {}
+		local member, art = nil, ""
+		for i = #albums, 1, -1 do
+			local m = Albums.Member(albums[i], memberKey :: string)
+			if m then
+				member = member or m
+				if art == "" and (m.Art or "") ~= "" then
+					art = m.Art
+				end
+			end
+		end
+		if member then
+			biasButton.Label.Text = "MY BIAS"
+			biasButton.Member.Text = `{string.upper(member.Name)} <font color="#FF5A4E">♥</font>`
+			biasButton.Group.Text = artist
+			biasButton.Bonus.Visible = true
+			biasButton.Bonus.Text = `{AlbumConstants.BIAS_PULL_WEIGHT}× PULLS · {AlbumConstants.BIAS_EARN}× COINS`
+		else
+			biasButton.Label.Text = "NO BIAS YET"
+			biasButton.Member.Text = "PICK ONE"
+			biasButton.Group.Text = "Their cards come 2× as often"
+			biasButton.Bonus.Visible = false
+		end
+		biasButton.Card.Art.Image = art
+	end
+	-- the badges: free packs ready on Packs, cards owned on the Binder
+	local function fillBadges()
+		if packs and packs:FindFirstChild("Free") then
+			local free = Albums.FreePacks(PlayerData.Inventory.FreePacks.Get() or 0, PlayerData.Inventory.FreePackAt.Get() or 0, os.time())
+			packs.Free.Visible = free > 0
+			packs.Free.Text = `{free} FREE`
+		end
+		if binderTile and binderTile:FindFirstChild("Count") then
+			local n = 0
+			for _, copies in cards() do
+				if copies > 0 then
+					n += 1
+				end
+			end
+			binderTile.Count.Visible = n > 0
+			binderTile.Count.Text = if n == 1 then "1 card" else `{ShopCatalog.Format(n)} cards`
+		end
+	end
+
+	local function all()
+		fillBinder()
+		fillPins()
+		fillBias()
+		fillBadges()
+	end
+	for _, field in { PlayerData.Inventory.Cards, PlayerData.Inventory.Pins, PlayerData.Inventory.Bias, PlayerData.Inventory.FreePacks, PlayerData.Rewards.BinderAt } do
+		self._janitor:Add(field.Observe(all))
+	end
+	-- the coins waiting tick up; the free-pack clock refills
+	local ticker = task.spawn(function()
+		while true do
+			task.wait(1)
+			fillBinder()
+			fillBadges()
+		end
+	end)
+	self._janitor:Add(function()
+		task.cancel(ticker)
+	end, true)
+
+	if card then
+		self._janitor:Add(card.Activated:Connect(function()
+			self:_open("Binder")
+		end))
+		self._janitor:Add(card.Collect.Activated:Connect(function()
+			if collecting then
+				return
+			end
+			if (waiting()) < 1 then
+				Sounds.Play("Wrong")
+				Juice.Shake(card.Collect)
+				self:Toast(if #Albums.Pins(PlayerData.Inventory.Pins.Get()) == 0 then "Pin cards in your binder to earn coins" else "Nothing to collect yet")
+				return
+			end
+			collecting = true
+			Sounds.Play("Click")
+			BinderRemote:Fire({ Action = "Collect" })
+		end))
+	end
+	if biasButton then
+		self._janitor:Add(biasButton.Activated:Connect(function()
+			self:_open("Albums", { Page = "Bias" })
+		end))
+	end
+	self._janitor:Add(BinderRemote:Connect(function(packet)
+		if type(packet) ~= "table" or packet.Message ~= "Binder" then
+			return
+		end
+		if packet.Action == "Collect" and collecting then
+			collecting = false
+			if packet.Ok then
+				Sounds.Play("Coins")
+				if card then
+					Juice.Pop(card, 0.1)
+				end
+			end
+			fillBinder()
+		elseif packet.Action == "SetBonus" and self.State == "Active" and type(packet.Albums) == "table" then
+			local album = Albums.Get(packet.Albums[1])
+			self:Toast(`{album and album.Name or "Album"} complete! +{ShopCatalog.Format(packet.Coins or 0)} coins`)
+		elseif packet.Action == "Badge" and type(packet.Badges) == "table" and packet.Badges[1] then
+			-- group badge rungs reached (Engine/LadderService), best first
+			local best = packet.Badges[1]
+			local label = Ladders.Label(best.Ladder, best.Artist, best.Rung)
+			local more = #packet.Badges - 1
+			local text = `New badge: {label}!`
+			if more > 0 then
+				text ..= ` (+{more} more)`
+			end
+			if (packet.Coins or 0) > 0 then
+				text ..= ` +{ShopCatalog.Format(packet.Coins)} coins`
+			end
+			self._badgeToast = text -- (shown once the lobby is back, if a screen's open now)
+			if self.State == "Active" then
+				Sounds.Play("Coins", { Volume = 0.4 })
+				self:Toast(text)
+				self._badgeToast = nil
+			end
+		end
+	end), "Disconnect")
+	all()
 end
 
 -- [[ Static content ]]
@@ -628,7 +840,7 @@ function HUDController._slide(self: Self, show: boolean): any
 end
 
 -- Controller shortcuts in the lobby (Modules/UI/PadBinds): Y Quick Play, RB Shop, D-pad
--- ← Profile, ↑ Index, → Inventory, ↓ Rewards. A, B and X stay free: A jumps and X is the stage
+-- ← Binder, ↑ Packs, → Inventory, ↓ Rewards. A, B and X stay free: A jumps and X is the stage
 -- prompt. Bound while the HUD is up.
 function HUDController._bindPad(self: Self)
 	if self._unpad then
@@ -646,8 +858,8 @@ function HUDController._bindPad(self: Self)
 			QueueRemote:Fire("QuickPlay")
 		end },
 		{ Key = Enum.KeyCode.ButtonR1, Chip = tiles.Shop, Run = open("Shop") },
-		{ Key = Enum.KeyCode.DPadLeft, Chip = tiles.Profile, Run = open("Profile") },
-		{ Key = Enum.KeyCode.DPadUp, Chip = tiles.Index, Run = open("Index") },
+		{ Key = Enum.KeyCode.DPadLeft, Chip = tiles.Binder, Run = open("Binder") },
+		{ Key = Enum.KeyCode.DPadUp, Chip = tiles.Packs, Run = open("Albums") },
 		{ Key = Enum.KeyCode.DPadRight, Chip = tiles.Inventory, Run = open("Inventory") },
 		{ Key = Enum.KeyCode.DPadDown, Chip = tiles.Rewards, Run = open("Rewards") },
 	})
@@ -656,6 +868,15 @@ end
 function HUDController.Activate(self: Self)
 	self.State = "Active"
 	self:_bindPad()
+	-- a badge reached while a screen was up (a duel's stars): say so now
+	local badge = self._badgeToast
+	if badge then
+		self._badgeToast = nil
+		task.delay(0.6, function()
+			Sounds.Play("Coins", { Volume = 0.4 })
+			self:Toast(badge)
+		end)
+	end
 	return self:_slide(true)
 end
 

@@ -25,13 +25,16 @@ local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 local Levels = require(ReplicatedStorage.Modules.Levels)
 local Analytics = require(script.Parent.Analytics)
 local Collection = require(script.Parent.Collection)
+local Ladders = require(ReplicatedStorage.Modules.Library.Ladders)
+local Albums = require(ReplicatedStorage.Modules.Library.Albums)
+local BinderService = require(script.Parent.BinderService)
 
 local ShopRemote = Bridgenet.ReferenceBridge("ShopRemote")
 
 local ShopService = {}
 
 -- [[ Song sets (company + group, see Modules/Library/Packs). Songs aren't sold here any more:
--- they come from the song roll (Engine/RollService). ]]
+-- they came from the song roll, gone since 25 Nov 2026. ]]
 
 -- After buying songs: finish any set they complete and give its title (Engine/Collection).
 local function checkPacksComplete(data, songs: { any })
@@ -208,7 +211,17 @@ end
 
 local function equipTitle(player: Player, data, packet)
 	local title = packet.Id
-	if title ~= "" and not (type(title) == "string" and data.Inventory.Titles.Has(title)) then
+	-- a group badge (Modules/Library/Ladders): wearable once its first rung is reached
+	local ladder, artist = Ladders.FromTitle(title)
+	if ladder and artist then
+		if not Ladders.Eligible(artist) then
+			return reply(player, packet, false, "That group has no badges")
+		end
+		local key = if ladder == "Legend" then Ladders.LegendKey(artist) else Ladders.Key(ladder, artist)
+		if ((data.Inventory.Ladders.Get() or {})[key] or 0) < 1 then
+			return reply(player, packet, false, "You haven't earned that badge yet")
+		end
+	elseif title ~= "" and not (type(title) == "string" and data.Inventory.Titles.Has(title)) then
 		return reply(player, packet, false, "You haven't unlocked that title")
 	end
 	data.Inventory.Title.Set(title)
@@ -311,6 +324,14 @@ local ACTIONS = {
 local function grantPass(player: Player, passId: string)
 	local data = PlayerData.Get(player)
 	if data and not data.GamePasses.Has(passId) then
+		if passId == Albums.PIN_PASS then
+			-- bank the binder at the old rate first, so the pass doesn't double hours before it
+			PlayerData.Batch(player, function()
+				BinderService.Bank(data)
+				data.GamePasses.Add(passId)
+			end)
+			return
+		end
 		data.GamePasses.Add(passId)
 	end
 end

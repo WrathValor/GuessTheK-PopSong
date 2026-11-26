@@ -9,6 +9,7 @@ return {
 	Colour = "B9A6FF", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("A66CFF"), Color3.fromHex("6A2FD6")), -- purple (fan colour, not official)
 	Status = "Active",
+	PackArt = "rbxassetid://71858268125221", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "Dynamite",
@@ -162,6 +163,60 @@ return {
 			PlaybackSpeed = 0.52,
 			TimePosition = 1,
 			ChorusPosition = 96,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "bts-love-yourself",
+			Name = "Love Yourself",
+			Year = 2018,
+			Colour = "F9C6D8",
+			Songs = { "Best Of Me", "Anpanman", "Airplane pt.2", "FAKE LOVE" },
+			Members = { "RM", "Jin", "SUGA", "j-hope", "Jimin", "V", "Jung Kook" },
+			Art = { -- assets/Photocards/BTS/Love Yourself/<member>
+				["RM"] = "rbxassetid://75561506726189",
+				["Jin"] = "rbxassetid://125159211509422",
+				["SUGA"] = "rbxassetid://133910943548660",
+				["j-hope"] = "rbxassetid://111331416908689",
+				["Jimin"] = "rbxassetid://140334198321504",
+				["V"] = "rbxassetid://111149576744808",
+				["Jung Kook"] = "rbxassetid://70902783972796",
+			},
+		},
+		{
+			Id = "bts-arirang",
+			Name = "Arirang",
+			Year = 2026,
+			Colour = "B9A6FF",
+			Songs = {},
+			Members = { "J-HOPE", "JIMIN", "JIN", "JUNGKOOK", "RM", "SUGA", "V" },
+			Art = {
+				["J-HOPE"] = "rbxassetid://85216565852991",
+				["JIMIN"] = "rbxassetid://91915352602345",
+				["JIN"] = "rbxassetid://77144789196442",
+				["JUNGKOOK"] = "rbxassetid://104405603187841",
+				["RM"] = "rbxassetid://137372397150728",
+				["SUGA"] = "rbxassetid://96984714879881",
+				["V"] = "rbxassetid://101898034707137",
+			},
+		},
+		{
+			Id = "bts-map-of-the-soul-7",
+			Name = "Map of the Soul: 7",
+			Year = 2020,
+			Colour = "B9A6FF",
+			Songs = {},
+			Members = { "J HOPE", "JIMIN", "JIN", "JUNGKOOK", "RM", "SUGA", "V" },
+			Art = {
+				["J HOPE"] = "rbxassetid://82195623023997",
+				["JIMIN"] = "rbxassetid://100938685819153",
+				["JIN"] = "rbxassetid://124105100785931",
+				["JUNGKOOK"] = "rbxassetid://89496837554085",
+				["RM"] = "rbxassetid://73491524684093",
+				["SUGA"] = "rbxassetid://119185500188674",
+				["V"] = "rbxassetid://116740215237431",
+			},
 		},
 	},
 }

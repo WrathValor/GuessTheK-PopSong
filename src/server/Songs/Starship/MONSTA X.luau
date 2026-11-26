@@ -9,6 +9,7 @@ return {
 	Colour = "A9B8E6", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new({ ColorSequenceKeypoint.new(0, Color3.fromHex("4B1C6E")), ColorSequenceKeypoint.new(0.5, Color3.fromHex("1E2A78")), ColorSequenceKeypoint.new(1, Color3.fromHex("0E1640")) }), -- darker take on their purple/navy Pantones
 	Status = "Active",
+	PackArt = "rbxassetid://133767180899142", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "Shoot Out",
@@ -96,6 +97,17 @@ return {
 			PlaybackSpeed = 0.79,
 			TimePosition = 0.8,
 			ChorusPosition = 0,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "monstax-the-connect",
+			Name = "THE CONNECT : DEJAVU",
+			Year = 2018,
+			Colour = "B3C2E8",
+			Songs = { "Jealousy", "Shoot Out", "Beautiful", "DRAMARAMA" },
+			Members = { "SHOWNU", "WONHO", "MINHYUK", "KIHYUN", "HYUNGWON", "JOOHEON", "I.M" },
 		},
 	},
 }

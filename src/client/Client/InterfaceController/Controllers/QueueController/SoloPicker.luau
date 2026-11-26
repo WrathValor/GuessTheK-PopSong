@@ -16,6 +16,8 @@ local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Client
 local Themes = require(ReplicatedStorage.Modules.Library.Themes)
 local Packs = require(ReplicatedStorage.Modules.Library.Packs)
+local Songs = require(ReplicatedStorage.Modules.Library.Songs)
+local Albums = require(ReplicatedStorage.Modules.Library.Albums)
 local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local AnalyticsClient = require(ReplicatedStorage.Modules.AnalyticsClient)
@@ -56,7 +58,7 @@ local CARD_GAP = 22
 local MAX_CARDS = 4
 local TILT = { -4, -2, 0, 3 }
 local TAB_W = { All = 52, Era = 56, Gen = 56, Pack = 86 }
-local TAB_LABEL = { All = "All", Era = "Era", Gen = "Gen", Pack = "My songs" }
+local TAB_LABEL = { All = "All", Era = "Era", Gen = "Gen", Pack = "My groups" }
 local START_DELAY = 3 -- seconds between pressing Start and the game starting
 
 local SoloPicker = {}
@@ -313,19 +315,24 @@ end
 
 -- -------------------------------------------------------------- Behaviour -- --
 
-local function hasSong(id: string): boolean
-	local ok, has = pcall(PlayerData.Inventory.Songs.Has, id)
-	return ok and has == true
-end
-
--- the songs the player owns (nil when none yet): they come up more often, and the "My songs"
--- theme plays only them
+-- the songs of your groups (your bias's group + your pinned cards' groups, Albums.FavouredGroups;
+-- nil when none yet): they come up more often, and the "My groups" theme plays only them
 local function mySongs()
-	local songs = Packs.SongsFor(Packs.MY, hasSong)
+	local function get(path, fallback)
+		local ok, value = pcall(path.Get)
+		return if ok and value ~= nil then value else fallback
+	end
+	local groups = Albums.FavouredGroups(get(PlayerData.Inventory.Cards, {}), get(PlayerData.Inventory.Bias, ""), get(PlayerData.Inventory.Pins, ""))
+	local songs = {}
+	for _, song in Songs.GetAllSongs() do
+		if song.Artist and groups[song.Artist] then
+			table.insert(songs, song)
+		end
+	end
 	if #songs == 0 then
 		return nil
 	end
-	return { Id = Packs.MY, Name = "My songs", Songs = songs }
+	return { Id = Packs.MY, Name = "My groups", Songs = songs }
 end
 
 local function setting(path, fallback)
@@ -337,7 +344,7 @@ end
 local function describe(theme, pack)
 	if theme.Id == Themes.PACK then
 		if not pack then
-			return { Count = "No songs", Groups = "Roll songs in the shop", Open = false, Songs = 0 }
+			return { Count = "No songs", Groups = "Pin cards in your binder", Open = false, Songs = 0 }
 		end
 		local n = #pack.Songs
 		local open = n >= DuelConstants.ROUNDS
@@ -429,7 +436,7 @@ function SoloPicker.new(queueFrame: Instance, janitor)
 	end, true)
 
 	-- keep the front's mini card in step with what's saved
-	for _, path in { PlayerData.Settings.SoloTheme, PlayerData.Inventory.Songs } do
+	for _, path in { PlayerData.Settings.SoloTheme, PlayerData.Inventory.Pins, PlayerData.Inventory.Bias } do
 		local ok, conn = pcall(path.Observe, function()
 			if not self.IsOpen then
 				local saved = setting(PlayerData.Settings.SoloTheme, Themes.DEFAULT)
@@ -583,7 +590,7 @@ function SoloPicker:Render()
 		end
 	end
 
-	-- the switch: only when you own songs and the theme isn't "My songs" itself
+	-- the switch: only when you own songs and the theme isn't "My groups" itself
 	local playing = Themes.Get(self:_playable())
 	local mix = back.Mix
 	mix.Visible = pack ~= nil and playing.Id ~= Themes.PACK

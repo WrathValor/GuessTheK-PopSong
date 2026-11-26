@@ -1,70 +1,119 @@
 --| Collection
--- Song sets: owning every song of a pack (bought in the shop or pulled from a song roll)
--- completes it (Inventory.Packs) and unlocks its title: group packs give the fandom name
--- (Packs.FANDOMS, "CARAT"), company packs "<Company> Expert". Nothing is equipped for this;
--- the player just picks which unlocked title to show (Inventory.Title).
--- The title levels up with the set (Cards.SetLevel, the lowest card in it): every card Gold →
--- Gold title, every card Rainbow → Rainbow title (Inventory.TitleTiers). DataService checks
--- every set whenever Inventory.Songs or Inventory.Copies changes, so any way of getting a song
--- or a copy counts. A title (and its tier) stays when an update adds new songs to its set.
+-- Fandom titles come from photocards: owning a card of every member of a group (any album,
+-- any rarity) completes the group's binder and unlocks its title (Packs.FANDOMS, "CARAT";
+-- Inventory.Packs records "Group:<artist>"). Completing every group from a company unlocks
+-- "<Company> Expert". Nothing is equipped for this; the player picks which title to show
+-- (Inventory.Title).
+-- The title levels up with the cards: each member's best card counts, and the lowest of those
+-- sets the tier (every member Gold → Gold title, every member Rainbow → Rainbow title;
+-- Inventory.TitleTiers, only goes up). Only groups with photocards (Albums.HasArt) can be
+-- completed. DataService checks whenever Inventory.Cards changes and on join. A title (and
+-- its tier) stays when an update adds new members or albums.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Packs = require(ReplicatedStorage.Modules.Library.Packs)
 local Cards = require(ReplicatedStorage.Modules.Library.Cards)
+local Albums = require(ReplicatedStorage.Modules.Library.Albums)
 
 local Collection = {}
 
--- Marks finished sets and gives their titles. `songs` (optional) limits it to the sets those
--- songs belong to; leave it out to check every set. Returns what changed, for the roll reveal:
+-- every group's members with photocards: artist → { [member key] = true }
+local membersCache: { [string]: { [string]: boolean } }? = nil
+local function groupMembers(): { [string]: { [string]: boolean } }
+	if membersCache then
+		return membersCache
+	end
+	local out = {}
+	for _, artist in Albums.Artists() do
+		for _, album in Albums.ForArtist(artist) do
+			if Albums.HasArt(album) then
+				out[artist] = out[artist] or {}
+				for _, member in album.Members do
+					out[artist][member.Key] = true
+				end
+			end
+		end
+	end
+	membersCache = out
+	return out
+end
+
+-- each group's binder level from the cards owned: artist → rank (1 Normal, 2 Gold, 3 Rainbow),
+-- or no entry while a member is still missing
+function Collection.GroupRanks(cards: { [string]: number }): { [string]: number }
+	local best: { [string]: { [string]: number } } = {}
+	for id, copies in cards do
+		local info = copies > 0 and Albums.Card(id)
+		local level = info and Albums.Level(copies)
+		if info and level then
+			local artist = info.Album.Artist
+			best[artist] = best[artist] or {}
+			best[artist][info.Member.Key] = math.max(best[artist][info.Member.Key] or 0, Cards.RANK[level])
+		end
+	end
+	local ranks = {}
+	for artist, members in groupMembers() do
+		local low = math.huge
+		for key in members do
+			low = math.min(low, (best[artist] and best[artist][key]) or 0)
+		end
+		if low >= 1 and low < math.huge then
+			ranks[artist] = low
+		end
+	end
+	return ranks
+end
+
+-- Gives the titles of finished groups and companies. Returns what changed:
 -- { { Title, Tier = "Normal" | "Gold" | "Rainbow", New = true when just unlocked } }
-function Collection.Check(data, songs: { any }?): { { Title: string, Tier: string, New: boolean } }
+-- (the second argument is kept for older callers and ignored)
+function Collection.Check(data, _songs: any?): { { Title: string, Tier: string, New: boolean } }
 	local changes = {}
-	local packs = {}
-	if songs then
-		local seen = {}
-		for _, song in songs do
-			for _, pack in Packs.ForSong(song) do
-				if not seen[pack.Id] then
-					seen[pack.Id] = true
-					table.insert(packs, pack)
-				end
-			end
-		end
-	else
-		for _, list in { Packs.Groups(), Packs.Companies() } do
-			for _, pack in list do
-				table.insert(packs, pack)
-			end
-		end
-	end
-	local copies = data.Inventory.Copies.Get()
+	local ranks = Collection.GroupRanks(data.Inventory.Cards.Get() or {})
 	local tiers = data.Inventory.TitleTiers.Get() or {}
-	local function owns(id: string): boolean
-		return data.Inventory.Songs.Has(id)
+	local function give(packId: string, title: string?, rank: number)
+		if not data.Inventory.Packs.Has(packId) then
+			data.Inventory.Packs.Add(packId)
+		end
+		if not title then
+			return
+		end
+		local new = not data.Inventory.Titles.Has(title)
+		if new then
+			data.Inventory.Titles.Add(title)
+		end
+		local upgraded = rank > 1 and rank > (tiers[title] or 1)
+		if upgraded then
+			data.Inventory.TitleTiers[title].Set(rank)
+			tiers[title] = rank
+		end
+		if new or upgraded then
+			table.insert(changes, { Title = title, Tier = Cards.LEVELS[tiers[title] or 1], New = new })
+		end
 	end
-	for _, pack in packs do
-		local level = if pack.Kind ~= Packs.MY then Cards.SetLevel(pack.Songs, copies, owns) else nil
-		if level then
-			if not data.Inventory.Packs.Has(pack.Id) then
-				data.Inventory.Packs.Add(pack.Id)
+	-- groups, and each company's lowest group (only groups with photocards count)
+	local companies: { [string]: { done: boolean, low: number, any: boolean } } = {}
+	for _, pack in Packs.Groups() do
+		local artist = pack.Name
+		if groupMembers()[artist] then
+			local company = (pack.Songs[1] and pack.Songs[1].Company) or "Other"
+			local c = companies[company] or { done = true, low = math.huge, any = false }
+			companies[company] = c
+			c.any = true
+			local rank = ranks[artist]
+			if rank then
+				c.low = math.min(c.low, rank)
+				give(pack.Id, pack.Title, rank)
+			else
+				c.done = false
 			end
-			if pack.Title then
-				local new = not data.Inventory.Titles.Has(pack.Title)
-				if new then
-					data.Inventory.Titles.Add(pack.Title)
-				end
-				-- Gold / Rainbow: only ever goes up
-				local rank = Cards.RANK[level]
-				local upgraded = rank > 1 and rank > (tiers[pack.Title] or 1)
-				if upgraded then
-					data.Inventory.TitleTiers[pack.Title].Set(rank)
-					tiers[pack.Title] = rank
-				end
-				if new or upgraded then
-					table.insert(changes, { Title = pack.Title, Tier = Cards.LEVELS[tiers[pack.Title] or 1], New = new })
-				end
-			end
+		end
+	end
+	for _, pack in Packs.Companies() do
+		local c = companies[pack.Name]
+		if c and c.any and c.done then
+			give(pack.Id, pack.Title, c.low)
 		end
 	end
 	return changes

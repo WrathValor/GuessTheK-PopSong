@@ -9,6 +9,7 @@ return {
 	Colour = "FFC3DA", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("FFB8D6"), Color3.fromHex("BFA8FF")), -- no official colour: pastel pink to lilac branding
 	Status = "Active",
+	PackArt = "rbxassetid://77633561714538", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "Cherish (My Love)",
@@ -105,6 +106,25 @@ return {
 			PlaybackSpeed = 0.8,
 			TimePosition = 23,
 			ChorusPosition = 49,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Members are the era's line-up.
+	-- Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "illit-super-real-me",
+			Name = "SUPER REAL ME",
+			Year = 2024,
+			Colour = "FFE0EE",
+			Songs = { "Magnetic", "Lucky Girl Syndrome", "My World" },
+			Members = { "YUNAH", "MINJU", "MOKA", "WONHEE", "IROHA" },
+			Art = { -- assets/Photocards/ILLIT/SUPER REAL ME/<member>
+				YUNAH = "rbxassetid://101997939181519",
+				MINJU = "rbxassetid://104213117796071",
+				MOKA = "rbxassetid://98781134551442",
+				WONHEE = "rbxassetid://86706022007825",
+				IROHA = "rbxassetid://95253697675650",
+			},
 		},
 	},
 }

@@ -4,7 +4,6 @@
 -- one as ServerStorage.Shop_Legacy); after that the frame lives in Studio and can be restyled
 -- by hand. ShopController only fills it in, finding everything by name.
 
-local RollPage = require(script.Parent.RollPage)
 
 local C = Color3.fromHex
 local INK = C("1E1B2E")
@@ -837,7 +836,7 @@ function Build.Build(frames: Instance)
 	text(header, "Title", { Position = UDim2.fromOffset(20, 0), Size = UDim2.fromOffset(90, 68), FontFace = HEAD, TextSize = 26, Text = "SHOP" })
 	local tabs = new("Frame", { Name = "Tabs", Position = UDim2.fromOffset(112, 0), Size = UDim2.fromOffset(740, 68), BackgroundTransparency = 1 }, header)
 	row(tabs, 10)
-	for i, t in { { "Featured", "FFE07A" }, { "Sets", "B9A6FF" }, { "Items", "FF9EC4" }, { "Roll", "FF9EC4" }, { "UGC", "A7E9B8" }, { "Coins", "FFD2CE" } } do
+	for i, t in { { "Featured", "FFE07A" }, { "Sets", "B9A6FF" }, { "Items", "FF9EC4" }, { "UGC", "A7E9B8" }, { "Coins", "FFD2CE" } } do
 		local holder = new("Frame", { Name = t[1], LayoutOrder = i, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 43), BackgroundTransparency = 1 }, tabs)
 		local shadow = new("Frame", { Name = "Shadow", Position = UDim2.fromOffset(3, 3), Size = UDim2.new(1, -3, 1, -3), BackgroundColor3 = INK, BorderSizePixel = 0 }, holder)
 		corner(shadow, 11)
@@ -898,7 +897,6 @@ function Build.Build(frames: Instance)
 	featuredPage(pages)
 	setsPage(pages)
 	itemsPage(pages)
-	RollPage.Build(pages, shop) -- the song roll (./RollPage), which replaced buying packs
 	emotesPage(pages)
 	coinsPage(pages)
 

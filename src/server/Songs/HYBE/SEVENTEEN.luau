@@ -9,6 +9,7 @@ return {
 	Colour = "F5C4D0", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("F7CAC9"), Color3.fromHex("92A8D1")), -- official: Rose Quartz + Serenity
 	Status = "Active",
+	PackArt = "rbxassetid://140474074530419", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "Don't Wanna Cry",
@@ -94,6 +95,32 @@ return {
 			PlaybackSpeed = 0.76,
 			TimePosition = 1,
 			ChorusPosition = 49.3,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "seventeen-fml",
+			Name = "FML",
+			Year = 2023,
+			Colour = "C9D4FF",
+			Songs = { "Super" },
+			Members = { "S.COUPS", "JEONGHAN", "JOSHUA", "JUN", "HOSHI", "WONWOO", "WOOZI", "DK", "MINGYU", "THE8", "SEUNGKWAN", "VERNON", "DINO" },
+			Art = { -- assets/Photocards/SEVENTEEN/FML/<member>
+				["S.COUPS"] = "rbxassetid://100827133578735",
+				["JEONGHAN"] = "rbxassetid://73699574454415",
+				["JOSHUA"] = "rbxassetid://131824084154928",
+				["JUN"] = "rbxassetid://97801572589939",
+				["HOSHI"] = "rbxassetid://130160146280797",
+				["WONWOO"] = "rbxassetid://99434150054370",
+				["WOOZI"] = "rbxassetid://96122545571285",
+				["DK"] = "rbxassetid://90638129666159",
+				["MINGYU"] = "rbxassetid://77585149722699",
+				["THE8"] = "rbxassetid://115450546302337",
+				["SEUNGKWAN"] = "rbxassetid://133715875351165",
+				["VERNON"] = "rbxassetid://111108859906651",
+				["DINO"] = "rbxassetid://104001246923488",
+			},
 		},
 	},
 }

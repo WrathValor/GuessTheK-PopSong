@@ -17,6 +17,8 @@ AnalyticsEvents.Custom = {
 	GiftSent = { Fields = { "Paid", "What" } }, -- value: coins spent (Coins) or 1 (Robux)
 	-- [[ Rounds + games ]]
 	RoundResult = { Fields = { "Song", "Result", "Tier" } }, -- value: seconds to answer (0 = no answer)
+	SongStar = { Fields = { "Song" } }, -- value: the song's new star count (Modules/Library/Mastery)
+	BadgeRung = { Fields = { "Ladder", "Group" } }, -- value: the rung reached (1 Bronze … 5 Diamond, 6 Legend; Engine/LadderService)
 	GameFinished = { Fields = { "Outcome", "Mode", "Packs" } }, -- value: correct answers (0-7)
 	PerfectGame = { Fields = { "Mode" } },
 	SoloStarted = { Fields = { "Theme", "OwnedMix" } },
@@ -61,6 +63,12 @@ AnalyticsEvents.Custom = {
 	SeasonClaim = { Fields = { "Kind" } }, -- value: milestone number
 	CardUpgrade = { Fields = { "Song" } }, -- value: copies after
 	TicketRoll = { Fields = { "Group", "Result" } }, -- Result New / Duplicate
+	FirstRoll = {}, -- the tutorial's free first card was rolled (Engine/RollService)
+	-- [[ K-POPPED! photocards ]] (Engine/AlbumService, BinderService, BiasService)
+	AlbumOpened = { Fields = { "Album", "Rarity", "How" } }, -- one per card pulled (Album = the card's album); How Coins1 / Coins10 / Ticket / First
+	CardSold = { Fields = { "Rarity", "Where" } }, -- value: coins; Where Reveal / Binder
+	BinderCollected = {}, -- value: coins
+	BiasPicked = { Fields = { "Group", "How" } }, -- How First / Change
 	QuestBonusClaimed = {},
 	GroupRewardClaimed = {},
 	-- Invite friends (Engine/ReferralService). How = LaunchData / Referred (Roblox's share link)
@@ -167,6 +175,10 @@ AnalyticsEvents.Transactions = {
 	Roll = "SongRoll", -- also the Tickets sink (sku TicketRoll) and the Upgrades sink (sku CardUpgrade):
 	-- Roblox allows 20 transaction types per experience and this list is past that already
 	RollRefund = "RollRefund", -- source: coins back for duplicates
+	-- K-POPPED! (SongRoll + RollRefund retire with the song roll, which keeps the count in check)
+	Album = "Album", -- sink: photocard pulls (sku Coins1 / Coins10; Tickets sku Ticket)
+	CardSell = "CardSell", -- source: selling a card, or copies past Rainbow (sku: the rarity key)
+	Binder = "Binder", -- source: collecting binder earnings (and group badge rungs, sku Badge)
 }
 
 -- Funnels (10 max). Onboarding uses Roblox's own onboarding funnel: once per player, and

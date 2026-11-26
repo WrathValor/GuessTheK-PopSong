@@ -75,18 +75,19 @@ function PackTag.Set(gameFrame: Instance, info, theme: string?)
 		end
 	end
 	local text
+	-- (Tier is "Bias" or "Pinned": the song is by your bias's group or a pinned card's group)
 	if mine and other then
-		text = "♪ YOU BOTH OWN THIS"
+		text = "♪ BOTH YOUR GROUPS"
 	elseif mine then
-		text = `♪ YOUR SONG · {mine.Tier or "Normal"}`
+		text = if mine.Tier == "Bias" then "♪ YOUR BIAS'S GROUP" else "♪ YOUR GROUP"
 	else
-		text = `♪ {if other then other.Name else "Rival"}'s SONG`
+		text = `♪ {if other then other.Name else "Rival"}'s GROUP`
 	end
 	if mine and info.XP then
 		text ..= ` · +{info.XP} XP if you get it`
 	end
 	local tier = mine and mine.Tier
-	tag.BackgroundColor3 = if tier == "Gold" or tier == "Rainbow" then GOLD elseif mine then LILAC else PINK
+	tag.BackgroundColor3 = if tier == "Bias" then GOLD elseif mine then LILAC else PINK
 	tag.Text = if theme then `{string.upper(theme)} · {text}` else text
 end
 

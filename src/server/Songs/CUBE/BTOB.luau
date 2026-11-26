@@ -9,6 +9,7 @@ return {
 	Colour = "9ED8F5", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("8DB8EB"), Color3.fromHex("4F7FCF")), -- official: Slow Blue
 	Status = "Active",
+	PackArt = "rbxassetid://133034254727868", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "Missing You",
@@ -61,6 +62,17 @@ return {
 			PlaybackSpeed = 0.93,
 			TimePosition = 8,
 			ChorusPosition = 86,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "btob-brother-act",
+			Name = "Brother Act.",
+			Year = 2017,
+			Colour = "B9E3F7",
+			Songs = { "Missing You", "Movie" },
+			Members = { "EUNKWANG", "MINHYUK", "CHANGSUB", "HYUNSIK", "PENIEL", "ILHOON", "SUNGJAE" },
 		},
 	},
 }

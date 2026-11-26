@@ -49,6 +49,29 @@ local LIBRARY = {
 	Encore = { Id = 126615573673174, Volume = 0.5 }, -- "Crowd Cheering": the ENCORE sign lights up before the final round
 	Rematch = { Id = 9119669160, Volume = 0.5 }, -- the Rematch button popping in at the end of the results reveal
 
+	-- photocard packs (AlbumsController + its Reveal). Made for K-POPPED and uploaded to group
+	-- 430052409; the files are in assets/Audio/Pull.
+	PackTear = { Id = 125029448795160, Volume = 0.6 }, -- the sleeve tears open
+	CardsFan = { Id = 110210104620379, Volume = 0.5 }, -- the backs fan out and shuffle
+	CardFlip = { Id = 92154559223982, Volume = 0.55 }, -- a card turns over
+	CardPop = { Id = 92257500937903, Volume = 0.5 }, -- an everyday card lands face up
+	CardSleeve = { Id = 135634827790210, Volume = 0.45 }, -- a card slides into the tray
+	PullResults = { Id = 111912323567547, Volume = 0.55 }, -- the pack summary
+	LuckyShimmer = { Id = 122090780287728, Volume = 0.4 }, -- Lucky Draw back: gold shimmer
+	LuckyCoins = { Id = 86377083697427, Volume = 0.6 }, -- Lucky Draw reveal: coin shower
+	Heartbeat = { Id = 72997439216698, Volume = 0.6 }, -- Fansign back: each heartbeat hop (boosted)
+	FansCheer = { Id = 75897094659596, Volume = 0.5 }, -- Fansign reveal: fans squealing
+	FansCrowd = { Id = 139897621361299, Volume = 0.6 }, -- Fansign: a 10 s crowd that carries on (loops, Sounds.Loop)
+	MarkerScribble = { Id = 107473596009477, Volume = 0.55 }, -- Fansign scribble, Polaroid signature
+	FlashBeep = { Id = 130153053632764, Volume = 0.4 }, -- Polaroid back: each flash-charge blink
+	Shutter = { Id = 139616424292770, Volume = 0.65 }, -- Polaroid: the flash goes off
+	-- (the One of One's rumble and burst are made bright, not bass: small speakers drop the lows)
+	OneRumble = { Id = 75843853222606, Volume = 0.7 }, -- One of One: the build-up (rising riser)
+	OneBurst = { Id = 139670621136034, Volume = 0.85 }, -- One of One: the back bursts (shatter)
+	OneChoir = { Id = 89786628076615, Volume = 0.85 }, -- One of One: the reveal
+	OneLoop = { Id = 94049951477499, Volume = 0.45 }, -- One of One: a 12 s heavenly choir pad that carries on (loops, Sounds.Loop)
+	OneLoopAlt = { Id = 79682352932621, Volume = 0.45 }, -- One of One: the other take (a golden synth hum with choir)
+
 }
 
 -- Looping background music. Id = 0 means "not picked yet" and is skipped quietly.
@@ -118,6 +141,41 @@ local function setup()
 		table.insert(list, s)
 	end
 	task.spawn(ContentProvider.PreloadAsync, ContentProvider, list)
+end
+
+-- Starts a sound looping (opts as Play) and returns a function that stops it with a fade
+-- (seconds, default 0.4). For a sound that lasts as long as something is on screen.
+function Sounds.Loop(name: string, opts: { Pitch: number?, Volume: number?, FadeIn: number?, At: number? }?): (number?) -> ()
+	if not RunService:IsClient() then
+		return function() end
+	end
+	setup()
+	local template = templates[name]
+	if not template then
+		warn("[Sounds] unknown sound", name)
+		return function() end
+	end
+	local s = template:Clone()
+	s.Looped = true
+	s.PlaybackSpeed = template.PlaybackSpeed * (opts and opts.Pitch or 1)
+	local volume = template.Volume * (opts and opts.Volume or 1)
+	s.Volume = 0
+	s.Parent = SoundService
+	s.TimePosition = opts and opts.At or 0 -- (where in the loop to come in)
+	s:Play()
+	TweenService:Create(s, TweenInfo.new(opts and opts.FadeIn or 0.3), { Volume = volume }):Play()
+	local stopped = false
+	return function(fade: number?)
+		if stopped then
+			return
+		end
+		stopped = true
+		local out = TweenService:Create(s, TweenInfo.new(fade or 0.4), { Volume = 0 })
+		out.Completed:Once(function()
+			s:Destroy()
+		end)
+		out:Play()
+	end
 end
 
 -- Play a sound by name. opts.Pitch scales playback speed, opts.Volume scales volume.

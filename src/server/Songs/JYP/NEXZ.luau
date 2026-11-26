@@ -9,6 +9,7 @@ return {
 	Colour = "C2B8FF", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("39D5FF"), Color3.fromHex("3B5BFF")), -- no official colour: electric blue
 	Status = "Active",
+	PackArt = "rbxassetid://127049197531461", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "Ride the Vibe",
@@ -88,6 +89,26 @@ return {
 			PlaybackSpeed = 0.82,
 			TimePosition = 0.5,
 			ChorusPosition = 27,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "nexz-ride-the-vibe",
+			Name = "Ride the Vibe",
+			Year = 2024,
+			Colour = "B9F0C2",
+			Songs = { "Ride the Vibe", "Keep on Moving" },
+			Members = { "TOMOYA", "YU", "HARU", "SO GEON", "SEITA", "HYUI", "YUKI" },
+			Art = {
+				["TOMOYA"] = "rbxassetid://80815875086734",
+				["YU"] = "rbxassetid://98733592450979",
+				["HARU"] = "rbxassetid://118998815380919",
+				["SO GEON"] = "rbxassetid://106278212231735",
+				["SEITA"] = "rbxassetid://109625561440180",
+				["HYUI"] = "rbxassetid://89146810559663",
+				["YUKI"] = "rbxassetid://135842639565317",
+			},
 		},
 	},
 }

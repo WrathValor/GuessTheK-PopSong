@@ -9,6 +9,7 @@ return {
 	Colour = "FFB3B3", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("B23A5E"), Color3.fromHex("7A1230")), -- official: Pearl Burgundy
 	Status = "Disbanded",
+	PackArt = "rbxassetid://134807899813083", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "Tell Me",
@@ -105,6 +106,17 @@ return {
 			Volume = 1.4,
 			TimePosition = 10,
 			ChorusPosition = 66.4,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "wondergirls-the-wonder-years",
+			Name = "The Wonder Years",
+			Year = 2007,
+			Colour = "FFC9C9",
+			Songs = { "Tell Me", "Irony", "So Hot", "Nobody" },
+			Members = { "SUNYE", "YEEUN", "SUNMI", "SOHEE", "YUBIN" },
 		},
 	},
 }

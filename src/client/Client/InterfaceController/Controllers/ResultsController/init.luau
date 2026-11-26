@@ -507,7 +507,7 @@ function Results:Show(packet, info)
 	local title = shown and shown:GetAttribute("Title")
 	w.Title.Visible = type(title) == "string" and title ~= "" and not packet.Draw
 	if w.Title.Visible then
-		TitleChip.Paint(w.Title, title, shown:GetAttribute("TitleTier") or "Normal")
+		TitleChip.Paint(w.Title, title, shown:GetAttribute("TitleTier") or "Normal", shown:GetAttribute("TitleIcon"))
 	end
 	w.Card.Photo.Thumbnail.Image = ""
 	task.spawn(function()

@@ -784,8 +784,8 @@ function Purchased:Initialize(interface)
 						Banner = "YOU GOT!",
 						Sub = if c then `{c.Plural} added` else "",
 						Cards = { currencyCard(bundle.Currency, bundle.Amount) },
-						Where = if bundle.Currency == "Tickets" then "Use them on Roll · Pick a Group"
-							else "Use them in the Index on any song you own",
+						Where = if bundle.Currency == "Tickets" then "Each one opens a free pack · Packs"
+							else "Added as coins",
 					})
 				end)
 				return

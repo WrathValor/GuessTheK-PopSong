@@ -9,6 +9,7 @@ return {
 	Colour = "A7E9B8", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("FFE45C"), Color3.fromHex("FF9ED2")), -- no official colour: lemon to candy pink
 	Status = "Active",
+	PackArt = "rbxassetid://123671668525488", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "DANCING ALONE",
@@ -95,6 +96,24 @@ return {
 			PlaybackSpeed = 0.66,
 			TimePosition = 0.5,
 			ChorusPosition = 19.1,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "kiiikiii-delulu-pack",
+			Name = "Delulu Pack",
+			Year = 2026,
+			Colour = "FFE0F0",
+			Songs = { "Delulu" },
+			Members = { "JIYU", "LEESOL", "SUI", "HAUM", "KYA" },
+			Art = {
+				["JIYU"] = "rbxassetid://133704954739197",
+				["LEESOL"] = "rbxassetid://110192295504696",
+				["SUI"] = "rbxassetid://99111303270396",
+				["HAUM"] = "rbxassetid://100668896082057",
+				["KYA"] = "rbxassetid://86389215485684",
+			},
 		},
 	},
 }

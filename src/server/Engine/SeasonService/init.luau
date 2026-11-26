@@ -4,11 +4,12 @@
 --     (SeasonConstants.STARS), up to DAILY_STARS of each a UTC day. Engine/DuelService/Rewards and
 --     Engine/RewardsService call SeasonService.Award.
 --   • the Season Track: every STARS_PER_MILESTONE Stars unlocks the next milestone; claiming
---     (in order) grants it: coins, roll tickets, card upgrades, the S0 banners / photocard.
+--     (in order) grants it: coins, roll tickets, the S0 banners / photocard.
 --     Some milestones give a title on top (spec.Title / TitleTier). Mic milestones have no item
 --     yet: they just count as claimed.
---   • card upgrades: +1 copy on a song you own (same as pulling it again: Gold at 3, Rainbow
---     at 5, Modules/Library/Cards). Roll tickets are spent by Engine/RollService.
+--   • (card upgrades went with the song Index, 25 Nov 2026: an "Upgrade" milestone left in a
+--     track pays Currencies.UPGRADE_COINS each instead.) Roll tickets open packs
+--     (Engine/AlbumService).
 --   • Season Points (SP): rated 1v1 duels move them (Rate, from DuelService/Rewards; tuning in
 --     SeasonConstants.SP). Peak SP is kept for the season-end rewards. SP goes on the Ranks
 --     board (./Board, an OrderedDataStore per season), with season wins on a second board.
@@ -20,7 +21,6 @@
 -- SeasonDuels, SeasonWins, Coins, Tickets, Upgrades.
 --
 -- SeasonRemote requests: { Action = "Claim", N = milestone }
---                        { Action = "UseUpgrade", Id = songId }
 --                        { Action = "Board", Kind = "SP" | "Wins" }   (the Ranks tab)
 -- Reply:                 { Message = "Result", Action, Ok, Text, N?, Kind?, Amount?, Id?, Copies?, Board? }
 
@@ -31,10 +31,7 @@ local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
 local Currencies = require(ReplicatedStorage.Constants.Currencies)
-local Cards = require(ReplicatedStorage.Modules.Library.Cards)
-local Songs = require(ReplicatedStorage.Modules.Library.Songs)
 local Analytics = require(script.Parent.Analytics)
-local Collection = require(script.Parent.Collection)
 local Board = require(script.Board)
 
 local SeasonRemote = Bridgenet.ReferenceBridge("SeasonRemote")
@@ -261,8 +258,8 @@ end
 function GRANT.Ticket(data, spec)
 	Currencies.Data(data, "Tickets").Increment(spec.Amount or 1)
 end
-function GRANT.Upgrade(data, spec)
-	Currencies.Data(data, "Upgrades").Increment(spec.Amount or 1)
+function GRANT.Upgrade(data, spec) -- (card upgrades are gone: coins instead)
+	GRANT.Coins(data, { Amount = (spec.Amount or 1) * Currencies.UPGRADE_COINS })
 end
 function GRANT.Banner(data, spec)
 	if spec.Banner and not data.Inventory.Banners.Has(spec.Banner) then
@@ -309,46 +306,12 @@ local function claim(player: Player, data, packet)
 	reply(player, { Action = "Claim", Ok = true, Text = "Claimed!", N = n, Kind = spec.Kind, Amount = spec.Amount })
 end
 
--- [[ Card upgrades ]]
-
-local function useUpgrade(player: Player, data, packet)
-	local id = packet.Id
-	local out = { Action = "UseUpgrade", Ok = false, Id = id }
-	if Currencies.Data(data, "Upgrades").Get() <= 0 then
-		out.Text = "No card upgrades left"
-		return reply(player, out)
-	end
-	if type(id) ~= "string" or not data.Inventory.Songs.Has(id) then
-		out.Text = "You don't own that card"
-		return reply(player, out)
-	end
-	local copies = data.Inventory.Copies.Get() or {}
-	local have = Cards.Copies(copies, true, id)
-	if Cards.Next(have) == nil then
-		out.Text = "That card is already Rainbow"
-		return reply(player, out)
-	end
-	PlayerData.Batch(player, function()
-		Currencies.Data(data, "Upgrades").Increment(-1)
-		data.Inventory.Copies[id].Set(have + 1)
-	end)
-	local song = Songs.GetById(id)
-	if song then
-		task.spawn(Collection.Check, data, { song }) -- a card levelling up can level its set's title
-	end
-	Analytics.Event(player, "CardUpgrade", have + 1, id)
-	Analytics.Economy(player, "Sink", "Upgrades", 1, Currencies.Data(data, "Upgrades").Get(), "SongRoll", "CardUpgrade")
-	out.Ok, out.Text, out.Copies = true, "Upgraded!", have + 1
-	reply(player, out)
-end
-
 local function board(player: Player, _data, packet)
 	reply(player, { Action = "Board", Ok = true, Board = Board.Packet(player, packet.Kind) })
 end
 
 local ACTIONS = {
 	Claim = claim,
-	UseUpgrade = useUpgrade,
 	Board = board,
 }
 
@@ -382,8 +345,8 @@ function SeasonService.Start()
 		if not action or not data then
 			return
 		end
-		-- seasons off: no track claims or ranks (card upgrades still work for the Index)
-		if not SeasonConstants.ENABLED and packet.Action ~= "UseUpgrade" then
+		-- seasons off: no track claims or ranks
+		if not SeasonConstants.ENABLED then
 			reply(player, { Action = packet.Action, Ok = false, Text = "Seasons are coming soon" })
 			return
 		end

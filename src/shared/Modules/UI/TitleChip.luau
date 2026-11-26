@@ -13,12 +13,20 @@
 -- Paint() styles a chip that was built in Studio instead (a TextLabel with a UIStroke and a
 -- "Rainbow" UIGradient): the Index's set reward and the roll reveal's title panel.
 --   TitleChip.Paint(label, "CARAT", "Gold")   -- tier nil = locked (greyed, 🔒)
+-- Group badges (Modules/Library/Ladders) come as tier "Rung:Bronze" … "Rung:Diamond" / "Rung:Legend"
+-- with an icon ("Cards" = the photocard, "Songs" = the vinyl): the rung's colour and the icon in
+-- front of the text (a BadgeIcon ImageLabel, made with the chip by new(); a Studio chip without
+-- one just shows the colour). Diamond is ice blue with a glint sweeping across (TierShine
+-- "Diamond"); Legend is ink with gold text and a gold border with the shine running along it (a
+-- "LegendSheen" UIGradient on the chip's UIStroke, made by BuildIcon).
+--   TitleChip.Set(chip, "aespa · GOLD", "Rung:Gold", "Cards")
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local TierShine = require(ReplicatedStorage.Modules.UI.TierShine)
 local Levels = require(ReplicatedStorage.Modules.Levels)
 local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
+local Ladders = require(ReplicatedStorage.Modules.Library.Ladders)
 
 local C = Color3.fromHex
 local INK = C("1E1B2E")
@@ -90,8 +98,93 @@ function TitleChip.new(parent: Instance, cfg: { [string]: any }?): CanvasGroup
 	pad.Parent = l
 	l.Parent = chip
 	TitleChip.BuildBadge(chip, cfg.TextSize or 11, cfg.Font) -- shown only for season titles
+	TitleChip.BuildIcon(chip, cfg.TextSize or 11) -- shown only for group badges
 	chip.Parent = parent
 	return chip
+end
+
+-- the group badge's icon (photocard / vinyl), hidden until a badge shows
+function TitleChip.BuildIcon(chip: GuiObject, textSize: number): ImageLabel
+	local old = chip:FindFirstChild("BadgeIcon")
+	if old then
+		old:Destroy()
+	end
+	local size = math.max(12, math.floor(textSize * 1.3))
+	local icon = Instance.new("ImageLabel")
+	icon.Name = "BadgeIcon"
+	icon.AnchorPoint = Vector2.new(0, 0.5)
+	icon.Position = UDim2.new(0, 4, 0.5, 0)
+	icon.Size = UDim2.fromOffset(size, size)
+	icon.BackgroundTransparency = 1
+	icon.ScaleType = Enum.ScaleType.Fit
+	icon.Visible = false
+	icon.ZIndex = chip.ZIndex + 1
+	icon.Parent = chip
+	-- Legend's shining gold border (off until a Legend badge shows)
+	local line = chip:FindFirstChildOfClass("UIStroke")
+	if line and not line:FindFirstChild("LegendSheen") then
+		local sheen = Instance.new("UIGradient")
+		sheen.Name = "LegendSheen"
+		sheen.Enabled = false
+		sheen.Parent = line
+	end
+	return icon
+end
+
+-- a group badge's look (tier "Rung:<name>"): true if it is one. `gui` holds the colour +
+-- gradient (+ BadgeIcon), `label` the text (+ its UIPadding).
+local function paintRung(gui: GuiObject, label: TextLabel, gradient: UIGradient?, tier: string?, iconKind: string?): boolean
+	local rung = type(tier) == "string" and string.match(tier, "^Rung:(%a+)$")
+	local icon = gui:FindFirstChild("BadgeIcon") :: ImageLabel?
+	local pad = label:FindFirstChildOfClass("UIPadding")
+	if pad and pad:GetAttribute("BaseLeft") == nil then
+		pad:SetAttribute("BaseLeft", pad.PaddingLeft.Offset)
+	end
+	if not rung or not Ladders.COLOURS[rung] then
+		if icon then
+			icon.Visible = false
+		end
+		local line = gui:FindFirstChildOfClass("UIStroke")
+		local sheen = line and line:FindFirstChild("LegendSheen") :: UIGradient?
+		if sheen and sheen.Enabled then
+			sheen.Enabled = false
+			sheen:SetAttribute("Shine", nil)
+			line.Color = INK
+		end
+		return false
+	end
+	TierShine.Apply(gui, gradient, nil, Ladders.COLOURS[rung])
+	if gradient and rung == "Diamond" then
+		gradient.Color = Ladders.DIAMOND_SHEEN
+		gradient.Rotation = 25
+		gradient.Enabled = true
+		gradient:SetAttribute("Shine", "Diamond") -- the glint sweeping across (TierShine)
+		TierShine.Add(gradient)
+		gui.BackgroundColor3 = C("FFFFFF")
+	end
+	local line = gui:FindFirstChildOfClass("UIStroke")
+	local sheen = line and line:FindFirstChild("LegendSheen") :: UIGradient?
+	if line and sheen then
+		local legend = rung == "Legend"
+		sheen.Enabled = legend
+		sheen:SetAttribute("Shine", if legend then "Legend" else nil)
+		line.Color = if legend then C("FFFFFF") else INK -- (the gradient carries the gold)
+		if legend then
+			TierShine.Add(sheen)
+		end
+	end
+	label.RichText = false
+	label.TextColor3 = if rung == "Legend" then Ladders.LEGEND_TEXT else INK
+	local image = iconKind and Ladders.ICONS[iconKind]
+	if icon and pad then
+		icon.Visible = image ~= nil
+		icon.Image = image or ""
+		local left = pad:GetAttribute("BaseLeft") + (if image then icon.Size.X.Offset + 3 else 0)
+		pad.PaddingLeft = UDim.new(0, left)
+		local x = if icon.Parent == label then 4 - left else 4
+		icon.Position = UDim2.new(0, x, 0.5, 0)
+	end
+	return true
 end
 
 local BADGE_GAP = 4 -- chip edge → badge, and badge → title text (+2)
@@ -170,10 +263,15 @@ local function paintSeason(gui: GuiObject, label: TextLabel, gradient: UIGradien
 	return true
 end
 
--- tier = "Normal" | "Gold" | "Rainbow" (nil = Normal)
-function TitleChip.Set(chip: Instance, title: string?, tier: string?)
+-- tier = "Normal" | "Gold" | "Rainbow" (nil = Normal) | "Rung:<name>" (a group badge, + icon)
+function TitleChip.Set(chip: Instance, title: string?, tier: string?, icon: string?)
 	local label0 = chip:FindFirstChild("Title") :: TextLabel
 	local gui = chip :: GuiObject
+	if paintRung(gui, label0, chip:FindFirstChild("Rainbow") :: UIGradient?, tier, icon) then
+		label0.Text = title or ""
+		gui.Visible = title ~= nil and title ~= ""
+		return
+	end
 	if paintSeason(gui, label0, chip:FindFirstChild("Rainbow") :: UIGradient?, title) then
 		gui.Visible = true
 		return
@@ -189,7 +287,11 @@ end
 
 local LOCKED_BG, LOCKED_TEXT, LOCKED_LINE = C("ECE6DA"), C("8A8398"), C("A39A8C")
 
-function TitleChip.Paint(label: TextLabel, title: string, tier: string?)
+function TitleChip.Paint(label: TextLabel, title: string, tier: string?, icon: string?)
+	if paintRung(label, label, label:FindFirstChild("Rainbow") :: UIGradient?, tier, icon) then
+		label.Text = title -- (paintRung set the border: ink, or Legend's gold)
+		return
+	end
 	local locked = tier == nil or TIER_COLOURS[tier] == nil
 	local line = label:FindFirstChildOfClass("UIStroke")
 	local gradient = label:FindFirstChild("Rainbow") :: UIGradient?

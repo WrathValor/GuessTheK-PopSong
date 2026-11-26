@@ -5,7 +5,7 @@
 -- "PartySongs"). Each guide:
 --   Hint      the Settings.Hints id it's saved under once seen (SettingsService HINTS, ≤ 16 chars)
 --   When      optional (args, controller) -> bool: false skips it this time (the screen
---             opened for something else, like the Index's card upgrade reveal); it shows next time
+--             opened for something else); it shows next time
 --   Ready     optional (frame, controller) -> bool: wait for this before showing (a screen that
 --             fills in after it opens); not ready within 5 s = try again next open
 --   Steps     in order. Each step:
@@ -23,7 +23,6 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local RollConstants = require(ReplicatedStorage.Constants.RollConstants)
 local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 local DailySongConstants = require(ReplicatedStorage.Constants.DailySongConstants)
 local PartyConstants = require(ReplicatedStorage.Constants.PartyConstants)
@@ -35,10 +34,6 @@ local PINK = C("FF9EC4")
 local YELLOW = C("FFE07A")
 local LILAC = C("B9A6FF")
 local PEACH = C("FFB38A")
-
-local function rollPage(frame)
-	return frame.Panel.Pages.Roll
-end
 
 local function dailyPlay(frame)
 	return frame.Panel.Body.Play
@@ -58,58 +53,6 @@ local function isHost(controller): boolean
 end
 
 return {
-	Roll = {
-		Hint = "GuideRoll",
-		-- not when Roll opened to play a card upgrade's reveal or straight into Pick a Group
-		When = function(args)
-			local opts = args[1]
-			return not (type(opts) == "table" and (opts.Upgrade or opts.Picker))
-		end,
-		Steps = {
-			{
-				Target = function(frame)
-					return rollPage(frame).Stage
-				end,
-				Side = "Left",
-				Title = "Roll for songs!",
-				Body = "Every roll pulls a random song card. New songs go in your <b>Index</b>.",
-				Points = {
-					{ Colour = MINT, Text = `Duplicates give <b>{RollConstants.DUPLICATE_REFUND} coins</b> back` },
-					{ Colour = BLUE, Text = `{RollConstants.PITY} duplicates in a row? The next one is <b>new</b>` },
-				},
-			},
-			{
-				Target = function(frame)
-					return rollPage(frame).Stage.Deck
-				end,
-				Side = "Left",
-				Title = "Aim for Rainbow!",
-				Body = "Pull the same song again and its card levels up.",
-				Ladder = true,
-				Heading = "WHY RAINBOW",
-				Points = {
-					{ Colour = PINK, Text = `<b>{DuelConstants.OWNED_WEIGHT.Rainbow}× as likely</b> to come up in your duels: a song you know is easy points` },
-					{ Colour = BLUE, Text = "<b>Lobby music:</b> set any Rainbow card as your background song" },
-					{ Colour = YELLOW, Text = "<b>Fandom title:</b> get a whole group to Rainbow for its Rainbow title" },
-				},
-			},
-			{
-				Target = function(frame)
-					return frame.Panel.Header.Tickets
-				end,
-				Side = "Below",
-				Title = "Roll tickets",
-				Body = "A ticket rolls one song from <b>a group you pick</b>, so you can finish your bias's set. When you have one, <b>ROLL A GROUP</b> shows up under the roll buttons.",
-				Heading = "WHERE TO GET THEM",
-				Tiles = {
-					{ Colour = YELLOW, Name = "Level up", Text = "Level rewards" },
-					{ Colour = MINT, Name = "Quests", Text = "Daily + weekly quests" },
-					{ Colour = PINK, Name = "Shop", Text = "Ticket bundles" },
-				},
-			},
-		},
-	},
-
 	-- [[ Daily Song: the first time you play one ]]
 	DailySong = {
 		Hint = "GuideDaily",

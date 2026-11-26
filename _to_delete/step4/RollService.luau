@@ -13,7 +13,19 @@
 -- pick (a Packs group, "Group:<artist>"), every song in it equally likely. No coins, no pity
 -- (DupesInRow is the coin rolls' counter); duplicates still level the card + refund coins.
 --
+-- The first card (the tutorial's welcome gift, TutorialController's ROLL YOUR FIRST CARD): one
+-- free roll per account, once the tutorial's gift is claimed (Rewards.Claimed "Tutorial"), from
+-- the tutorial's well-known songs (DuelConstants.TUTORIAL_SONGS) the player doesn't own yet, so
+-- the first card is a song they likely know. Marked Rewards.Claimed RollConstants.FIRST_ROLL_KEY.
+-- (Only ~17% of players ever opened the Roll screen, Nov 2026: this gives everyone one roll.)
+--
+-- Gold / Rainbow cards are announced to the whole server (Announce): RollRemote to everyone,
+-- { Message = "Pull", UserId, Name, Song, Artist, Level, Upgrade?, More? } – the best card of the
+-- roll, More = how many other Gold / Rainbow cards came with it; Client/PullChat posts the chat
+-- line. Card upgrades (SeasonService) announce through the same call (Upgrade = true).
+--
 -- RollRemote request: { Action = "Roll", Count = 1 | 10 }
+--                     { Action = "FirstRoll" } – the first card (reply carries First = true)
 -- (a roll you can't pay for adds Short = { Kind = "Coins" | "Tickets", Need, Name? } to the
 -- reply, for the "not enough" card: ShortOfferController)
 --                     { Action = "Roll", Count = 1, Group = "Group:<artist>" } – spends a ticket
@@ -37,6 +49,7 @@ local RewardsService = require(script.Parent.RewardsService)
 local Collection = require(script.Parent.Collection)
 local StreetScreens = require(script.Parent.StreetScreens)
 local Packs = require(ReplicatedStorage.Modules.Library.Packs)
+local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 
 local RollRemote = Bridgenet.ReferenceBridge("RollRemote")
 
@@ -67,20 +80,45 @@ local function reply(player: Player, ok: boolean, text: string?, extra: { [strin
 	RollRemote:Fire(player, packet)
 end
 
-local function roll(player: Player, count: number, groupId: string?)
+-- the first card's pool: the tutorial's songs the player doesn't own, else any song they don't
+-- own, else every song
+local function firstPool(data): { any }
+	local fresh = {}
+	for _, id in DuelConstants.TUTORIAL_SONGS do
+		local song = Songs.GetById(id)
+		if song and not data.Inventory.Songs.Has(song.Id) then
+			table.insert(fresh, song)
+		end
+	end
+	if #fresh == 0 then
+		for _, song in Songs.All do
+			if not data.Inventory.Songs.Has(song.Id) then
+				table.insert(fresh, song)
+			end
+		end
+	end
+	return if #fresh > 0 then fresh else Songs.All
+end
+
+local function roll(player: Player, count: number, groupId: string?, first: boolean?)
 	if busy[player] then
 		return
 	end
 	if not allowed[player] then
-		return reply(player, false, "Song rolls aren't available for your account")
+		return reply(player, false, "Song rolls aren't available for your account", { First = first })
 	end
 	local ok, data = pcall(PlayerData.Get, player)
 	if not ok or not data then
-		return reply(player, false, "Your data hasn't loaded yet")
+		return reply(player, false, "Your data hasn't loaded yet", { First = first })
 	end
 	local all = Songs.All
 	local group = nil
-	if groupId then
+	if first then
+		if data.Rewards.Claimed.Has(RollConstants.FIRST_ROLL_KEY) or not data.Rewards.Claimed.Has("Tutorial") then
+			return reply(player, false, "Your first card is already yours", { First = true })
+		end
+		all, count, groupId = firstPool(data), 1, nil
+	elseif groupId then
 		group = Packs.Get(groupId)
 		if not group or group.Kind ~= "Group" then
 			return reply(player, false, "That group can't be rolled")
@@ -93,7 +131,7 @@ local function roll(player: Player, count: number, groupId: string?)
 	if #all == 0 then
 		return reply(player, false, "No songs to roll yet")
 	end
-	local price = if group then 0 elseif count == 10 then RollConstants.TEN_COST else RollConstants.COST
+	local price = if group or first then 0 elseif count == 10 then RollConstants.TEN_COST else RollConstants.COST
 	if Currencies.Data(data, "Coins").Get() < price then
 		return reply(player, false, "Not enough coins", { Short = { Kind = "Coins", Need = price, Name = if count == 10 then "10 rolls" else "a roll" } })
 	end
@@ -131,7 +169,7 @@ local function roll(player: Player, count: number, groupId: string?)
 		changed[song.Id] = true
 		local level = Cards.Level(after)
 		if new then
-			dupes = if group then dupes else 0
+			dupes = if group or first then dupes else 0
 		else
 			dupes += if group then 0 else 1
 			refund += RollConstants.DUPLICATE_REFUND
@@ -150,6 +188,9 @@ local function roll(player: Player, count: number, groupId: string?)
 		if group then
 			Currencies.Data(data, "Tickets").Increment(-1)
 		end
+		if first then
+			data.Rewards.Claimed.Add(RollConstants.FIRST_ROLL_KEY)
+		end
 		for id in changed do
 			if not data.Inventory.Songs.Has(id) then
 				data.Inventory.Songs.Add(id)
@@ -160,11 +201,20 @@ local function roll(player: Player, count: number, groupId: string?)
 	end)
 	busy[player] = nil
 
-	-- the street screens: Gold / Rainbow pulls go on the gacha ticker (Rainbow on the jumbotron)
+	-- the street screens: Gold / Rainbow pulls go on the gacha ticker (Rainbow on the jumbotron);
+	-- the best one is announced in chat too
+	local best, more = nil, 0
 	for _, pull in pulls do
 		if (pull.New or pull.LevelUp) and (pull.Level == "Gold" or pull.Level == "Rainbow") then
 			StreetScreens.Pull(player, pull.Song.Name, pull.Level)
+			if not best or Cards.RANK[pull.Level] > Cards.RANK[best.Level] then
+				best = pull
+			end
+			more += 1
 		end
+	end
+	if best then
+		RollService.Announce(player, best.Song, best.Level, false, more - 1)
 	end
 
 	-- titles: check the sets these songs are in now, so the reveal can show what changed
@@ -196,10 +246,12 @@ local function roll(player: Player, count: number, groupId: string?)
 	end
 
 	local balance = data.Currencies.Won.Get()
-	if group then
+	if first then
+		Analytics.Event(player, "FirstRoll", 1)
+	elseif group then
 		Analytics.Event(player, "TicketRoll", 1, group.Name, if pulls[1].New then "New" else "Duplicate")
 		Analytics.Economy(player, "Sink", "Tickets", 1, Currencies.Data(data, "Tickets").Get(), "SongRoll", "TicketRoll")
-	else
+	elseif price > 0 then
 		Analytics.Economy(player, "Sink", "Coins", price, balance - refund, "SongRoll", `Roll{count}`)
 	end
 	Analytics.Economy(player, "Source", "Coins", refund, balance, "RollRefund", "Duplicate")
@@ -209,7 +261,27 @@ local function roll(player: Player, count: number, groupId: string?)
 		fresh += if pull.New then 1 else 0
 	end
 	RewardsService.RecordNewSongs(player, fresh) -- the "new songs" daily quest
-	reply(player, true, nil, { Pulls = pulls, Refund = refund, DupesInRow = dupes, Title = title, Group = group and group.Name or nil })
+	reply(player, true, nil, { Pulls = pulls, Refund = refund, DupesInRow = dupes, Title = title, Group = group and group.Name or nil, First = first })
+end
+
+-- [[ Announcing ]]
+
+-- tells everyone in the server about a Gold / Rainbow card (song = Songs.Public or a library
+-- song). upgrade = it came from a card upgrade, not a roll; more = other good cards with it
+function RollService.Announce(player: Player, song, level: string, upgrade: boolean?, more: number?)
+	if level ~= "Gold" and level ~= "Rainbow" or type(song) ~= "table" then
+		return
+	end
+	RollRemote:Fire(Bridgenet.AllPlayers(), {
+		Message = "Pull",
+		UserId = player.UserId,
+		Name = player.DisplayName,
+		Song = song.Name,
+		Artist = song.Artist,
+		Level = level,
+		Upgrade = upgrade or nil,
+		More = if more and more > 0 then more else nil,
+	})
 end
 
 -- [[ Lifecycle ]]
@@ -224,16 +296,17 @@ function RollService.Start()
 		busy[player] = nil
 	end)
 	RollRemote:Connect(function(player: Player, packet)
-		if type(packet) ~= "table" or packet.Action ~= "Roll" then
+		if type(packet) ~= "table" or (packet.Action ~= "Roll" and packet.Action ~= "FirstRoll") then
 			return
 		end
+		local first = packet.Action == "FirstRoll"
 		local count = if packet.Count == 10 then 10 else 1
 		local groupId = if type(packet.Group) == "string" then packet.Group else nil
-		local ok, err = pcall(roll, player, count, groupId)
+		local ok, err = pcall(roll, player, count, groupId, first)
 		if not ok then
 			busy[player] = nil
 			warn(`[RollService] roll failed for {player.Name}: {err}`)
-			reply(player, false, "Something went wrong, try again")
+			reply(player, false, "Something went wrong, try again", { First = first })
 		end
 	end)
 end

@@ -9,6 +9,7 @@ return {
 	Colour = "A7B6D9", -- card art + roll glow
 	Gradient = ColorSequence.new(Color3.fromHex("D4DDF2"), Color3.fromHex("879BCB")),
 	Status = "Active",
+	PackArt = "rbxassetid://130506765299803", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "Moonwalkin'",
@@ -70,6 +71,23 @@ return {
 			PlaybackSpeed = 0.6,
 			TimePosition = 7,
 			ChorusPosition = 41.2,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "lngshot-shot-callers",
+			Name = "SHOT CALLERS",
+			Year = 2026,
+			Colour = "C2C9D9",
+			Songs = { "Moonwalkin'", "FaceTime", "Never Let Go", "Saucin'" },
+			Members = { "OHYUL", "RYUL", "WOOJIN", "LOUIS" },
+			Art = {
+				["WOOJIN"] = "rbxassetid://105446936136324",
+				["LOUIS"] = "rbxassetid://71072561468265",
+				["OHYUL"] = "rbxassetid://136517701519161",
+				["RYUL"] = "rbxassetid://96192563814023",
+			},
 		},
 	},
 }

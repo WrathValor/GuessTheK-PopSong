@@ -9,6 +9,7 @@ return {
 	Colour = "D0C4E8", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("FF7A2F"), Color3.fromHex("E3222E")), -- official: Orange-Red
 	Status = "Active",
+	PackArt = "rbxassetid://81301338689504", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "Love Scenario",
@@ -86,6 +87,25 @@ return {
 			PlaybackSpeed = 0.71,
 			TimePosition = 2,
 			ChorusPosition = 44.8,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "ikon-take-off",
+			Name = "TAKE OFF",
+			Year = 2023,
+			Colour = "FFB38A",
+			Songs = {},
+			Members = { "JAY", "YUNHYEONG", "BOBBY", "DONGHYUK", "JU-NE", "CHANWOO" },
+			Art = {
+				["JAY"] = "rbxassetid://104588750411231",
+				["YUNHYEONG"] = "rbxassetid://97996973565076",
+				["BOBBY"] = "rbxassetid://93229289916630",
+				["DONGHYUK"] = "rbxassetid://84017211783209",
+				["JU-NE"] = "rbxassetid://126052805603096",
+				["CHANWOO"] = "rbxassetid://70535523510210",
+			},
 		},
 	},
 }

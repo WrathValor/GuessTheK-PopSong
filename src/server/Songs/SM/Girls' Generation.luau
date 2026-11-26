@@ -9,6 +9,7 @@ return {
 	Colour = "F9B3C8", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("FBC4D3"), Color3.fromHex("F28DAE")), -- official: Pastel Rose Pink
 	Status = "Active",
+	PackArt = "rbxassetid://110378417378631", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "Gee",
@@ -95,6 +96,27 @@ return {
 			PlaybackSpeed = 0.55,
 			TimePosition = 2,
 			ChorusPosition = 23.8,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "snsd-forever-1",
+			Name = "FOREVER 1",
+			Year = 2022,
+			Colour = "FFC2DA",
+			Songs = { "FOREVER 1" },
+			Members = { "TAEYEON", "SUNNY", "TIFFANY", "HYOYEON", "YURI", "SOOYOUNG", "YOONA", "SEOHYUN" },
+			Art = {
+				["TAEYEON"] = "rbxassetid://89345731225994",
+				["SUNNY"] = "rbxassetid://106212555481556",
+				["TIFFANY"] = "rbxassetid://131757948096050",
+				["HYOYEON"] = "rbxassetid://106057341335104",
+				["YURI"] = "rbxassetid://85072297024086",
+				["SOOYOUNG"] = "rbxassetid://116809921883397",
+				["YOONA"] = "rbxassetid://85407210331212",
+				["SEOHYUN"] = "rbxassetid://134443102918729",
+			},
 		},
 	},
 }

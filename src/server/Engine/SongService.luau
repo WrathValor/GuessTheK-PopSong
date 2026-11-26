@@ -2,8 +2,8 @@
 -- Hands a song's audio (its clip assets: Songs.Clip) to a client that's allowed to hear it.
 -- The library itself is server only (ServerScriptService.Songs), so this is the one way a
 -- client gets a MusicId outside a round:
---   • the song has to be one they own (Inventory.Songs): Index previews, the roll reveal (the
---     pull is theirs before the reveal), their Rainbow card as background music
+--   • the song has to be one they've mastered (★★★, Modules/Library/Mastery: their lobby music,
+--     Binder › Songs) or one they still own from the song roll (Inventory.Songs)
 --   • never while they're in a match (the InDuel attribute, Duels:_setInDuel), so an owned
 --     song coming up in a round can't be looked up then
 -- Admins (CmdrService.IsAllowed) can ask for every song's clip, drafts too, for checkaudio.
@@ -20,6 +20,7 @@ local Players = game:GetService("Players")
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 local Songs = require(ReplicatedStorage.Modules.Library.Songs)
+local Mastery = require(ReplicatedStorage.Modules.Library.Mastery)
 local Library = require(ServerScriptService:WaitForChild("Songs"))
 local CmdrService = require(script.Parent.CmdrService)
 
@@ -43,7 +44,10 @@ local function clipFor(player: Player, id: string)
 	end
 	-- (Get throws while the player's data is still loading: that's a no for now)
 	local ok, data = pcall(PlayerData.Get, player)
-	if not ok or not data or not data.Inventory.Songs.Has(id) then
+	if not ok or not data then
+		return nil
+	end
+	if not Mastery.Mastered(data.Inventory.Mastery[id].Get()) and not data.Inventory.Songs.Has(id) then
 		return nil
 	end
 	return Songs.Clip(song)

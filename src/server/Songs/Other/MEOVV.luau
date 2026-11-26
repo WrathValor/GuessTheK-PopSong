@@ -9,6 +9,7 @@ return {
 	Colour = "B8A6D9", -- card art + roll glow
 	Gradient = ColorSequence.new(Color3.fromHex("D9C7F2"), Color3.fromHex("8D79B5")),
 	Status = "Active",
+	PackArt = "rbxassetid://133022783256565", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "Hit 'Em",
@@ -97,6 +98,24 @@ return {
 			PlaybackSpeed = 0.67,
 			TimePosition = 0.5,
 			ChorusPosition = 26.4,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "meovv-meow",
+			Name = "MEOW",
+			Year = 2024,
+			Colour = "D9D0F5",
+			Songs = { "MEOW", "TOXIC", "BODY" },
+			Members = { "SOOIN", "GAWON", "ANNA", "NARIN", "ELLA" },
+			Art = {
+				["ANNA"] = "rbxassetid://125783708286223",
+				["ELLA"] = "rbxassetid://124145268416711",
+				["GAWON"] = "rbxassetid://71170883024712",
+				["NARIN"] = "rbxassetid://116950064724129",
+				["SOOIN"] = "rbxassetid://123644504330840",
+			},
 		},
 	},
 }

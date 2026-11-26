@@ -9,6 +9,7 @@ return {
 	Colour = "B9A4D8", -- card art + roll glow
 	Gradient = ColorSequence.new(Color3.fromHex("E1D4F2"), Color3.fromHex("8E75B5")),
 	Status = "Active",
+	PackArt = "rbxassetid://138644346164193", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "CRASH",
@@ -80,6 +81,24 @@ return {
 			PlaybackSpeed = 0.82,
 			TimePosition = 7,
 			ChorusPosition = 48.5,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "alldayproject-allday-project",
+			Name = "ALLDAY PROJECT",
+			Year = 2025,
+			Colour = "F0E0B8",
+			Songs = { "FAMOUS", "WICKED", "ONE MORE TIME", "YOU AND I" },
+			Members = { "ANNIE", "TARZZAN", "BAILEY", "WOOCHAN", "YOUNGSEO" },
+			Art = {
+				["ANNIE"] = "rbxassetid://101643783342813",
+				["BAILEY"] = "rbxassetid://96580474374811",
+				["TARZZAN"] = "rbxassetid://119249632199898",
+				["YOUNGSEO"] = "rbxassetid://113495371680003",
+				["WOOCHAN"] = "rbxassetid://128770607271829",
+			},
 		},
 	},
 }

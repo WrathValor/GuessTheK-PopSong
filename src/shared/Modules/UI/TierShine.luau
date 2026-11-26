@@ -3,6 +3,8 @@
 -- Heartbeat loop (one ColorSequence of each kind built per frame and shared, so any number
 -- costs the same). Client only.
 --   • Rainbow – the pastel rainbow slides sideways in a slow loop
+--   • Diamond – (group badges) ice blue with a white glint sweeping across, between the gold ones
+--   • Legend  – (group badges) on a chip's UIStroke: the gold border with the same shine running along it
 --   • Gold    – gold, with a soft white shine sweeping across every few seconds. The band is a
 --               fixed gold–shine–gold gradient moved with Offset from fully off the left edge to
 --               fully off the right, so it always slides out instead of stopping on the card
@@ -63,6 +65,15 @@ local GOLD_BAND = ColorSequence.new({
 	ColorSequenceKeypoint.new(0.5 + SHINE_WIDTH, GOLD),
 	ColorSequenceKeypoint.new(1, GOLD),
 })
+-- ice blue with a white glint (group badge Diamond)
+local ICE, ICE_DEEP, GLINT = C("9ED8F5"), C("5BB8EA"), C("FFFFFF")
+local DIAMOND_BAND = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, ICE_DEEP),
+	ColorSequenceKeypoint.new(0.5 - SHINE_WIDTH * 1.4, ICE),
+	ColorSequenceKeypoint.new(0.5, GLINT),
+	ColorSequenceKeypoint.new(0.5 + SHINE_WIDTH * 1.4, ICE),
+	ColorSequenceKeypoint.new(1, ICE_DEEP),
+})
 local RESTING = Vector2.new(SHINE_REACH, 0) -- band parked off the right edge between sweeps
 local CENTRED = Vector2.zero
 
@@ -110,6 +121,16 @@ local function start()
 						gradient.Color = GOLD_BAND
 					end
 					gradient.Offset = gd
+				elseif shine == "Diamond" then
+					if gradient.Color ~= DIAMOND_BAND then
+						gradient.Color = DIAMOND_BAND
+					end
+					gradient.Offset = goldOffset(t + SHINE_EVERY / 2) -- (glints between the gold sweeps)
+				elseif shine == "Legend" then
+					if gradient.Color ~= GOLD_BAND then
+						gradient.Color = GOLD_BAND
+					end
+					gradient.Offset = goldOffset(t * 1.4) -- (a little quicker: it's the top)
 				else
 					rb = rb or rainbow(t)
 					gradient.Color = rb

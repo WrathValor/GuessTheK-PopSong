@@ -7,3 +7,9 @@
 
 # Wally dev packages (Jest Lua); recreate with `wally install`
 /DevPackages
+
+# Card bot secrets (tools/cardbot/.env.example shows what goes in it)
+tools/cardbot/.env
+tools/cardbot/__pycache__/
+/Claude outputs
+/assets

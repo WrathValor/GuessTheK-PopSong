@@ -273,7 +273,7 @@ local function fillBadges(badges: Frame, player: Player?)
 	local title = player:GetAttribute("Title")
 	badges.Title.Visible = type(title) == "string" and title ~= ""
 	if badges.Title.Visible then
-		TitleChip.Paint(badges.Title, title, player:GetAttribute("TitleTier") or "Normal")
+		TitleChip.Paint(badges.Title, title, player:GetAttribute("TitleTier") or "Normal", player:GetAttribute("TitleIcon"))
 	end
 	local level = player:GetAttribute("Level")
 	badges.Level.Visible = type(level) == "number"

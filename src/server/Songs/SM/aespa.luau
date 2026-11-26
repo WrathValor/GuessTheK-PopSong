@@ -9,6 +9,7 @@ return {
 	Colour = "B8C4FF", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new({ ColorSequenceKeypoint.new(0, Color3.fromHex("0D0D14")), ColorSequenceKeypoint.new(0.5, Color3.fromHex("2D5BFF")), ColorSequenceKeypoint.new(1, Color3.fromHex("E62AB8")) }), -- black, blue + fuchsia
 	Status = "Active",
+	PackArt = "rbxassetid://121684862813901", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "Next Level",
@@ -80,6 +81,38 @@ return {
 			TimePosition = 0,
 			ChorusPosition = 0,
 			Draft = true, -- audio works
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Members are the era's line-up.
+	-- Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "aespa-lemonade",
+			Name = "LEMONADE",
+			Year = 2026,
+			Colour = "D6DCE8",
+			Songs = { "LEMONADE" },
+			Members = { "KARINA", "GISELLE", "WINTER", "NINGNING" },
+			Art = {
+				["KARINA"] = "rbxassetid://104733340379551",
+				["GISELLE"] = "rbxassetid://138838230120229",
+				["WINTER"] = "rbxassetid://77844078804964",
+				["NINGNING"] = "rbxassetid://91705896206615",
+			},
+		},
+		{
+			Id = "aespa-armageddon",
+			Name = "Armageddon",
+			Year = 2024,
+			Colour = "B8C4FF",
+			Songs = {},
+			Members = { "GISELLE", "KARINA", "NINGNING", "WINTER" },
+			Art = {
+				["GISELLE"] = "rbxassetid://107121118765052",
+				["KARINA"] = "rbxassetid://127544404044650",
+				["NINGNING"] = "rbxassetid://93466767785565",
+				["WINTER"] = "rbxassetid://87564230369734",
+			},
 		},
 	},
 }

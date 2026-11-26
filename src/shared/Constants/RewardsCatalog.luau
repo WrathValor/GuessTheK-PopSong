@@ -27,14 +27,14 @@
 local RewardsCatalog = {}
 
 -- The daily login, Week 1 then Week 2 (the "Daily login 1–3" boards). Each day is a reward
--- table (Coins / Tickets / Upgrades) plus CoinsBoost / XPBoost = minutes of 2× potion time.
+-- table (Coins / Tickets) plus CoinsBoost / XPBoost = minutes of 2× potion time.
 RewardsCatalog.DAILY_DAYS = 7 -- days in a week of the ladder
 RewardsCatalog.DAILY = table.freeze({
 	-- Week 1
 	{ Coins = 100 },
 	{ Tickets = 1 },
 	{ Coins = 200 },
-	{ Upgrades = 1 },
+	{ Coins = 150 },
 	{ XPBoost = 30 },
 	{ Coins = 300, Tickets = 1 },
 	{ Coins = 500, CoinsBoost = 30 },
@@ -43,7 +43,7 @@ RewardsCatalog.DAILY = table.freeze({
 	{ CoinsBoost = 30 },
 	{ Tickets = 2 },
 	{ Coins = 250 },
-	{ Upgrades = 1 },
+	{ Coins = 150 },
 	{ Coins = 200, XPBoost = 30 },
 	{ Coins = 750, CoinsBoost = 120 },
 })
@@ -64,13 +64,13 @@ RewardsCatalog.QUEST_POOL = table.freeze({
 	{ Id = "Duels3", Stat = "Duels", Need = 3, Reward = { Coins = 75 }, Title = "Play 3 duels", Hint = "Win or lose" },
 	{ Id = "Duels6", Stat = "Duels", Need = 6, Reward = { Coins = 100 }, Title = "Play 6 duels", Hint = "Win or lose" },
 	{ Id = "Solo2", Stat = "Solo", Need = 2, Reward = { Coins = 50 }, Title = "Finish 2 solo games", Hint = "Any theme" },
-	{ Id = "NewSongs3", Stat = "NewSongs", Need = 3, Reward = { Tickets = 1 }, Title = "Roll 3 new songs", Hint = "Duplicates don't count" },
+	{ Id = "NewSongs3", Stat = "NewSongs", Need = 3, Reward = { Tickets = 1 }, Title = "Get 3 new photocards", Hint = "Duplicates don't count" }, -- (the NewSongs counter now counts new photocards)
 })
 RewardsCatalog.WEEKLY_POOL = table.freeze({
-	{ Id = "W_Perfect1", Stat = "Perfect", Need = 1, Reward = { Coins = 200, Upgrades = 1 }, Title = "Win a perfect game", Hint = "7–0, every answer within 2 s" },
+	{ Id = "W_Perfect1", Stat = "Perfect", Need = 1, Reward = { Coins = 200, Tickets = 1 }, Title = "Win a perfect game", Hint = "7–0, every answer within 2 s" },
 	{ Id = "W_Run5", Stat = "BestRun", Need = 5, Reward = { Tickets = 2 }, Title = "Win 5 duels in a row", Hint = "Your best run this week" },
 	{ Id = "W_Correct150", Stat = "Correct", Need = 150, Reward = { Coins = 200 }, Title = "Get 150 answers right", Hint = "Any mode" },
-	{ Id = "W_NewSongs10", Stat = "NewSongs", Need = 10, Reward = { Tickets = 1, Upgrades = 1 }, Title = "Collect 10 new songs", Hint = "Rolls, tickets or the shop" },
+	{ Id = "W_NewSongs10", Stat = "NewSongs", Need = 10, Reward = { Tickets = 1, Coins = 150 }, Title = "Collect 10 new photocards", Hint = "From any pack" },
 	{ Id = "W_Wins15", Stat = "Wins", Need = 15, Reward = { Coins = 200 }, Title = "Win 15 duels", Hint = "1v1 or a Party Stage win" },
 	{ Id = "W_Duels25", Stat = "Duels", Need = 25, Reward = { Coins = 150, Tickets = 1 }, Title = "Play 25 duels", Hint = "Win or lose" },
 	{ Id = "W_Solo10", Stat = "Solo", Need = 10, Reward = { Coins = 150 }, Title = "Finish 10 solo games", Hint = "Any theme" },
@@ -80,7 +80,7 @@ RewardsCatalog.QUEST_STATS = table.freeze({ "Correct", "Wins", "WinRun", "BestRu
 RewardsCatalog.QUESTS_PER_DAY = 3
 RewardsCatalog.WEEKLY_PER_WEEK = 4
 RewardsCatalog.QUEST_COLOURS = table.freeze({ "9ED8F5", "FFB38A", "B9A6FF" })
-RewardsCatalog.BONUS = table.freeze({ Coins = 100, Upgrades = 1 }) -- all daily quests claimed
+RewardsCatalog.BONUS = table.freeze({ Coins = 250 }) -- all daily quests claimed
 -- XP paid on top of a daily quest's Reward / the daily BONUS (kept out of the reward tables,
 -- which are currencies only; RewardsService adds it to Player.XP)
 RewardsCatalog.DAILY_QUEST_XP = 25
@@ -103,10 +103,10 @@ local function T(level: number)
 end
 RewardsCatalog.LEVEL_REWARDS = table.freeze({
 	L(2, { Coins = 50 }), L(3, { Coins = 100 }), T(5), L(7, { Tickets = 1 }), T(10), L(12, { Coins = 150 }),
-	T(15), L(18, { Upgrades = 1 }), T(20), L(22, { Coins = 200 }), L(25, { Tickets = 2 }), L(28, { Coins = 250 }),
-	T(30), L(33, { Upgrades = 2 }), L(36, { Coins = 300 }), T(40), L(44, { Coins = 350 }), L(47, { Upgrades = 2 }),
-	T(50), L(54, { Tickets = 3 }), L(58, { Coins = 400 }), L(62, { Upgrades = 3 }), T(65), L(70, { Tickets = 4 }),
-	L(75, { Coins = 450 }), T(80), L(85, { Coins = 500 }), L(90, { Tickets = 5 }), L(95, { Upgrades = 4 }), T(100),
+	T(15), L(18, { Coins = 150 }), T(20), L(22, { Coins = 200 }), L(25, { Tickets = 2 }), L(28, { Coins = 250 }),
+	T(30), L(33, { Coins = 300 }), L(36, { Coins = 300 }), T(40), L(44, { Coins = 350 }), L(47, { Coins = 300 }),
+	T(50), L(54, { Tickets = 3 }), L(58, { Coins = 400 }), L(62, { Coins = 450 }), T(65), L(70, { Tickets = 4 }),
+	L(75, { Coins = 450 }), T(80), L(85, { Coins = 500 }), L(90, { Tickets = 5 }), L(95, { Coins = 500 }), T(100),
 })
 
 RewardsCatalog.GROUP = table.freeze({

@@ -408,12 +408,12 @@ SeasonConstants.STARS_PER_MILESTONE = 100
 SeasonConstants.TRACK = table.freeze({
 	{ Kind = "Coins", Amount = 100 }, { Kind = "Coins", Amount = 150 }, { Kind = "Ticket", Amount = 1 },
 	{ Kind = "Coins", Amount = 150 }, { Kind = "Banner", Name = "S0 Glow banner", Banner = "S0Glow" }, { Kind = "Coins", Amount = 200 },
-	{ Kind = "Upgrade", Amount = 1 }, { Kind = "Coins", Amount = 200 }, { Kind = "Ticket", Amount = 1 },
+	{ Kind = "Coins", Amount = 150 }, { Kind = "Coins", Amount = 200 }, { Kind = "Ticket", Amount = 1 },
 	{ Kind = "Photocard", Name = "S0 Glow", Photocard = "S0Glow", Big = true }, { Kind = "Coins", Amount = 250 }, { Kind = "Ticket", Amount = 1 },
-	{ Kind = "Upgrade", Amount = 1 }, { Kind = "Coins", Amount = 300 }, { Kind = "Mic", Name = "S0 Mic", Big = true },
-	{ Kind = "Coins", Amount = 250 }, { Kind = "Ticket", Amount = 1 }, { Kind = "Upgrade", Amount = 1 },
+	{ Kind = "Coins", Amount = 150 }, { Kind = "Coins", Amount = 300 }, { Kind = "Mic", Name = "S0 Mic", Big = true },
+	{ Kind = "Coins", Amount = 250 }, { Kind = "Ticket", Amount = 1 }, { Kind = "Coins", Amount = 150 },
 	{ Kind = "Coins", Amount = 300 }, { Kind = "Banner", Name = "S0 Comeback banner", Banner = "S0Comeback", Big = true }, { Kind = "Ticket", Amount = 1 },
-	{ Kind = "Upgrade", Amount = 2 }, { Kind = "Ticket", Amount = 2 }, { Kind = "Photocard", Name = "S0 Comeback", Photocard = "S0Comeback", Big = true },
+	{ Kind = "Coins", Amount = 300 }, { Kind = "Ticket", Amount = 2 }, { Kind = "Photocard", Name = "S0 Comeback", Photocard = "S0Comeback", Big = true },
 	{ Kind = "Title", Name = "S0 Comeback", Title = "S0 Comeback", TitleTier = 3, Big = true },
 })
 

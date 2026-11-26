@@ -11,6 +11,8 @@ local SongLibrary = require(ReplicatedStorage.Modules.Library.Songs)
 local Packs = require(ReplicatedStorage.Modules.Library.Packs)
 local Themes = require(ReplicatedStorage.Modules.Library.Themes)
 local Cards = require(ReplicatedStorage.Modules.Library.Cards)
+local Mastery = require(ReplicatedStorage.Modules.Library.Mastery)
+local Albums = require(ReplicatedStorage.Modules.Library.Albums)
 local Levels = require(ReplicatedStorage.Modules.Levels)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 local Analytics = require(script.Parent.Parent.Analytics)
@@ -85,22 +87,23 @@ local function profileOf(player: Player)
 	}
 end
 
--- Every song this player owns (Inventory.Songs), as a list, and a lookup of id → card level
--- ("Normal" / "Gold" / "Rainbow", Modules/Library/Cards).
+-- The songs of this player's groups (Albums.FavouredGroups: their bias's group and their pinned
+-- cards' groups), as a list, and a lookup of song id → "Bias" / "Pinned".
 local function ownedOf(player: Player): ({ any }, { [string]: string })
 	local ok, data = pcall(PlayerData.Get, player)
 	if not ok or not data then
 		return {}, {}
 	end
-	local list = Packs.SongsFor(Packs.MY, function(songId)
-		return data.Inventory.Songs.Has(songId)
-	end)
-	local copies = data.Inventory.Copies.Get()
-	local levels = {}
-	for _, song in list do
-		levels[song.Id] = Cards.Level(Cards.Copies(copies, true, song.Id)) or "Normal"
+	local groups = Albums.FavouredGroups(data.Inventory.Cards.Get() or {}, data.Inventory.Bias.Get(), data.Inventory.Pins.Get())
+	local list, kinds = {}, {}
+	for _, song in SongLibrary.GetAllSongs() do
+		local kind = song.Artist and groups[song.Artist]
+		if kind then
+			table.insert(list, song)
+			kinds[song.Id] = kind
+		end
 	end
-	return list, levels
+	return list, kinds
 end
 
 local function shuffle(list: { any }): { any }
@@ -421,7 +424,7 @@ function Duels:_preDuel()
 	end
 
 	-- owned songs: whatever a player owns comes up more often, nothing to equip. Solo can turn
-	-- that off (Settings.SoloPool) or play only owned songs (the "My songs" theme).
+	-- that off (Settings.SoloPool) or play only their groups' songs (the "My groups" theme).
 	local packsInfo = { On = false, Owned = {} }
 	for slot, p in self.Slots do
 		if p then
@@ -439,6 +442,7 @@ function Duels:_preDuel()
 		local me = self.Players[1]
 		local ok, data = pcall(PlayerData.Get, me)
 		local theme = if ok and data then data.Settings.SoloTheme.Get() else Themes.DEFAULT
+		theme = self.Stage.Practise or theme -- PRACTISE on Binder › Songs: one group
 		local mix = not (ok and data) or data.Settings.SoloPool.Get() ~= "Off"
 		if theme == Themes.PACK then
 			if #(self.OwnedSongs[me] or {}) < DuelConstants.ROUNDS then
@@ -449,7 +453,7 @@ function Duels:_preDuel()
 		end
 		self.Theme = theme
 		if not mix or theme == Themes.PACK then
-			packsInfo.On = false -- "My songs" is every round already
+			packsInfo.On = false -- "My groups" is every round already
 		end
 		packsInfo.Theme = Themes.Get(theme).Name
 	end
@@ -509,7 +513,8 @@ end
 
 -- [[ Owned songs ]]
 
--- How likely `song` is this round: 1, plus (OWNED_WEIGHT[level] - 1) for each player who owns it.
+-- How likely `song` is this round: 1, plus (OWNED_WEIGHT[kind] - 1) for each player whose
+-- groups it's from ("Bias" / "Pinned").
 function Duels:_weightOf(song): number
 	local w = 1
 	for _, p in self.Players do
@@ -664,6 +669,7 @@ function Duels:_playRound(round: number)
 	end
 	table.insert(self.Rounds, { Song = song, Picks = picks, Owners = owners, Multiplier = self:_multiplier(round) })
 	self:_logRound(round, song, picks, owners)
+	self:_recordMastery(song, picks)
 
 	local scores = {}
 	for p, s in self.Scores do
@@ -740,7 +746,7 @@ function Duels:_startRound(round: number, swapped: boolean, canSwap: boolean)
 		song = SongLibrary.Pick(pool, weight)
 	end
 	if not song and onlyMine then
-		-- "My songs": every round from what the player owns
+		-- "My groups": every round from the player's groups
 		local pool = {}
 		for _, s in self.OwnedSongs[self.Players[1]] or {} do
 			if not self.Used[s.Id] then
@@ -760,7 +766,7 @@ function Duels:_startRound(round: number, swapped: boolean, canSwap: boolean)
 	song = song or (self.Solo and Themes.RandomSong(self.Theme, self.Used, weight)) or SongLibrary.GetRandomSong(self.Used, weight)
 	self.Used[song.Id] = true
 
-	-- who owns it: they get the "♪ YOUR SONG" tag, and +OWNED_XP for guessing it in a duel
+	-- whose group it is: they get the "♪ YOUR GROUP" tag, and +OWNED_XP for guessing it in a duel
 	local owners = {} :: { [Player]: boolean }
 	local ownedTag = nil
 	if not self.Tutorial and not onlyMine then
@@ -906,6 +912,30 @@ end
 -- [[ Analytics: one RoundResult per player, plus funnel steps ]]
 
 local FUNNEL_ROUNDS = { Duel = { [1] = "Round1", [4] = "Round4", [7] = "Round7" }, Solo = { [1] = "Round1", [7] = "Round7" } }
+
+-- [[ Mastery: every Song-mode round counts towards knowing that song (Modules/Library/Mastery) ]]
+
+function Duels:_recordMastery(song, picks: { [Player]: Pick })
+	if self.Mode ~= "Song" or type(song) ~= "table" or type(song.Id) ~= "string" then
+		return
+	end
+	for p, pick in picks do
+		if typeof(p) ~= "Instance" or not p:IsA("Player") or not p.Parent then
+			continue
+		end
+		local data = PlayerData.Get(p)
+		if data then
+			local slot = data.Inventory.Mastery[song.Id]
+			local before = slot.Get()
+			local after = Mastery.Record(before, pick.Correct == true, pick.Tier or 5)
+			slot.Set(after)
+			local from, to = Mastery.Stars(before), Mastery.Stars(after)
+			if to > from then
+				Analytics.Event(p, "SongStar", to, song.Id) -- (badge rungs: Engine/LadderService watches Mastery)
+			end
+		end
+	end
+end
 
 function Duels:_logRound(round: number, song, picks: { [Player]: Pick }, owners: { [Player]: boolean })
 	local funnel = if self.Solo then "Solo" else "Duel"

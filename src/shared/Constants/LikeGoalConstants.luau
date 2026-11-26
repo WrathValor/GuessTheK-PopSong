@@ -39,14 +39,14 @@ LikeGoalConstants.GOALS = table.freeze({
 	table.freeze({
 		Likes = 25,
 		Id = "LIKES25",
-		Reward = table.freeze({ Tickets = 5, Upgrades = 2 }),
-		Text = "5 roll tickets + 2 upgrades",
+		Reward = table.freeze({ Tickets = 5, Coins = 300 }),
+		Text = "5 roll tickets + 300 coins",
 	}),
 	table.freeze({
 		Likes = 50,
 		Id = "LIKES50",
-		Reward = table.freeze({ Upgrades = 3, Coins = 200 }),
-		Text = "3 upgrades + 200 coins",
+		Reward = table.freeze({ Coins = 650 }),
+		Text = "650 coins",
 	}),
 	table.freeze({
 		Likes = 75,
@@ -57,20 +57,20 @@ LikeGoalConstants.GOALS = table.freeze({
 	table.freeze({
 		Likes = 100,
 		Id = "LIKES100",
-		Reward = table.freeze({ Tickets = 7, Upgrades = 3, Coins = 250 }),
-		Text = "7 roll tickets + 3 upgrades + 250 coins",
+		Reward = table.freeze({ Tickets = 7, Coins = 700 }),
+		Text = "7 roll tickets + 700 coins",
 	}),
 	table.freeze({
 		Likes = 150,
 		Id = "LIKES150",
-		Reward = table.freeze({ Tickets = 10, Upgrades = 5, Coins = 500 }),
-		Text = "10 roll tickets + 5 upgrades + 500 coins",
+		Reward = table.freeze({ Tickets = 10, Coins = 1250 }),
+		Text = "10 roll tickets + 1,250 coins",
 	}),
 	table.freeze({
 		Likes = 200,
 		Id = "LIKES200",
-		Reward = table.freeze({ Tickets = 15, Upgrades = 7, Coins = 500 }),
-		Text = "15 roll tickets + 7 upgrades + 500 coins",
+		Reward = table.freeze({ Tickets = 15, Coins = 1550 }),
+		Text = "15 roll tickets + 1,550 coins",
 	}),
 })
 

@@ -68,7 +68,12 @@ for _, bundle in ShopCatalog.RollBundles do
 			Id = bundle.ProductId,
 			Category = currency,
 			Grant = function(data)
-				Currencies.Data(data, currency).Increment(amount)
+				if currency == "Upgrades" then
+					-- (card upgrades are gone: a purchase still in flight pays coins)
+					data.Currencies.Won.Increment(amount * Currencies.UPGRADE_COINS)
+				else
+					Currencies.Data(data, currency).Increment(amount)
+				end
 			end,
 		}
 	end
@@ -130,10 +135,8 @@ for _, bundle in ShopCatalog.Bundles do
 			Category = "Bundle",
 			Grant = function(data)
 				data.Rewards.Bundles[bundle.Id].Increment(1) -- (the shop stops at bundle.Limit)
-				for _, kind in { "Tickets", "Upgrades" } do
-					if (bundle[kind] or 0) > 0 then
-						Currencies.Data(data, kind).Increment(bundle[kind])
-					end
+				if (bundle.Tickets or 0) > 0 then
+					Currencies.Data(data, "Tickets").Increment(bundle.Tickets)
 				end
 				if (bundle.Coins or 0) > 0 then
 					data.Currencies.Won.Increment(bundle.Coins)
@@ -246,8 +249,8 @@ local PlayerData = Scribe({
 			Photocards = Scribe.SetOf(Id(40)),
 			Banner = Scribe.String("", { MaxLength = 40 }),
 			Photocard = Scribe.String("", { MaxLength = 40 }),
-			-- Season Track rewards waiting to be used: a free roll from one group (RollService) and
-			-- +1 copy on a card of your choice (Engine/SeasonService UseUpgrade)
+			-- roll tickets: each opens a free pack (Engine/AlbumService). Upgrades: card upgrades,
+			-- gone with the song Index (Currencies.UPGRADE_COINS); kept so old saves still read
 			Tickets = Count(),
 			Upgrades = Count(),
 			Packs = Scribe.SetOf(Id(80)), -- song packs completed (pack ids, see Modules/Library/Packs)
@@ -255,8 +258,43 @@ local PlayerData = Scribe({
 			-- copies pulled from the song roll, by Song Id (card level: Modules/Library/Cards).
 			-- A bought song with no entry counts as 1 copy.
 			Copies = Scribe.MapOf("string", Count(), { MaxKeys = 4000, MaxKeyLength = 80 }),
+			-- how well you know each song, by Song Id: "plays,rights,fast,best" (Modules/Library/Mastery)
+			Mastery = Scribe.MapOf("string", Scribe.String("", { MaxLength = 32 }), { MaxKeys = 4000, MaxKeyLength = 80 }),
+			-- group badges (Modules/Library/Ladders): the highest rung paid, by ladder key ("C:aespa",
+			-- "S:aespa"; "L:aespa" = 1 once Legend is paid). Kept for good, so a sold card never drops a rung
+			Ladders = Scribe.MapOf("string", Count(), { MaxKeys = 400, MaxKeyLength = 64 }),
 			DupesInRow = Count(), -- song roll: duplicates since the last new song (RollConstants.PITY)
 			DuelPack = Scribe.String("", { MaxLength = 80 }), -- legacy: bias packs are gone (owned songs just count)
+			-- K-POPPED! photocards (Modules/Library/Albums, Engine/AlbumService): copies owned, by
+			-- card id ("album:member:rarity"). Capped at AlbumConstants.RAINBOW_COPIES.
+			Cards = Scribe.MapOf("string", Count(), { MaxKeys = 4000, MaxKeyLength = 80 }),
+			-- pinned cards: only these earn binder coins (Engine/BinderService). Card ids in slot
+			-- order, "|" between them; AlbumConstants.PIN_SLOTS of PIN_SLOTS_MAX are unlocked.
+			Pins = Scribe.String("", { MaxLength = 420 }),
+			CardDupes = Count(), -- (unused: album pulls have no new-card pity any more)
+			-- your bias, "<Artist>|<member key>" ("" = not picked yet), and when it was last set
+			-- (os.time; Engine/BiasService allows one change a week)
+			Bias = Scribe.String("", { MaxLength = 80 }),
+			BiasAt = Count(),
+			-- free photocard packs (Engine/AlbumService, Albums.FreePacks): how many are banked,
+			-- when the current refill started (os.time; 0 = never set up: the first ones are
+			-- AlbumConstants.FREE_PACK_START), and the UTC day the daily one was last given
+			FreePacks = Count(),
+			FreePackAt = Count(),
+			FreePackDay = Count(),
+			-- starred groups ("A|B", AlbumConstants.FAVOURITES_MAX): their group packs are always on
+			-- sale. And premium packs opened since the last Signed Polaroid (PREMIUM_GUARANTEE).
+			FavGroups = Scribe.String("", { MaxLength = 120 }),
+			PremiumPity = Count(),
+			-- serial numbers of numbered cards (AlbumConstants rarity Serial = true), by card id:
+			-- "3,17", lowest first (Modules/Library/Albums.Serials, Engine/SerialService). Copies
+			-- still waiting for a number (the global counter couldn't be reached) are counted in
+			-- SerialsPending and get one later.
+			Serials = Scribe.MapOf("string", Scribe.String("", { MaxLength = 80 }), { MaxKeys = 2000, MaxKeyLength = 80 }),
+			-- when you rolled each card id first, by card id (os.time; Engine/AlbumService). Shown
+			-- on the card ("Rolled 25 Nov 2026", a Signed Polaroid's date stamp).
+			CardDates = Scribe.MapOf("string", Count(), { MaxKeys = 2500, MaxKeyLength = 80 }),
+			SerialsPending = Scribe.MapOf("string", Count(), { MaxKeys = 200, MaxKeyLength = 80 }),
 		},
 
 		-- boost potions: seconds of play left on each clock (Engine/BoostService)
@@ -307,6 +345,16 @@ local PlayerData = Scribe({
 			},
 			WeekClaimed = Scribe.SetOf(Id(20)), -- weekly quest Ids claimed this week, plus "Bonus"
 			LevelClaimed = Scribe.SetOf(Id(8)), -- level rewards claimed (RewardsCatalog.LEVEL_REWARDS), as "5", "10"…
+			-- the binder's earnings clock (Engine/BinderService): coins earned at the old rate when
+			-- the binder last changed, in hundredths of a coin, and when the current rate started
+			-- (os.time; 0 = no cards yet). Albums.Waiting turns them into coins waiting.
+			BinderBank = Count(),
+			BinderAt = Count(),
+			-- what the one-off K-POPPED! conversion gave (Modules/KPoppedMigration), for the
+			-- "Welcome to K-POPPED!" card, and whether that card has been seen
+			WelcomeCoins = Count(),
+			WelcomeTickets = Count(),
+			WelcomeSeen = false,
 		},
 
 		-- Invite friends (Engine/ReferralService, Constants/ReferralConstants)
@@ -348,6 +396,9 @@ local PlayerData = Scribe({
 			-- stage open, so someone stepping on ends practice after the round and starts a duel
 			-- (DuelService)
 			SoloOpen = true,
+			-- "Low effects": card tiles (binder, All cards, profile, HUD) keep still; a card
+			-- opened full size still plays its effects (Modules/UI/CardDecor)
+			LowEffects = false,
 			TutorialDone = false, -- finished or skipped the first-join tutorial
 			FavoritePrompted = false, -- shown the one-time "favourite the game" prompt (Client/FavoritePrompt)
 			Hints = Scribe.SetOf(Id(16)), -- one-time hints already seen: lobby nudges ("Money", "Rewards") + screen guides ("Guide…")
@@ -363,6 +414,9 @@ local PlayerData = Scribe({
 			-- a Rainbow card played as your background music, by Song Id ("" = the game's own
 			-- playlist). Set through ProfileRemote (Engine/ProfileService).
 			BgMusic = Id(80),
+			-- K-POPPED!: the 5 photocards on your profile's showcase, card ids by slot, "|"
+			-- between them ("" = an empty slot). Set through ProfileRemote (Engine/ProfileService).
+			Cards = Scribe.String("", { MaxLength = 420 }),
 		},
 
 		Statistics = {

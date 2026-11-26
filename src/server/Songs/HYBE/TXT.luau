@@ -9,6 +9,7 @@ return {
 	Colour = "A7D8F0", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("9AD8FF"), Color3.fromHex("C3A6FF")), -- no official colour: sky blue to lilac
 	Status = "Active",
+	PackArt = "rbxassetid://136026348429301", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "0X1=LOVESONG",
@@ -122,6 +123,25 @@ return {
 			PlaybackSpeed = 0.77,
 			TimePosition = 40,
 			ChorusPosition = 41,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Members are the era's line-up.
+	-- Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "txt-the-chaos-chapter",
+			Name = "The Chaos Chapter",
+			Year = 2021,
+			Colour = "C9D8F7",
+			Songs = { "0X1=LOVESONG", "LO$ER=LO♡ER" },
+			Members = { "Soobin", "Yeonjun", "Beomgyu", "Taehyun", "Huening Kai" },
+			Art = {
+				["Soobin"] = "rbxassetid://78041309264081",
+				["Yeonjun"] = "rbxassetid://113363072535141",
+				["Beomgyu"] = "rbxassetid://77029065221946",
+				["Taehyun"] = "rbxassetid://118587585717471",
+				["Huening Kai"] = "rbxassetid://101665226177264",
+			},
 		},
 	},
 }

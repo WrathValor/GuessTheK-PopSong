@@ -5,8 +5,8 @@
 --                            white Equip (soft mint "Equipped" on the worn one)
 --   • Titles              – the default title + titles you own (never ones you don't): your
 --                            name with the chip in its tier colour (Gold shines, Rainbow scrolls)
---   • Song packs          – My Pack ("Roll for more") + every company/group pack you own a song
---                            of, with a progress bar or "Complete ✓". Nothing to equip.
+--   (Song packs, the songs you'd rolled, went with the song roll on 25 Nov 2026: photocards
+--   live in the Binder. The Pack cards' code below stays unused until it's tidied away.)
 -- Equipping is a request to the server (ShopService); the cards redraw from PlayerData.
 
 -- -------------------------------- Services -------------------------------- --
@@ -444,8 +444,6 @@ function Inventory:Initialize(interface)
 				ShopRemote:Fire({ Action = "EquipItem", Kind = kind, Id = key })
 			elseif kind == "Title" then
 				ShopRemote:Fire({ Action = "EquipTitle", Id = key })
-			elseif kind == "Pack" then
-				self._interface:Open("Roll") -- My Pack's "Roll for more"
 			end
 		end))
 	end

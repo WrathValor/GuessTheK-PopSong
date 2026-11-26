@@ -21,7 +21,7 @@
 --
 -- RewardsService.Record(player, facts) is called by DuelService after each match to move the
 -- daily + weekly quest counters (facts: Correct, Win, Lost, Solo, Perfect; new songs from
--- RecordNewSongs). Rewards are currency tables ({ Coins, Tickets, Upgrades }: grant()).
+-- RecordNewCards). Rewards are currency tables ({ Coins, Tickets }: grant()).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
@@ -105,10 +105,15 @@ local function claimedCount(list, claimed): number
 	return n
 end
 
--- pays a reward table ({ Coins, Tickets, Upgrades }); call inside PlayerData.Batch
+-- pays a reward table ({ Coins, Tickets }); call inside PlayerData.Batch. (Card upgrades are
+-- gone: an Upgrades left in a code or reward pays Currencies.UPGRADE_COINS each.)
 local function grant(data, reward)
 	for _, r in Catalog.RewardList(reward) do
-		Currencies.Data(data, r.Kind).Increment(r.Amount)
+		if r.Kind == "Upgrades" then
+			Currencies.Data(data, "Coins").Increment(r.Amount * Currencies.UPGRADE_COINS)
+		else
+			Currencies.Data(data, r.Kind).Increment(r.Amount)
+		end
 	end
 end
 
@@ -483,9 +488,10 @@ local ACTIONS = {
 
 -- facts = { Correct = n, Win = bool, Lost = bool, Solo = bool, Perfect = bool }
 -- Call it outside any other Batch; it batches its own writes.
--- New songs pulled from the song roll (Engine/RollService) count toward the "new songs" quest.
+-- New photocards (Engine/AlbumService) count toward the "new photocards" quests. (The counter
+-- is still called NewSongs: it counted new songs from the song roll before photocards.)
 -- Call it outside any other Batch.
-function RewardsService.RecordNewSongs(player: Player, count: number)
+function RewardsService.RecordNewCards(player: Player, count: number)
 	local data = PlayerData.Get(player)
 	if not data or count <= 0 then
 		return

@@ -24,8 +24,7 @@
 -- ("Money 12b") with a Get VIP button that prompts the pass.
 -- Fills everything from ShopCatalog + the player's data;
 -- purchases are only requests, the server (ShopService, RewardsService for codes) checks and
--- applies them. The song roll and the group's UGC are their own screens (RollController,
--- UGCController). Open with Interface:Open("Shop", "Coins") to land on the coin bundles.
+-- applies them. The group's UGC is its own screen (UGCController). Open with Interface:Open("Shop", "Coins") to land on the coin bundles.
 
 -- -------------------------------- Services -------------------------------- --
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -74,7 +73,10 @@ local SCROLL_TWEEN = TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirec
 local ITEM_OWNED = { Stage = "Stages", Mic = "Mics" }
 local ITEM_EQUIPPED = { Stage = "EquippedStage", Mic = "EquippedMic" }
 local PASS_CARDS = { VIP = "VIP", DoubleCoins = "DoubleCoins" } -- card name → ShopCatalog pass id
-local ROLL_CARDS = { "Tickets", "Upgrades" } -- the Rolls section's cards, by Currencies id
+-- the Rolls section's cards, by Currencies id. Card upgrades went with the song Index; the
+-- whole section is hidden in Studio (Visible = false) until we decide what ticket bundles
+-- become now that a ticket opens a free pack (claude/Things to take note of.md).
+local ROLL_CARDS = { "Tickets" }
 
 local fmt = ShopCatalog.Format
 

@@ -9,6 +9,7 @@ return {
 	Colour = "FFB0A8", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("FF3FA4"), Color3.fromHex("9B3DFF")), -- official: Neon
 	Status = "Active",
+	PackArt = "rbxassetid://118012274800437", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "DALLA DALLA",
@@ -163,5 +164,23 @@ return {
             TimePosition = 1,
             ChorusPosition = 90.5,
         },
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "itzy-gold",
+			Name = "GOLD",
+			Year = 2024,
+			Colour = "FF9EB0",
+			Songs = {},
+			Members = { "YEJI", "LIA", "RYUJIN", "CHAERYEONG", "YUNA" },
+			Art = {
+				["YEJI"] = "rbxassetid://80012881786234",
+				["LIA"] = "rbxassetid://110954938255961",
+				["RYUJIN"] = "rbxassetid://102276654471065",
+				["CHAERYEONG"] = "rbxassetid://121605476551605",
+				["YUNA"] = "rbxassetid://115792437433727",
+			},
+		},
 	},
 }

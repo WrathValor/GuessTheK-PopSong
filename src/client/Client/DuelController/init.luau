@@ -93,6 +93,10 @@ function DuelController.Start()
 			-- a server restart is close (Engine/ShutdownService): no new duels, solo still works
 			Sounds.Play("Wrong")
 			call("HUD", "Toast", "Server restarting soon · no new duels. Practise solo or hop to a new server!")
+		elseif message == "PractiseBusy" then
+			-- PRACTISE on Binder › Songs while already on a stage
+			Sounds.Play("Wrong")
+			call("HUD", "Toast", "Step off your stage first, then practise")
 		elseif message == "NoStages" then
 			-- every stage is taken (Quick Play), or every tutorial lane and stage (the tutorial:
 			-- its Welcome comes back so they can try again or skip)

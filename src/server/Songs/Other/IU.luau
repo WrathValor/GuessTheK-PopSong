@@ -9,6 +9,7 @@ return {
 	Colour = "D7C4FF", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("D7FF5A"), Color3.fromHex("A6E22E")), -- official: Neon/Lime Green
 	Status = "Active",
+	PackArt = "rbxassetid://100198439133850", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "Good Day",
@@ -98,6 +99,20 @@ return {
 			PlaybackSpeed = 0.92,
 			TimePosition = 2,
 			ChorusPosition = 93.7,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "iu-palette",
+			Name = "Palette",
+			Year = 2017,
+			Colour = "D9C9FF",
+			Songs = { "Palette", "Through the Night", "Can't Love You Anymore" },
+			Members = { "IU" },
+			Art = {
+				["IU"] = "rbxassetid://129966933081833",
+			},
 		},
 	},
 }

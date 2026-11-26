@@ -9,6 +9,8 @@
 --     Generation, Status, Colour, Gradient). No MusicId / AnimationId / tuning, so an exploit
 --     can't match a round's clip to its answer. The server publishes it once, as the
 --     "Catalog" StringValue under this module; a song's audio comes from Modules/SongClips.
+-- Songs.Albums: the K-POPPED! albums (no audio in them), the same on both sides. Read them
+-- through Modules/Library/Albums, which builds the cards.
 
 --| Services
 
@@ -24,7 +26,9 @@ local Songs = {}
 
 --| Catalog
 -- JSON, one entry per group: { C = company, A = artist, T = group type, G = generation,
--- S = status, K = colour, R = gradient { { time, hex }, … }, L = { { name, year }, … } }
+-- S = status, K = colour, R = gradient { { time, hex }, … }, L = { { name, year }, … },
+-- B = albums { { Id, Name, Year, Colour, Songs, Members, Art, Generation, PackArt }, … } (only groups
+-- with albums; a group whose songs are all drafts still comes through for its albums) }
 
 local function encodeGradient(gradient: ColorSequence?)
 	if typeof(gradient) ~= "ColorSequence" then
@@ -48,7 +52,9 @@ local function decodeGradient(keys): ColorSequence?
 	return ColorSequence.new(points)
 end
 
-local function publish(entries)
+local ALBUM_FIELDS = { "Id", "Name", "Year", "Colour", "Songs", "Members", "Art", "Generation", "GroupType", "PackArt" }
+
+local function publish(entries, albums)
 	local groups, order = {}, {}
 	for _, song in entries do
 		local key = `{song.Company}/{song.Artist}`
@@ -69,6 +75,24 @@ local function publish(entries)
 		end
 		table.insert(group.L, { song.Name, song.Year })
 	end
+	for _, album in albums do
+		local key = `{album.Company}/{album.Artist}`
+		local group = groups[key]
+		if not group then
+			-- (no live songs yet, but its photocards are live)
+			group = { C = album.Company, A = album.Artist, G = album.Generation, K = album.Colour, L = {} }
+			groups[key] = group
+			table.insert(order, group)
+		end
+		if group then
+			local public = {}
+			for _, field in ALBUM_FIELDS do
+				public[field] = album[field]
+			end
+			group.B = group.B or {}
+			table.insert(group.B, public)
+		end
+	end
 	local value = script:FindFirstChild(CATALOG) or Instance.new("StringValue")
 	value.Name = CATALOG
 	value.Value = HttpService:JSONEncode(order)
@@ -79,14 +103,14 @@ local function readCatalog()
 	local value = script:WaitForChild(CATALOG, CATALOG_WAIT) :: StringValue?
 	if not value then
 		warn("[Songs] no song catalog from the server")
-		return {}
+		return {}, {}
 	end
 	local ok, order = pcall(HttpService.JSONDecode, HttpService, value.Value)
 	if not ok or type(order) ~= "table" then
 		warn("[Songs] couldn't read the song catalog:", order)
-		return {}
+		return {}, {}
 	end
-	local entries = {}
+	local entries, albums = {}, {}
 	for _, group in order do
 		local gradient = decodeGradient(group.R)
 		for _, pair in group.L do
@@ -103,8 +127,13 @@ local function readCatalog()
 				Gradient = gradient,
 			})
 		end
+		for _, album in group.B or {} do
+			album.Artist = group.A
+			album.Company = group.C
+			table.insert(albums, album)
+		end
 	end
-	return entries
+	return entries, albums
 end
 
 --| Library
@@ -113,19 +142,20 @@ local All = {}
 local ById = {}
 local ByGeneration = {}
 
-local entries
+local entries, albums
 -- (Edit mode counts as a client to RunService, but the command bar, plugins and the UI
 -- builders can read ServerScriptService there, so they get the full library too)
 if RunService:IsServer() or not RunService:IsRunning() then
 	local library = require(game:GetService("ServerScriptService"):WaitForChild("Songs"))
 	entries = library.Load()
+	albums = if library.Albums then library.Albums() else {}
 	Songs.Clip = library.Clip
 	-- (not in Edit: the command bar / Song Tuner mustn't leave a Catalog in the place)
 	if RunService:IsRunning() then
-		publish(entries)
+		publish(entries, albums)
 	end
 else
-	entries = readCatalog()
+	entries, albums = readCatalog()
 end
 
 for _, song in entries do
@@ -150,6 +180,7 @@ for _, song in All do
 end
 
 Songs.All = All
+Songs.Albums = albums
 
 --| Functions
 

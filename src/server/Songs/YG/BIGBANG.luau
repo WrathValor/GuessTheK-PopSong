@@ -9,6 +9,7 @@ return {
     Colour = "FFE07A", -- card art + roll glow (pastel hex)
     Gradient = ColorSequence.new(Color3.fromHex("FFE14D"), Color3.fromHex("FFB300")), -- yellow crown (fan colour, not official)
     Status = "Active",
+    PackArt = "rbxassetid://117329562830587", -- group art: pack sleeve + binder (assets/Photocards/Groups)
     Songs = {
         {
             Name = "LIES",
@@ -105,6 +106,17 @@ return {
             PlaybackSpeed = 0.53,
             TimePosition = 1,
             ChorusPosition = 52.5,
+        },
+    },
+    -- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+    Albums = {
+        {
+            Id = "bigbang-alive",
+            Name = "ALIVE",
+            Year = 2012,
+            Colour = "FFE07A",
+            Songs = { "BLUE", "BAD BOY", "FANTASTIC BABY" },
+            Members = { "G-DRAGON", "T.O.P", "TAEYANG", "DAESUNG", "SEUNGRI" },
         },
     },
 }

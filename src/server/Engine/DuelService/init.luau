@@ -511,6 +511,7 @@ function leave(player: Player)
 			stage.Solo = false
 			stage.OpenSolo = false
 		end
+		stage.Practise = nil
 		clearGhost(stage)
 	end
 
@@ -802,7 +803,7 @@ local function saveSoloChoice(player: Player, packet)
 	if not ok or not data then
 		return
 	end
-	if type(packet.Theme) == "string" and Themes.Get(packet.Theme) then
+	if type(packet.Theme) == "string" and Themes.Get(packet.Theme) and not Themes.Get(packet.Theme).Artist then
 		data.Settings.SoloTheme.Set(packet.Theme)
 	end
 	if type(packet.Mix) == "boolean" then
@@ -816,6 +817,9 @@ function trySolo(player: Player, packet: any?)
 		return
 	end
 	saveSoloChoice(player, packet)
+	if type(packet) == "table" then
+		stage.Practise = nil -- the queue card's theme again (a group practice only lasts its own rematches)
+	end
 	-- gave up waiting for a rival and went solo from the queue card (Quick Solo or the picker):
 	-- these leave the Duel funnel at "Matched" without leaving the game
 	if type(packet) == "table" and (packet.From == "Quick" or packet.From == "Picker") and not stage.Solo then
@@ -986,6 +990,38 @@ local function quickPlay(player: Player)
 	end
 end
 
+-- PRACTISE on Binder › Songs: put the player on a fully empty stage and start solo with one
+-- group's songs (stage.Practise, read by Duels; kept for rematches, cleared when they leave).
+local function practiseGroup(player: Player, packet)
+	local artist = type(packet) == "table" and packet.Group
+	if type(artist) ~= "string" or #artist > 60 then
+		return
+	end
+	local theme = Themes.ForGroup(artist)
+	if not Themes.IsOpen(theme) then
+		return
+	end
+	if DuelService.PlayerStage[player] then
+		QueueRemote:Fire(player, { Message = "PractiseBusy" }) -- already on a stage: leave it first
+		return
+	end
+	if Duels.NoNewDuels then
+		QueueRemote:Fire(player, { Message = "RestartSoon" })
+		return
+	end
+	for _, stage in DuelService.Stages do
+		if stage.State == "Waiting" and not stage.Players.A and not stage.Players.B then
+			join(stage, "A", player, "Practise")
+			if DuelService.PlayerStage[player] == stage then
+				stage.Practise = theme
+				trySolo(player)
+			end
+			return
+		end
+	end
+	QueueRemote:Fire(player, { Message = "NoStages" })
+end
+
 -- The first-join tutorial: put the player on a free stage and start a short practice game.
 local function startTutorial(player: Player)
 	if DuelService.PlayerStage[player] then
@@ -1070,6 +1106,8 @@ function DuelService.Start()
 			quickPlay(Player)
 		elseif Request == "Tutorial" then
 			startTutorial(Player)
+		elseif Request == "Practise" then
+			practiseGroup(Player, packet)
 		elseif Request == "Picking" and packet then
 			-- the solo theme picker opened / closed (QueueController/SoloPicker)
 			picking[Player] = if packet.On == true and DuelService.PlayerStage[Player] then true else nil

@@ -9,6 +9,7 @@ return {
 	Colour = "9FE3D6", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("7B6CFF"), Color3.fromHex("38D6C4")), -- no official colour: violet to teal (the 'mix')
 	Status = "Active",
+	PackArt = "rbxassetid://81826498922796", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "O.O",
@@ -89,6 +90,25 @@ return {
 			PlaybackSpeed = 0.68,
 			TimePosition = 1,
 			ChorusPosition = 37.1,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "nmixx-blue-valentine",
+			Name = "Blue Valentine",
+			Year = 2025,
+			Colour = "A8D8FF",
+			Songs = { "Blue Valentine" },
+			Members = { "LILY", "HAEWON", "SULLYOON", "BAE", "JIWOO", "KYUJIN" },
+			Art = {
+				["LILY"] = "rbxassetid://116177611952053",
+				["HAEWON"] = "rbxassetid://89227771648853",
+				["SULLYOON"] = "rbxassetid://72802792053853",
+				["BAE"] = "rbxassetid://98155259657583",
+				["JIWOO"] = "rbxassetid://140717078741530",
+				["KYUJIN"] = "rbxassetid://93119475940778",
+			},
 		},
 	},
 }

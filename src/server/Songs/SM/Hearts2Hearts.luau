@@ -9,6 +9,7 @@ return {
 	Colour = "FFC1CC", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("B8E2FF"), Color3.fromHex("6FB8F2")), -- official: Sky Blue
 	Status = "Active",
+	PackArt = "rbxassetid://140491234005360", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "The Chase",
@@ -71,6 +72,27 @@ return {
 			TimePosition = 0,
 			ChorusPosition = 0,
 			Draft = true, -- audio works, future upd
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "hearts2hearts-the-chase",
+			Name = "The Chase",
+			Year = 2025,
+			Colour = "FFCFE3",
+			Songs = { "The Chase", "Butterflies" },
+			Members = { "JIWOO", "CARMEN", "YUHA", "STELLA", "JUUN", "A-NA", "IAN", "YE-ON" },
+			Art = {
+				["JIWOO"] = "rbxassetid://125247240303540",
+				["CARMEN"] = "rbxassetid://79602254834282",
+				["YUHA"] = "rbxassetid://105533633573876",
+				["STELLA"] = "rbxassetid://133812858887119",
+				["JUUN"] = "rbxassetid://73680864391234",
+				["A-NA"] = "rbxassetid://74410235819370",
+				["IAN"] = "rbxassetid://96629897682249",
+				["YE-ON"] = "rbxassetid://126395425168470",
+			},
 		},
 	},
 }

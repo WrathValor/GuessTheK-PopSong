@@ -9,6 +9,7 @@ return {
 	Colour = "B6EAD7", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("B6EAD7"), Color3.fromHex("4FBF9A")), -- no official colour: mint
 	Status = "Active",
+	PackArt = "rbxassetid://139291080397160", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "NEON",
@@ -18,6 +19,17 @@ return {
 			PlaybackSpeed = 0.94,
 			TimePosition = 0,
 			ChorusPosition = 50.5,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "a2olite-neon",
+			Name = "NEON",
+			Year = 2026,
+			Colour = "C2F5A8",
+			Songs = { "NEON" },
+			Members = { "YOUNG", "HIMEKI", "VORA", "XILI", "RADA", "MERCI", "AYUNE", "OA", "AIJING" },
 		},
 	},
 }

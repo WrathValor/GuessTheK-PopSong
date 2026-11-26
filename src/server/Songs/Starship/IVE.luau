@@ -9,6 +9,7 @@ return {
 	Colour = "C6B3FF", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("FF8FAB"), Color3.fromHex("E63946")), -- no official colour: rose to red
 	Status = "Active",
+	PackArt = "rbxassetid://118813739306486", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "CRUMBS",
@@ -87,6 +88,25 @@ return {
 			PlaybackSpeed = 0.61,
 			TimePosition = 1,
 			ChorusPosition = 31.9,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "ive-looks-can-kill",
+			Name = "Looks Can Kill",
+			Year = 2026,
+			Colour = "F5C2D6",
+			Songs = { "Looks Can Kill" },
+			Members = { "YUJIN", "GAEUL", "REI", "WONYOUNG", "LIZ", "LEESEO" },
+			Art = {
+				["YUJIN"] = "rbxassetid://77181092342345",
+				["GAEUL"] = "rbxassetid://107459843155912",
+				["REI"] = "rbxassetid://105641064949939",
+				["WONYOUNG"] = "rbxassetid://86496879094237",
+				["LIZ"] = "rbxassetid://115933396505834",
+				["LEESEO"] = "rbxassetid://129955839047460",
+			},
 		},
 	},
 }

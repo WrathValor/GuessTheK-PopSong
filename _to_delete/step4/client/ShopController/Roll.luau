@@ -23,6 +23,10 @@
 -- Card upgrades (Index upgrade mode) that make a card Gold / Rainbow play the same ×1 reveal
 -- through ShowUpgrade(pull, onDone): NOW GOLD! / NOW RAINBOW!, no ROLL AGAIN, and Done hands
 -- back to the Index.
+-- The first card (the tutorial's welcome gift): FirstRoll(onDone) asks for the free roll
+-- (RollService "FirstRoll") and plays the same ×1 reveal as YOUR FIRST CARD!. Its two buttons
+-- swap places: Nice! (Done, on the left) closes the reveal and stays on the Roll screen; FIND A
+-- RIVAL (ROLL AGAIN's button, on the right) hands back through onDone (as does a failed roll).
 -- ROLL AGAIN shrinks the last card away while the next roll is asked for. Rolls are off (buttons greyed, reason shown) when the "RollsAllowed" attribute
 -- isn't true: paid random items are restricted for that account.
 
@@ -137,6 +141,10 @@ function Roll.new(pages: Instance, shop: Instance, janitor, toast: (string) -> (
 		end
 	end))
 	janitor:Add(self._reveal.Done.Activated:Connect(function()
+		if self._first then
+			self:_endFirst(false) -- Nice!: the reveal closes, the Roll screen stays
+			return
+		end
 		self:_closeReveal()
 		local done = self._upgradeDone
 		self._upgradeDone = nil
@@ -145,6 +153,10 @@ function Roll.new(pages: Instance, shop: Instance, janitor, toast: (string) -> (
 		end
 	end))
 	janitor:Add(self._reveal.Again.Activated:Connect(function()
+		if self._first then
+			self:_endFirst(true) -- FIND A RIVAL
+			return
+		end
 		if self._upgradeDone then
 			return -- an upgrade reveal has nothing to roll again
 		end
@@ -207,6 +219,7 @@ end
 function Roll:Hide()
 	self._reveal.Visible = false
 	self:_stopChorus(0.3)
+	self:_endFirst(false) -- (the screen closed under the first card: nothing more to hand back)
 	self._upgradeDone = nil -- an upgrade reveal closed with the screen
 end
 
@@ -341,6 +354,81 @@ function Roll:ShowUpgrade(pull, onDone: (() -> ())?)
 	self._rolling = false
 	self:_setTitle(nil)
 	self:_showOne(pull, 0)
+end
+
+-- [[ The first card ]]
+
+-- the tutorial's free first roll; onDone runs when its reveal closes (or the roll fails)
+function Roll:FirstRoll(onDone: () -> ())
+	if self._rolling then
+		return
+	end
+	self._first = true
+	self._upgradeDone = onDone -- (run by FIND A RIVAL)
+	self:_firstButtons(true)
+	self._rolling = true
+	self._last, self._lastGroup = 1, nil
+	Sounds.Play("Click")
+	Juice.Shake(self._page.Stage.Deck.Top)
+	RollRemote:Fire({ Action = "FirstRoll" })
+	local token = {}
+	self._token = token
+	task.delay(REPLY_TIMEOUT, function()
+		if self._token == token and self._rolling then
+			self._rolling = false
+			self:_endFirst(true)
+		end
+	end)
+end
+
+-- the first card's buttons: Nice! (Done) on the left, FIND A RIVAL (Again) on the right, or
+-- back to Done / ROLL AGAIN where RollPage built them
+function Roll:_firstButtons(on: boolean)
+	local reveal = self._reveal
+	for _, name in { "Again", "Done" } do
+		local b, sh = reveal[name], reveal[name .. "Shadow"]
+		if b:GetAttribute("Home") == nil then
+			b:SetAttribute("Home", b.Position)
+			sh:SetAttribute("Home", sh.Position)
+		end
+	end
+	local again, done = reveal.Again, reveal.Done
+	if on then
+		-- Nice! (140) · FIND A RIVAL (200), 10 apart, centred on the screen
+		local doneX, againX = 640 - 105, 640 + 75
+		local function place(b: GuiObject, x: number)
+			local home, sh = b:GetAttribute("Home"), reveal[b.Name .. "Shadow"]
+			local shHome = sh:GetAttribute("Home")
+			b.Position = UDim2.new(home.X.Scale, x, home.Y.Scale, home.Y.Offset)
+			sh.Position = UDim2.new(shHome.X.Scale, x + (shHome.X.Offset - home.X.Offset), shHome.Y.Scale, shHome.Y.Offset)
+		end
+		place(done, doneX)
+		place(again, againX)
+		done.Label.Text = "Nice!"
+	else
+		for _, b in { again, done } do
+			b.Position = b:GetAttribute("Home")
+			reveal[b.Name .. "Shadow"].Position = reveal[b.Name .. "Shadow"]:GetAttribute("Home")
+		end
+		done.Label.Text = "Done"
+	end
+end
+
+-- the first card's reveal is over (or never came): back to normal, then onDone
+function Roll:_endFirst(run: boolean)
+	if not self._first then
+		return
+	end
+	self._first = false
+	self:_firstButtons(false)
+	local done = self._upgradeDone
+	self._upgradeDone = nil
+	if self._reveal.Visible then
+		self:_closeReveal()
+	end
+	if run and done then
+		done()
+	end
 end
 
 -- [[ Roll tickets ]]
@@ -532,7 +620,7 @@ function Roll:_showFooter(on: boolean)
 	reveal.Refund.Visible = on and not title and (self._refund or 0) > 0
 	reveal.Title.Visible = title
 	reveal.TitleShadow.Visible = title
-	local again = on and not title and self._upgradeDone == nil
+	local again = on and not title and (self._upgradeDone == nil or self._first)
 	for name, visible in { Again = again, Equip = title, Done = on } do
 		reveal[name].Visible = visible
 		reveal[name .. "Shadow"].Visible = visible
@@ -578,9 +666,9 @@ function Roll:_setFooter(pulls, refund: number)
 		end
 	end
 	reveal.Refund.Row.Amount.Text = `+{refund} back for {if dupes == 1 then "the duplicate" else `{dupes} duplicates`}`
-	reveal.Again.Label.Text = if self._last == 10 then "ROLL ×10 AGAIN" else "ROLL AGAIN"
+	reveal.Again.Label.Text = if self._first then "FIND A RIVAL" elseif self._last == 10 then "ROLL ×10 AGAIN" else "ROLL AGAIN"
 	local cost = if self._last == 10 then RollConstants.TEN_COST else RollConstants.COST
-	reveal.Again.BackgroundColor3 = if self:_allowed() and get(PlayerData.Currencies.Won, 0) >= cost then MINT else GREY
+	reveal.Again.BackgroundColor3 = if self._first or (self:_allowed() and get(PlayerData.Currencies.Won, 0) >= cost) then MINT else GREY
 end
 
 local function tw(obj: Instance, time: number, props: { [string]: any }, style: Enum.EasingStyle?, dir: Enum.EasingDirection?): Tween
@@ -717,8 +805,8 @@ function Roll:_showOne(pull, refund: number)
 	card.Level.Visible = false
 
 	local banner = reveal.Banner
-	banner.Text = if pull.New then "NEW SONG!" elseif upgrade then `NOW {string.upper(upgrade)}!` else "DUPLICATE"
-	banner.BackgroundColor3 = if pull.New then MINT elseif upgrade == "Rainbow" then WHITE elseif upgrade then YELLOW else WHITE
+	banner.Text = if self._first then "YOUR FIRST CARD!" elseif pull.New then "NEW SONG!" elseif upgrade then `NOW {string.upper(upgrade)}!` else "DUPLICATE"
+	banner.BackgroundColor3 = if self._first then PINK elseif pull.New then MINT elseif upgrade == "Rainbow" then WHITE elseif upgrade then YELLOW else WHITE
 	banner.Rainbow.Enabled = upgrade == "Rainbow"
 	banner.Visible = false
 
@@ -733,6 +821,9 @@ function Roll:_showOne(pull, refund: number)
 		reveal.Info.Text = if nextLevel
 			then `{copies} copies · <b>{need - copies} more</b> to {string.upper(nextLevel)}`
 			else `You reached the top tier · it comes up more in your duels`
+	end
+	if self._first then
+		reveal.Info.Text = `It's yours! It comes up more in your duels · {RollConstants.GOLD_COPIES} copies → <b>GOLD</b>, {RollConstants.RAINBOW_COPIES} → <b>RAINBOW</b>`
 	end
 	-- pips: the new copy fills in with the result (a NEW song's only pip shows straight away)
 	for i = 1, 5 do
@@ -990,6 +1081,10 @@ end
 function Roll:_onRolled(packet)
 	self._rolling = false
 	self._token = nil
+	if not packet.Ok and packet.First then
+		self:_endFirst(true) -- no first card after all: straight on to a rival
+		return
+	end
 	if not packet.Ok then
 		Sounds.Play("Wrong")
 		if self._reveal.Visible then

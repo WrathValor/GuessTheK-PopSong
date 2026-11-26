@@ -9,6 +9,7 @@ return {
     Colour = "F4A6A6", -- card art + roll glow (pastel hex)
     Gradient = ColorSequence.new(Color3.fromHex("E3001B"), Color3.fromHex("141414")), -- red + black (used on merch, not announced)
     Status = "Active",
+    PackArt = "rbxassetid://88334688068594", -- group art: pack sleeve + binder (assets/Photocards/Groups)
     Songs = {
         {
             Name = "BATTER UP",
@@ -105,4 +106,25 @@ return {
             ChorusPosition = 23,
         },
     },
+	-- K-POPPED! photocard albums (see Songs/init.luau). Members are the era's line-up.
+	-- Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "babymonster-drip",
+			Name = "DRIP",
+			Year = 2024,
+			Colour = "F5C2E0",
+			Songs = { "DRIP", "CLIK CLAK", "Forever" },
+			Members = { "RUKA", "PHARITA", "ASA", "AHYEON", "RAMI", "RORA", "CHIQUITA" },
+			Art = {
+				["AHYEON"] = "rbxassetid://83825801315392",
+				["ASA"] = "rbxassetid://114661931941433",
+				["CHIQUITA"] = "rbxassetid://133553238992707",
+				["RAMI"] = "rbxassetid://133858573052527",
+				["RUKA"] = "rbxassetid://74363259888735",
+				["RORA"] = "rbxassetid://77555135640561",
+				["PHARITA"] = "rbxassetid://116086873879338",
+			},
+		},
+	},
 }

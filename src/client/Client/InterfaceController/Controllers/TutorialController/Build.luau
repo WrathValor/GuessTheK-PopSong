@@ -1,7 +1,8 @@
 --| Tutorial UI builder
 -- Builds Interface.Frames.Tutorial from the "Tutorial" design boards: the first-join Welcome
--- card and the "You're ready!" card after the practice round. Also adds the "Replay
--- tutorial" button to Settings. Run once in Studio (Build.Build(frames)); safe to run twice.
+-- card and the "You're ready!" card after the practice round (Done: find a rival / keep
+-- practising). Also adds the "Replay tutorial" button to Settings. Run once in Studio
+-- (Build.Build(frames)); safe to run twice. (DoneRoll, "Tutorial 5", went with the song roll.)
 -- TutorialController finds everything by name. The in-round tips are drawn by ./Tips.
 
 local C = Color3.fromHex
@@ -15,7 +16,11 @@ local MUTED = C("5C566B")
 local HEAD = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy)
 local BODY = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.ExtraBold)
 local BODY_BOLD = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.Bold)
-local COIN = require(game:GetService("ReplicatedStorage").Constants.Currencies).Coins.Icon
+local Currencies = require(game:GetService("ReplicatedStorage").Constants.Currencies)
+local COIN = Currencies.Coins.Icon
+local LILAC = C("B9A6FF")
+local PINK = C("FF9EC4")
+local BLUE = C("9ED8F5")
 
 local Build = {}
 

@@ -12,6 +12,7 @@ local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
 local Levels = require(ReplicatedStorage.Modules.Levels)
 local Collection = require(script.Parent.Collection)
 local Cards = require(ReplicatedStorage.Modules.Library.Cards)
+local Ladders = require(ReplicatedStorage.Modules.Library.Ladders)
 
 --| DataService
 
@@ -80,23 +81,39 @@ local function onPlayerAdded(Player: Player)
             end
         end
     end)
-    -- song sets: own every song of a group / company and its title unlocks (Engine/Collection).
-    -- Checked on join too, so songs given any other way (or sets that shrank) still count.
-    data.Inventory.Songs.Observe(function()
+    -- fandom titles: a card of every member of a group unlocks its title, and the cards' levels
+    -- level it up (Engine/Collection). Checked on join too, and whenever the cards change.
+    data.Inventory.Cards.Observe(function()
         task.defer(Collection.Check, data)
     end)
-    data.Inventory.Copies.Observe(function()
-        task.defer(Collection.Check, data) -- copies level sets up (Gold / Rainbow titles)
-    end)
-    -- the equipped title + its tier ("Normal" / "Gold" / "Rainbow"), for name tags and the HUD
+    -- the equipped title + its tier ("Normal" / "Gold" / "Rainbow"), for name tags and the HUD.
+    -- A worn group badge (Modules/Library/Ladders, "Badge:C:aespa") shows as "MY · GOLD" (fandom name) with
+    -- TitleTier "Rung:Gold" and TitleIcon "Cards" / "Songs" (Modules/UI/TitleChip paints it)
     local function showTitle()
         local title = data.Inventory.Title.Get()
+        local ladder, artist = Ladders.FromTitle(title)
+        if ladder and artist and not Ladders.Eligible(artist) then
+            title = "" -- (a group that lost its ladders: show the default)
+        elseif ladder and artist then
+            local key = if ladder == "Legend" then Ladders.LegendKey(artist) else Ladders.Key(ladder, artist)
+            local rung = (data.Inventory.Ladders.Get() or {})[key] or 0
+            local name = Ladders.RungName(ladder, rung)
+            if name then
+                Player:SetAttribute("TitleIcon", if ladder == "Legend" then "" else ladder) -- (first: the chips repaint on Title / TitleTier)
+                Player:SetAttribute("Title", Ladders.Label(ladder, artist, rung))
+                Player:SetAttribute("TitleTier", `Rung:{name}`)
+                return
+            end
+            title = "" -- (not earned: show the default)
+        end
         local tiers = data.Inventory.TitleTiers.Get() or {}
+        Player:SetAttribute("TitleIcon", nil)
         Player:SetAttribute("Title", if title ~= "" then title else HUDConstants.DEFAULT_TITLE)
         Player:SetAttribute("TitleTier", Cards.LEVELS[tiers[title] or 1] or "Normal")
     end
     data.Inventory.Title.Observe(showTitle)
     data.Inventory.TitleTiers.Observe(showTitle)
+    data.Inventory.Ladders.Observe(showTitle) -- (a worn badge's rung goes up)
     -- profile style: the banner + photocard worn (everyone's inspect card / PreDuel reads
     -- them) and the owned lists as comma lists (the STYLE picker reads those)
     data.Inventory.Banner.Observe(function(id: string)

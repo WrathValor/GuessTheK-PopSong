@@ -9,6 +9,7 @@ return {
 	Colour = "F7A1A1", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("FFB8A3"), Color3.fromHex("F4846C")), -- official: Pastel Coral
 	Status = "Active",
+	PackArt = "rbxassetid://135031992743714", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "Russian Roulette",
@@ -94,6 +95,25 @@ return {
 			PlaybackSpeed = 0.65,
 			TimePosition = 1,
 			ChorusPosition = 42,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Members are the era's line-up.
+	-- Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "redvelvet-cosmic",
+			Name = "Cosmic",
+			Year = 2024,
+			Colour = "F7C9C9",
+			Songs = { "Cosmic", "Surfin' Boy" },
+			Members = { "Irene", "Seulgi", "Wendy", "Joy", "Yeri" },
+			Art = {
+				["Irene"] = "rbxassetid://84981473444258",
+				["Seulgi"] = "rbxassetid://105766637185303",
+				["Wendy"] = "rbxassetid://110070585648694",
+				["Joy"] = "rbxassetid://117941493974268",
+				["Yeri"] = "rbxassetid://133386439792138",
+			},
 		},
 	},
 }

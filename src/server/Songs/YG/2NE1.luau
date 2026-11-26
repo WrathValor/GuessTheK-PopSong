@@ -9,6 +9,7 @@ return {
 	Colour = "F3A6D8", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("FF5CAD"), Color3.fromHex("FF1F8E")), -- official: Hot Pink
 	Status = "Active",
+	PackArt = "rbxassetid://82183006066398", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "I Don't Care",
@@ -81,6 +82,17 @@ return {
 			PlaybackSpeed = 0.62,
 			TimePosition = 1,
 			ChorusPosition = 39.4,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "2ne1-to-anyone",
+			Name = "To Anyone",
+			Year = 2010,
+			Colour = "FF9ED8",
+			Songs = { "Go Away", "Can't Nobody", "I Don't Care", "Fire" },
+			Members = { "CL", "BOM", "DARA", "MINZY" },
 		},
 	},
 }

@@ -9,6 +9,7 @@ return {
 	Colour = "B8D7E8", -- card art + roll glow
 	Gradient = ColorSequence.new(Color3.fromHex("D9F0F2"), Color3.fromHex("81BFD0")),
 	Status = "Active",
+	PackArt = "rbxassetid://120503509194096", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "SUN KISS",
@@ -52,6 +53,26 @@ return {
 			PlaybackSpeed = 0.83,
 			TimePosition = 0.5,
 			ChorusPosition = 29,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "tuide-tune-and-play",
+			Name = "TUNE & PLAY",
+			Year = 2026,
+			Colour = "A7E9D8",
+			Songs = { "SUN KISS", "GRLS", "Flip-Flop Girl", "Echo", "ABD" },
+			Members = { "SEOHEE", "SEOYEON", "ELENA", "JIA", "SAKI", "SEAH", "YIHANI" },
+			Art = {
+				["ELENA"] = "rbxassetid://111981244182900",
+				["SAKI"] = "rbxassetid://134895767138779",
+				["JIA"] = "rbxassetid://75489580554154",
+				["SEOYEON"] = "rbxassetid://123111504584194",
+				["SEAH"] = "rbxassetid://101474277030269",
+				["YIHANI"] = "rbxassetid://85926873106221",
+				["SEOHEE"] = "rbxassetid://91486723077018",
+			},
 		},
 	},
 }

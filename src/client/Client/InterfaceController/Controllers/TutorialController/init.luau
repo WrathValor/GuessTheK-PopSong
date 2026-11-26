@@ -7,7 +7,9 @@
 --   on the clip, the answers and the reveal;
 --   SKIP → marked done (SettingsService "TutorialDone").
 -- After the practice game the "You're ready!" card replaces the results (DuelController opens
--- it with the End packet): the one-time +100 coins, then Find a rival / Keep practising.
+-- it with the End packet): the one-time +100 coins, then Find a rival / Keep practising. (The
+-- DoneRoll card's free first song card went with the song roll: the first free photocard pack
+-- comes after picking a bias instead, AlbumConstants.FIRST_ALBUM_KEY.)
 -- Settings → "Replay tutorial" opens the Welcome card again.
 --   Interface:Open("Tutorial", "Welcome" | "Done", endPacket?)
 
@@ -101,13 +103,14 @@ function Tutorial:Initialize(interface)
 		markDone()
 		self._interface:Close(self.Name)
 	end))
-	j:Add(done.FindRival.Activated:Connect(function()
+	local function findRival()
 		self._interface:Close(self.Name)
 		QueueRemote:Fire("Leave")
 		task.delay(0.6, function()
 			QueueRemote:Fire("QuickPlay") -- the nearest stage with someone waiting, or an empty one
 		end)
-	end))
+	end
+	j:Add(done.FindRival.Activated:Connect(findRival))
 	j:Add(done.KeepPractising.Activated:Connect(function()
 		self._interface:Close(self.Name)
 		QueueRemote:Fire({ Request = "Solo" }) -- still on the stage: another solo game
@@ -179,11 +182,14 @@ end
 
 function Tutorial:_show(view: string, packet: any?)
 	self._view = view
-	local welcome, done = self._frame.Welcome, self._frame.Done
+	local welcome = self._frame.Welcome
+	local mine = packet and packet.Rewards and packet.Rewards[ME]
+	local coins = mine and mine.Coins or 0
 	welcome.Visible = view == "Welcome"
 	self._frame.WelcomeShadow.Visible = view == "Welcome"
-	done.Visible = view == "Done"
+	self._frame.Done.Visible = view == "Done"
 	self._frame.DoneShadow.Visible = view == "Done"
+	local done = self._frame.Done
 	if view == "Done" then
 		self._tips:Hide()
 		local right, total = 0, 0
@@ -195,11 +201,10 @@ function Tutorial:_show(view: string, packet: any?)
 			end
 		end
 		total = math.max(total, DuelConstants.TUTORIAL_ROUNDS)
-		done.Score.Text = if right == total then `{right} of {total} right · you know how it works` else `{right} of {total} right · you've got the idea`
-		local mine = packet and packet.Rewards and packet.Rewards[ME]
-		local coins = mine and mine.Coins or 0
+		done.Score.Text = if right == total then `{right} of {total} right · you know how it works`
+			else `{right} of {total} right · you've got the idea`
 		done.Gift.Visible = coins > 0
-		self._frame.Done:FindFirstChild("GiftShadow").Visible = coins > 0
+		done:FindFirstChild("GiftShadow").Visible = coins > 0
 		done.Gift.Amount.Text = `+{coins} coins`
 		if coins > 0 then
 			Sounds.Play("Success")

@@ -9,6 +9,9 @@
 -- updates while the card is open. Invite to Duel asks InviteService to "Challenge" them: it
 -- puts you on a free stage first if you aren't waiting on one, then sends the invite (the
 -- queue card then shows it as sent).
+-- K-POPPED!: clicking / tapping a player (or their prompt) now opens their full-screen profile
+-- (ProfileController, Open("Profile", { Player = player })); this controller keeps finding
+-- who you clicked and the View Profile prompts. Its own card isn't opened any more.
 -- Two ways in, lobby only (not while you're on a stage or another screen is up): click / tap the
 -- player, or the "View Profile" prompt (F) that shows when you walk up to them — a copy of
 -- ReplicatedStorage.Assets.ViewProfilePrompt on each other player's HumanoidRootPart, made here
@@ -132,7 +135,7 @@ function PlayerCard:_paint()
 
 	top.PlayerName.Text = player.DisplayName
 	top.Photocard.Photo.Avatar.Image = `rbxthumb://type=AvatarBust&id={player.UserId}&w=150&h=150`
-	TitleChip.Paint(top.Chips.Title, player:GetAttribute("Title") or HUDConstants.DEFAULT_TITLE, player:GetAttribute("TitleTier") or "Normal")
+	TitleChip.Paint(top.Chips.Title, player:GetAttribute("Title") or HUDConstants.DEFAULT_TITLE, player:GetAttribute("TitleTier") or "Normal", player:GetAttribute("TitleIcon"))
 	top.Chips.Level.Text = `LV {number(player, "Level")}`
 	-- ★ VIP first in the row for VIP Pass owners (the chip is ReplicatedStorage.Assets.VIPTag's twin)
 	top.Chips.VIP.Visible = player:GetAttribute("VIP") == true
@@ -227,7 +230,7 @@ function PlayerCard:_tryOpenAt(screen: Vector2)
 	end
 	local player = self:_playerAt(screen)
 	if player then
-		self._interface:Open(self.Name, player)
+		self._interface:Open("Profile", { Player = player }) -- (their full-screen profile)
 	end
 end
 
@@ -266,7 +269,7 @@ function PlayerCard:_addPrompt(player: Player, character: Model)
 	prompt.Parent = root
 	prompt.Triggered:Connect(function()
 		if self:_canOpen() and player.Parent then
-			self._interface:Open(self.Name, player)
+			self._interface:Open("Profile", { Player = player })
 		end
 	end)
 	self:_updatePrompt(player)

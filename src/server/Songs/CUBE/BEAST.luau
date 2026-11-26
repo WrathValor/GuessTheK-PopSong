@@ -9,6 +9,7 @@ return {
 	Colour = "C9C3D9", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("5A5A66"), Color3.fromHex("2E2E36")), -- official: Dark Grey
 	Status = "Disbanded",
+	PackArt = "rbxassetid://121319161015431", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "Shock",
@@ -61,6 +62,25 @@ return {
 			PlaybackSpeed = 0.92,
 			TimePosition = 9,
 			ChorusPosition = 69.4,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "beast-fiction-and-fact",
+			Name = "Fiction and Fact",
+			Year = 2011,
+			Colour = "C9C3D9",
+			Songs = { "On Rainy Days", "Shock", "BREATH", "Bad Girl", "Shadow" },
+			Members = { "DOOJOON", "HYUNSEUNG", "JUNHYUNG", "YOSEOB", "GIKWANG", "DONGWOON" },
+			Art = { -- assets/Photocards/BEAST/Fiction and Fact/<member>
+				DOOJOON = "rbxassetid://110915418198297",
+				HYUNSEUNG = "rbxassetid://113286495444041",
+				JUNHYUNG = "rbxassetid://70905041907346",
+				YOSEOB = "rbxassetid://71535701240618",
+				GIKWANG = "rbxassetid://90878284697787",
+				DONGWOON = "rbxassetid://138580838276417",
+			},
 		},
 	},
 }

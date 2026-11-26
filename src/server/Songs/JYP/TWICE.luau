@@ -9,6 +9,7 @@ return {
 	Colour = "FFC9A8", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("FCC89B"), Color3.fromHex("FF5FA2")), -- official: Apricot + Neon Magenta
 	Status = "Active",
+	PackArt = "rbxassetid://121282817229778", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "Feel Special",
@@ -216,5 +217,45 @@ return {
             ChorusPosition = 105,
             Draft = false, -- future update
         },
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "twice-with-youth",
+			Name = "With YOU-th",
+			Year = 2024,
+			Colour = "FFC9A8",
+			Songs = { "ONE SPARK" },
+			Members = { "NAYEON", "JEONGYEON", "MOMO", "SANA", "JIHYO", "MINA", "DAHYUN", "CHAEYOUNG", "TZUYU" },
+			Art = {
+				["NAYEON"] = "rbxassetid://137923899033509",
+				["JEONGYEON"] = "rbxassetid://130861807776228",
+				["MOMO"] = "rbxassetid://95986047588304",
+				["SANA"] = "rbxassetid://83265636285553",
+				["JIHYO"] = "rbxassetid://91211430015777",
+				["MINA"] = "rbxassetid://139325797675396",
+				["DAHYUN"] = "rbxassetid://96359836003436",
+				["CHAEYOUNG"] = "rbxassetid://94647924671491",
+				["TZUYU"] = "rbxassetid://87779023088808",
+			},
+		},
+		{
+			Id = "twice-this-is-for",
+			Name = "This Is For",
+			Year = 2025,
+			Colour = "FFC9A8",
+			Songs = {},
+			Members = { "CHAEYOUNG", "JEONGYEON", "JIHYO", "MINA", "MOMO", "NAYEON", "SANA", "TZUYU" },
+			Art = {
+				["CHAEYOUNG"] = "rbxassetid://134525028700557",
+				["JEONGYEON"] = "rbxassetid://77744877782310",
+				["JIHYO"] = "rbxassetid://92660732605860",
+				["MINA"] = "rbxassetid://113677152753767",
+				["MOMO"] = "rbxassetid://134965653456442",
+				["NAYEON"] = "rbxassetid://107106881576422",
+				["SANA"] = "rbxassetid://119222576159215",
+				["TZUYU"] = "rbxassetid://79826367411698",
+			},
+		},
 	},
 }

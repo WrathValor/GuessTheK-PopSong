@@ -9,6 +9,7 @@ return {
 	Colour = "FF9A5C", -- card art + roll glow
 	Gradient = ColorSequence.new(Color3.fromHex("FFC38B"), Color3.fromHex("F47B4A")),
 	Status = "Active",
+	PackArt = "rbxassetid://77813666766093", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "Get A Guitar",
@@ -76,6 +77,26 @@ return {
 			PlaybackSpeed = 0.58,
 			TimePosition = 0.3,
 			ChorusPosition = 29.5,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Members are the era's line-up.
+	-- Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "riize-riizing",
+			Name = "RIIZING",
+			Year = 2024,
+			Colour = "FFD9B8",
+			Songs = { "Boom Boom Bass", "Impossible", "Love 119" },
+			Members = { "Shotaro", "Eunseok", "Sungchan", "Wonbin", "Sohee", "Anton" },
+			Art = {
+				["Shotaro"] = "rbxassetid://106529260166344",
+				["Sungchan"] = "rbxassetid://73526057171590",
+				["Wonbin"] = "rbxassetid://110703210316555",
+				["Sohee"] = "rbxassetid://83571974591153",
+				["Anton"] = "rbxassetid://120741675941620",
+				["Eunseok"] = "rbxassetid://123096375362102",
+			},
 		},
 	},
 }

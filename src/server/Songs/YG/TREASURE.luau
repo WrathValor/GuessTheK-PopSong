@@ -9,6 +9,7 @@ return {
 	Colour = "A8D4FF", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("9EDCFF"), Color3.fromHex("4FB0F0")), -- official: Sky Blue
 	Status = "Active",
+	PackArt = "rbxassetid://86295416517632", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "BOY",
@@ -98,6 +99,49 @@ return {
 			PlaybackSpeed = 0.54,
 			TimePosition = 1,
 			ChorusPosition = 28.4,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). REBOOT art is the crown set; the earlier set is LOVE PULSE.
+	Albums = {
+		{
+			Id = "treasure-reboot",
+			Name = "REBOOT",
+			Year = 2023,
+			Colour = "A8E0F5",
+			Songs = { "BONA BONA", "MOVE" },
+			Members = { "HYUNSUK", "JIHOON", "YOSHI", "JUNKYU", "JAEHYUK", "ASAHI", "DOYOUNG", "HARUTO", "JEONGWOO", "JUNGHWAN" },
+			Art = {
+				["HYUNSUK"] = "rbxassetid://79508035809113",
+				["JIHOON"] = "rbxassetid://80105189850584",
+				["YOSHI"] = "rbxassetid://90505746567509",
+				["JUNKYU"] = "rbxassetid://139566722978137",
+				["JAEHYUK"] = "rbxassetid://116806043172744",
+				["ASAHI"] = "rbxassetid://89249138466154",
+				["DOYOUNG"] = "rbxassetid://108891239363047",
+				["HARUTO"] = "rbxassetid://136070731730913",
+				["JEONGWOO"] = "rbxassetid://86128041739812",
+				["JUNGHWAN"] = "rbxassetid://127783462419717",
+			},
+		},
+		{
+			Id = "treasure-love-pulse",
+			Name = "LOVE PULSE",
+			Year = 2025,
+			Colour = "FFB8D9",
+			Songs = {},
+			Members = { "HYUNSUK", "JIHOON", "YOSHI", "JUNKYU", "JAEHYUK", "ASAHI", "DOYOUNG", "HARUTO", "JEONGWOO", "JUNGHWAN" },
+			Art = {
+				["HYUNSUK"] = "rbxassetid://104951784095374",
+				["JIHOON"] = "rbxassetid://118359413542724",
+				["YOSHI"] = "rbxassetid://133509037593353",
+				["JUNKYU"] = "rbxassetid://100441825667780",
+				["JAEHYUK"] = "rbxassetid://140459966216551",
+				["ASAHI"] = "rbxassetid://73143006377863",
+				["DOYOUNG"] = "rbxassetid://107108879650064",
+				["HARUTO"] = "rbxassetid://120715025380459",
+				["JEONGWOO"] = "rbxassetid://104443350990289",
+				["JUNGHWAN"] = "rbxassetid://93021389140481",
+			},
 		},
 	},
 }

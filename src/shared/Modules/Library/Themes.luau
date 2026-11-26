@@ -3,7 +3,9 @@
 --   • "All"                     – the whole library
 --   • "2000s" / "2010s" / "2020s" – by each song's Year
 --   • "Gen2" … "Gen5"           – by the group's Generation
---   • "Pack"                    – "My songs": only songs the player owns (needs ROUNDS songs)
+--   • "Pack"                    – "My groups": only songs by your bias's group and your pinned cards' groups (needs ROUNDS songs)
+--   • "G:<artist>"              – one group's songs (the PRACTISE button on Binder › Songs). Not on the
+--                                 picker and never saved: made on demand by Themes.Get, opens at GROUP_MIN
 -- Every clip and every wrong answer comes from the theme, so you can't rule an option out by
 -- era. A theme only opens once it has MIN_SONGS playable songs (Draft songs never count);
 -- until then the picker shows it as SEALED. The last pick is saved in Settings.SoloTheme.
@@ -16,6 +18,8 @@ Themes.DEFAULT = "All"
 Themes.PACK = "Pack"
 Themes.MIN_SONGS = 12 -- 7 rounds + enough that the same songs don't come up every game
 Themes.TABS = { "All", "Era", "Gen", "Pack" }
+Themes.GROUP = "G:" -- prefix of a one-group theme id
+Themes.GROUP_MIN = 8 -- 7 rounds + 1, and every option comes from the group too
 
 -- Numeral = the big text on the photocard; Colour = the card's accent
 local LIST = {
@@ -27,7 +31,7 @@ local LIST = {
 	{ Id = "Gen3", Tab = "Gen", Name = "Gen 3", Numeral = "III", Colour = "9ED8F5", Generation = "3rd" },
 	{ Id = "Gen4", Tab = "Gen", Name = "Gen 4", Numeral = "IV", Colour = "B9A6FF", Generation = "4th" },
 	{ Id = "Gen5", Tab = "Gen", Name = "Gen 5", Numeral = "V", Colour = "A7E9B8", Generation = "5th" },
-	{ Id = "Pack", Tab = "Pack", Name = "My songs", Numeral = "♪", Colour = "FFB38A" },
+	{ Id = "Pack", Tab = "Pack", Name = "My groups", Numeral = "♪", Colour = "FFB38A" },
 }
 local BY_ID = {}
 for _, theme in LIST do
@@ -35,8 +39,27 @@ for _, theme in LIST do
 end
 Themes.List = LIST
 
+local groups = {} -- "G:<artist>" themes, made the first time they're asked for
 function Themes.Get(id: string?)
-	return id and BY_ID[id] or nil
+	if not id then
+		return nil
+	end
+	if BY_ID[id] then
+		return BY_ID[id]
+	end
+	if string.sub(id, 1, #Themes.GROUP) == Themes.GROUP then
+		if not groups[id] then
+			local artist = string.sub(id, #Themes.GROUP + 1)
+			groups[id] = { Id = id, Tab = "Group", Name = artist, Numeral = "♪", Colour = "B9A6FF", Artist = artist }
+		end
+		return groups[id]
+	end
+	return nil
+end
+
+-- the one-group theme id for a group
+function Themes.ForGroup(artist: string): string
+	return Themes.GROUP .. artist
 end
 
 -- the themes on one tab of the picker, in order
@@ -52,9 +75,12 @@ end
 
 -- Does this song fit the theme? ("Pack" is decided by the songs the player owns, not here.)
 function Themes.Matches(id: string, song): boolean
-	local theme = BY_ID[id]
+	local theme = Themes.Get(id)
 	if not theme or theme.Id == "All" then
 		return true
+	end
+	if theme.Artist then
+		return song.Artist == theme.Artist
 	end
 	if theme.Generation then
 		return song.Generation == theme.Generation
@@ -73,7 +99,7 @@ function Themes.SongsFor(id: string): { any }
 		return cache[id]
 	end
 	local out = {}
-	if BY_ID[id] and id ~= Themes.PACK then
+	if Themes.Get(id) and id ~= Themes.PACK then
 		for _, song in Songs.GetAllSongs() do
 			if Themes.Matches(id, song) then
 				table.insert(out, song)
@@ -93,7 +119,11 @@ function Themes.IsOpen(id: string): boolean
 	if id == "All" then
 		return true
 	end
-	return BY_ID[id] ~= nil and id ~= Themes.PACK and Themes.Count(id) >= Themes.MIN_SONGS
+	local theme = Themes.Get(id)
+	if theme and theme.Artist then
+		return Themes.Count(id) >= Themes.GROUP_MIN
+	end
+	return theme ~= nil and id ~= Themes.PACK and Themes.Count(id) >= Themes.MIN_SONGS
 end
 
 -- A random song in the theme that isn't excluded, or nil if none are left. `weight` as in

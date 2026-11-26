@@ -5,7 +5,8 @@
 -- SettingsRemote requests: { Action = "SetVolume", Key = "MusicVolume" | "SfxVolume" | "ClipVolume", Value = 0–1 }
 --                          { Action = "SetInvites", Value = bool }
 --                          { Action = "SetSoloOpen", Value = bool } ("Rivals can join my practice")
---                          { Action = "Reset" }                 (volumes back to 1, invites on, open practice on)
+--                          { Action = "SetLowEffects", Value = bool } (card tiles keep still)
+--                          { Action = "Reset" }                 (volumes back to 1, invites on, open practice on, low effects off)
 --                          { Action = "SeenNews", Id = newsId } (clears the News button dot)
 --                          { Action = "FavoritePrompted" }       (the one-time favourite prompt was shown)
 --                          { Action = "HintSeen", Id = "Money" | "Rewards" | "Tickets" | "Upgrades" | "Guide…" } (a nudge or a screen guide: HINTS)
@@ -106,6 +107,11 @@ local function handle(player: Player, packet)
 			settings.SoloOpen.Set(packet.Value)
 			logSetting(player, "SoloOpen", if packet.Value then "On" else "Off")
 		end
+	elseif action == "SetLowEffects" then
+		if type(packet.Value) == "boolean" then
+			settings.LowEffects.Set(packet.Value)
+			logSetting(player, "LowEffects", if packet.Value then "On" else "Off")
+		end
 	elseif action == "Reset" then
 		PlayerData.Batch(player, function()
 			for key in VOLUMES do
@@ -113,6 +119,7 @@ local function handle(player: Player, packet)
 			end
 			settings.DuelInvites.Set(true)
 			settings.SoloOpen.Set(true)
+			settings.LowEffects.Set(false)
 		end)
 		logSetting(player, "Reset", "Reset")
 	elseif action == "TutorialDone" then

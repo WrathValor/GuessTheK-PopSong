@@ -16,8 +16,9 @@
 --                  sign) red: join the group → claim its 3 rewards (same flow as the Join the
 --                  Group board); blue: Roblox's favourite prompt (no reward: Roblox doesn't
 --                  allow rewarding favourites). Each player sees their own state.
---       SongRoll   (Map.StreetMachines.SongRoll, by the PC Room) recent Gold / Rainbow pulls
---                  ticker on the lower screen; the window is a Display SurfaceGui  → Roll
+--       SongRoll   (Map.StreetMachines.SongRoll, by the PC Room: the gacha machine) recent
+--                  Lucky Draw-and-up photocard pulls on the lower screen's ticker; the window
+--                  is a Display SurfaceGui                                    → Packs (Albums)
 --       Merch      (Map.StreetMachines.Merch) this week's featured UGC item     → UGC
 --       PhotoBooth (Map.StreetMachines.PhotoBooth) YOUR card: photo, title, level, stats
 --                  (each player sees their own)                                → Profile
@@ -74,8 +75,14 @@ local SHOP_PAGES = {
 		return ShopCatalog.ItemRotation("Stage", t)
 	end },
 }
-local CHIP = { COMEBACK = { "ENCORE", C("FF9EC4") }, ["RAINBOW PULL"] = { "RAINBOW", C("FFE07A") }, STREAK = { "STREAK", C("A7E9B8") } }
-local LABEL = { COMEBACK = "COMEBACK", ["RAINBOW PULL"] = "ROLL", STREAK = "STREAK" }
+-- highlight kinds (Engine/StreetScreens): photocard pulls come in as the rarity's name
+local CHIP = {
+	COMEBACK = { "ENCORE", C("FF9EC4") },
+	["SIGNED POLAROID"] = { "POLAROID", C("FFE07A") },
+	["ONE OF ONE"] = { "1 OF 1", C("B9A6FF") },
+	STREAK = { "STREAK", C("A7E9B8") },
+}
+local LABEL = { COMEBACK = "COMEBACK", ["SIGNED POLAROID"] = "PULL", ["ONE OF ONE"] = "PULL", STREAK = "STREAK" }
 
 local StreetScreens = {}
 
@@ -522,7 +529,7 @@ end
 
 local function songRoll(machine: Model)
 	local line = machine:WaitForChild("Screen"):WaitForChild("Screen"):WaitForChild("Panel"):WaitForChild("Ticker"):WaitForChild("Line")
-	prompt(machine:WaitForChild("Base"), "Roll a song", "Song Roll", "Roll")
+	prompt(machine:WaitForChild("Base"), "Open a pack", "Photocard Packs", "Albums", { Page = "Shop" })
 	local i = 0
 	task.spawn(function()
 		while true do

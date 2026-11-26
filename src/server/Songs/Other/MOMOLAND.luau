@@ -9,6 +9,7 @@ return {
 	Colour = "FFD58A", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("FFC09A"), Color3.fromHex("FF8FA8")), -- no official colour: peach ('momo')
 	Status = "Disbanded",
+	PackArt = "rbxassetid://76908659997631", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "BBoom BBoom",
@@ -54,6 +55,17 @@ return {
 			PlaybackSpeed = 0.52,
 			TimePosition = 1,
 			ChorusPosition = 16.7,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "momoland-fun-to-the-world",
+			Name = "Fun to the World",
+			Year = 2018,
+			Colour = "FFC4E1",
+			Songs = { "BAAM", "BBoom BBoom" },
+			Members = { "HYEBIN", "YEONWOO", "JANE", "TAEHA", "NAYUN", "DAISY", "JOOE", "AHIN", "NANCY" },
 		},
 	},
 }

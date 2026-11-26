@@ -9,6 +9,7 @@ return {
 	Colour = "A6C8FF", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("5C9BFF"), Color3.fromHex("2347D9")), -- official: Blue
 	Status = "Active",
+	PackArt = "rbxassetid://131008408598773", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "TOP 5",
@@ -95,6 +96,18 @@ return {
 			PlaybackSpeed = 0.72,
 			TimePosition = 0.2,
 			ChorusPosition = 22.5,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Members are the era's line-up.
+	-- Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "zb1-youth-in-the-shade",
+			Name = "Youth in the Shade",
+			Year = 2023,
+			Colour = "CDEFF2",
+			Songs = { "In Bloom" },
+			Members = { "Sung Hanbin", "Kim Jiwoong", "Zhang Hao", "Seok Matthew", "Kim Taerae", "Ricky", "Kim Gyuvin", "Park Gunwook", "Han Yujin" },
 		},
 	},
 }

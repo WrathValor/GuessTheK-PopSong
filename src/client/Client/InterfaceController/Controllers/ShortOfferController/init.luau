@@ -2,15 +2,15 @@
 -- The "not enough" card (design board "Money 3"): when a buy fails because you're short, it
 -- opens over the screen you're on with the smallest pack that covers the gap and its Robux
 -- price; BUY goes straight to Roblox's prompt.
---   • coins: a shop set / item / banner / photocard, or a roll (ShopRemote / RollRemote replies
+--   • coins: a shop set / item / banner / photocard, or a pack (ShopRemote / AlbumRemote replies
 --     with Ok = false and Short = { Kind = "Coins", Need = price, Name }): how far off you are,
 --     and the smallest coin bundle with Amount ≥ the gap (else the biggest). "See all packs"
 --     goes to the shop's coin bundles.
---   • tickets: a group roll with no roll ticket (Short = { Kind = "Tickets" }): the POPULAR
---     ticket bundle. "Roll with coins" just closes it.
+--   • tickets: Short = { Kind = "Tickets" }: the POPULAR ticket bundle (nothing asks for it since
+--     the song roll went, 25 Nov 2026).
 -- Most buy buttons check your coins before asking the server: those call
--- ShortOfferController.Open(short) themselves (ShopController, Shop/Roll, RollController/Picker).
--- Not an exclusive screen: it sits over the shop / roll screen (Frames.ShortOffer, ZIndex just
+-- ShortOfferController.Open(short) themselves (ShopController, AlbumsController).
+-- Not an exclusive screen: it sits over the shop / packs screen (Frames.ShortOffer, ZIndex just
 -- under the purchase reveal) and leaves it open underneath.
 
 -- -------------------------------- Services -------------------------------- --
@@ -35,7 +35,6 @@ local Build = require(script.Build)
 -- -------------------------------- Variables ------------------------------- --
 local LOCAL_PLAYER = Players.LocalPlayer
 local ShopRemote = Bridgenet.ReferenceBridge("ShopRemote")
-local RollRemote = Bridgenet.ReferenceBridge("RollRemote")
 
 local prices: { [number]: string } = {}
 local current = nil -- the one instance (set in Initialize), for ShortOffer.Open
@@ -165,11 +164,6 @@ function ShortOffer:Initialize(interface)
 	end
 	j:Add(ShopRemote:Connect(function(packet)
 		if type(packet) == "table" and packet.Message == "Result" then
-			onShort(packet)
-		end
-	end), "Disconnect")
-	j:Add(RollRemote:Connect(function(packet)
-		if type(packet) == "table" and packet.Message == "Rolled" then
 			onShort(packet)
 		end
 	end), "Disconnect")

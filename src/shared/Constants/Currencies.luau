@@ -51,7 +51,7 @@ Currencies.Tickets = table.freeze({
 	Colour = C("DCD3FF"),
 	Attribute = "Tickets",
 	Path = table.freeze({ "Inventory", "Tickets" }),
-	Wallet = true, -- tap: Roll → Pick a Group
+	Wallet = true, -- tap: the Packs page (a ticket opens one pack)
 	Robux = true, -- sold in the shop's ticket bundles + Bundles
 } :: Currency)
 
@@ -64,9 +64,15 @@ Currencies.Upgrades = table.freeze({
 	Colour = C("9ED8F5"),
 	Attribute = "Upgrades",
 	Path = table.freeze({ "Inventory", "Upgrades" }),
-	Wallet = true, -- tap: the Index's card picker
+	Wallet = false, -- (gone: see UPGRADE_COINS)
 	Robux = false,
 } :: Currency)
+
+-- Card upgrades went with the song Index (25 Nov 2026). The currency stays so old saves and
+-- purchases still read, but nothing hands one out: anything that still would (a Robux bundle
+-- bought before the change, an old reward table) pays this many coins for each instead, and
+-- the K-POPPED! conversion (Modules/KPoppedMigration) turns the ones players hold into coins.
+Currencies.UPGRADE_COINS = 150
 
 -- display order
 local ORDER = { "Coins", "Tickets", "Upgrades" }

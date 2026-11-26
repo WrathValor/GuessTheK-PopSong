@@ -9,6 +9,7 @@ return {
 	Colour = "FF9EC4", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("FFA3C4"), Color3.fromHex("2B1A22")), -- black + pink (logo and merch, not announced)
 	Status = "Active",
+	PackArt = "rbxassetid://127610289207682", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "DDU-DU DDU-DU",
@@ -99,6 +100,23 @@ return {
 			PlaybackSpeed = 0.61,
 			TimePosition = 0,
 			ChorusPosition = 0,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "blackpink-born-pink",
+			Name = "BORN PINK",
+			Year = 2022,
+			Colour = "FFB8D9",
+			Songs = { "Pink Venom", "Shut Down" },
+			Members = { "JISOO", "JENNIE", "ROSÉ", "LISA" },
+			Art = {
+				["JISOO"] = "rbxassetid://84657755106103",
+				["JENNIE"] = "rbxassetid://88830941300009",
+				["ROSÉ"] = "rbxassetid://106033167754303",
+				["LISA"] = "rbxassetid://130347725523916",
+			},
 		},
 	},
 }

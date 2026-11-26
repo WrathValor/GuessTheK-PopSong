@@ -9,6 +9,7 @@ return {
 	Colour = "B8E6A3", -- GOT7's green fandom colour
 	Gradient = ColorSequence.new(Color3.fromHex("FFFFFF"), Color3.fromHex("00A86B")), -- official colours: green + white; shades approximated
 	Status = "Active",
+	PackArt = "rbxassetid://130988733761494", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "A",
@@ -53,6 +54,26 @@ return {
 			PlaybackSpeed = 0.52,
 			TimePosition = 0.3,
 			ChorusPosition = 33,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "got7-dye",
+			Name = "DYE",
+			Year = 2020,
+			Colour = "A7E9B8",
+			Songs = {},
+			Members = { "JB", "MARK", "JACKSON", "JINYOUNG", "YOUNGJAE", "BAMBAM", "YUGYEOM" },
+			Art = {
+				["JB"] = "rbxassetid://96533142947753",
+				["MARK"] = "rbxassetid://132970268530442",
+				["JACKSON"] = "rbxassetid://117403372868589",
+				["JINYOUNG"] = "rbxassetid://140137351951818",
+				["YOUNGJAE"] = "rbxassetid://120808088168165",
+				["BAMBAM"] = "rbxassetid://123785699927064",
+				["YUGYEOM"] = "rbxassetid://71033856088489",
+			},
 		},
 	},
 }

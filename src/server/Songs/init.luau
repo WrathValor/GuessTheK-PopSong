@@ -14,6 +14,9 @@
 --   Colour      "FF9EC4"  pastel hex: the group's card art + glow on the roll reveal
 --   Gradient    ColorSequence of the group's real colours (official where they have one);
 --               use it on a UIGradient. Optional: groups without one just have Colour
+--   PackArt     optional "rbxassetid://…": a group photo for the group pack's sleeve (design
+--               board "22 · Packs"). Square, faces in the top two thirds. Without it the sleeve
+--               is the group's Colour with stripes
 --   Songs       list of songs:
 --     Name            "Dynamite"
 --     Year            2020 (release year)
@@ -24,6 +27,17 @@
 --     ChorusPosition  where the reveal plays from (default: TimePosition)
 --     Volume          only when it isn't 1
 --     Draft = true    keeps a song out of the game (audio not checked yet)
+--   Albums      optional, K-POPPED! photocard albums (Modules/Library/Albums). One era each:
+--     Id       "bts-love-yourself"  saved in card ids, so never rename it once it's live
+--     Name     "Love Yourself"
+--     Year     2018
+--     Colour   "FF9EC4"  the era's pastel (default: the group's Colour)
+--     Songs    { "FAKE LOVE", … }  names of this group's songs from the era; owning a card
+--              from the album makes them "yours" in duels. A song can be in no album.
+--     Members  { "RM", "Jin", … }  one photocard per member (card key = the name, lowercased,
+--              letters and digits only), in the order the binder shows them
+--     Art      optional { ["RM"] = "rbxassetid://…" } member photo for this era
+--     Draft = true    keeps an album out of the game (art not ready yet)
 -- New group: add a module to its company folder (make the folder for a new company).
 -- Song Tuner (plugins/SongTuner) edits PlaybackSpeed/TimePosition/ChorusPosition/Volume in
 -- these modules for you.
@@ -40,6 +54,7 @@ local Songs = {}
 
 local All = {}
 local ById = {}
+local AllAlbums = {}
 
 local function load(module: ModuleScript, company: string)
 	local ok, group = pcall(require, module)
@@ -65,6 +80,18 @@ local function load(module: ModuleScript, company: string)
 				ById[entry.Id] = entry
 				table.insert(All, entry)
 			end
+		end
+	end
+	for _, album in if type(group.Albums) == "table" then group.Albums else {} do
+		if not album.Draft then
+			local entry = table.clone(album)
+			entry.Artist = artist
+			entry.Company = company
+			entry.Colour = album.Colour or group.Colour
+			entry.Generation = group.Generation
+			entry.GroupType = group.GroupType
+			entry.PackArt = group.PackArt
+			table.insert(AllAlbums, entry)
 		end
 	end
 end
@@ -95,6 +122,12 @@ end)
 
 function Songs.Load()
 	return All
+end
+
+-- every live album (drafts left out), with Artist, Company, Colour, Generation and PackArt filled in. Albums hold
+-- no audio, so all of this is public (Library/Songs publishes it to clients).
+function Songs.Albums()
+	return AllAlbums
 end
 
 -- What a client needs to play a song: the round's clip, an Index preview, the roll reveal,

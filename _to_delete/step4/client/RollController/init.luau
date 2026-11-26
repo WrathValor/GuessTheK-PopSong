@@ -130,6 +130,8 @@ end
 -- opts.Picker = open Pick a Group too (the HUD's roll tickets).
 -- opts.Upgrade = a pull (from the Index's card upgrade): play its Gold / Rainbow reveal, then
 -- go back to the Index (still in upgrade mode while upgrades are left)
+-- opts.FirstRoll = the tutorial's free first card (Roll:FirstRoll): its reveal, then the screen
+-- closes and opts.OnDone runs (TutorialController: find a rival)
 function RollController:Activate(opts: any?)
 	self._frame.Visible = true
 	self:_balance()
@@ -138,6 +140,15 @@ function RollController:Activate(opts: any?)
 	if type(opts) == "table" and opts.Picker and self._picker then
 		task.defer(function()
 			self._picker:Open()
+		end)
+	end
+	if type(opts) == "table" and opts.FirstRoll then
+		local onDone = opts.OnDone
+		self._roll:FirstRoll(function()
+			self._interface:Close(self.Name)
+			if type(onDone) == "function" then
+				onDone()
+			end
 		end)
 	end
 	if type(opts) == "table" and type(opts.Upgrade) == "table" then

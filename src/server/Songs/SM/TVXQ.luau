@@ -9,6 +9,7 @@ return {
 	Colour = "F09A9A", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("E5383B"), Color3.fromHex("A4161A")), -- official: Pearl Red
 	Status = "Active",
+	PackArt = "rbxassetid://114918938182649", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "Rising Sun",
@@ -44,6 +45,17 @@ return {
 			PlaybackSpeed = 0.71,
 			TimePosition = 2,
 			ChorusPosition = 37.6,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "tvxq-mirotic",
+			Name = "MIROTIC",
+			Year = 2008,
+			Colour = "FFB3B3",
+			Songs = { "Mirotic", "Rising Sun" },
+			Members = { "YUNHO", "CHANGMIN", "JAEJOONG", "YOOCHUN", "JUNSU" },
 		},
 	},
 }

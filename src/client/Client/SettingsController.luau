@@ -4,6 +4,8 @@
 -- (InterfaceController/Controllers/SettingsMenuController) changes them through
 -- SettingsRemote (server: Engine/SettingsService); the client copy of PlayerData is read-only.
 --
+-- Settings.LowEffects tells CardDecor to keep card tiles still.
+--
 -- Preview(key, value) applies a volume straight away while a slider is dragged, before the
 -- server has saved it.
 --
@@ -16,6 +18,7 @@ local StarterGui = game:GetService("StarterGui")
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Client
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
+local CardDecor = require(ReplicatedStorage.Modules.UI.CardDecor)
 
 local SettingsRemote = Bridgenet.ReferenceBridge("SettingsRemote")
 local BLOCK_TRIES = 30 -- the core scripts can take a while to answer GetCore at join
@@ -41,6 +44,9 @@ function SettingsController.Start()
 	end)
 	PlayerData.Settings.ClipVolume.Observe(function(volume: number)
 		Sounds.SetClipVolume(volume)
+	end)
+	PlayerData.Settings.LowEffects.Observe(function(on: boolean)
+		CardDecor.SetLowEffects(on == true)
 	end)
 	task.spawn(function()
 		for _ = 1, BLOCK_TRIES do

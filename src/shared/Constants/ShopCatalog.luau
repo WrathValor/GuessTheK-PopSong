@@ -141,16 +141,20 @@ ShopCatalog.CoinBundles = {
 }
 
 -- Roll tickets + card upgrades (developer products): the shop's "Rolls + upgrades" section,
--- three bundles of each, left to right. Currency is a Constants/Currencies id. A bundle whose
+-- three bundles of each, left to right. Card upgrades went with the song Index (25 Nov 2026):
+-- their bundles are Hidden, and one still being processed pays Currencies.UPGRADE_COINS each
+-- (Modules/PlayerData). Currency is a Constants/Currencies id. A bundle whose
 -- ProductId is still 0 shows "Soon" and can't be bought; Hidden ones aren't shown but still
 -- grant (like CoinBundles). Bought ones show the purchase reveal (PurchasedController).
 ShopCatalog.RollBundles = {
-	{ Id = "Tickets1", Currency = "Tickets", Amount = 1, ProductId = 3730112610 },
-	{ Id = "Tickets5", Currency = "Tickets", Amount = 5, ProductId = 3730112632, Tag = "POPULAR" },
-	{ Id = "Tickets12", Currency = "Tickets", Amount = 12, ProductId = 3730112656, Tag = "BEST VALUE" },
-	{ Id = "Upgrades1", Currency = "Upgrades", Amount = 1, ProductId = 3730112680 },
-	{ Id = "Upgrades5", Currency = "Upgrades", Amount = 5, ProductId = 3730112697, Tag = "POPULAR" },
-	{ Id = "Upgrades12", Currency = "Upgrades", Amount = 12, ProductId = 3730112726, Tag = "BEST VALUE" },
+	-- pack tickets (one opens a free pack): dev copies at the cut prices (15 / 59 / 129, 25 Nov
+	-- 2026) to test before the live ones (19 / 79 / 169) change in Creator Hub
+	{ Id = "Tickets1", Currency = "Tickets", Amount = 1, ProductId = pick(3730112610, 3736256022) },
+	{ Id = "Tickets5", Currency = "Tickets", Amount = 5, ProductId = pick(3730112632, 3736256078), Tag = "POPULAR" },
+	{ Id = "Tickets12", Currency = "Tickets", Amount = 12, ProductId = pick(3730112656, 3736256092), Tag = "BEST VALUE" },
+	{ Id = "Upgrades1", Currency = "Upgrades", Amount = 1, ProductId = 3730112680, Hidden = true },
+	{ Id = "Upgrades5", Currency = "Upgrades", Amount = 5, ProductId = 3730112697, Tag = "POPULAR", Hidden = true },
+	{ Id = "Upgrades12", Currency = "Upgrades", Amount = 12, ProductId = 3730112726, Tag = "BEST VALUE", Hidden = true },
 }
 
 -- the shown RollBundles of one currency, in order
@@ -186,7 +190,8 @@ ShopCatalog.DebutPack = {
 	Bonus = { ProductId = 3732070614, Tickets = 3, Hours = 48 },
 }
 
--- Bundles: Robux packs of roll tickets, card upgrades and coins ("Shop v3 · Bundles" board).
+-- Bundles: Robux packs of roll tickets and coins ("Shop v3 · Bundles" board). (They had card
+-- upgrades too until 25 Nov 2026: each became Currencies.UPGRADE_COINS coins.)
 -- Big = the featured one: drawn like the Debut Pack, at the very top of the shop; the rest
 -- are the shorter banners under the Debut Pack, in the "Bundles" section.
 -- Stage / Mic = a set only that bundle gives (their Reward is the bundle's Id). Limit = how
@@ -196,13 +201,13 @@ ShopCatalog.DebutPack = {
 ShopCatalog.Bundles = {
 	{ Id = "Headliner", Name = "Headliner", Sub = "Spotlight Stage + Mic, only here", ProductId = 3730244515, Big = true, Limit = 1,
 		Tag = "FEATURED", TagColour = "FF5A4E", Gradient = { "D8F6F2", "FFE3DE" }, -- the Spotlight set's teal → coral
-		Stage = "SpotlightStage", Mic = "SpotlightMic", Tickets = 15, Upgrades = 10, Coins = 6000 },
-	{ Id = "WarmUp", Name = "Warm-up", Sub = "A few rolls to get going", ProductId = 3730244340, Limit = 2,
-		Gradient = { "F1ECFF", "FFFFFF" }, Tickets = 3, Upgrades = 1, Coins = 500 },
-	{ Id = "Practice", Name = "Practice", Sub = "Rolls + upgrades for your sets", ProductId = 3730244371, Limit = 2,
-		Tag = "POPULAR", TagColour = "FFE07A", Gradient = { "FFE4EF", "FFF6F3" }, Tickets = 6, Upgrades = 3, Coins = 1500 },
+		Stage = "SpotlightStage", Mic = "SpotlightMic", Tickets = 15, Coins = 7500 },
+	{ Id = "WarmUp", Name = "Warm-up", Sub = "A few packs to get going", ProductId = 3730244340, Limit = 2,
+		Gradient = { "F1ECFF", "FFFFFF" }, Tickets = 3, Coins = 650 },
+	{ Id = "Practice", Name = "Practice", Sub = "Packs + coins for your binder", ProductId = 3730244371, Limit = 2,
+		Tag = "POPULAR", TagColour = "FFE07A", Gradient = { "FFE4EF", "FFF6F3" }, Tickets = 6, Coins = 1950 },
 	{ Id = "Comeback", Name = "Comeback", Sub = "Back in the game, fully stocked", ProductId = 3730244488, Limit = 2, Hidden = true,
-		Gradient = { "E3F3FC", "F4FBFF" }, Tickets = 10, Upgrades = 6, Coins = 4000 },
+		Gradient = { "E3F3FC", "F4FBFF" }, Tickets = 10, Coins = 4900 },
 }
 -- the Headliner's set: only in that bundle, never in the shop rotation
 -- (a concert runway: teal LED strips, a coral centre line, a tile video wall, fan lightsticks)
@@ -237,7 +242,7 @@ function ShopCatalog.BundleContents(bundle): { any }
 end
 
 ShopCatalog.Passes = {
-	{ Id = "DoubleCoins", Name = "2× Coins", Sub = "Double coins from every match, forever", Line = "Double coins from\nevery match!", GamePassId = 2063766272, Bg = "9ED8F5", Icon = "2×", Art = "rbxassetid://113425820963640" }, -- assets/ui/DoubleCoins.png
+	{ Id = "DoubleCoins", Name = "2× Coins", Sub = "Double coins from matches and pinned cards, forever", Line = "Double coins from\nmatches + pins!", GamePassId = 2063766272, Bg = "9ED8F5", Icon = "2×", Art = "rbxassetid://113425820963640" }, -- assets/ui/DoubleCoins.png
 	-- (the daily perks are Engine/VIPService's; the looks are NameTags, VIPChat and the ★ VIP chips)
 	{ Id = "VIP", Name = "VIP Pass", Title = "VIP!", Sub = "Gold name tag · daily free ticket + Save Streak", Line = "Gold name tag, daily\nrewards & more!", GamePassId = 2063596588, Bg = "FFE07A", Icon = "Crown", Art = "rbxassetid://127211190617908", -- assets/ui/VIPPass.png
 		-- the shop's VIP perks popup (ShopController, "Money 12b"), top to bottom

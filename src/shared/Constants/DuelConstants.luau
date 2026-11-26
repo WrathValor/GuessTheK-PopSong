@@ -74,11 +74,12 @@ return table.freeze({
 	-- win streak -> stake multiplier
 	STREAK_MULTIPLIERS = table.freeze({ { 10, 2 }, { 5, 1.5 }, { 3, 1.2 } }),
 
-	-- owned songs: every song a player owns (Inventory.Songs) comes up more often, nothing to
-	-- equip. Each owner adds (weight - 1) to the song's chance, by its card level, so a song
-	-- nobody owns is 1 and a Normal card both players own is 3. Once OWNED_ROUNDS_MAX rounds
-	-- have played an owned song, the rest of the game goes back to plain odds.
-	OWNED_WEIGHT = table.freeze({ Normal = 2, Gold = 3, Rainbow = 5 }),
+	-- your groups: songs by your bias's group and by the groups of your pinned photocards
+	-- (Albums.FavouredGroups) come up more often, nothing to equip. Each player adds (weight - 1)
+	-- to the song's chance, so a song from nobody's groups is 1 and one from both players' pinned
+	-- groups is 3. Once OWNED_ROUNDS_MAX rounds have played one, the rest of the game goes back
+	-- to plain odds.
+	OWNED_WEIGHT = table.freeze({ Pinned = 2, Bias = 3 }),
 	OWNED_ROUNDS_MAX = 3,
 	OWNED_XP = 5, -- bonus XP for guessing a song you own (duels only)
 

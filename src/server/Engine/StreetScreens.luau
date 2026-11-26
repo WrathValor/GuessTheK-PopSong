@@ -3,9 +3,9 @@
 -- ("Feed") on Map.Landmarks.BigScreen, which every client reads (Client/StreetScreens):
 --   Live        the closest 1v1 duel in progress (names, scores, round, ENCORE)
 --   New         this week's new songs (Constants/StreetScreens.NEW_SONGS, else the newest by Year)
---   Highlights  recent moments: ENCORE comebacks, Rainbow pulls, win streaks
+--   Highlights  recent moments: ENCORE comebacks, Signed Polaroid / One of One pulls, win streaks
 --   Top         the most wins on this server since it started
---   Pulls       the last Gold / Rainbow card pulls (the gacha machine's ticker)
+--   Pulls       the last Lucky Draw-and-up photocard pulls (the gacha machine's ticker)
 --   Merch       the merch pop-up's featured UGC item
 --   Daily       today's Daily Song number + how everyone did, and yesterday's answer
 --               (Engine/DailySongService.Today; never today's song)
@@ -173,14 +173,15 @@ function StreetScreens.Win(player: Player, streak: number?)
 	end
 end
 
--- a card pull reaching Gold or Rainbow (RollService)
-function StreetScreens.Pull(player: Player, songName: string, level: string)
-	table.insert(pulls, 1, `{player.DisplayName} pulled a {level} {songName}`)
+-- a photocard worth shouting about (Engine/AlbumService): "Jisoo · BLACKPINK", "Fansign
+-- Benefit"; big = a Signed Polaroid or One of One, which also makes the highlights
+function StreetScreens.Pull(player: Player, cardName: string, rarityName: string, big: boolean?)
+	table.insert(pulls, 1, `{player.DisplayName} pulled a {rarityName}: {cardName}`)
 	while #pulls > Constants.PULLS do
 		table.remove(pulls)
 	end
-	if level == "Rainbow" then
-		highlight("RAINBOW PULL", `{player.DisplayName} pulled a Rainbow {songName}`)
+	if big then
+		highlight(string.upper(rarityName), `{player.DisplayName} pulled a {rarityName}: {cardName}`)
 	else
 		publish()
 	end

@@ -7,7 +7,7 @@
 --   • "Group:<artist>" – every song by that group (only groups with MIN_GROUP_SONGS+)
 -- Nothing is equipped: every owned song comes up more often in duels (DuelConstants.OWNED_WEIGHT),
 -- and owning every song of a group pack gives its title.
--- Packs aren't sold: songs come from the song roll (Engine/RollService). A pack is the set the
+-- Packs aren't sold: songs came from the song roll (gone since 25 Nov 2026). A pack is the set the
 -- Index, Inventory and titles count against. Owned songs are always yours.
 
 local Songs = require(script.Parent.Songs)

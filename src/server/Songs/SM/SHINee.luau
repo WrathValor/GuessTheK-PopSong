@@ -9,6 +9,7 @@ return {
 	Colour = "9EE6D8", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("A8EBDD"), Color3.fromHex("5FCDB8")), -- official: Pearl Aqua Green
 	Status = "Active",
+	PackArt = "rbxassetid://138135554458945", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "Lucifer",
@@ -51,6 +52,23 @@ return {
 			PlaybackSpeed = 0.74,
 			TimePosition = 1,
 			ChorusPosition = 30.3,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "shinee-atmos",
+			Name = "Atmos",
+			Year = 2026,
+			Colour = "9EE8E0",
+			Songs = {},
+			Members = { "ONEW", "KEY", "MINHO", "TAEMIN" },
+			Art = {
+				["ONEW"] = "rbxassetid://89190063905573",
+				["KEY"] = "rbxassetid://124397661813025",
+				["TAEMIN"] = "rbxassetid://124279650878149",
+				["MINHO"] = "rbxassetid://136172171811776",
+			},
 		},
 	},
 }

@@ -9,6 +9,7 @@ return {
 	Colour = "8FB8F0", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("3E7FE0"), Color3.fromHex("0F52BA")), -- official: Pearl Sapphire Blue
 	Status = "Active",
+	PackArt = "rbxassetid://133930214665710", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "Sorry Sorry",
@@ -53,6 +54,17 @@ return {
 			PlaybackSpeed = 0.55,
 			TimePosition = 0,
 			ChorusPosition = 0,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "superjunior-sorry-sorry",
+			Name = "Sorry, Sorry",
+			Year = 2009,
+			Colour = "A9C8F5",
+			Songs = { "Sorry Sorry", "U", "Bonamana" },
+			Members = { "LEETEUK", "HEECHUL", "HANGENG", "YESUNG", "KANGIN", "SHINDONG", "SUNGMIN", "EUNHYUK", "DONGHAE", "SIWON", "RYEOWOOK", "KIBUM", "KYUHYUN" },
 		},
 	},
 }

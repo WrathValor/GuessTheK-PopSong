@@ -9,6 +9,7 @@ return {
 	Colour = "FFA7C4", -- card art + roll glow (pastel hex)
 	Gradient = ColorSequence.new(Color3.fromHex("FF7AA8"), Color3.fromHex("D9124F")), -- no official colour: lip pink to red
 	Status = "Active",
+	PackArt = "rbxassetid://132641805676583", -- group art: pack sleeve + binder (assets/Photocards/Groups)
 	Songs = {
 		{
 			Name = "Midas Touch",
@@ -96,6 +97,23 @@ return {
 			PlaybackSpeed = 0.53,
 			TimePosition = 1,
 			ChorusPosition = 32.7,
+		},
+	},
+	-- K-POPPED! photocard albums (see Songs/init.luau). Art ids are placeholders until the art batch.
+	Albums = {
+		{
+			Id = "kissoflife-lose-yourself",
+			Name = "Lose Yourself",
+			Year = 2024,
+			Colour = "FFB3C6",
+			Songs = { "Get Loud", "Igloo" },
+			Members = { "JULIE", "NATTY", "BELLE", "HANEUL" },
+			Art = {
+				["BELLE"] = "rbxassetid://92096437601102",
+				["HANEUL"] = "rbxassetid://73580497602775",
+				["JULIE"] = "rbxassetid://131818884565549",
+				["NATTY"] = "rbxassetid://103601341142949",
+			},
 		},
 	},
 }

@@ -128,7 +128,7 @@ local function refresh(player: Player)
 	local title = player:GetAttribute("Title")
 	local titleChip = chips:FindFirstChild("Title")
 	if titleChip then
-		TitleChip.Set(titleChip, if type(title) == "string" then title else nil, player:GetAttribute("TitleTier"))
+		TitleChip.Set(titleChip, if type(title) == "string" then title else nil, player:GetAttribute("TitleTier"), player:GetAttribute("TitleIcon"))
 	end
 
 	local streak = player:GetAttribute("Streak") or 0
