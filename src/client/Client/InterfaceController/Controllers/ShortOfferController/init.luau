@@ -23,6 +23,7 @@ local Janitor = require(ReplicatedStorage.Packages.janitor)
 local Promise = require(ReplicatedStorage.Packages.promise)
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local ShopCatalog = require(ReplicatedStorage.Constants.ShopCatalog)
+local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local Currencies = require(ReplicatedStorage.Constants.Currencies)
 local FrameTransition = require(ReplicatedStorage.Modules.UI.Animations.FrameTransition)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
@@ -240,6 +241,7 @@ function ShortOffer:Show(short)
 	end
 	self.State = "Activating"
 	self._frame.Visible = true
+	Sounds.Play("OfferPop")
 	Juice.Pop(panel.Offer, 0.2)
 	FrameTransition.Open(self._frame):andThen(function()
 		self.State = "Active"

@@ -9,7 +9,10 @@
 --     real thing (CosmeticView 3D models, the photocard skin with your avatar). DAILY SONG
 --     shows today's chart and doubles as the reminder: its subtitle is yours (not played /
 --     solved in n / missed), and it jumps to the front once if you haven't played today.
---     Slides with nothing to show are skipped.
+--     Slides with nothing to show are skipped. SHOWCASE (design board "69b") shows the best
+--     flex cards of the players here (each player's rarest pinned card). A Signed Polaroid or
+--     One of One pulled here takes the screen over for TAKEOVER_SECONDS (design board "69c":
+--     the Takeover frame, a cheer from the screen); built by ./StreetScreensBuild.
 --   • Walk-up machines scattered round the map (Blender models), each with a screen and a
 --     prompt that opens its frame:
 --       Fan Club   (Street.StreetProps, the red + blue vending machines under the FAN CLUB
@@ -45,6 +48,9 @@ local CosmeticView = require(ReplicatedStorage.Modules.UI.CosmeticView)
 local SeasonArt = require(ReplicatedStorage.Modules.UI.SeasonArt)
 local Levels = require(ReplicatedStorage.Modules.Levels)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Client
+local Albums = require(ReplicatedStorage.Modules.Library.Albums)
+local Photocard = require(ReplicatedStorage.Modules.UI.Photocard)
+local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local InterfaceController = require(script.Parent.InterfaceController)
 
 local LOCAL_PLAYER = Players.LocalPlayer
@@ -58,6 +64,15 @@ local SLIDES = {
 	{ Frame = "SlideHighlights", Tag = "SERVER HIGHLIGHTS", Heading = "Big moments on this server", Sub = "Comebacks, big pulls and win streaks, as they happen" },
 	{ Frame = "SlideTop", Tag = "TOP ON THIS SERVER", Heading = "Most wins on this server", Sub = "Win duels to get your card up here" },
 	{ Frame = "SlideDaily", Tag = "DAILY SONG" }, -- heading + subtitle from the feed (_titles)
+	{ Frame = "SlideShowcase", Tag = "SHOWCASE", Heading = "Rarest cards on this server", Sub = "Everyone here's best photocard · pin your best card to show it here" },
+}
+local TAKEOVER_SECONDS = 12 -- a big pull holds the screen this long
+local TAKEOVER_FRESH = 20 -- a big pull older than this (you joined after it) never plays
+local RARITY_CHIP = { -- the showcase's rarity chips
+	oneofone = { "1 OF 1", C("B9A6FF") },
+	polaroid = { "POLAROID", C("FFFFFF") },
+	fansign = { "FANSIGN", C("FF9EC4") },
+	luckydraw = { "LUCKY DRAW", C("FFE07A") },
 }
 -- IN THE SHOP NOW pages: what's in this rotation, which art frame on the card shows it
 -- (Art / ArtCard / ArtMic / ArtStage – each keeps its own 3D view, so flipping is free)
@@ -127,6 +142,8 @@ function Jumbo:_has(i: number): boolean
 		return f.Highlights ~= nil and #f.Highlights > 0
 	elseif i == 5 then
 		return f.Daily ~= nil
+	elseif i == 6 then
+		return f.Showcase ~= nil and #f.Showcase > 0
 	end
 	return f.Top ~= nil and #f.Top > 0
 end
@@ -320,7 +337,101 @@ function Jumbo:_fillDaily()
 	end
 end
 
+-- SHOWCASE (design board "69b"): the best flex cards here (Engine/StreetScreens Showcase)
+function Jumbo:_fillShowcase()
+	local slide = self.Content:FindFirstChild("SlideShowcase")
+	if not slide then
+		return
+	end
+	local list = self.Feed.Showcase or {}
+	for i = 1, 4 do
+		local slot = slide:FindFirstChild("Slot" .. i)
+		local e = list[i]
+		local id, copies, serial = Albums.ParseFlex(e and e.Flex)
+		local card = id and Albums.Card(id)
+		if slot then
+			slot.Visible = card ~= nil
+			if card then
+				Photocard.Paint(slot.Card, id, copies, serial)
+				slot.Head.Image = headshot(e.UserId)
+				slot.PlayerName.Text = e.Name
+				slot.Line.Text = `{card.Member.Name} · {card.Album.Name}`
+				local look = RARITY_CHIP[card.Rarity.Key] or { string.upper(card.Rarity.Name), C("FFFFFF") }
+				slot.Chip.Text = look[1]
+				slot.Chip.BackgroundColor3 = look[2]
+			end
+		end
+	end
+	-- centre the ones there are
+	local n = math.min(#list, 4)
+	for i = 1, n do
+		local slot = slide:FindFirstChild("Slot" .. i)
+		if slot then
+			slot.Position = UDim2.fromOffset(300 - n * 65 + (i - 1) * 130, 94)
+		end
+	end
+end
+
+-- a big pull (design board "69c"): plays the newest one not played yet, for TAKEOVER_SECONDS
+function Jumbo:_takeover()
+	local t = self.Content:FindFirstChild("Takeover")
+	if not t or self.TakingOver then
+		return
+	end
+	local nextOne = nil
+	for _, e in self.Feed.Takeover or {} do
+		if e.Id > (self.Played or 0) and os.time() - (e.At or 0) <= TAKEOVER_FRESH then
+			nextOne = e
+			break
+		end
+		self.Played = math.max(self.Played or 0, e.Id or 0)
+	end
+	local card = nextOne and Albums.Card(nextOne.Card)
+	if not card then
+		return
+	end
+	self.Played = nextOne.Id
+	self.TakingOver = true
+	local one = card.Rarity.Key == "oneofone"
+	t.Head.Image = headshot(nextOne.UserId)
+	t.PlayerName.Text = nextOne.Name
+	t.Headline.Text = if one then "PULLED A ONE OF ONE!" else `PULLED A {string.upper(card.Rarity.Name)}!`
+	t.Line.Text = `{card.Member.Name} · {card.Album.Artist} · {card.Album.Name}`
+	t.Serial.Visible = nextOne.Serial ~= nil
+	t.Serial.Text = if nextOne.Serial then `#{nextOne.Serial}` else ""
+	Photocard.Paint(t.Card, nextOne.Card, 1, nextOne.Serial)
+	self.Tag.Text = if one then "ONE OF ONE!" else "BIG PULL!"
+	self.Heading.Visible = false
+	self.Subtitle.Visible = false
+	t.Visible = true
+	-- the screen cheers (3D: you hear it on the street, not across the map)
+	local part = self.Screen
+	local sfx = Sounds.Library[if one then "OneChoir" else "Encore"]
+	if part and sfx then
+		local s = Instance.new("Sound")
+		s.SoundId = `rbxassetid://{sfx.Id}`
+		s.Volume = (sfx.Volume or 0.5) * 1.6
+		s.RollOffMaxDistance = 180
+		s.RollOffMinDistance = 30
+		s.SoundGroup = Sounds.ClipGroup()
+		s.Parent = part
+		s:Play()
+		game:GetService("Debris"):AddItem(s, 15)
+	end
+	task.delay(TAKEOVER_SECONDS, function()
+		t.Visible = false
+		self.Heading.Visible = true
+		self.Subtitle.Visible = true
+		self.TakingOver = false
+		if self.Index > 0 then
+			self:Show(self.Index)
+		end
+		self:_takeover() -- (another one waiting)
+	end)
+end
+
 function Jumbo:Refresh()
+	self:_fillShowcase()
 	self:_fillDaily()
 	self:_fillLive()
 	self:_fillShop()
@@ -333,6 +444,9 @@ end
 
 function Jumbo:Show(i: number)
 	self.Index = i
+	if self.TakingOver then
+		return -- (the takeover puts the slide back when it ends)
+	end
 	if i == 2 then
 		self.Page = 1 -- always opens on stage sets
 		self:_fillShop() -- the rotation turns over on its own clock, not the feed's
@@ -371,6 +485,7 @@ end
 function Jumbo:SetFeed(feed)
 	self.Feed = feed
 	self:Refresh()
+	self:_takeover()
 	-- the slide on screen ran out of things to show (e.g. the live duel ended): move on
 	if self.Index == 0 or not self:_has(self.Index) then
 		self:Next()
@@ -651,6 +766,7 @@ function StreetScreens.Start()
 		gui.ResetOnSpawn = false
 		gui.Parent = LOCAL_PLAYER:WaitForChild("PlayerGui")
 		local jumbo = Jumbo.new(content)
+		jumbo.Screen = screen
 		StreetScreens.Jumbo = jumbo
 
 		local function read()
@@ -720,7 +836,9 @@ function StreetScreens.Start()
 				length = Constants.SHOP_PAGE_SECONDS * #SHOP_PAGES
 				jumbo:SetPage(math.min(since // Constants.SHOP_PAGE_SECONDS + 1, #SHOP_PAGES))
 			end
-			if since >= length then
+			if jumbo.TakingOver then
+				since = 0 -- (the slide waits under a big pull)
+			elseif since >= length then
 				since = 0
 				jumbo:Next()
 			end

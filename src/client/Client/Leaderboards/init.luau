@@ -6,7 +6,10 @@
 -- each at its part (its "Board" attribute) and fills it in. They live in PlayerGui so the
 -- buttons work and each player sees their own tab, row and Join state.
 -- The big board has a tab per PlayerData board (Most Wins, Most Answers, Top Streaks,
--- Perfect Games, Top Fans). It flips to the next one every FLIP seconds until you tap a tab,
+-- Perfect Games, Top Fans, Top Collectors). Top Collectors (design board "69") ranks collection
+-- points, and its podium shows each player's flex card (their rarest pinned photocard, from
+-- Engine/CollectorService's "CollectorCards" on ReplicatedStorage) with their headshot on it;
+-- its rows get the card's rarity chip. It flips to the next one every FLIP seconds until you tap a tab,
 -- and starts again once you've left it alone for IDLE seconds; the sign and its frame part
 -- (tinted on this client only) take the open board's colours. The pinned YOU row is your
 -- place in the board's kept top 100 (Scribe keeps 100 per board), "100+" below that, "—"
@@ -29,6 +32,9 @@ local RewardsCatalog = require(ReplicatedStorage.Constants.RewardsCatalog)
 local AnalyticsClient = require(ReplicatedStorage.Modules.AnalyticsClient)
 local Levels = require(ReplicatedStorage.Modules.Levels)
 local CosmeticView = require(ReplicatedStorage.Modules.UI.CosmeticView)
+local Photocard = require(ReplicatedStorage.Modules.UI.Photocard)
+local Albums = require(ReplicatedStorage.Modules.Library.Albums)
+local HttpService = game:GetService("HttpService")
 local LikeGoalConstants = require(ReplicatedStorage.Constants.LikeGoalConstants)
 local Currencies = require(ReplicatedStorage.Constants.Currencies)
 
@@ -77,7 +83,29 @@ local BOARDS = {
 		Local = own(PlayerData.Player.XP),
 	},
 }
-local ORDER = { "MostWins", "MostAnswers", "TopStreaks", "PerfectGames", "TopFans" }
+BOARDS.TopCollectors = {
+	Face = C("FFB8A8"),
+	Frame = YELLOW,
+	SubColour = YELLOW,
+	Sub = "COLLECTION POINTS · ALL TIME",
+	Unit = "pts",
+	Format = function(points: number): string
+		return (tostring(math.floor(points)):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", ""))
+	end,
+	Local = own(PlayerData.Statistics.CollectionPoints),
+	Flex = true, -- the podium shows each player's flex card (Engine/CollectorService)
+}
+local ORDER = { "MostWins", "MostAnswers", "TopStreaks", "PerfectGames", "TopFans", "TopCollectors" }
+local FLEX_ATTRIBUTE = "CollectorCards"
+local RARITY_CHIP = { -- a row's best card (the board's flex chip)
+	oneofone = { "1 OF 1", C("B9A6FF") },
+	polaroid = { "POLAROID", WHITE },
+	fansign = { "FANSIGN", C("FF9EC4") },
+	luckydraw = { "LUCKY DRAW", YELLOW },
+	store = { "STORE", C("A7E9B8") },
+	selca = { "SELCA", C("FFD2E5") },
+	standard = { "STANDARD", C("F3EEE0") },
+}
 
 local function headshot(userId: number): string
 	return `rbxthumb://type=AvatarHeadShot&id={userId}&w=150&h=150`
@@ -126,6 +154,12 @@ local function bindMain(gui: SurfaceGui, framePart: BasePart?)
 		end
 		local ok, entries = pcall(PlayerData.GetLeaderboard, current)
 		entries = if ok and type(entries) == "table" then entries else {}
+		-- Top Collectors: each top player's flex card (ReplicatedStorage, Engine/CollectorService)
+		local flex = {}
+		if spec.Flex then
+			local okJson, map = pcall(HttpService.JSONDecode, HttpService, tostring(ReplicatedStorage:GetAttribute(FLEX_ATTRIBUTE) or "{}"))
+			flex = if okJson and type(map) == "table" then map else {}
+		end
 		fillYou(spec, entries)
 		-- nobody shows with a score of 0 (a fresh week, or a streak that never started)
 		local shown = {}
@@ -145,14 +179,42 @@ local function bindMain(gui: SurfaceGui, framePart: BasePart?)
 				face.Photo.Avatar.Image = if e then headshot(e.UserId) else ""
 				face.BackgroundColor3 = if mine then MINE else WHITE
 				face.VIP.Visible = e ~= nil and vip[e.UserId] == true
+				-- the flex card over the avatar, their headshot on its corner
+				local flexCard = face:FindFirstChild("Flex")
+				if flexCard then
+					local id, copies, serial = Albums.ParseFlex(e and flex[tostring(e.UserId)])
+					local showFlex = spec.Flex == true and id ~= nil
+					flexCard.Visible = showFlex
+					face.FlexHead.Visible = showFlex
+					face.Photo.Avatar.Visible = not showFlex
+					if showFlex then
+						Photocard.Paint(flexCard, id, copies, serial)
+						face.FlexHead.Image = headshot(e.UserId)
+					end
+				end
 			else
 				local r = list["Row" .. place]
 				r.PlayerName.Text = if e then e.Name else "—"
 				r.Value.Text = value
 				r.BackgroundColor3 = if mine then MINE else WHITE
 				r.VIP.Visible = e ~= nil and vip[e.UserId] == true
-				-- leave the chip its room (it sits just left of the value)
-				r.PlayerName.Size = UDim2.new(1, if r.VIP.Visible then -272 else -192, 1, 0)
+				-- Top Collectors: the best card's rarity, left of the VIP chip
+				local chip = r:FindFirstChild("Rarity")
+				local room = 0
+				if chip then
+					local id = spec.Flex and e and Albums.ParseFlex(flex[tostring(e.UserId)])
+					local card = id and Albums.Card(id)
+					local look = card and RARITY_CHIP[card.Rarity.Key]
+					chip.Visible = look ~= nil
+					if look then
+						chip.Text = look[1]
+						chip.BackgroundColor3 = look[2]
+						chip.Position = UDim2.new(1, if r.VIP.Visible then -224 else -144, 0.5, 0)
+						room = 130
+					end
+				end
+				-- leave the chips their room (they sit just left of the value)
+				r.PlayerName.Size = UDim2.new(1, (if r.VIP.Visible then -272 else -192) - room, 1, 0)
 				r.PlayerName.TextTruncate = Enum.TextTruncate.AtEnd
 			end
 		end
@@ -172,7 +234,7 @@ local function bindMain(gui: SurfaceGui, framePart: BasePart?)
 			local tab = sign.Tabs[name]
 			local on = name == current
 			tab.BackgroundColor3 = if on then BOARDS[name].Frame else TAB_OFF
-			tab.Position = UDim2.fromOffset(tab.Position.X.Offset, if on then 13 else 16)
+			tab.Position = UDim2.new(tab.Position.X, UDim.new(0, if on then 13 else 16)) -- (keeps X whatever its form)
 			sign.Tabs[name .. "Shadow"].Visible = on
 		end
 	end
@@ -201,6 +263,11 @@ local function bindMain(gui: SurfaceGui, framePart: BasePart?)
 	end)
 	-- the VIP list came in or changed (Engine/VIPService)
 	ReplicatedStorage:GetAttributeChangedSignal(VIP_ATTRIBUTE):Connect(fill)
+	ReplicatedStorage:GetAttributeChangedSignal(FLEX_ATTRIBUTE):Connect(function()
+		if BOARDS[current].Flex then
+			fill()
+		end
+	end)
 	-- flip through the boards (unless you're reading one), keep the countdown and the
 	-- replicated cache fresh (it can land before OnLeaderboard is hooked)
 	task.spawn(function()

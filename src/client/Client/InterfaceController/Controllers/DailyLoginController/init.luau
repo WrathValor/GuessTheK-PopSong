@@ -94,7 +94,7 @@ end
 -- the potion art for potion time: the 2-hour bottle for an hour or more, else the small one
 local function potionFor(kind: string, minutes: number): string?
 	local want = if minutes >= 60 then "Big" else "Small"
-	for _, b in ShopCatalog.Boosts do
+	for _, b in ShopCatalog.AllBoosts do
 		if b.Kind == kind and string.find(b.Id, want, 1, true) then
 			return b.Image
 		end

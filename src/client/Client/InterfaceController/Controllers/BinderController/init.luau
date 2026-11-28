@@ -37,6 +37,76 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local TextService = game:GetService("TextService")
+
+-- A fact row's value (auto-sized, right-aligned) shrinks through a "FitValue" UIScale until it
+-- clears the row's title: on phones its text draws bigger and ran over "Earns when pinned".
+local function fitFactRow(row: Instance?)
+	if not row then
+		return
+	end
+	local value, title = row:FindFirstChild("Value"), row:FindFirstChild("Title")
+	if not (value and title and value:IsA("GuiObject") and title:IsA("TextLabel")) then
+		return
+	end
+	local function fit()
+		local s = value:FindFirstChild("FitValue") :: UIScale?
+		if not s then
+			local made = Instance.new("UIScale")
+			made.Name = "FitValue"
+			made.Parent = value
+			s = made
+		end
+		local rowW = (row :: GuiObject).AbsoluteSize.X
+		local natural = value.AbsoluteSize.X / s.Scale
+		if rowW <= 0 or natural <= 0 then
+			return
+		end
+		local free = rowW - title.TextBounds.X - rowW * 10 / 370
+		local k = math.clamp(free / natural, 0.55, 1)
+		if math.abs(k - s.Scale) > 0.01 then
+			s.Scale = k
+		end
+	end
+	-- refit whenever the value or title changes size (it's filled while the panel is hidden,
+	-- when auto-sizes aren't worked out yet)
+	if not value:GetAttribute("FitValueHooked") then
+		value:SetAttribute("FitValueHooked", true)
+		value:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
+		title:GetPropertyChangedSignal("TextBounds"):Connect(fit)
+	end
+	task.defer(fit)
+end
+
+-- Phones draw text that isn't TextScaled bigger than designed, so an auto-sized chip grows past
+-- the card or row it sits in. These labels get a fixed box measured at design size instead, with
+-- the text TextScaled inside: same look on PC, and on a phone the text can't outgrow the box.
+-- Returns the box's design width. (`maxW` caps it; longer text then shrinks to fit.)
+local function designBox(l: TextLabel, maxW: number?, font: Enum.Font?): number
+	local ok, b = pcall(function()
+		return TextService:GetTextSize(l.Text, l.TextSize, font or Enum.Font.BuilderSansExtraBold, Vector2.new(4000, 200))
+	end)
+	local pad = l:FindFirstChildOfClass("UIPadding")
+	local px = if pad then pad.PaddingLeft.Offset + pad.PaddingRight.Offset else 0
+	local w = math.ceil((if ok then b.X else #l.Text * l.TextSize * 0.6) + px + 2)
+	if maxW then
+		w = math.min(w, maxW)
+	end
+	l.AutomaticSize = Enum.AutomaticSize.None
+	l.TextScaled = true
+	l.Size = UDim2.new(0, w, l.Size.Y.Scale, l.Size.Y.Offset)
+	-- TextScaled fills the box's height too, so a box taller than the text (a 44-tall button
+	-- row) drew it huge and wrapped "SELL 1" onto two lines: pad the box down to the text's height
+	local textH = if ok then b.Y else l.TextSize * 1.2
+	local spare = l.Size.Y.Offset - textH
+	if spare > 1 then
+		local p = pad or Instance.new("UIPadding")
+		p.PaddingTop = UDim.new(0, math.floor(spare / 2))
+		p.PaddingBottom = UDim.new(0, math.ceil(spare / 2))
+		p.Parent = l
+	end
+	return w
+end
 
 -- --------------------------------- Imports -------------------------------- --
 local Janitor = require(ReplicatedStorage.Packages.janitor)
@@ -57,6 +127,7 @@ local Notify = require(ReplicatedStorage.Modules.UI.Notify)
 local UITypes = require(ReplicatedStorage.Types.UITypes)
 local SongsTab = require(script.Songs)
 local Ladders = require(ReplicatedStorage.Modules.Library.Ladders)
+local LiveEvents = require(ReplicatedStorage.Constants.LiveEvents)
 
 local BinderRemote = Bridgenet.ReferenceBridge("BinderRemote")
 
@@ -184,6 +255,34 @@ local function lv(): Upgrades.Levels
 	return Upgrades.Levels(PlayerData)
 end
 
+-- [[ Event sets ]] (Modules/Library/Albums "Event sets"): shown like a group, keyed "event:<id>"
+
+-- the event a binder key is the set of (Constants/LiveEvents), or nil for a group
+local function eventFor(artist: string?)
+	local id = Albums.EventOf(artist)
+	return if id then LiveEvents.Get(id) else nil
+end
+
+-- is that event on right now (Engine/EventService's "LiveEvent")?
+local function eventLive(event): boolean
+	return event ~= nil and ReplicatedStorage:GetAttribute("LiveEvent") == event.Id
+end
+
+-- "9d left" / "5h left"
+local function leftText(seconds: number): string
+	local s = math.max(0, math.floor(seconds))
+	if s >= 86400 then
+		return `{s // 86400}d left`
+	end
+	return `{math.max(1, s // 3600)}h left`
+end
+
+local MONTHS = { "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC" }
+local function endDay(t: number): string
+	local d = os.date("!*t", t - 1)
+	return `{d.day} {MONTHS[d.month]}`
+end
+
 -- a group's photo for its icons (its PackArt), "" if none
 local function groupArt(artist: string): string
 	for _, album in Albums.PullAlbums(artist) do
@@ -199,8 +298,18 @@ local function groupColour(artist: string): Color3
 	return hex(albums[#albums] and albums[#albums].Colour, "B9A6FF")
 end
 
-local function dressIcon(icon: ImageLabel, artist: string)
-	local art = groupArt(artist)
+-- (with an album: that album's own Cover when it has one, else the group's art)
+local function dressIcon(icon: ImageLabel, artist: string, album: Albums.Album?)
+	local event = eventFor(artist)
+	if event then
+		icon.Image = event.Currency.Icon
+		icon.BackgroundColor3 = WHITE
+		icon.ScaleType = Enum.ScaleType.Fit
+		icon.Initial.Visible = false
+		return
+	end
+	icon.ScaleType = Enum.ScaleType.Crop
+	local art = if album and album.Cover and album.Cover ~= "" then album.Cover else groupArt(artist)
 	icon.Image = art
 	icon.BackgroundColor3 = groupColour(artist)
 	icon.Initial.Visible = art == ""
@@ -240,6 +349,9 @@ local function fillSlot(card: Frame, cardId: string, copies: number, pinned: boo
 	face.Level.Rainbow.Enabled = level == "Rainbow"
 	card.Copies.Visible = copies > 1
 	card.Copies.Text = `×{copies}`
+	if card.Copies.Visible then
+		designBox(card.Copies) -- (design size on phones too)
+	end
 	card.Pin.Visible = pinned == true
 	CardDecor.Paint(card, face, cardId, copies, { Serial = serialOf(cardId), Date = dateOf(cardId) })
 	card.Visible = true
@@ -268,18 +380,26 @@ local function fillFace(face: Instance, cardId: string, copies: number)
 	photo.Stamp.Text = style.Stamp or ""
 	photo.Stamp.BackgroundColor3 = if rarity.Key == "store" then MINT else CREAM
 	photo.Signature.Visible = style.Signature == true
-	photo.Signature.Text = member.Name
+	photo.Signature.Text = member.Person or member.Name
 	local serial = Albums.SerialText(cardId, serialOf(cardId))
 	photo.Serial.Visible = serial ~= nil
 	photo.Serial.Text = serial or ""
 	card.Member.Text = member.Name
 	card.Album.Text = `{album.Artist} · {album.Name}`
 	card.Rarity.Text = string.upper(rarity.Name)
+	-- the rarity chip is a fixed box and the album line stops where it starts, so a long tag
+	-- never covers it (both in design px, so it holds on a phone too)
+	card.Album.TextSize = 10 -- the group · album line, a size under the build's 12
+	card.Rarity.TextSize = 9 -- a touch smaller than the build's 10, so the album line gets more room
+	local tagW = designBox(card.Rarity)
+	card.Album.Size = UDim2.new(1, -(14 + 14 + 6 + tagW), 0, 22)
 	local isBias = Albums.IsBias(album, member.Key, bias())
 	card.Bias.Visible = isBias
+	designBox(card.Bias)
 	local level = Albums.Level(copies) or "Normal"
 	card.Level.Visible = level ~= "Normal"
 	card.Level.Text = string.upper(level)
+	designBox(card.Level)
 	card.Level.Position = if isBias then UDim2.new(1, -60, 1, -72) else UDim2.new(1, -14, 1, -72)
 	face.Glow.Visible = level ~= "Normal"
 	face.Glow.BackgroundColor3 = if level == "Gold" then GOLD else WHITE
@@ -357,6 +477,12 @@ function BinderController:_groupStats(): { [string]: { number } }
 		for _, artist in Albums.PullArtists() do
 			local have, total = groupCount(artist, owned)
 			stats[artist] = { have, total }
+		end
+		-- (event sets too, for their rows: never in the header's totals)
+		for _, id in Albums.EventSets() do
+			local key = Albums.EventKey(id)
+			local have, total = groupCount(key, owned)
+			stats[key] = { have, total }
 		end
 		self._stats = stats
 	end
@@ -569,12 +695,55 @@ function BinderController:_fillList()
 		b.Bar.Fill.BackgroundColor3 = if on then INK else MINT
 		row.Visible = true
 	end
+	-- the event sets, above the groups (Binder tab only)
+	local events = 0
+	local search = string.lower(self._search)
+	if self._tab == "Binder" and self._filter ~= "Girl" and self._filter ~= "Boy" then
+		for i, id in Albums.EventSets() do
+			local key = Albums.EventKey(id)
+			local event = LiveEvents.Get(id)
+			local name = if event then event.Set or event.Name else id
+			if search ~= "" and not string.find(string.lower(name), search, 1, true) then
+				continue
+			end
+			events += 1
+			shown[key] = true
+			local row = self._groupRows[key]
+			if not row then
+				row = scroll.EventTemplate:Clone()
+				row.Name = "Event"
+				row:SetAttribute("Artist", key)
+				ButtonScale.Apply(row.Button)
+				row.Button.Activated:Connect(function()
+					if self:_shownGroup() ~= key or self._mode ~= "Group" then
+						Sounds.Play("Click")
+						self:_pickGroup(key)
+					end
+				end)
+				row.Parent = scroll
+				self._groupRows[key] = row
+			end
+			row.LayoutOrder = -999 + i
+			local b = row.Button
+			b.Label.Text = escape(name)
+			local st = stats[key] or { 0, 1 }
+			b.Bar.Fill.Size = UDim2.fromScale(st[1] / math.max(st[2], 1), 1)
+			local live = eventLive(event)
+			b.Chip.Text = if live then "LIVE" else "ENDED"
+			b.Chip.BackgroundColor3 = if live then MINT else C("EFE7D4")
+			local on = key == self:_shownGroup() and self._mode == "Group"
+			b:FindFirstChildOfClass("UIStroke").Thickness = if on then 4 else 3
+			row.Visible = true
+		end
+	end
+	scroll.EventsHead.Visible = events > 0
+	scroll.GroupsHead.Visible = events > 0 and #artists > 0
 	for artist, row in self._groupRows do
 		if not shown[artist] then
 			row.Visible = false
 		end
 	end
-	scroll.Empty.Visible = #artists == 0
+	scroll.Empty.Visible = #artists == 0 and events == 0
 end
 
 function BinderController:_pickGroup(artist: string, albumId: string?)
@@ -639,29 +808,62 @@ function BinderController:_fillPage()
 	})
 	head.Tint.Color = tint
 	head.Square.Tint.Color = tint
-	dressIcon(head.Icon, artist)
-	local bits = { string.upper(artist) }
-	if album.Year then
-		table.insert(bits, tostring(album.Year))
+	dressIcon(head.Icon, artist, album) -- (each album page shows its own cover)
+	local event = eventFor(artist)
+	local live = eventLive(event)
+	if event then
+		-- an event set: the set's name, a tab per act, LIVE or ENDED (design boards 79e / 79f)
+		head.Meta.Text = `EVENT SET · {#albums} ACT{if #albums == 1 then "" else "S"} · {if live then `ONLY IN {string.upper(event.Pack.Name)}S` else "ENDED"}`
+		head.AlbumName.Text = string.upper(event.Set or event.Name)
+	else
+		local bits = { string.upper(artist) }
+		if album.Year then
+			table.insert(bits, tostring(album.Year))
+		end
+		local gen = Albums.Generation(artist)
+		if gen and gen ~= "" then
+			table.insert(bits, `{string.upper(gen)} GEN`)
+		end
+		if #albums > 1 then
+			table.insert(bits, `ALBUM {table.find(albums, album)} OF {#albums}`)
+		end
+		head.Meta.Text = table.concat(bits, " · ")
+		head.AlbumName.Text = string.upper(album.Name)
 	end
-	local gen = Albums.Generation(artist)
-	if gen and gen ~= "" then
-		table.insert(bits, `{string.upper(gen)} GEN`)
+	local evChip = head:FindFirstChild("Event")
+	if evChip then
+		evChip.Visible = event ~= nil
+		if event then
+			evChip.Text = if live then `LIVE · {leftText(event.Ends - workspace:GetServerTimeNow())}` else `ENDED {endDay(event.Ends)}`
+			evChip.BackgroundColor3 = if live then MINT else C("EFE7D4")
+		end
 	end
-	if #albums > 1 then
-		table.insert(bits, `ALBUM {table.find(albums, album)} OF {#albums}`)
+	-- the pack button: a group's pack, the event's pack while it's on, nothing after
+	head.OpenPack.Visible = event == nil or live
+	head.OpenPackShadow.Visible = head.OpenPack.Visible
+	-- after an event: the ribbon, and the columns + rows move down under it
+	local ended = event ~= nil and not live
+	local ribbon = p:FindFirstChild("Ended")
+	if ribbon then
+		ribbon.Visible = ended
 	end
-	head.Meta.Text = table.concat(bits, " · ")
-	head.AlbumName.Text = string.upper(album.Name)
+	local drop = if ended then 28 else 0
+	p.Columns.Position = UDim2.fromOffset(p.Columns.Position.X.Offset, 126 + drop)
+	p.Rows.Position = UDim2.fromOffset(0, 140 + drop)
+	p.Rows.Size = UDim2.fromOffset(p.Rows.Size.X.Offset, p.Size.Y.Offset - 144 - drop)
 	local have, total = albumCount(album, owned)
 	head.Progress.Count.Text = `{have} / {total} cards`
 	-- the album's one-time set bonus (every member owned, any rarity: Engine/BinderService)
 	head.Progress.Rate.Amount.Text = if Albums.Complete(owned, album) then "Set complete" else `+{fmt(Albums.SetBonus(album))} set bonus`
+	-- the bonus is a fixed box (≤ 118 wide) and the count gets the rest, both in design px
+	local progress = head.Progress
+	local amountW = designBox(progress.Rate.Amount, 118)
+	progress.Count.Size = UDim2.fromOffset(math.max(60, progress.Size.X.Offset - (amountW + 18) - 6), progress.Count.Size.Y.Offset)
 	head.Progress.Bar.Fill.Size = UDim2.fromScale(have / math.max(total, 1), 1)
 	-- the group's cards ladder (Modules/Library/Ladders): its rung and what the next one needs
 	local badge = head:FindFirstChild("Badge")
 	if badge then
-		badge.Visible = Ladders.Eligible(artist) -- (no ladders without enough songs)
+		badge.Visible = event == nil and Ladders.Eligible(artist) -- (no ladders without enough songs)
 	end
 	if badge and badge.Visible then
 		local rung, nextRung = Ladders.CardsRung(owned, artist)
@@ -693,10 +895,10 @@ function BinderController:_fillPage()
 		local h, t = albumCount(a, owned)
 		tab.BackgroundColor3 = if on then INK else CREAM
 		tab.BackgroundTransparency = if on then 0 else 0.25
-		tab.Label.Text = string.upper(a.Name)
+		tab.Label.Text = string.upper(if event then a.Artist else a.Name) -- (an event set's tab: the act)
 		tab.Label.TextColor3 = if on then CREAM else INK
 		tab.Year.Text = if a.Year then tostring(a.Year) else ""
-		tab.Year.Visible = a.Year ~= nil
+		tab.Year.Visible = a.Year ~= nil and not event
 		tab.Year.TextColor3 = if on then CREAM else INK
 		tab.Count.Text = `{h}/{t}`
 		tab.Count.BackgroundTransparency = if h > 0 then 0 else 1
@@ -788,6 +990,15 @@ function BinderController:_fillPage()
 			else
 				slot.Card.Visible = false
 				slot.Empty.Visible = unique == nil
+				-- an ended event's card nobody can get any more: locked, GONE
+				local lock, gone = slot.Empty:FindFirstChild("Lock"), slot.Empty:FindFirstChild("Gone")
+				slot.Empty.Mark.Visible = not ended
+				if lock then
+					lock.Visible = ended
+				end
+				if gone then
+					gone.Visible = ended
+				end
 				if unique then
 					unique.Visible = true
 					local name = owners and owners[member.Key]
@@ -1012,6 +1223,13 @@ function BinderController:_showPreview(cardId: string)
 	self._frame.Detail.Window.Panel.Swap.Visible = false
 	self:_fillPreview()
 	local d = self._frame.Detail
+	-- on phones (canvas scaled well down) the panel is drawn a little smaller than the PC's
+	-- 0.88: phones draw its text bigger, so at 0.88 it filled the screen
+	local canvas = self._frame.Parent and self._frame.Parent:FindFirstChildOfClass("UIScale")
+	local windowScale = d.Window:FindFirstChildOfClass("UIScale")
+	if canvas and windowScale then
+		windowScale.Scale = if canvas.Scale < 0.8 then 0.78 else 0.88
+	end
 	if not d.Visible then
 		d.Visible = true
 		Juice.Pop(d.Window.Panel, 0.04)
@@ -1045,12 +1263,12 @@ function BinderController:_fillPreview()
 	panel.Copies.Text = `×{copies}`
 
 	local col = panel.Info
-	local style = STYLE[rarity.Key] or STYLE.standard
 	col.Chips.Rarity.Text = string.upper(rarity.Name)
 	col.Chips.Rarity.BackgroundColor3 = RARITY_CHIP[rarity.Key] or WHITE
-	col.Chips.Rarity.Foil.Enabled = style.Foil ~= nil
-	if style.Foil then
-		col.Chips.Rarity.Foil.Color = style.Foil
+	local foil = CardDecor.FOILS[rarity.Key] -- (the card's own look: Lucky Draw is gold)
+	col.Chips.Rarity.Foil.Enabled = foil ~= nil
+	if foil then
+		col.Chips.Rarity.Foil.Color = foil
 	end
 	local numbered = rarity.Serial == true
 	col.Chips.Numbered.Visible = numbered
@@ -1139,6 +1357,10 @@ function BinderController:_fillPreview()
 	if price then
 		sell.Row.Label.Text = if self._confirm then "SURE? SELL" else "SELL 1"
 		sell.Row.Amount.Text = fmt(price)
+		-- fixed boxes, so the words can't outgrow the button on a phone (label · coin · amount)
+		local room = sell.Size.X.Offset - 16 - (sell.Row.Icon.Size.X.Offset + 16)
+		local lw = designBox(sell.Row.Label, room * 0.62, Enum.Font.GothamBlack)
+		designBox(sell.Row.Amount, room - lw, Enum.Font.GothamBlack)
 		sell.BackgroundColor3 = if self._confirm then C("FFD2D0") else WHITE
 	end
 	local sellNote
@@ -1162,6 +1384,9 @@ function BinderController:_fillPreview()
 	col.Actions.Pin.Position = UDim2.fromOffset(pinX, 26)
 	col.Actions.PinShadow.Position = UDim2.fromOffset(pinX + 4, 30)
 	self:_fillPinButton(id)
+	for _, name in { "Serials", "Copies", "Earns", "Rolled", "Grade" } do
+		fitFactRow(col:FindFirstChild(name))
+	end
 
 	-- the member's cards in this album, one per rarity
 	local strip = panel.Strip
@@ -1179,6 +1404,14 @@ function BinderController:_fillPreview()
 		local unique = holder:FindFirstChild("Unique")
 		if n > 0 then
 			fillSlot(holder.Card, cid, n, table.find(pins(), cid) ~= nil)
+			-- a smaller ×N here, tucked under the level stars instead of over them
+			local copiesChip = holder.Card.Copies
+			if copiesChip.Visible then
+				copiesChip.TextSize = 8
+				copiesChip.Size = UDim2.fromOffset(0, 14)
+				copiesChip.Position = UDim2.fromOffset(-6, 12)
+				designBox(copiesChip)
+			end
 			holder.Empty.Visible = false
 			if unique then
 				unique.Visible = false
@@ -1189,7 +1422,16 @@ function BinderController:_fillPreview()
 			if unique then
 				unique.Visible = true
 				local name = owners and owners[member.Key]
-				unique.Inner.Label.Text = if not owners then "…" elseif name then `Owned by\n<b>{escape(name)}</b>` else "Unclaimed"
+				local label = unique.Inner.Label
+				label.Text = if not owners then "…" elseif name then `Owned by\n<b>{escape(name)}</b>` else "Unclaimed"
+				-- drawn TextScaled in a band two lines tall, so it can't spill past the slot on a phone
+				-- (the slot's inner card is 84 tall: a 24-tall band in its middle)
+				if not label.TextScaled then
+					label.TextScaled = true
+					local p = Instance.new("UIPadding")
+					p.PaddingTop, p.PaddingBottom = UDim.new(0, 30), UDim.new(0, 30)
+					p.Parent = label
+				end
 			end
 		end
 		item:SetAttribute("Card", cid)
@@ -1387,11 +1629,12 @@ function BinderController:_onBinder(packet)
 		end
 		self._frame.Detail.Window.Panel.Swap.Visible = false
 		if packet.Action == "Pin" then
-			Sounds.Play("Success")
+			Sounds.Play("Pin")
 			local info = Albums.Card(packet.Card)
 			local earn = Albums.EarnPerHour(packet.Card, cards()[packet.Card] or 0, bias())
 			self:_toast(`Pinned {info and info.Member.Name or "it"}: +{rateText(earn)} coins an hour`)
 		else
+			Sounds.Play("Unpin")
 			self:_toast("Unpinned")
 		end
 		-- (the screen refreshes when Inventory.Pins changes)
@@ -1400,7 +1643,7 @@ function BinderController:_onBinder(packet)
 	if packet.Action == "SetBonus" then
 		if self.State == "Active" and type(packet.Albums) == "table" then
 			local album = Albums.Get(packet.Albums[1])
-			Sounds.Play("Coins")
+			Sounds.Play("AlbumComplete")
 			self:_toast(`{album and album.Name or "Album"} complete! +{fmt(packet.Coins or 0)} coins`)
 		end
 		return
@@ -1474,14 +1717,28 @@ function BinderController:Initialize(interface)
 	-- Bias: the Bias page in Packs; it sits 12 px left of the coins, which grow with the amount
 	local biasButton = f:FindFirstChild("Bias")
 	if biasButton then
+		-- and when a big balance (or phone text, which renders wider) would push it onto the
+		-- Binder · Songs tabs, the tabs slide left to keep 12 px between them
+		local tabsHome = f.Tabs.Position
 		local function place()
 			local scale = f.AbsoluteSize.X / 1280
-			if scale > 0 then
-				biasButton.Position = UDim2.fromOffset(f.Coins.Position.X.Offset - f.Coins.AbsoluteSize.X / scale - 12, f.Coins.Position.Y.Offset)
+			if scale <= 0 then
+				return
 			end
+			local x = f.Coins.Position.X.Offset - f.Coins.AbsoluteSize.X / scale - 12
+			biasButton.Position = UDim2.fromOffset(x, f.Coins.Position.Y.Offset)
+			-- (from positions + sizes in design px: AbsolutePosition lags a frame behind)
+			local biasW = biasButton.AbsoluteSize.X / scale
+			local biasLeft = x - biasButton.AnchorPoint.X * biasW
+			local tabsW = f.Tabs.AbsoluteSize.X / scale
+			local tabsRight = tabsHome.X.Offset + (1 - f.Tabs.AnchorPoint.X) * tabsW
+			local over = tabsRight - (biasLeft - 12)
+			f.Tabs.Position = tabsHome - UDim2.fromOffset(math.max(0, over), 0)
 		end
 		place()
 		j:Add(f.Coins:GetPropertyChangedSignal("AbsoluteSize"):Connect(place))
+		j:Add(f.Tabs:GetPropertyChangedSignal("AbsoluteSize"):Connect(place))
+		j:Add(biasButton:GetPropertyChangedSignal("AbsoluteSize"):Connect(place))
 		j:Add(biasButton.Activated:Connect(function()
 			self._interface:Open("Albums", { Page = "Bias" })
 		end))
@@ -1525,7 +1782,11 @@ function BinderController:Initialize(interface)
 	end))
 	j:Add(f.Binder.Page.Head.OpenPack.Activated:Connect(function()
 		Sounds.Play("Click")
-		self._interface:Open("Albums", { Group = self._group })
+		if eventFor(self._group) then
+			self._interface:Open("Events", "Shop") -- (an event set: its pack is in the event's shop)
+		else
+			self._interface:Open("Albums", { Group = self._group })
+		end
 	end))
 
 	-- All cards

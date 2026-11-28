@@ -17,6 +17,16 @@
 -- on its page, say) costs nothing until it opens again.
 -- The list is a normal table (not weak): Roblox can collect an instance's Lua handle from a
 -- weak table while the instance is still on screen, which froze the animation.
+-- Group badge chips (board 64 · Badges · tier looks; Modules/UI/TitleChip) add their own moving
+-- pieces, driven by the same loop:
+--   TierShine.AddFx(obj, kind) / TierShine.RemoveFx(obj)
+--     "Sweep"   – a UIGradient light band (attribute Every: seconds between passes) crossing
+--     "Shift"   – a UIGradient's colours drifting slowly back and forth (Platinum's crystal)
+--     "Spin"    – a UIGradient turning (Legend's rainbow rim)
+--     "Twinkle" – an ImageLabel sparkle growing and fading (attributes Delay, Size)
+--     "Rise"    – a Frame of gold dust drifting up and fading (attribute Delay)
+--   TierShine.SetLowEffects(on)   -- (Client/SettingsController) the pieces stop where they rest;
+--                                  -- every tier keeps its colours and glow
 
 local RunService = game:GetService("RunService")
 
@@ -36,6 +46,8 @@ local STEPS = 12 -- rainbow keypoints (Roblox allows up to 20)
 local TierShine = {}
 
 local gradients = {} :: { [UIGradient]: boolean }
+local fx = {} :: { [Instance]: string }
+local lowEffects = false
 local running = false
 
 -- [[ Colours ]]
@@ -98,12 +110,74 @@ local function shown(gradient: UIGradient): boolean
 	return parent ~= nil and OnScreen.Gui(parent)
 end
 
+-- [[ Badge pieces ]]
+
+-- a badge chip's band: off to the left until 55% of its period, across by 85%, then gone
+local function sweepOffset(t: number, every: number): Vector2
+	local p = (t % every) / every
+	if p < 0.55 or p > 0.85 then
+		return RESTING
+	end
+	local q = (p - 0.55) / 0.3
+	q = q * q * (3 - 2 * q)
+	return Vector2.new(-SHINE_REACH + q * 2 * SHINE_REACH, 0)
+end
+
+-- where each piece sits while still (Low effects, or a still nametag)
+local function rest(obj: Instance, kind: string)
+	if kind == "Sweep" then
+		(obj :: UIGradient).Offset = RESTING
+	elseif kind == "Shift" then
+		(obj :: UIGradient).Offset = Vector2.zero
+	elseif kind == "Spin" then
+		(obj :: UIGradient).Rotation = 45
+	elseif kind == "Twinkle" then
+		local size = obj:GetAttribute("Size") or 12
+		;(obj :: ImageLabel).Size = UDim2.fromOffset(size, size)
+		;(obj :: ImageLabel).ImageTransparency = 0.1
+	elseif kind == "Rise" then
+		(obj :: Frame).BackgroundTransparency = 1
+	end
+end
+
+local function stepFx(obj: Instance, kind: string, t: number)
+	local delay = obj:GetAttribute("Delay") or 0
+	if kind == "Sweep" then
+		(obj :: UIGradient).Offset = sweepOffset(t + delay, obj:GetAttribute("Every") or 3)
+	elseif kind == "Shift" then
+		(obj :: UIGradient).Offset = Vector2.new(0.3 * math.sin(t / 5 * 2 * math.pi), 0)
+	elseif kind == "Spin" then
+		(obj :: UIGradient).Rotation = (t * 60) % 360
+	elseif kind == "Twinkle" then
+		local size = obj:GetAttribute("Size") or 12
+		local wave = 0.5 - 0.5 * math.cos(((t - delay) % 1.8) / 1.8 * 2 * math.pi) -- 0 → 1 → 0
+		local s = math.floor(size * (0.5 + 0.6 * wave) + 0.5)
+		;(obj :: ImageLabel).Size = UDim2.fromOffset(s, s)
+		;(obj :: ImageLabel).ImageTransparency = 0.8 - 0.8 * wave
+	elseif kind == "Rise" then
+		local r = ((t - delay) % 2.6) / 2.6
+		local f = obj :: Frame
+		local fade = if r < 0.15 then r / 0.15 else 1 - (r - 0.15) / 0.85
+		f.Position = UDim2.new(f.Position.X.Scale, f.Position.X.Offset, 1, -3 - 30 * r)
+		f.BackgroundTransparency = 1 - fade
+	end
+end
+
 local function start()
 	if running or not RunService:IsClient() then
 		return
 	end
 	running = true
 	RunService.Heartbeat:Connect(function()
+		if next(fx) ~= nil and not lowEffects then
+			local now = os.clock()
+			for obj, kind in fx do
+				local gui = if obj:IsA("UIGradient") then obj.Parent else obj
+				if gui and OnScreen.Gui(gui) then
+					stepFx(obj, kind, now)
+				end
+			end
+		end
 		if next(gradients) == nil then
 			return
 		end
@@ -154,6 +228,40 @@ function TierShine.Add(gradient: UIGradient?)
 		gradients[gradient] = nil
 	end)
 	start()
+end
+
+function TierShine.AddFx(obj: Instance, kind: string)
+	if fx[obj] == kind then
+		return
+	end
+	local fresh = fx[obj] == nil
+	fx[obj] = kind
+	if fresh then
+		obj.Destroying:Once(function()
+			fx[obj] = nil
+		end)
+	end
+	if lowEffects then
+		rest(obj, kind)
+	end
+	start()
+end
+
+function TierShine.RemoveFx(obj: Instance?)
+	if obj and fx[obj] then
+		rest(obj, fx[obj])
+		fx[obj] = nil
+	end
+end
+
+-- Low effects: the badge pieces stop where they rest (the tier's colours and glow stay)
+function TierShine.SetLowEffects(on: boolean)
+	lowEffects = on
+	if on then
+		for obj, kind in fx do
+			rest(obj, kind)
+		end
+	end
 end
 
 -- every UIGradient named `name` under `root` (e.g. all "Level" gradients on a grid of cards)

@@ -25,7 +25,9 @@ local Upgrades = require(script.Parent.Upgrades)
 
 local Albums = {}
 
-export type Member = { Key: string, Name: string, Art: string }
+-- Person: who's on the card (a group member's name, or the soloist). Version: a soloist era's
+-- photocard number (Songs/init.luau "Versions"); nil for group members.
+export type Member = { Key: string, Name: string, Art: string, Person: string, Version: number? }
 export type Album = {
 	Id: string,
 	Name: string,
@@ -36,6 +38,8 @@ export type Album = {
 	Generation: string?, -- the group's ("2nd" … "5th")
 	GroupType: string?, -- "Boy" | "Girl" | "Co-ed" | "Solo"
 	PackArt: string?, -- the group's photo for its group pack sleeve ("" or nil = none)
+	Event: string?, -- an event set's album (Constants/LiveEvents id): see "Event sets" below
+	Cover: string?, -- this album's own cover: its binder page header ("" or nil = the group's PackArt)
 	Members: { Member },
 	Songs: { any }, -- library songs (Songs.GetById), in the order the album lists them
 }
@@ -52,6 +56,7 @@ for i, rarity in AlbumConstants.RARITIES do
 	rarityByKey[rarity.Key] = rarity
 	rarityRank[rarity.Key] = i
 end
+
 
 Albums.RARITIES = AlbumConstants.RARITIES -- worst to best, One of One included
 
@@ -71,14 +76,26 @@ end
 -- gives its share to FALLBACK_RARITY.
 -- `minKey` (premium packs) leaves out every rarity below it and scales the rest up to 1.
 -- `luck` (Upgrades.Luck, 1 = none) multiplies Lucky Draw and up; Standard gives up the difference.
-function Albums.RarityOdds(closed: { [string]: boolean }?, minKey: string?, luck: number?): { { Rarity: Rarity, Odds: number } }
+-- It can also be Albums.Luck's { Upgrade, Potion }: a running Luck potion adds its +50% to the
+-- upgrade's (1.25 + 0.5 = ×1.75 at most), for every lucky rarity but One of One (only the upgrade).
+function Albums.Luck(upgrade: number, potion: boolean): any
+	if not potion then
+		return upgrade
+	end
+	return { Upgrade = upgrade, Potion = AlbumConstants.LUCK_POTION }
+end
+
+function Albums.RarityOdds(closed: { [string]: boolean }?, minKey: string?, luck: any?): { { Rarity: Rarity, Odds: number } }
 	local base: { [string]: number } = {}
 	local extra = 0
+	local upgrade = if type(luck) == "table" then luck.Upgrade or 1 elseif type(luck) == "number" then luck else 1
+	local potion = if type(luck) == "table" then luck.Potion or 0 else 0
 	for _, rarity in AlbumConstants.RARITIES do
 		local odds = rarity.Odds
-		if luck and luck ~= 1 and (rarityRank[rarity.Key] or 0) >= (rarityRank[LUCKY_FROM] or 99) then
-			extra += odds * (luck - 1)
-			odds *= luck
+		local mult = upgrade + (if rarity.Key == "oneofone" then 0 else potion)
+		if mult ~= 1 and (rarityRank[rarity.Key] or 0) >= (rarityRank[LUCKY_FROM] or 99) then
+			extra += odds * (mult - 1)
+			odds *= mult
 		end
 		base[rarity.Key] = odds
 	end
@@ -121,9 +138,10 @@ end
 local all: { Album } = {}
 local byId: { [string]: Album } = {}
 local byArtist: { [string]: { Album } } = {}
+local eventAlbums: { [string]: { Album } } = {}
 
 -- accented letters idol names use, kept readable in keys ("ROSÉ" → "rose")
-local ACCENTS = { ["É"] = "e", ["é"] = "e", ["È"] = "e", ["è"] = "e", ["Á"] = "a", ["á"] = "a", ["Í"] = "i", ["í"] = "i", ["Ó"] = "o", ["ó"] = "o", ["Ú"] = "u", ["ú"] = "u" }
+local ACCENTS = { ["É"] = "e", ["é"] = "e", ["È"] = "e", ["è"] = "e", ["Á"] = "a", ["á"] = "a", ["Í"] = "i", ["í"] = "i", ["Ó"] = "o", ["ó"] = "o", ["Ú"] = "u", ["ú"] = "u", ["Ü"] = "u", ["ü"] = "u", ["Ö"] = "o", ["ö"] = "o", ["Ä"] = "a", ["ä"] = "a" }
 
 -- "Jung Kook" → "jungkook", "ROSÉ" → "rose"; the card id's member part
 function Albums.MemberKey(name: string): string
@@ -148,19 +166,40 @@ for _, raw in Songs.Albums or {} do
 		Generation = raw.Generation,
 		GroupType = raw.GroupType,
 		PackArt = raw.PackArt,
+		Cover = raw.Cover,
+		Event = if type(raw.Event) == "string" and raw.Event ~= "" then raw.Event else nil,
 		Members = {},
 		Songs = {},
 	}
 	local seen = {}
+	local versions = if type(raw.Versions) == "number" then math.max(1, math.floor(raw.Versions)) else 1
 	for _, name in raw.Members or {} do
-		local key = Albums.MemberKey(name)
-		if key == "" or seen[key] then
-			warn(`[Albums] {album.Id}: bad or duplicate member {name}`)
-			continue
+		-- a soloist's era has `Versions` photocards: "IU" (card key "iu", so the first card's id
+		-- never changes), then "IU 2", "IU 3" … ("iu2", "iu3"). A version past the first only
+		-- exists once it has art, so an era never shows empty slots or rolls an art-less card.
+		local made = {}
+		for v = 1, versions do
+			local label = if v == 1 then name else `{name} {v}`
+			-- (a member whose name was fixed after going live keeps the old key: Keys[label])
+			local key = if type(raw.Keys) == "table" and type(raw.Keys[label]) == "string" then raw.Keys[label] else Albums.MemberKey(label)
+			if key == "" or seen[key] then
+				warn(`[Albums] {album.Id}: bad or duplicate member {label}`)
+				continue
+			end
+			local art = type(raw.Art) == "table" and raw.Art[label] or ""
+			if v > 1 and art == "" then
+				continue
+			end
+			seen[key] = true
+			local member = { Key = key, Name = name, Art = art, Person = name, Version = if versions > 1 then v else nil }
+			table.insert(album.Members, member)
+			table.insert(made, member)
 		end
-		seen[key] = true
-		local art = type(raw.Art) == "table" and raw.Art[name] or ""
-		table.insert(album.Members, { Key = key, Name = name, Art = art })
+		if #made > 1 then
+			for _, member in made do
+				member.Name = `{name} · Ver. {member.Version}` -- (only once there's more than one to tell apart)
+			end
+		end
 	end
 	for _, songName in raw.Songs or {} do
 		local song = Songs.GetById(`{songName} - {album.Artist}`)
@@ -174,8 +213,14 @@ for _, raw in Songs.Albums or {} do
 	end
 	table.insert(all, album)
 	byId[album.Id] = album
-	byArtist[album.Artist] = byArtist[album.Artist] or {}
-	table.insert(byArtist[album.Artist], album)
+	if album.Event then
+		-- (an event set's album isn't its group's: see "Event sets")
+		eventAlbums[album.Event] = eventAlbums[album.Event] or {}
+		table.insert(eventAlbums[album.Event], album)
+	else
+		byArtist[album.Artist] = byArtist[album.Artist] or {}
+		table.insert(byArtist[album.Artist], album)
+	end
 end
 
 local function byYear(a: Album, b: Album)
@@ -192,6 +237,11 @@ table.sort(all, function(a, b)
 end)
 for _, list in byArtist do
 	table.sort(list, byYear)
+end
+for _, list in eventAlbums do
+	table.sort(list, function(a, b)
+		return a.Artist:lower() < b.Artist:lower()
+	end)
 end
 
 function Albums.All(): { Album }
@@ -234,15 +284,89 @@ function Albums.HasArt(album: Album): boolean
 	return false
 end
 
--- a group's albums that can be pulled (HasArt), oldest first
+-- a group's albums that can be pulled (HasArt), oldest first. An event set's key
+-- (Albums.EventKey) gives that set's albums with art (the binder shows a set like a group).
 function Albums.PullAlbums(artist: string): { Album }
 	local out = {}
-	for _, album in byArtist[artist] or {} do
+	local event = Albums.EventOf(artist)
+	for _, album in (if event then eventAlbums[event] else byArtist[artist]) or {} do
 		if Albums.HasArt(album) then
 			table.insert(out, album)
 		end
 	end
 	return out
+end
+
+-- [[ Event sets ]]
+-- An album with Event = a Constants/LiveEvents id (the Christmas Stage '26 acts: a group module's
+-- Albums entry, Songs/init.luau) belongs to that event's set, not its group: it's never in
+-- Artists / ForArtist / PullArtists / Pullable, so no normal pack, the bias picker, group sets or
+-- the binder's totals see it. Only the event's own pack rolls it (Engine/AlbumService, Kind =
+-- "Event"), and the binder shows the set as one page under Events, keyed "event:<id>".
+
+function Albums.EventKey(eventId: string): string
+	return "event:" .. eventId
+end
+
+-- "event:winter26" → "winter26"; nil for a group's name
+function Albums.EventOf(key: string?): string?
+	return if type(key) == "string" then string.match(key, "^event:(.+)$") else nil
+end
+
+-- the albums of an event's set that have art, A–Z by act
+function Albums.EventAlbums(eventId: string): { Album }
+	return Albums.PullAlbums(Albums.EventKey(eventId))
+end
+
+-- the event ids that have a set (with art), A–Z
+function Albums.EventSets(): { string }
+	local out = {}
+	for id in eventAlbums do
+		if #Albums.EventAlbums(id) > 0 then
+			table.insert(out, id)
+		end
+	end
+	table.sort(out)
+	return out
+end
+
+-- an event pack's set card: an act's album, weighted by its members so every person is as
+-- likely, then Albums.Roll (rarity from `minKey` up, Luck, your bias). Returns (album,
+-- member key, rarity key), or nil when the set has no art yet.
+function Albums.RollEvent(eventId: string, bias: string?, rng: Random, minKey: string?, luck: any?): (Album?, string?, string?)
+	-- (only people with card art: a set can go live while its photos are still coming in)
+	local albums = Albums.EventAlbums(eventId)
+	local withArt: { [Album]: number } = {}
+	local total = 0
+	for _, album in albums do
+		local n = 0
+		for _, member in album.Members do
+			if member.Art ~= "" then
+				n += 1
+			end
+		end
+		withArt[album] = n
+		total += n
+	end
+	if total == 0 then
+		return nil, nil, nil
+	end
+	local pick = rng:NextNumber() * total
+	local chosen = albums[#albums]
+	for _, album in albums do
+		pick -= withArt[album]
+		if withArt[album] > 0 and pick < 0 then
+			chosen = album
+			break
+		end
+	end
+	local function hasArt(cardId: string): boolean
+		local _, key = Albums.Parse(cardId)
+		local member = key and Albums.Member(chosen, key)
+		return member ~= nil and member.Art ~= ""
+	end
+	local member, rarity = Albums.Roll(chosen, bias, rng, nil, hasArt, minKey, luck)
+	return chosen, member, rarity
 end
 
 -- whether any of a group's cards can be pulled
@@ -365,7 +489,8 @@ end
 
 function Albums.IsBias(album: Album, memberKey: string, bias: string?): boolean
 	local artist, key = Albums.BiasParts(bias)
-	return artist == album.Artist and key == memberKey
+	-- (a soloist's every card is your bias: the versions are all the same person)
+	return artist == album.Artist and (key == memberKey or album.GroupType == "Solo")
 end
 
 -- [[ Pulls ]]
@@ -382,7 +507,7 @@ end
 
 -- The odds for the album page, as they apply to this player: { [member key] = { [rarity key] =
 -- chance } }, adding up to 1 over the whole album. `closed` as in RarityOdds.
-function Albums.Odds(album: Album, bias: string?, closed: { [string]: boolean }?, luck: number?): { [string]: { [string]: number } }
+function Albums.Odds(album: Album, bias: string?, closed: { [string]: boolean }?, luck: any?): { [string]: { [string]: number } }
 	local weights, total = memberWeights(album, bias)
 	local rarities = Albums.RarityOdds(closed, nil, luck)
 	local out = {}
@@ -398,7 +523,7 @@ end
 
 -- One pull: (member key, rarity key). The rarity is rolled first, then the member (bias
 -- weighted). `fresh(cardId)` (pity) limits the member to cards it says are new, when any are.
-function Albums.Roll(album: Album, bias: string?, rng: Random, closed: { [string]: boolean }?, fresh: ((string) -> boolean)?, minKey: string?, luck: number?): (string, string)
+function Albums.Roll(album: Album, bias: string?, rng: Random, closed: { [string]: boolean }?, fresh: ((string) -> boolean)?, minKey: string?, luck: any?): (string, string)
 	local rarities = Albums.RarityOdds(closed, minKey, luck)
 	local roll = rng:NextNumber()
 	local rarity = rarities[#rarities].Rarity
@@ -439,7 +564,7 @@ end
 
 -- The odds for a group's pull page: { [album id] = { [member key] = { [rarity key] = chance } } },
 -- adding up to 1 over the whole group.
-function Albums.GroupOdds(artist: string, bias: string?, closed: { [string]: boolean }?, luck: number?): { [string]: { [string]: { [string]: number } } }
+function Albums.GroupOdds(artist: string, bias: string?, closed: { [string]: boolean }?, luck: any?): { [string]: { [string]: { [string]: number } } }
 	local albums = Albums.PullAlbums(artist)
 	local out = {}
 	for _, album in albums do
@@ -456,7 +581,7 @@ end
 
 -- One pull from a group: (album, member key, rarity key), or nil if the group has no albums
 -- with art (PullAlbums).
-function Albums.RollGroup(artist: string, bias: string?, rng: Random, closed: { [string]: boolean }?, fresh: ((string) -> boolean)?, minKey: string?, luck: number?): (Album?, string?, string?)
+function Albums.RollGroup(artist: string, bias: string?, rng: Random, closed: { [string]: boolean }?, fresh: ((string) -> boolean)?, minKey: string?, luck: any?): (Album?, string?, string?)
 	local albums = Albums.PullAlbums(artist)
 	if #albums == 0 then
 		return nil, nil, nil
@@ -469,7 +594,7 @@ end
 -- A pack's cards are shown worst to best, so its last card is the best of `size`: the chance
 -- the last card is each rarity, { [rarity key] = chance } (the per-card odds for size 1).
 -- Premium packs roll size - 1 cards from `cardMin` up and one from `lastMin` up.
-function Albums.LastOdds(size: number, closed: { [string]: boolean }?, cardMin: string?, lastMin: string?, luck: number?): { [string]: number }
+function Albums.LastOdds(size: number, closed: { [string]: boolean }?, cardMin: string?, lastMin: string?, luck: any?): { [string]: number }
 	local function cumulative(minKey: string?): { [string]: number }
 		local out, total = {}, 0
 		for _, entry in Albums.RarityOdds(closed, minKey, luck) do
@@ -526,7 +651,7 @@ Albums.ArtistsInGen = Albums.ArtistsIn
 
 -- One card from a random group of a pool (ArtistsIn; nil = any group): every group is equally
 -- likely, then RollGroup with no bias (your bias only counts in its own group's packs).
-function Albums.RollGen(gen: string?, rng: Random, closed: { [string]: boolean }?, fresh: ((string) -> boolean)?, minKey: string?, luck: number?): (Album?, string?, string?)
+function Albums.RollGen(gen: string?, rng: Random, closed: { [string]: boolean }?, fresh: ((string) -> boolean)?, minKey: string?, luck: any?): (Album?, string?, string?)
 	local artists = Albums.ArtistsIn(gen)
 	if #artists == 0 then
 		return nil, nil, nil
@@ -556,7 +681,7 @@ end
 
 -- Today's group packs: ROTATION_SIZE groups, shuffled from every group with a seed that only
 -- changes every ROTATION_SECONDS, so the server and every client agree. Returns (groups, when
--- this rotation ends). Your bias's group is on sale too (InRotation), whatever the rotation.
+-- this rotation ends). These are Today's picks: every group is on sale, these are TODAY_DISCOUNT off.
 function Albums.Rotation(now: number): ({ string }, number)
 	local period = AlbumConstants.ROTATION_SECONDS
 	local slot = now // period
@@ -573,6 +698,21 @@ function Albums.Rotation(now: number): ({ string }, number)
 	return out, (slot + 1) * period
 end
 
+-- whether a group is one of Today's picks (TODAY_DISCOUNT off its packs)
+function Albums.IsTodaysPick(artist: string, now: number): boolean
+	return table.find((Albums.Rotation(now)), artist) ~= nil
+end
+
+-- one group pack's price now: GROUP_PACK_COST, or TODAY_DISCOUNT off for Today's picks
+function Albums.GroupPackCost(artist: string, now: number): number
+	local cost = AlbumConstants.GROUP_PACK_COST
+	if Albums.IsTodaysPick(artist, now) then
+		cost = math.floor(cost * (1 - AlbumConstants.TODAY_DISCOUNT) + 0.5)
+	end
+	return cost
+end
+
+-- (old: whether a group pack was on sale before every group was. Kept for anything that asks)
 -- whether a group pack is on sale now: in the rotation, your bias's group or a starred one
 function Albums.InRotation(artist: string, bias: string?, now: number, favourites: string?): boolean
 	if not Albums.Pullable(artist) then
@@ -616,6 +756,65 @@ function Albums.EarnPerHour(cardId: string, copies: number, bias: string?): numb
 		rate *= AlbumConstants.BIAS_EARN
 	end
 	return rate
+end
+
+-- [[ Flexing (design boards "69 · Leaderboard · Top Collectors", "69b · Showcase") ]]
+
+-- the collection points of everything owned (AlbumConstants.POINTS, ×1 / ×1.5 / ×2 by stars)
+function Albums.CollectionPoints(cards: { [string]: number }): number
+	local total = 0
+	for id, copies in cards do
+		local card = (copies or 0) > 0 and Albums.Card(id)
+		if card then
+			local stars = Albums.LEVEL_RANK[Albums.Level(copies) or "Normal"] or 1
+			total += (AlbumConstants.POINTS[card.Rarity.Key] or 0) * (1 + 0.5 * (stars - 1))
+		end
+	end
+	return math.floor(total)
+end
+
+-- the card a player flexes: the rarest of their pins (then the most copies), else the rarest
+-- card they own. Returns the card id and its copies, or nil with nothing owned.
+function Albums.FlexCard(cards: { [string]: number }, pins: string?): (string?, number?)
+	local function best(ids: { string }): (string?, number?)
+		local top, topScore, topCopies = nil, -1, 0
+		for _, id in ids do
+			local copies = cards[id] or 0
+			local card = copies > 0 and Albums.Card(id)
+			if card then
+				local score = Albums.RarityRank(card.Rarity.Key) * 10 + math.min(copies, AlbumConstants.RAINBOW_COPIES)
+				if score > topScore then
+					top, topScore, topCopies = id, score, copies
+				end
+			end
+		end
+		return top, if top then topCopies else nil
+	end
+	local id, copies = best(Albums.Pins(pins))
+	if id then
+		return id, copies
+	end
+	local all = {}
+	for cardId in cards do
+		table.insert(all, cardId)
+	end
+	return best(all)
+end
+
+-- a flex card as one string, "<cardId>*<copies>*<serial>" (serial 0 = none), and back
+function Albums.FlexValue(cardId: string?, copies: number?, serial: number?): string
+	return if cardId then `{cardId}*{copies or 1}*{serial or 0}` else ""
+end
+function Albums.ParseFlex(value: any): (string?, number, number?)
+	if type(value) ~= "string" then
+		return nil, 0, nil
+	end
+	local id, copies, serial = string.match(value, "^(.-)%*(%d+)%*(%d+)$")
+	if not id or not Albums.Card(id) then
+		return nil, 0, nil
+	end
+	local n = tonumber(serial) or 0
+	return id, tonumber(copies) or 1, if n > 0 then n else nil
 end
 
 -- [[ Pins ]]

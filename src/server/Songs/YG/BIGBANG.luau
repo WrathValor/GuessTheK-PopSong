@@ -116,7 +116,7 @@ return {
             Year = 2012,
             Colour = "FFE07A",
             Songs = { "BLUE", "BAD BOY", "FANTASTIC BABY" },
-            Members = { "G-DRAGON", "T.O.P", "TAEYANG", "DAESUNG", "SEUNGRI" },
+            Members = { "G-DRAGON", "TAEYANG", "DAESUNG" },
         },
     },
 }

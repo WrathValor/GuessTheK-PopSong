@@ -1,12 +1,13 @@
 --| BoostService
--- Boost potions (ShopCatalog.Boosts): 2× coins or 2× XP. Buying one adds time to that kind's
+-- Boost potions (ShopCatalog.Boosts): 2× coins, +50% luck in packs (Engine/AlbumService), or the
+-- retired 2× XP. Buying one adds time to that kind's
 -- clock (PlayerData Products, data.Boosts.Coins / .XP in seconds, capped at
 -- ShopCatalog.BOOST_MAX_SECONDS). The clock only runs while the player is in the game: every
 -- TICK seconds the time they've been online comes off it.
 -- The client sees each clock as a player attribute, "Boost<Kind>" = the server time it ends
 -- (workspace:GetServerTimeNow(); 0 = not running), for the HUD timers and the shop.
 -- DuelService Rewards doubles coins / XP while BoostService.Active(data, kind).
---   BoostService.Active(data, kind: "Coins" | "XP"): boolean
+--   BoostService.Active(data, kind: "Coins" | "XP" | "Luck"): boolean
 --   BoostService.Start()
 
 local Players = game:GetService("Players")
@@ -15,7 +16,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 
 local TICK = 5 -- seconds between clock saves
-local KINDS = { "Coins", "XP" }
+local KINDS = { "Coins", "XP", "Luck" }
 
 local BoostService = {}
 

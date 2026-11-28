@@ -9,6 +9,7 @@ local Promise = require(ReplicatedStorage.Packages.promise)
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
 local EventRsvp = require(ReplicatedStorage.Modules.EventRsvp)
+local LiveEvents = require(ReplicatedStorage.Constants.LiveEvents)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Client
 local CardDecor = require(ReplicatedStorage.Modules.UI.CardDecor)
 local Levels = require(ReplicatedStorage.Modules.Levels)
@@ -28,6 +29,7 @@ local UITypes = require(ReplicatedStorage.Types.UITypes)
 
 local Effects = require(script.Effects)
 local Nudges = require(script.Nudges)
+local Boosts = require(script.Boosts)
 
 -- -------------------------------- Variables ------------------------------- --
 local LOCAL_PLAYER = Players.LocalPlayer
@@ -142,7 +144,12 @@ function HUDController.Initialize(self: Self, interface: any)
 	self:_bindButtons()
 	self:_bindSeason()
 	self:_bindEvent()
-	-- (the active boost potions are off the v3 HUD: BottomLeft is hidden, Boosts isn't started)
+	self:_bindEvents()
+	-- the running potions, bottom left (HUD.BottomLeft.Boosts: Coins / XP / Luck); a click opens the
+	-- shop's Boosts tab
+	Boosts.Start(hud, self._janitor, function()
+		self:_open("Shop", "Boosts")
+	end)
 	self:_bindExtras()
 	self:_bindKPopped()
 	self:_applyStatic()
@@ -215,6 +222,24 @@ function HUDController._bindCurrency(self: Self)
 	self._janitor:Add(PlayerData.Currencies.Won.Observe(function(coins: number)
 		animateNumber("Coins", band, band.Amount, coins)
 	end))
+
+	-- the Shop's red count: coin upgrades you can afford right now (not maxed)
+	local function shopBadge()
+		local ok, levels = pcall(Upgrades.Levels, PlayerData)
+		local coins = PlayerData.Currencies.Won.Get() or 0
+		local n = 0
+		if ok then
+			for _, up in Upgrades.LIST do
+				local cost = Upgrades.Cost(up.Key, levels[up.Key] or 0)
+				if cost and cost <= coins then
+					n += 1
+				end
+			end
+		end
+		self:SetShopBadge(n)
+	end
+	self._janitor:Add(PlayerData.Currencies.Won.Observe(shopBadge))
+	self._janitor:Add(PlayerData.Inventory.ShopUpgrades.Observe(shopBadge))
 end
 
 -- [[ Roll tickets: the coins wallet ]]
@@ -418,6 +443,91 @@ end
 -- event: white, the event's icon and title, "in 14d" + NEW, and a tap opens Roblox's sign-up. Once the
 -- player is going it hides. While live it shows only if EventConstants.EVENTS[id].Live says
 -- what to open (pale blue, yellow tile). Hidden when there's no event or it's over.
+-- The Events tile (right column, between Profile and Gifts): shown while an in-game event is
+-- live (Constants/LiveEvents, the "LiveEvent" attribute), opens the Events screen
+-- (EventsController); its red count is the missions ready to claim. Its icon is the general
+-- event calendar (EventConstants.ICON), whatever the event. With no event it hides and
+-- Gifts moves up into its place.
+function HUDController._bindEvents(self: Self)
+	local buttons = self._hud.Buttons
+	local tile = buttons:FindFirstChild("Events")
+	if not tile then
+		return
+	end
+	local shadow = buttons:FindFirstChild("EventsShadow")
+	local gifts, giftsShadow = buttons:FindFirstChild("Gifts"), buttons:FindFirstChild("GiftsShadow")
+	local giftsAt = gifts and gifts.Position
+	local giftsShadowAt = giftsShadow and giftsShadow.Position
+	local count = tile:FindFirstChild("Count")
+	local function ready(event): number
+		local ok, n = pcall(function()
+			local ev = PlayerData.Events
+			if ev.Id.Get() ~= event.Id then
+				return 0
+			end
+			local today = ev.Day.Get() == LiveEvents.Day(workspace:GetServerTimeNow())
+			local daily, total = ev.Daily.Get() or {}, ev.Total.Get() or {}
+			local dailyClaimed, claimed = {}, {}
+			for _, id in ev.DailyClaimed.Get() or {} do
+				dailyClaimed[id] = true
+			end
+			for _, id in ev.Claimed.Get() or {} do
+				claimed[id] = true
+			end
+			local n = 0
+			if today then
+				for _, m in event.Daily do
+					if not dailyClaimed[m.Id] and (daily[m.Stat] or 0) >= m.Goal then
+						n += 1
+					end
+				end
+			end
+			for _, m in event.Missions do
+				if not claimed[m.Id] and (total[m.Stat] or 0) >= m.Goal then
+					n += 1
+				end
+			end
+			return n
+		end)
+		return if ok then n else 0
+	end
+	local function paint()
+		local id = ReplicatedStorage:GetAttribute("LiveEvent")
+		local event = if type(id) == "string" and id ~= "" then LiveEvents.Get(id) else nil
+		tile.Visible = event ~= nil
+		if shadow then
+			shadow.Visible = event ~= nil
+		end
+		-- no event: Gifts closes the gap
+		if gifts and giftsAt then
+			gifts.Position = if event then giftsAt else tile.Position
+		end
+		if giftsShadow and giftsShadowAt and shadow then
+			giftsShadow.Position = if event then giftsShadowAt else shadow.Position
+		end
+		if count then
+			local n = if event then ready(event) else 0
+			count.Text = tostring(n)
+			count.Visible = n > 0
+		end
+	end
+	paint()
+	self._janitor:Add(ReplicatedStorage:GetAttributeChangedSignal("LiveEvent"):Connect(paint))
+	for _, key in { "Id", "Day", "Daily", "Total", "DailyClaimed", "Claimed" } do
+		local ok, conn = pcall(function()
+			return PlayerData.Events[key].Observe(function()
+				task.defer(paint)
+			end)
+		end)
+		if ok and conn then
+			self._janitor:Add(conn)
+		end
+	end
+	self._janitor:Add(tile.Activated:Connect(function()
+		self:_open("Events")
+	end))
+end
+
 function HUDController._bindEvent(self: Self)
 	local topLeft = self._hud.TopLeft
 	-- (top right in the K-POPPED! layout, under your bias)
@@ -448,12 +558,29 @@ function HUDController._bindEvent(self: Self)
 			shadow.Visible = on
 		end
 	end
+	-- the in-game event that's live (Constants/LiveEvents, Engine/EventService): the button opens
+	-- the Events screen, whatever Roblox's event says
+	local function liveEvent()
+		local id = ReplicatedStorage:GetAttribute("LiveEvent")
+		return if type(id) == "string" and id ~= "" then LiveEvents.Get(id) else nil
+	end
 	local function paint()
 		local phase = info and EventRsvp.Phase(info)
+		local live = liveEvent()
 		if info then
 			card.Tile.Icon.Image = info.Icon
+		elseif live then
+			card.Tile.Icon.Image = live.Currency.Icon
 		end
-		if info and phase == "Before" and not info.Going then
+		if live then
+			show(true)
+			card.BackgroundColor3 = LIVE_BG
+			card.Tile.BackgroundColor3 = LIVE_TILE
+			card.Title.Text = live.Name
+			card.Sub.Text = "Open"
+			card.Sub.TextColor3 = INK
+			card.New.Visible = false
+		elseif info and phase == "Before" and not info.Going then
 			show(true)
 			card.BackgroundColor3 = WHITE
 			card.Tile.BackgroundColor3 = TILE
@@ -492,7 +619,12 @@ function HUDController._bindEvent(self: Self)
 	self._janitor:Add(function()
 		task.cancel(ticker)
 	end, true)
+	self._janitor:Add(ReplicatedStorage:GetAttributeChangedSignal("LiveEvent"):Connect(paint))
 	self._janitor:Add(card.Activated:Connect(function()
+		if liveEvent() then
+			self:_open("Events")
+			return
+		end
 		if not info then
 			return
 		end
@@ -647,7 +779,7 @@ function HUDController._bindKPopped(self: Self)
 		end
 		if member then
 			biasButton.Label.Text = "MY BIAS"
-			biasButton.Member.Text = `{string.upper(member.Name)} <font color="#FF5A4E">♥</font>`
+			biasButton.Member.Text = `{string.upper(member.Person or member.Name)} <font color="#FF5A4E">♥</font>`
 			biasButton.Group.Text = artist
 			biasButton.Bonus.Visible = true
 			biasButton.Bonus.Text = `{AlbumConstants.BIAS_PULL_WEIGHT}× PULLS · {AlbumConstants.BIAS_EARN}× COINS`
@@ -737,7 +869,7 @@ function HUDController._bindKPopped(self: Self)
 		elseif packet.Action == "Badge" and type(packet.Badges) == "table" and packet.Badges[1] then
 			-- group badge rungs reached (Engine/LadderService), best first
 			local best = packet.Badges[1]
-			local label = Ladders.Label(best.Ladder, best.Artist, best.Rung)
+			local label = Ladders.LongLabel(best.Ladder, best.Artist, best.Rung)
 			local more = #packet.Badges - 1
 			local text = `New badge: {label}!`
 			if more > 0 then
@@ -764,6 +896,8 @@ function HUDController._applyStatic(self: Self)
 	hud.TopLeft.Shop.Sale.Visible = HUDConstants.SHOP_SALE
 	self:SetRewardsBadge(self._rewardsBadge or 0)
 	self:SetDailyBadge(self._dailyReady or false)
+	self:SetMarketBadge(self._marketBadge or 0)
+	self:SetShopBadge(self._shopBadge or 0)
 end
 
 -- Number of unclaimed rewards on the Quests tile (the daily login has its own, SetDailyBadge);
@@ -785,6 +919,52 @@ function HUDController.SetRewardsBadge(self: Self, count: number, earned: number
 	local n = math.max(0, count - (if self._dailyReady then 1 else 0))
 	badge.Visible = n > 0
 	badge.Text = if n > 9 then "9+" else tostring(n)
+end
+
+-- Coin upgrades the player can afford: the red count on the Shop button (it covers the SALE
+-- tag while it shows)
+function HUDController.SetShopBadge(self: Self, count: number)
+	self._shopBadge = count
+	if not self._hud then
+		return
+	end
+	local shop = self._hud.TopLeft:FindFirstChild("Shop")
+	local badge = shop and shop:FindFirstChild("Count")
+	if not badge then
+		return
+	end
+	badge.Visible = count > 0
+	badge.Text = tostring(count)
+	local sale = shop:FindFirstChild("Sale")
+	if sale then
+		sale.Visible = count == 0 and HUDConstants.SHOP_SALE
+	end
+end
+
+-- Market sales to collect + listings that ended unseen: the red count on the Market button
+-- (MarketController keeps it right). It covers the NEW sticker while it shows.
+function HUDController.SetMarketBadge(self: Self, count: number)
+	self._marketBadge = count
+	if not self._hud then
+		return
+	end
+	local market = self._hud.TopLeft:FindFirstChild("Market")
+	local badge = market and market:FindFirstChild("Count")
+	if not badge then
+		return
+	end
+	badge.Visible = count > 0
+	badge.Text = if count > 9 then "9+" else tostring(count)
+	local new = market:FindFirstChild("New")
+	if new then
+		if count > 0 then
+			new:SetAttribute("Hidden", true)
+			new.Visible = false
+		elseif new:GetAttribute("Hidden") then
+			new:SetAttribute("Hidden", nil)
+			new.Visible = true
+		end
+	end
 end
 
 -- Today's login reward waiting: the red 1 on Daily Rewards (RewardsController keeps it right).

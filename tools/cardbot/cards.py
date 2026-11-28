@@ -6,12 +6,19 @@
   add_album(text, group, name, ...)  -> the Songs file text with a new album added
   match_member(members, name)        -> the album's member name for a filename / typed name
   set_art(text, album_id, member, id)-> the Songs file text with Art[member] set
+  assign_photos(album, names, block) -> each photo's card for a soloist's era (Versions)
+  square_art(image_bytes) / set_pack_art(text, id) / pack_art_path(repo, group)   group cover art
+  set_album_cover(text, album_id, id) / cover_path(repo, group, album)            an album's own cover
   upload_image(api_key, group_id, png) / poll_operation(api_key, op_id)   (Open Cloud)
   card_path(repo, group, album, member) -> where the crop is kept (assets/Photocards/…)
 
 Card ids are album:member:rarity, and the member part comes from the album's Members names
 (Modules/Library/Albums.MemberKey), so this never renames a member or an album that's already
 there: it only fills in Art and adds new albums.
+
+A soloist's album has `Versions = 5` (Songs/init.luau): its cards are "IU", "IU 2" … "IU 5",
+each its own Art entry. Photos just named after the soloist fill the empty versions in order;
+"IU 3.jpg" (or "IU 1") picks one, and replaces its art if it has some.
 
 Run it on its own to check a group and album without Discord:
     python tools/cardbot/cards.py "TREASURE" "REBOOT"
@@ -87,7 +94,7 @@ def preview_sheet(cards: list[tuple[str, bytes]]) -> bytes:
 
 # [[ Names ]]
 
-ACCENTS = str.maketrans({"É": "e", "é": "e", "È": "e", "è": "e", "Á": "a", "á": "a", "Í": "i", "í": "i", "Ó": "o", "ó": "o", "Ú": "u", "ú": "u"})
+ACCENTS = str.maketrans({"É": "e", "é": "e", "È": "e", "è": "e", "Á": "a", "á": "a", "Í": "i", "í": "i", "Ó": "o", "ó": "o", "Ú": "u", "ú": "u", "Ü": "u", "ü": "u", "Ö": "o", "ö": "o", "Ä": "a", "ä": "a"})
 
 
 def member_key(name: str) -> str:
@@ -109,6 +116,66 @@ def match_member(members: list[str], name: str) -> str | None:
 
 def slug(s: str) -> str:
     return re.sub(r"-+", "-", re.sub(r"[^0-9a-z]+", "-", s.translate(ACCENTS).lower())).strip("-")
+
+
+# [[ Soloist versions ]]
+
+SOLO_VERSIONS = 5  # photocards a new soloist era gets
+
+
+def version_slots(members: list[str], versions: int) -> list[str]:
+    """An album's cards by Art name: the members, or for a soloist's era "IU", "IU 2" … "IU 5"
+    (Modules/Library/Albums: version 1 keeps the plain name, so its card id never changes)."""
+    out = []
+    for m in members:
+        out.append(m)
+        out += [f"{m} {v}" for v in range(2, versions + 1)]
+    return out
+
+
+def is_solo(text: str) -> bool:
+    return re.search(r'^\s*GroupType\s*=\s*"Solo"', text, re.M) is not None
+
+
+def assign_photos(album: dict, names: list[str], block: str) -> tuple[list[str | None], str | None]:
+    """Each photo's card in a versioned album: a name like "IU 3" (or "IU 1", or just "3.jpg")
+    is that version; any other name ("IU.jpg", "IMG_123.jpg", "1.png" past the last version)
+    takes the next version with no art that no other photo took. A soloist's album has one
+    person, so photos never need their name. Returns (cards, error); a None card = not this album."""
+    slots = album["slots"]
+    by_key = {member_key(s): s for s in slots}
+    for m in album["members"]:
+        by_key.setdefault(member_key(m) + "1", m)  # "IU 1" = the first card
+    picked: list[str | None] = [None] * len(names)
+    taken = set()
+    later = []
+    for i, name in enumerate(names):
+        stem = re.sub(r"\.(png|jpe?g|webp|gif|bmp)$", "", name, flags=re.I)
+        key = member_key(stem)
+        person = match_member(album["members"], name)
+        solo = len(album["members"]) == 1
+        if solo and key.isdigit() and 1 <= int(key) <= album["versions"]:
+            key = member_key(album["members"][0]) + ("" if key == "1" else key)  # "3.jpg" = version 3
+            person = album["members"][0]
+        elif solo and not person:
+            person = album["members"][0]  # (one person: any photo is them)
+        exact = by_key.get(key)
+        if exact and (exact not in album["members"] or key.endswith("1") and key != member_key(exact)):
+            if exact in taken:
+                return picked, f"Two photos are for {exact}."
+            picked[i] = exact
+            taken.add(exact)
+        elif person:
+            later.append((i, person))
+    for i, person in later:
+        free = [s for s in slots if (s == person or s.startswith(person + " ")) and s not in taken and not has_art(block, s)]
+        if not free:
+            n = sum(1 for s in slots if s == person or s.startswith(person + " "))
+            return picked, (f"All {n} of {person}'s cards in {album['name']} have art (or are taken by other photos). "
+                            f"Name a photo \"{person} 2\" … to replace one.")
+        picked[i] = free[0]
+        taken.add(free[0])
+    return picked, None
 
 
 # [[ Songs files ]]
@@ -159,10 +226,15 @@ def _albums(text: str) -> list[dict]:
         block = text[start:end]
         name = re.search(r'^\s*Name\s*=\s*"([^"]*)"', block, re.M)
         members = re.search(r"^\s*Members\s*=\s*\{([^}]*)\}", block, re.M)
+        versions = re.search(r"^\s*Versions\s*=\s*(\d+)", block, re.M)
+        member_list = re.findall(r'"([^"]+)"', members.group(1)) if members else []
+        n = max(1, int(versions.group(1))) if versions else 1
         out.append({
             "id": idm.group(2),
             "name": name.group(1) if name else idm.group(2),
-            "members": re.findall(r'"([^"]+)"', members.group(1)) if members else [],
+            "members": member_list,
+            "versions": n,
+            "slots": version_slots(member_list, n),
             "start": start,
             "end": end,
             "indent": idm.group(1),
@@ -183,8 +255,9 @@ def find_album(text: str, album: str) -> dict | None:
     return None
 
 
-def add_album(text: str, name: str, year: int, members: list[str]) -> tuple[str, str]:
-    """Adds a new album (empty Songs, Art to come) at the end of Albums. Returns (text, id)."""
+def add_album(text: str, name: str, year: int, members: list[str], versions: int = 1) -> tuple[str, str]:
+    """Adds a new album (empty Songs, Art to come) at the end of Albums. Returns (text, id).
+    `versions` > 1: a soloist's era with that many photocards (Versions)."""
     group = group_name(text)
     album_id = f"{member_key(group)}-{slug(name)}"
     if any(a["id"] == album_id for a in _albums(text)):
@@ -213,7 +286,8 @@ def add_album(text: str, name: str, year: int, members: list[str]) -> tuple[str,
         f'{i2}Colour = "{colour}",\n'
         f"{i2}Songs = {{}},\n"
         f"{i2}Members = {{ {member_list} }},\n"
-        f"{i1}}},\n"
+        + (f"{i2}Versions = {versions},\n" if versions > 1 else "")
+        + f"{i1}}},\n"
     )
     if m:
         text = text[:line_start] + entry + text[line_start:]
@@ -293,6 +367,66 @@ def card_path(repo: Path, group: str, album: str, member: str) -> Path:
     a = pick(g, safe(album))
     m = pick(a, safe(member))
     return m / f"{safe(member).upper()}.png"
+
+
+# [[ Group cover art (PackArt: the group pack's sleeve and the binder) ]]
+
+ART_SIZE = 512
+
+
+def square_art(data: bytes) -> bytes:
+    """A cover or group photo -> a 512x512 JPEG: the biggest centred square, kept to the top of a
+    tall photo (faces sit in the top two thirds, Songs/init.luau)."""
+    im = ImageOps.exif_transpose(Image.open(io.BytesIO(data))).convert("RGB")
+    w, h = im.size
+    s = min(w, h)
+    x, y = (w - s) // 2, 0 if h > w else (h - s) // 2
+    out = io.BytesIO()
+    im.crop((x, y, x + s, y + s)).resize((ART_SIZE, ART_SIZE), Image.LANCZOS).save(out, "JPEG", quality=92)
+    return out.getvalue()
+
+
+def pack_art_path(repo: Path, group: str) -> Path:
+    """assets/Photocards/Groups/<Group>/Art/Group.jpg (an existing folder's capitalisation kept)."""
+    root = repo / "assets/Photocards/Groups"
+    for p in (root.iterdir() if root.exists() else []):
+        if p.is_dir() and p.name.lower() == group.lower():
+            return p / "Art" / "Group.jpg"
+    return root / re.sub(r'[<>:"/\\|?*]', "", group) / "Art" / "Group.jpg"
+
+
+def set_pack_art(text: str, asset_id: str) -> str:
+    """Sets the group's PackArt (adds the line after Status, or Colour, when it's missing)."""
+    line = f'PackArt = "rbxassetid://{asset_id}", -- group art: pack sleeve + binder (assets/Photocards/Groups)'
+    m = re.search(r'^([ \t]*)PackArt\s*=\s*"[^"]*",?[^\n]*$', text, re.M)
+    if m:
+        return text[:m.start()] + m.group(1) + line + text[m.end():]
+    m = re.search(r'^([ \t]*)(Status|Colour)\s*=[^\n]*\n', text, re.M)
+    if not m:
+        raise ValueError("no Status or Colour line to put PackArt after")
+    return text[:m.end()] + m.group(1) + line + "\n" + text[m.end():]
+
+
+def cover_path(repo: Path, group: str, album: str) -> Path:
+    """assets/Photocards/<Group>/<Album>/Cover.jpg, next to the album's member folders."""
+    return card_path(repo, group, album, "_").parent.parent / "Cover.jpg"
+
+
+def set_album_cover(text: str, album_id: str, asset_id: str) -> str:
+    """Sets one album's Cover (its binder page header), adding the line after Colour (or Year)."""
+    a = next(a for a in _albums(text) if a["id"] == album_id)
+    block = text[a["start"]:a["end"]]
+    line = f'Cover = "rbxassetid://{asset_id}",'
+    m = re.search(r'^([ \t]*)Cover\s*=\s*"[^"]*",?[^\n]*$', block, re.M)
+    if m:
+        block = block[:m.start()] + m.group(1) + line + block[m.end():]
+    else:
+        for key in ("Colour", "Year", "Name"):
+            m = re.search(r'^([ \t]*)' + key + r'\s*=[^\n]*\n', block, re.M)
+            if m:
+                break
+        block = block[:m.end()] + m.group(1) + line + "\n" + block[m.end():]
+    return text[:a["start"]] + block + text[a["end"]:]
 
 
 # [[ Open Cloud ]]

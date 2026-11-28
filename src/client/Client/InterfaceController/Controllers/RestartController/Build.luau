@@ -139,7 +139,7 @@ local function banner(group: Instance)
 	replace(group, "RestartMiniShadow")
 	local miniSh = shadowFor(group, "RestartMiniShadow", Vector2.new(640, 4), Vector2.new(132, 40), 12, 3, 3, 0)
 	miniSh.Visible = false
-	local mini = new("TextButton", { Name = "RestartMini", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromOffset(640, 4), Size = UDim2.fromOffset(132, 40), BackgroundColor3 = Build.UPDATE, Text = "", AutoButtonColor = false, Visible = false, ZIndex = 2 }, group)
+	local mini = new("TextButton", { Name = "RestartMini", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(640, 24), Size = UDim2.fromOffset(132, 40), BackgroundColor3 = Build.UPDATE, Text = "", AutoButtonColor = false, Visible = false, ZIndex = 2 }, group)
 	corner(mini, 12)
 	stroke(mini, 3)
 	new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, mini)

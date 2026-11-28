@@ -147,8 +147,9 @@ local function inbox(panel: Frame)
 	button(row, "Claim", 0, 0, 116, 46, MINT, "CLAIM", 16)
 	for _, n in { "Claim", "ClaimShadow" } do
 		local b = row[n]
-		b.AnchorPoint = Vector2.new(1, 0.5)
-		b.Position = UDim2.new(1, if n == "Claim" then -16 else -13, 0.5, if n == "Claim" then 0 else 3)
+		-- (Claim centred so ButtonScale grows it from the middle; the shadow stays right-anchored)
+		b.AnchorPoint = if n == "Claim" then Vector2.new(0.5, 0.5) else Vector2.new(1, 0.5)
+		b.Position = UDim2.new(1, if n == "Claim" then -16 - b.Size.X.Offset / 2 else -13, 0.5, if n == "Claim" then 0 else 3)
 	end
 
 	text(page, "Empty", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, -40), Size = UDim2.fromOffset(560, 60), TextSize = 16, TextColor3 = MUTED, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Center, Text = "No gifts yet. Gifts from friends land here, even when you're offline.", Visible = false })

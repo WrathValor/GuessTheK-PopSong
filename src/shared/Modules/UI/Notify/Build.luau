@@ -23,6 +23,11 @@ local BODY_BOLD = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.Fo
 local CARD_W, CARD_H = 460, 72
 local PILL_H = 40
 local SHADOW = 4
+local LINE = 3 -- the face's outline (a Border UIStroke draws outside the face)
+-- the face sits LINE in from the slot so its outline isn't clipped by the CanvasGroup, and the
+-- hard shadow is grown by the outline (LINE bigger all round, its corner LINE rounder) so its
+-- corners don't poke out past the outline's: the slot is the face + 2 × LINE + SHADOW
+local PAD = LINE * 2 + SHADOW
 
 local Build = {}
 
@@ -57,13 +62,13 @@ local function disc(parent: Instance, s: number, x: number, r: number, line: num
 end
 
 local function card(templates: Instance)
-	local slot = new("Frame", { Name = "Card", Size = UDim2.fromOffset(CARD_W + SHADOW + 3, CARD_H + SHADOW + 3), BackgroundTransparency = 1 }, templates)
+	local slot = new("Frame", { Name = "Card", Size = UDim2.fromOffset(CARD_W + PAD, CARD_H + PAD), BackgroundTransparency = 1 }, templates)
 	local g = new("CanvasGroup", { Name = "Group", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1 }, slot)
-	local shadow = new("Frame", { Name = "Shadow", Position = UDim2.fromOffset(SHADOW + 1, SHADOW + 1), Size = UDim2.fromOffset(CARD_W, CARD_H), BackgroundColor3 = INK }, g)
-	corner(shadow, 16)
-	local face = new("TextButton", { Name = "Face", Position = UDim2.fromOffset(1, 1), Size = UDim2.fromOffset(CARD_W, CARD_H), BackgroundColor3 = WHITE, Text = "", AutoButtonColor = false, ZIndex = 2 }, g)
+	local shadow = new("Frame", { Name = "Shadow", Position = UDim2.fromOffset(SHADOW, SHADOW), Size = UDim2.fromOffset(CARD_W + LINE * 2, CARD_H + LINE * 2), BackgroundColor3 = INK }, g)
+	corner(shadow, 16 + LINE)
+	local face = new("TextButton", { Name = "Face", Position = UDim2.fromOffset(LINE, LINE), Size = UDim2.fromOffset(CARD_W, CARD_H), BackgroundColor3 = WHITE, Text = "", AutoButtonColor = false, ZIndex = 2 }, g)
 	corner(face, 16)
-	stroke(face, 3)
+	stroke(face, LINE)
 	new("UIGradient", { Name = "Tint", Color = ColorSequence.new(C("E8FBEE"), C("C8F2D3")) }, face)
 	disc(face, 44, 10, 12, 3, 26)
 	text(face, "Title", { Position = UDim2.fromOffset(66, 11), Size = UDim2.new(1, -82, 0, 22), FontFace = HEAD, TextSize = 17, Text = "Gift claimed!" })
@@ -81,13 +86,13 @@ local function card(templates: Instance)
 end
 
 local function pill(templates: Instance)
-	local slot = new("Frame", { Name = "Pill", Size = UDim2.fromOffset(300, PILL_H + SHADOW + 3), BackgroundTransparency = 1 }, templates)
+	local slot = new("Frame", { Name = "Pill", Size = UDim2.fromOffset(300, PILL_H + PAD), BackgroundTransparency = 1 }, templates)
 	local g = new("CanvasGroup", { Name = "Group", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1 }, slot)
-	local shadow = new("Frame", { Name = "Shadow", Position = UDim2.fromOffset(SHADOW, SHADOW), Size = UDim2.new(1, -(SHADOW + 3), 0, PILL_H), BackgroundColor3 = INK }, g)
-	corner(shadow, 12)
-	local face = new("TextButton", { Name = "Face", Position = UDim2.fromOffset(1, 1), Size = UDim2.new(1, -(SHADOW + 3), 0, PILL_H), BackgroundColor3 = WHITE, Text = "", AutoButtonColor = false, ZIndex = 2 }, g)
+	local shadow = new("Frame", { Name = "Shadow", Position = UDim2.fromOffset(SHADOW, SHADOW), Size = UDim2.new(1, -SHADOW, 0, PILL_H + LINE * 2), BackgroundColor3 = INK }, g)
+	corner(shadow, 12 + LINE)
+	local face = new("TextButton", { Name = "Face", Position = UDim2.fromOffset(LINE, LINE), Size = UDim2.new(1, -PAD, 0, PILL_H), BackgroundColor3 = WHITE, Text = "", AutoButtonColor = false, ZIndex = 2 }, g)
 	corner(face, 12)
-	stroke(face, 3)
+	stroke(face, LINE)
 	new("UIGradient", { Name = "Tint", Color = ColorSequence.new(C("E8FBEE"), C("C8F2D3")) }, face)
 	disc(face, 26, 8, 8, 2.5, 17)
 	text(face, "Text", { Position = UDim2.fromOffset(42, 0), Size = UDim2.new(1, -54, 1, 0), FontFace = BODY, TextSize = 15, Text = "+1,240 coins collected" })

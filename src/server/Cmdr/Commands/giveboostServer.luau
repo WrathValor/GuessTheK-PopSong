@@ -3,8 +3,8 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local CmdrUtil = require(ServerScriptService.Cmdr.CmdrUtil)
 local ShopCatalog = require(ReplicatedStorage.Constants.ShopCatalog)
 return function(_, players, kind, minutes)
-	if kind ~= "Coins" and kind ~= "XP" then
-		return "kind must be Coins or XP"
+	if kind ~= "Coins" and kind ~= "XP" and kind ~= "Luck" then
+		return "kind must be Coins, XP or Luck"
 	end
 	return CmdrUtil.Each(players, function(_, data)
 		local clock = data.Boosts[kind]

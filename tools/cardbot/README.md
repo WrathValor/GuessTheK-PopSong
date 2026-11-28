@@ -31,6 +31,10 @@ Optional fields:
   create a new card id. Fix the name, or `/addmember` first.
 - Uploading again for a member replaces their art (the preview says so).
 - `/albums` lists a group's albums and who's missing art.
+- **Soloists** (IU, YENA…) get 5 cards per era (`Versions = 5`). Name every photo after them
+  (`IU.jpg`, or a zip of an `IU/` folder): they fill the versions with no art yet, in order.
+  `IU 3.jpg` picks version 3 (replacing its art if it has some); `IU 1.jpg` is the first card.
+  A new album for a soloist is added with `Versions = 5`.
 
 The crop is the same every time: it trims the card edge, then takes a 4:5 box, centred across and
 starting near the top. Look at the preview before you upload, especially for low necklines, bare
@@ -72,3 +76,13 @@ py tools\cardbot\cards.py "TREASURE" "REBOOT" Haruto Jihoon
 
 Renaming an album or a member isn't done here: those need `AlbumConstants.RENAMED_ALBUMS` so
 saved cards move with them.
+
+## Cover art
+
+```
+/packart group:TWS photo:…                         the group's art: pack sleeve + binder header
+/packart group:BTS album:Love Yourself photo:…     that album's own cover (its binder page)
+```
+The photo is cropped to a centred square (the top of a tall photo) and saved in
+`assets/Photocards/Groups/<Group>/Art/Group.jpg` or `assets/Photocards/<Group>/<Album>/Cover.jpg`.
+An album without a cover shows the group's art.

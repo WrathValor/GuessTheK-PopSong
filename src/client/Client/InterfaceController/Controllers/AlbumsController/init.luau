@@ -21,6 +21,11 @@
 --          so; a rare card teases on its back, then gets the ring, rays, sparkles and its
 --          rarity's name. The summary at the end is the only place with buttons: Sell under each
 --          card (BinderRemote), Sell all duplicates, Done, Open again. Skip jumps there.
+--          XP (boards 68 / 68b): a first-ever copy shows "+2 XP · NEW CARD" under it (a
+--          duplicate towards the stars "STAR PROGRESS", "2ND STAR", "ALL 3 STARS!") and fills
+--          the small LV bar; the card that fills an album's page adds the ALBUM COMPLETE sticker.
+--          The summary has the lilac XP chip, "+n XP" under each card that paid, a level bar
+--          over DONE, and a level gained is said once the pull is done.
 -- Collecting and duels are separate: nothing here is about songs.
 --
 -- Interface:Open("Albums", opts):
@@ -42,11 +47,15 @@ local Promise = require(ReplicatedStorage.Packages.promise)
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Client
 local Albums = require(ReplicatedStorage.Modules.Library.Albums)
+local Prices = require(ReplicatedStorage.Modules.Prices)
 local Upgrades = require(ReplicatedStorage.Modules.Library.Upgrades)
 local CardDecor = require(ReplicatedStorage.Modules.UI.CardDecor)
+local Photocard = require(ReplicatedStorage.Modules.UI.Photocard)
 local Packs = require(ReplicatedStorage.Modules.Library.Packs)
 local AlbumConstants = require(ReplicatedStorage.Constants.AlbumConstants)
+local Levels = require(ReplicatedStorage.Modules.Levels)
 local Currencies = require(ReplicatedStorage.Constants.Currencies)
+local LiveEvents = require(ReplicatedStorage.Constants.LiveEvents)
 local ShopCatalog = require(ReplicatedStorage.Constants.ShopCatalog)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local FrameTransition = require(ReplicatedStorage.Modules.UI.Animations.FrameTransition)
@@ -110,6 +119,26 @@ local GEN_COLOURS = {
 	["5th"] = C("A8E0F5"),
 }
 
+-- each gen's and mix's own pack (board 63 · Packs · sleeve polish; Build: the sleeve's Look):
+-- its two-tone foil, its number or word, its chip and its era mark (a Motif child)
+local RAINBOW_FOIL = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, C("FF9EC4")),
+	ColorSequenceKeypoint.new(0.25, C("FFE07A")),
+	ColorSequenceKeypoint.new(0.5, C("A7E9B8")),
+	ColorSequenceKeypoint.new(0.75, C("9ED8F5")),
+	ColorSequenceKeypoint.new(1, C("B9A6FF")),
+})
+local GEN_LOOKS = {
+	["2nd"] = { Num = "2", Suffix = "ND", Chip = "'03–'11", Foil = { "D9D3EE", "B7AEDB" }, Motif = "Disc" },
+	["3rd"] = { Num = "3", Suffix = "RD", Chip = "'12–'17", Foil = { "FFC9B0", "FF9F86" }, Motif = "Stick" },
+	["4th"] = { Num = "4", Suffix = "TH", Chip = "'18–'22", Foil = { "CDBBFF", "A68EF7" }, Motif = "Heart" },
+	["5th"] = { Num = "5", Suffix = "TH", Chip = "'23 on", Foil = { "BFE8FA", "86CFF0" }, Motif = "Star" },
+	Girl = { Word = "GIRLS", Chip = "girls", Foil = { "FFD0E3", "FF9EC4" }, Motif = "Heart" },
+	Boy = { Word = "BOYS", Chip = "boys", Foil = { "C4F0D2", "8EDDA8" }, Motif = "Mic" },
+	All = { Word = "SHUFFLE", Chip = "all gens", Motif = "Dice" },
+}
+local SHEEN = TweenInfo.new(1.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, false, 2.2)
+
 local HOLDER_AT = UDim2.fromOffset(640, 300)
 local PACK_AT = UDim2.fromOffset(640, 320)
 local HOLD_STEP = 0.22 -- seconds between cards while the stage is held down
@@ -146,9 +175,12 @@ local function groupMembers(artist: string): { { Key: string, Name: string, Art:
 	local albums = Albums.PullAlbums(artist) -- (members of albums with card art: the ones you can pick)
 	for i = #albums, 1, -1 do
 		for _, member in albums[i].Members do
-			if not seen[member.Key] then
+			-- (one entry per person: a soloist's versions are one bias, picked by their first card)
+			local who = member.Person or member.Name
+			if not seen[member.Key] and not seen[who] then
 				seen[member.Key] = true
-				table.insert(list, { Key = member.Key, Name = member.Name, Art = member.Art, Colour = albums[i].Colour })
+				seen[who] = true
+				table.insert(list, { Key = member.Key, Name = who, Art = member.Art, Colour = albums[i].Colour })
 			end
 		end
 	end
@@ -245,7 +277,7 @@ local function fillFace(face: Instance, cardId: string, copies: number, isNew: b
 	photo.Stamp.Visible = style.Stamp ~= nil
 	photo.Stamp.Text = style.Stamp or ""
 	photo.Signature.Visible = style.Signature == true
-	photo.Signature.Text = member.Name
+	photo.Signature.Text = member.Person or member.Name
 	local serialText = Albums.SerialText(cardId, serial)
 	photo.Serial.Visible = serialText ~= nil
 	photo.Serial.Text = serialText or ""
@@ -534,10 +566,29 @@ local function clock(seconds: number): string
 	return if m > 0 then `{m}m` else `{seconds}s`
 end
 
+-- premium packs of this kind bought with Robux and not opened yet (Inventory.PremiumOwned)
+local function premiumOwned(key: string): number
+	local ok, map = pcall(function()
+		return PlayerData.Inventory.PremiumOwned.Get()
+	end)
+	return if ok and map then map[key] or 0 else 0
+end
+
+-- the luck you'd pull with right now: the Luck upgrade, plus a running Luck potion (the server's
+-- "BoostLuck" attribute: when it runs out, in server time)
+local function currentLuck(): any
+	local ends = player:GetAttribute("BoostLuck")
+	local potion = type(ends) == "number" and ends > workspace:GetServerTimeNow()
+	return Albums.Luck(Upgrades.Luck(Upgrades.Levels(PlayerData)), potion)
+end
+
 local function packPrice(kind: string, target: string?): number
 	if kind == "Premium" then
 		local pack = Albums.Premium(target)
 		return pack and pack.Cost or 0
+	end
+	if kind == "Group" and target then
+		return Albums.GroupPackCost(target, os.time()) -- (Today's picks: TODAY_DISCOUNT off)
 	end
 	return if kind == "Gen" then AlbumConstants.GEN_PACK_COST else AlbumConstants.GROUP_PACK_COST
 end
@@ -600,7 +651,9 @@ function AlbumsController:_fillFree()
 		local i = k - (3 - shown) -- the top sleeve is always Sleeve3
 		sleeve.Visible = i >= 1
 		sleeve.Position = UDim2.fromOffset(left + (i - 1) * 12, (shown - i) * 8 + (3 - shown) * 4)
-		sleeve.Sleeve.BackgroundTransparency = if packs == 0 then 0.5 else 0
+		-- (none left: a plain sand sleeve, still solid, so the ink shadow behind doesn't muddy it)
+		sleeve.Sleeve.BackgroundTransparency = 0
+		sleeve.Sleeve.BackgroundColor3 = if packs == 0 then C("E6E0D2") else C("A7E9B8")
 	end
 end
 
@@ -641,79 +694,33 @@ function AlbumsController:_fillShop()
 		end
 	end
 
-	-- group packs: favourites (your bias's group, then pinned ones) and today's rotation
-	local rotation, ends = Albums.Rotation(os.time())
+	-- group packs (design board "65"): Today's picks (TODAY_DISCOUNT off), Your groups (your
+	-- bias's group, then pinned ones) and All groups. Every group with card art is on sale.
+	local now = os.time()
+	local rotation, ends = Albums.Rotation(now)
 	self._rotationEnds = ends
 	local favList = {}
 	if biasArtist and Albums.Pullable(biasArtist) then
 		table.insert(favList, biasArtist)
 	end
 	for _, name in favourites do
-		if not table.find(favList, name) then
+		if not table.find(favList, name) and Albums.Pullable(name) then
 			table.insert(favList, name)
 		end
 	end
-	if self._oddsLink and (self._oddsLink:IsDescendantOf(main.Favs) or self._oddsLink:IsDescendantOf(main.Today)) then
-		self:_hideOdds()
-	end
-	local function fillRow(row: Instance, names: { string })
-		for _, child in row:GetChildren() do
-			if child:IsA("GuiButton") and child.Name ~= "Template" then
-				child:Destroy()
-			end
-		end
-		for order, name in names do
-			local tile = row.Template:Clone()
-			tile.Name = name
-			tile.LayoutOrder = order
-			tile.Visible = true
-			self:_dressSleeve(tile.Pack.Sleeve, name)
-			tile.Label.Text = name
-			tile.Bias.Visible = name == biasArtist
-			local pinned = table.find(favourites, name) ~= nil
-			tile.Pin.Visible = name ~= biasArtist
-			tile.Pin.Text = if pinned then "PINNED" else "+ PIN"
-			tile.Pin.BackgroundColor3 = if pinned then C("FFE07A") else C("1E1B2E")
-			tile.Pin.TextColor3 = if pinned then C("1E1B2E") else CREAM
-			tile.Pin.Size = UDim2.fromOffset(if pinned then 60 else 46, 22)
-			tile.Price.Amount.Text = fmt(AlbumConstants.GROUP_PACK_COST * self._count)
-			tile.Buy.Text = "BUY" .. x
-			tile.Buy.BackgroundColor3 = if name == biasArtist then C("A7E9B8") else C("FFE07A")
-			showWithShadow(tile, "Buy", allowed)
-			tile.Parent = row
-			ButtonScale.Apply(tile.Buy)
-			tile.Activated:Connect(function()
-				Sounds.Play("Click")
-				self._shopGroup = name
-			end)
-			tile.Buy.Activated:Connect(function()
-				self._shopGroup = name
-				self:_open("Group", self._count, name)
-			end)
-			tile.Pin.Activated:Connect(function()
-				if not pinned and #favourites >= AlbumConstants.FAVOURITES_MAX then
-					Sounds.Play("Wrong")
-					Juice.Shake(tile.Pin)
-					self:_toast(`You can pin {AlbumConstants.FAVOURITES_MAX} groups: unpin one first`)
-					return
-				end
-				Sounds.Play("Click")
-				AlbumRemote:Fire({ Action = "Star", Group = name })
-			end)
-			self:_hookOdds(tile.Odds, "Group", name)
-		end
-	end
-	fillRow(main.Favs, favList)
+	local paint = { Bias = biasArtist, Favourites = favourites, Allowed = allowed, X = x, Now = now }
+	self:_groupRow(main.Favs, favList, paint)
 	main.Favs.Empty.Visible = #favourites < AlbumConstants.FAVOURITES_MAX
-	local todayList = {}
-	for _, name in rotation do
-		if not table.find(favList, name) then
-			table.insert(todayList, name)
-		end
+	main.Favs.Empty.LayoutOrder = 99
+	self:_groupRow(main.Today, rotation, paint)
+	local grid = main:FindFirstChild("AllGroups")
+	if grid then
+		self:_groupRow(grid, Albums.PullArtists(), paint)
+		self:_hookAllFilters()
+		self:_filterAll()
 	end
-	fillRow(main.Today, todayList)
-	if not self._shopGroup or not (table.find(favList, self._shopGroup) or table.find(todayList, self._shopGroup)) then
-		self._shopGroup = favList[1] or todayList[1]
+	if not self._shopGroup or not Albums.Pullable(self._shopGroup) then
+		self._shopGroup = favList[1] or rotation[1]
 	end
 
 	-- premium packs
@@ -728,16 +735,19 @@ function AlbumsController:_fillShop()
 				then `Every card {cardRarity and cardRarity.Name or ""}+. Last is {lastRarity and lastRarity.Name or ""}+`
 				else `Last card is {lastRarity and lastRarity.Name or ""} or better`
 			local cost = pack.Cost * self._count
-			if coins >= cost then
+			local owned = premiumOwned(pack.Key)
+			if owned > 0 then
+				setButtonRow(card.Buy, if owned == 1 then "Open yours" else `Open yours · {owned}`, nil) -- (bought with Robux)
+			elseif coins >= cost then
 				setButtonRow(card.Buy, "", fmt(cost), Currencies.Coins.Icon)
 			else
 				setButtonRow(card.Buy, `Need {fmt(cost - coins)} more`, nil)
 			end
 			local robux = pack.ProductId ~= 0 and self._count == 1
 			showWithShadow(card, "Robux", allowed and robux)
-			card.Robux.Text = `R$ {pack.Robux or 0}`
+			card.Robux.Text = `R$ {Prices.Get("Product", pack.ProductId) or pack.Robux or 0}` -- (the live, regional price once it's read)
 			card.Buy.Size = UDim2.fromOffset(if robux then 170 else 268, 38)
-			card.Buy.Position = UDim2.fromOffset(if robux then 96 else 146, 124)
+			card.Buy.Position = UDim2.fromOffset(if robux then 96 else 146, card.Size.Y.Offset - 32) -- (on the card's bottom: Build premiumLayout)
 			card.BuyShadow.Size = card.Buy.Size
 			card.BuyShadow.Position = card.Buy.Position + UDim2.fromOffset(4, 4)
 			showWithShadow(card, "Buy", allowed)
@@ -763,12 +773,231 @@ function AlbumsController:_fillShop()
 		genRow.Label.Text = `Gen packs ×{genPacks}`
 		showWithShadow(genRow, "Open", allowed and genPacks > 0)
 	end
+	-- the live event's packs (Constants/LiveEvents, bought in the Events shop): only while you have one
+	local eventRow = unopened:FindFirstChild("EventPacks")
+	if eventRow then
+		local live = LiveEvents.Get(ReplicatedStorage:GetAttribute("LiveEvent") or "")
+		local eventPacks = Currencies.Count(player, "EventPacks")
+		eventRow.Visible = live ~= nil and eventPacks > 0
+		if live then
+			eventRow.Label.Text = `{live.Pack.Name}s ×{eventPacks}`
+		end
+		showWithShadow(eventRow, "Open", allowed and eventPacks > 0)
+	end
 
 	self:_fillRotation()
 	self:_balance()
 	if page.OddsSheet.Visible then
 		self:_fillOdds()
 	end
+end
+
+-- [[ Group pack tiles ]]
+-- A tile is made once per group in each row, then repainted on every fill (price, pin, deal).
+
+local SORTS = { "A–Z", "Newest", "Most collected" }
+
+local function groupType(artist: string): string?
+	local album = Albums.ForArtist(artist)[1]
+	return album and album.GroupType
+end
+
+-- the newest year of a group's albums with card art (Sort: Newest)
+local function newestYear(artist: string): number
+	local best = 0
+	for _, album in Albums.PullAlbums(artist) do
+		best = math.max(best, album.Year or 0)
+	end
+	return best
+end
+
+function AlbumsController:_groupTile(row: Instance, name: string): GuiButton
+	local tile = row:FindFirstChild(name)
+	if tile and tile:IsA("GuiButton") then
+		return tile
+	end
+	tile = row.Template:Clone()
+	tile.Name = name
+	tile.Visible = true
+	self:_dressSleeve(tile.Pack.Sleeve, name)
+	tile.Label.Text = name
+	tile.Parent = row
+	ButtonScale.Apply(tile.Buy)
+	tile.Activated:Connect(function()
+		Sounds.Play("Click")
+		self._shopGroup = name
+	end)
+	tile.Buy.Activated:Connect(function()
+		self._shopGroup = name
+		self:_open("Group", self._count, name)
+	end)
+	tile.Pin.Activated:Connect(function()
+		local favourites = Albums.Favourites(PlayerData.Inventory.FavGroups.Get())
+		if not table.find(favourites, name) and #favourites >= AlbumConstants.FAVOURITES_MAX then
+			Sounds.Play("Wrong")
+			Juice.Shake(tile.Pin)
+			self:_toast(`You can pin {AlbumConstants.FAVOURITES_MAX} groups: unpin one first`)
+			return
+		end
+		Sounds.Play("Click")
+		AlbumRemote:Fire({ Action = "Star", Group = name })
+	end)
+	self:_hookOdds(tile.Odds, "Group", name)
+	return tile
+end
+
+-- a row of group tiles in this order (tiles for groups that left it are removed)
+function AlbumsController:_groupRow(row: Instance, names: { string }, paint: { [string]: any })
+	local keep = {}
+	for _, name in names do
+		keep[name] = true
+	end
+	for _, child in row:GetChildren() do
+		if child:IsA("GuiButton") and child.Name ~= "Template" and not keep[child.Name] then
+			if self._oddsLink and self._oddsLink:IsDescendantOf(child) then
+				self:_hideOdds()
+			end
+			child:Destroy()
+		end
+	end
+	local full = AlbumConstants.GROUP_PACK_COST * self._count
+	for order, name in names do
+		local tile = self:_groupTile(row, name)
+		tile.LayoutOrder = order
+		tile.Bias.Visible = name == paint.Bias
+		local pinned = table.find(paint.Favourites, name) ~= nil
+		tile.Pin.Visible = name ~= paint.Bias
+		tile.Pin.Text = if pinned then "PINNED" else "+ PIN"
+		tile.Pin.BackgroundColor3 = if pinned then C("FFE07A") else C("1E1B2E")
+		tile.Pin.TextColor3 = if pinned then C("1E1B2E") else CREAM
+		tile.Pin.Size = UDim2.fromOffset(if pinned then 60 else 46, 22)
+		-- Today's picks: TODAY_DISCOUNT off, a red tag, the full price struck through
+		local cost = Albums.GroupPackCost(name, paint.Now) * self._count
+		local pick = cost < full
+		tile.Price.Amount.Text = fmt(cost)
+		local was = tile.Price:FindFirstChild("Was")
+		if was then
+			was.Visible = pick
+			was.Text = `<s>{fmt(full)}</s>`
+		end
+		local deal = tile:FindFirstChild("Deal")
+		if deal then
+			deal.Visible = pick
+			deal.Text = `-{math.floor(AlbumConstants.TODAY_DISCOUNT * 100 + 0.5)}%`
+		end
+		tile.BackgroundColor3 = if pick then C("FFE07A") else CREAM
+		tile.BackgroundTransparency = if pick then 0.86 else 0.94
+		tile.Buy.Text = "BUY" .. paint.X
+		tile.Buy.BackgroundColor3 = if name == paint.Bias then C("A7E9B8") else C("FFE07A")
+		showWithShadow(tile, "Buy", paint.Allowed)
+	end
+end
+
+-- the All groups bar: search, gen chips (one at a time), type chips (on / off), sort
+function AlbumsController:_hookAllFilters()
+	if self._allHooked then
+		return
+	end
+	local bar = self._frame.Shop.Main:FindFirstChild("AllFilters")
+	if not bar then
+		return
+	end
+	self._allHooked = true
+	self._allQuery = self._allQuery or { Text = "", Gen = "All", Type = nil, Sort = SORTS[1] }
+	local q = self._allQuery
+	bar.Search.Box:GetPropertyChangedSignal("Text"):Connect(function()
+		q.Text = bar.Search.Box.Text
+		self:_filterAll()
+	end)
+	for _, b in bar.Chips:GetChildren() do
+		if b:IsA("GuiButton") then
+			ButtonScale.Apply(b)
+			b.Activated:Connect(function()
+				Sounds.Play("Click")
+				if b.Name == "Girl" or b.Name == "Boy" or b.Name == "Solo" then
+					q.Type = if q.Type == b.Name then nil else b.Name
+				else
+					q.Gen = b.Name
+				end
+				self:_filterAll()
+			end)
+		end
+	end
+	ButtonScale.Apply(bar.Sort)
+	bar.Sort.Activated:Connect(function()
+		Sounds.Play("Click")
+		q.Sort = SORTS[(table.find(SORTS, q.Sort) or 0) % #SORTS + 1]
+		self:_filterAll()
+	end)
+end
+
+-- shows the All groups tiles that match the bar, in its order; sizes the grid and the page
+function AlbumsController:_filterAll()
+	local main = self._frame.Shop.Main
+	local grid = main:FindFirstChild("AllGroups")
+	local bar = main:FindFirstChild("AllFilters")
+	if not grid or not bar then
+		return
+	end
+	local q = self._allQuery or { Text = "", Gen = "All", Type = nil, Sort = SORTS[1] }
+	local find = string.lower(q.Text)
+	local list = {}
+	for _, name in Albums.PullArtists() do
+		if (find == "" or string.find(string.lower(name), find, 1, true))
+			and (q.Gen == "All" or Albums.Generation(name) == q.Gen)
+			and (q.Type == nil or groupType(name) == q.Type)
+		then
+			table.insert(list, name)
+		end
+	end
+	if q.Sort == "Newest" then
+		table.sort(list, function(a, b)
+			local ya, yb = newestYear(a), newestYear(b)
+			if ya ~= yb then
+				return ya > yb
+			end
+			return a:lower() < b:lower()
+		end)
+	elseif q.Sort == "Most collected" then
+		local owned = {}
+		for id, n in cards() do
+			if n > 0 then
+				local card = Albums.Card(id)
+				if card then
+					owned[card.Album.Artist] = (owned[card.Album.Artist] or 0) + 1
+				end
+			end
+		end
+		table.sort(list, function(a, b)
+			local na, nb = owned[a] or 0, owned[b] or 0
+			if na ~= nb then
+				return na > nb
+			end
+			return a:lower() < b:lower()
+		end)
+	end -- (A–Z: PullArtists is already A–Z)
+	local order = {}
+	for i, name in list do
+		order[name] = i
+	end
+	for _, tile in grid:GetChildren() do
+		if tile:IsA("GuiButton") and tile.Name ~= "Template" then
+			tile.Visible = order[tile.Name] ~= nil
+			tile.LayoutOrder = order[tile.Name] or 0
+		end
+	end
+	grid.None.Visible = #list == 0
+	local rows = math.ceil(#list / 6)
+	local h = if rows == 0 then 60 else rows * 236 + (rows - 1) * 16
+	grid.Size = UDim2.fromOffset(836, h)
+	main.CanvasSize = UDim2.fromOffset(0, grid.Position.Y.Offset + h + 24)
+	for _, b in bar.Chips:GetChildren() do
+		if b:IsA("GuiButton") then
+			local on = b.Name == q.Gen or b.Name == q.Type
+			b.BackgroundColor3 = if on then C("FFE07A") else CREAM
+		end
+	end
+	bar.Sort.Text = `Sort: {q.Sort}`
 end
 
 -- [[ The odds popover: hover (or tap) a pack's Odds link ]]
@@ -779,7 +1008,7 @@ function AlbumsController:_showOdds(link: GuiObject, kind: string, target: strin
 	local pop = page.Popover
 	local size = if kind == "Free" then 1 else AlbumConstants.PACK_SIZE
 	local premium = if kind == "Premium" then Albums.Premium(target) else nil
-	local luck = Upgrades.Luck(Upgrades.Levels(PlayerData)) -- (the odds shown are the ones you pull with)
+	local luck = currentLuck() -- (the odds shown are the ones you pull with, potion included)
 	local each = Albums.LastOdds(1, nil, premium and premium.CardMin, nil, luck)
 	local last = Albums.LastOdds(size, nil, premium and premium.CardMin, premium and premium.LastMin, luck)
 	if kind == "Free" then
@@ -806,10 +1035,11 @@ function AlbumsController:_showOdds(link: GuiObject, kind: string, target: strin
 				r.Label.Text = entry.Rarity.Name
 				r.Each.Text = if size > 1 then pct(each[key] or 0) else ""
 				r.Last.Text = pct(last[key] or 0)
-				r.Dot.BackgroundColor3 = style.Colour
-				r.Dot.Foil.Enabled = style.Foil ~= nil
-				if style.Foil then
-					r.Dot.Foil.Color = style.Foil
+				local foil = CardDecor.FOILS[key] -- (the card's own look: Lucky Draw is gold)
+				r.Dot.BackgroundColor3 = if foil then WHITE else style.Colour
+				r.Dot.Foil.Enabled = foil ~= nil
+				if foil then
+					r.Dot.Foil.Color = foil
 				end
 			end
 		end
@@ -885,7 +1115,7 @@ function AlbumsController:_fillRotation()
 		self:_fillShop()
 		return
 	end
-	self._frame.Shop.Main.TodayHead.NewGroups.Label.Text = `New groups in {clock(left)}`
+	self._frame.Shop.Main.TodayHead.NewGroups.Label.Text = `New picks in {clock(left)}`
 end
 
 -- a sleeve for a pack: a group's colour (and photo, when it has PackArt), a gen's or mix's, or
@@ -905,18 +1135,100 @@ function AlbumsController:_dressSleeve(sleeve: Instance, artist: string?, gen: s
 	sleeve.Photo.Visible = art ~= ""
 	sleeve.Stripes.Visible = art == ""
 	sleeve.Band.Visible = art == "" -- group art speaks for itself; the name goes under the tile
+	-- a gen or mix: its own pack look over the colour (no stripes, no name band)
+	local look = sleeve:FindFirstChild("Look")
+	local spec = if not premium and not artist and gen then GEN_LOOKS[gen] else nil
+	local tone = sleeve:FindFirstChild("Tone")
+	if tone then
+		tone.Enabled = spec ~= nil
+	end
+	if not look then
+		return
+	end
+	look.Visible = spec ~= nil
+	if not spec then
+		return
+	end
+	sleeve.Stripes.Visible = false
+	sleeve.Band.Visible = false
+	sleeve.BackgroundColor3 = Color3.new(1, 1, 1)
+	if tone then
+		tone.Color = if spec.Foil then ColorSequence.new(C(spec.Foil[1]), C(spec.Foil[2])) else RAINBOW_FOIL
+	end
+	look.Mark.Visible = spec.Num ~= nil
+	look.Gen.Visible = spec.Num ~= nil
+	look.Word.Visible = spec.Word ~= nil
+	for _, part in { "Shadow", "Face" } do
+		look.Mark.Num[part].Text = spec.Num or ""
+		look.Word[part].Text = spec.Word or ""
+	end
+	look.Mark.Suffix.Text = spec.Suffix or ""
+	look.Years.Text = spec.Chip
+	for _, m in look.Motif:GetChildren() do
+		if m:IsA("GuiObject") then
+			m.Visible = m.Name == spec.Motif
+		end
+	end
+	-- the sheen sweeps across every few seconds (kept still with Low effects on)
+	local band = look.Sheen:FindFirstChild("Band")
+	if band and not sleeve:GetAttribute("Sheen") then
+		sleeve:SetAttribute("Sheen", true)
+		local ok, low = pcall(PlayerData.Settings.LowEffects.Get)
+		if not (ok and low) then
+			band.Offset = Vector2.new(-1, 0)
+			TweenService:Create(band, SHEEN, { Offset = Vector2.new(1, 0) }):Play()
+		end
+	end
 end
 
 -- what each rarity is (the Rarities sheet, rarest first)
+-- (what each one looks like: the v2 looks, Modules/UI/CardDecor)
 local BLURBS = {
-	oneofone = "The rarest card in the game: there's exactly one of each member's card, so if you pull it, nobody else ever can. Every server hears about it, and it can't be sold. If that member's One of One is already owned, you get a Signed Polaroid instead.",
-	polaroid = "A real Polaroid with the member's signature across it. Numbered: every copy gets a serial (#1 is the first anyone pulled), and the whole server hears about it.",
-	fansign = "The card you'd only get at a fansign event: glitter foil and a heart stamp. Numbered: every copy gets a serial, and the whole server hears about it.",
-	luckydraw = "Silver holo foil with a shine and a Lucky Draw stamp, like the cards fans queue for at a record store. The whole server hears about it.",
-	store = "A store-exclusive card with the shop's stamp in the corner. Earns and sells well.",
-	selca = "A self-camera shot on pink. A step up from Standard.",
-	standard = "The photocard that comes inside the album. Most of what you pull.",
+	oneofone = "Cosmic: a slowly turning rainbow rim, a night sky of gold stars and a gold 1/1 seal. There's exactly one of each member's card, so if you pull it, nobody else ever can. Every server hears about it, and it can't be sold. If that member's One of One is already owned, you get a Signed Polaroid instead.",
+	polaroid = "A Polaroid taped into your binder, with the member's marker signature, a date stamp and sparkles. Numbered: every copy gets a serial (#1 is the first anyone pulled), and the whole server hears about it.",
+	fansign = "Like you met them at a fansign: a drifting holo frame, a foil Fansign ribbon and a handwritten note from the member. Numbered: every copy gets a serial, and the whole server hears about it.",
+	luckydraw = "A gold glitter frame, a Lucky Draw tag and a gold light sweep, like the cards fans queue for at a record store. The whole server hears about it.",
+	store = "A store-exclusive card in mint, with a round Store Benefit sticker in the corner. Earns and sells well.",
+	selca = "A self-camera shot on pink, with white doodles drawn on. A step up from Standard.",
+	standard = "The photocard that comes inside the album: a clean white print. Most of what you pull.",
 }
+
+-- the Rarities sheet shows every look on a placeholder card: painted as some real card of that
+-- rarity (the first group's first member), then made anonymous by placeholder()
+-- no one in particular: the "?" silhouette on a soft lilac, and generic words where the card
+-- would name the member (the name, the Polaroid's caption and signature, the Fansign's note)
+local function placeholder(card: Instance)
+	local face = card:FindFirstChild("Face")
+	local photo = face and face:FindFirstChild("Photo")
+	if not photo then
+		return
+	end
+	photo.BackgroundColor3 = C("E4DCFF")
+	photo.Art.Image = ""
+	photo.Silhouette.Visible = true
+	face.Member.Text = "MEMBER"
+	local mid, top = face:FindFirstChild("Decor"), photo:FindFirstChild("Decor")
+	local caption = mid and mid:FindFirstChild("Caption")
+	if caption then
+		caption.Text = "your bias ♡"
+	end
+	local sig = top and top:FindFirstChild("Sig")
+	if sig then
+		sig.Shadow.Text = "Idol"
+		sig.Text.Text = "Idol"
+	end
+	local note = top and top:FindFirstChild("Note")
+	if note then
+		note.Text = "to. you ♡\nthank u for\ncoming!!"
+	end
+end
+
+local function sampleCard(rarityKey: string): string?
+	local first = Albums.PullArtists()[1]
+	local album = first and Albums.PullAlbums(first)[1]
+	local member = album and album.Members[1]
+	return member and Albums.CardId(album.Id, member.Key, rarityKey)
+end
 
 -- "1 in 37 packs" / "in most packs": the chance a normal pack has at least one
 local function perPack(odds: number): string
@@ -938,7 +1250,7 @@ function AlbumsController:_fillOdds()
 		end
 	end
 	local live = {}
-	for _, entry in Albums.RarityOdds(nil, nil, Upgrades.Luck(Upgrades.Levels(PlayerData))) do
+	for _, entry in Albums.RarityOdds(nil, nil, currentLuck()) do
 		live[entry.Rarity.Key] = entry.Odds
 	end
 	local order = 0
@@ -949,13 +1261,10 @@ function AlbumsController:_fillOdds()
 		row.Name = rarity.Key
 		row.LayoutOrder = order
 		row.Visible = true
-		local style = STYLE[rarity.Key] or STYLE.standard
-		row.Swatch.BackgroundColor3 = style.Colour
-		row.Swatch.Foil.Enabled = style.Foil ~= nil
-		if style.Foil then
-			row.Swatch.Foil.Color = style.Foil
-		end
-		row.Swatch.Rank.Text = `#{order}`
+		row.Parent = list -- (in place first: the card's decor measures itself up its parents)
+		Photocard.Paint(row.Card, sampleCard(rarity.Key), 1)
+		placeholder(row.Card)
+		row.Rank.Text = `#{order}`
 		row.Body.Heading.Text = rarity.Name
 		row.Body.Blurb.Text = BLURBS[rarity.Key] or ""
 		local chips = row.Body.Chips
@@ -1016,6 +1325,16 @@ function AlbumsController:_open(kind: string, count: any, target: string?)
 			Sounds.Play("Wrong")
 			return
 		end
+	elseif kind == "OwnedPremium" then
+		if premiumOwned(target or "") < 1 then
+			Sounds.Play("Wrong")
+			return
+		end
+	elseif kind == "Event" then
+		if Currencies.Count(player, "EventPacks") < 1 then
+			Sounds.Play("Wrong")
+			return
+		end
 	elseif kind == "Free" then
 		local packs = freePacks()
 		if packs < 1 and Currencies.Count(player, "Tickets") < 1 then
@@ -1041,6 +1360,10 @@ function AlbumsController:_open(kind: string, count: any, target: string?)
 		AlbumRemote:Fire({ Action = "Open", Kind = "Gen", Gen = target, Count = count })
 	elseif kind == "Premium" then
 		AlbumRemote:Fire({ Action = "Open", Kind = "Premium", Pack = target, Count = count })
+	elseif kind == "OwnedPremium" then
+		AlbumRemote:Fire({ Action = "Open", Kind = "Premium", Pack = target, Owned = true, Count = 1 })
+	elseif kind == "Event" then
+		AlbumRemote:Fire({ Action = "Open", Kind = "Event" })
 	else
 		AlbumRemote:Fire({ Action = "Open", Kind = "Group", Group = target, Count = count })
 	end
@@ -1051,7 +1374,20 @@ end
 --               Count (cards), Sold = { [i] = true }, Phase = "Pack" | "Busy" | "Back" | "Face" |
 --               "Summary", Complete }
 
-local STAGE = { "Pack", "Strip", "Fan", "Holder", "Rarity", "Page", "Tray", "Rays", "Ring", "Sparkles", "Confetti", "Summary" }
+local STAGE = { "Pack", "Strip", "Fan", "Holder", "Rarity", "Page", "Tray", "Rays", "Ring", "Sparkles", "Confetti", "Summary", "Level", "XP", "AlbumDone" }
+
+-- a level bar (Build.PackXP): where you were (Fill), what this pack added (Gain, lilac), the label
+local function paintLevel(bar: Frame, before: number, now: number, big: boolean)
+	local level, cur, need = Levels.FromXP(now)
+	local wasLevel, wasCur = Levels.FromXP(before)
+	local from = if wasLevel == level then wasCur / need else 0
+	local to = cur / need
+	bar.Badge.Text = `LV {level}`
+	bar.Track.Fill.Size = UDim2.fromScale(from, 1)
+	bar.Track.Gain.Position = UDim2.fromScale(from, 0)
+	bar.Track.Gain.Size = UDim2.fromScale(math.max(0, to - from), 1)
+	bar.Label.Text = if big then `+{fmt(now - before)} XP · {fmt(cur)} / {fmt(need)}` else `{fmt(cur)} / {fmt(need)} XP`
+end
 
 function AlbumsController:_hideStage()
 	local page = self._frame.Pull
@@ -1116,7 +1452,10 @@ function AlbumsController:_confetti(colours: { Color3 }?)
 end
 
 local function packName(p): string
-	if p.How == "First" then
+	if p.Kind == "Event" then
+		local live = LiveEvents.Get(ReplicatedStorage:GetAttribute("LiveEvent") or "")
+		return if live then live.Pack.Name else "Event pack"
+	elseif p.How == "First" then
 		return "Free pack"
 	elseif p.Kind == "Free" then
 		return if p.How == "Ticket" then "Ticket pack" else "Free pack"
@@ -1167,6 +1506,11 @@ function AlbumsController:_startPull(packet)
 		Phase = "Pack",
 		Complete = packet.Complete,
 		SetBonus = packet.SetBonus,
+		XP = tonumber(packet.XP) or 0, -- XP from this open (AlbumConstants XP_NEW / XP_ALBUM / XP_GROUP)
+		XPBefore = tonumber(packet.XPBefore) or 0,
+		XPShown = tonumber(packet.XPBefore) or 0, -- (the reveal's bar, card by card)
+		AlbumXP = packet.AlbumXP,
+		GroupXP = packet.GroupXP,
 	}
 	self:_showPage("Pull")
 	self:_hideStage()
@@ -1177,6 +1521,11 @@ function AlbumsController:_startPull(packet)
 	self:_balance()
 	page.Skip.Visible = true
 	page.Hint.Visible = true
+	-- the small level bar, when this open pays any XP
+	page.Level.Visible = p.XP > 0
+	if p.XP > 0 then
+		paintLevel(page.Level, p.XPBefore, p.XPBefore, false)
+	end
 	for _, child in page.Tray:GetChildren() do
 		if child:IsA("Frame") and child.Name ~= "Template" then
 			child:Destroy()
@@ -1193,8 +1542,9 @@ function AlbumsController:_startPull(packet)
 	local pack = page.Pack
 	local sleeve = pack.Sleeve
 	self:_dressSleeve(sleeve, packet.Group, packet.Gen, packet.Pack)
-	sleeve.Sticker.Visible = true
-	sleeve.Sticker.Count.Text = if p.Packs > 1 then `{p.Packs}\nPACKS` else `×{p.Size}`
+	-- (only several packs at once get the sticker: every pack is 5 cards, the shop says so)
+	sleeve.Sticker.Visible = p.Packs > 1
+	sleeve.Sticker.Count.Text = `{p.Packs}\nPACKS`
 	sleeve.Tear.Visible = true
 	pack.Disc.Position = UDim2.new(0.5, 30, 0.5, 0)
 	pack.Disc.Rotation = 0
@@ -1229,13 +1579,30 @@ function AlbumsController:_openPack()
 	task.spawn(function()
 		pack.Rotation = 0
 		Sounds.Play("PackTear")
-		pack.Sleeve.Tear.Visible = false
+		-- the strip is the pack's own top seal: laid exactly over it (its colour, foil or photo
+		-- slice, ridges), then the real one hides and the copy flies off up and away
+		local sleeve = pack.Sleeve
+		local tear = sleeve.Tear
 		local strip = page.Strip
-		strip.Position = UDim2.fromOffset(640, 178)
+		local k = math.max(page.AbsoluteSize.X / 1280, 0.01)
+		local at = (tear.AbsolutePosition - page.AbsolutePosition) / k
+		local size = tear.AbsoluteSize / k
+		strip.Size = UDim2.fromOffset(size.X, size.Y)
+		strip.Position = UDim2.fromOffset(at.X + size.X / 2, at.Y + size.Y / 2)
 		strip.Rotation = 0
-		strip.BackgroundColor3 = pack.Sleeve.BackgroundColor3
+		strip.GroupTransparency = 0
+		strip.Back.BackgroundColor3 = sleeve.BackgroundColor3
+		local tone = sleeve:FindFirstChild("Tone")
+		strip.Back.Tone.Enabled = tone ~= nil and tone.Enabled
+		if tone and tone.Enabled then
+			strip.Back.Tone.Color = tone.Color
+		end
+		strip.Photo.Image = sleeve.Photo.Image
+		strip.Photo.Visible = sleeve.Photo.Visible
+		strip.Photo.Size = UDim2.fromOffset(size.X, sleeve.AbsoluteSize.Y / k)
+		tear.Visible = false
 		strip.Visible = true
-		tween(strip, 0.45, { Position = UDim2.fromOffset(820, 40), Rotation = 24 })
+		tween(strip, 0.5, { Position = strip.Position + UDim2.fromOffset(200, -170), Rotation = 28, GroupTransparency = 0.15 })
 		tween(pack.Scale, 0.12, { Scale = 1.28 })
 		task.wait(0.14)
 		if self._token ~= token then
@@ -1299,6 +1666,8 @@ function AlbumsController:_nextBack()
 	local page = self._frame.Pull
 	self._reveal:Reset(page.Holder)
 	page.Rarity.Visible = false
+	page.XP.Visible = false
+	page.AlbumDone.Visible = false
 	-- a new pack (×5 / ×10): its own tray
 	if p.Size > 1 and (p.Index - 1) % p.Size == 0 then
 		for _, child in page.Tray:GetChildren() do
@@ -1443,7 +1812,7 @@ function AlbumsController:_landFace(info, pull)
 		end
 	elseif pull.LevelUp then
 		Juice.Pop(page.Holder, 0.08)
-		Sounds.Play("Success")
+		Sounds.Play("CardLevelUp")
 	else
 		Sounds.Play("CardPop")
 	end
@@ -1461,6 +1830,36 @@ function AlbumsController:_landFace(info, pull)
 	page.Holder.Face.New.Visible = pull.New == true
 	if pull.New then
 		Juice.Pop(page.Holder.Face.New, 0.3)
+	end
+	-- XP: a first-ever copy, a duplicate towards the stars (more for the 2nd and all 3), and the
+	-- card that filled an album's page
+	local gained = 0
+	if (pull.XP or 0) > 0 then
+		gained += pull.XP
+		local why = if pull.New then "NEW CARD" elseif pull.Star == 3 then "ALL 3 STARS!" elseif pull.Star == 2 then "2ND STAR" else "STAR PROGRESS"
+		page.XP.Text = `+{pull.XP} XP  <font size="12">{why}</font>`
+		page.XP.BackgroundColor3 = if pull.Star == 3 then C("FFE07A") else C("B9A6FF")
+		page.XP.Visible = true
+		task.delay(0.12, function()
+			Juice.Pop(page.XP, 0.25)
+		end)
+	end
+	if pull.Completes and info then
+		gained += AlbumConstants.XP_ALBUM
+		local done = page.AlbumDone
+		done.Line.Text = `+{AlbumConstants.XP_ALBUM} XP · every member of {info.Album.Name}`
+		done.Visible = true
+		task.delay(0.3, function()
+			Juice.Pop(done, 0.3)
+		end)
+	end
+	if gained > 0 and page.Level.Visible then
+		local was = p.XPShown
+		p.XPShown += gained
+		paintLevel(page.Level, p.XPBefore, p.XPShown, false)
+		if Levels.FromXP(p.XPShown) > Levels.FromXP(was) then
+			Juice.Pop(page.Level.Badge, 0.3)
+		end
 	end
 	page.Hint.Text = if p.Index >= p.Count then "Tap to finish" elseif p.Last then "Tap for the next pack · hold to go fast" else "Tap for the next card · hold to go fast"
 	p.Phase = "Face"
@@ -1541,7 +1940,7 @@ function AlbumsController:_showSummary()
 	p.Phase = "Summary"
 	self:_subLine()
 	local page = self._frame.Pull
-	for _, n in { "Pack", "Strip", "Fan", "Holder", "Rarity", "Page", "Tray" } do
+	for _, n in { "Pack", "Strip", "Fan", "Holder", "Rarity", "Page", "Tray", "Level", "XP", "AlbumDone" } do
 		page[n].Visible = false
 	end
 	self:_spinRays(false)
@@ -1574,6 +1973,26 @@ function AlbumsController:_showSummary()
 	chips.Chip3.Text = `Pins earn: {if rate % 1 == 0 then fmt(rate) else string.format("%.1f", rate)} coins an hour`
 	if #p.Pulls > 10 then
 		chips.Chip1.Text ..= ` · {#p.Pulls} cards`
+	end
+	-- XP: the lilac chip, an album filled for the first time in yellow, the level bar
+	chips.ChipXP.Visible = p.XP > 0
+	chips.ChipXP.Text = `+{fmt(p.XP)} XP`
+	local filled = type(p.AlbumXP) == "table" and p.AlbumXP[1] and Albums.Get(p.AlbumXP[1])
+	local chip2Stroke = chips.Chip2:FindFirstChildOfClass("UIStroke")
+	if filled then
+		chips.Chip2.Visible = true
+		chips.Chip2.Text = if #p.AlbumXP > 1 then `{#p.AlbumXP} albums complete!` else `{filled.Name} complete!`
+	end
+	chips.Chip2.BackgroundTransparency = if filled then 0 else 0.9
+	chips.Chip2.BackgroundColor3 = if filled then C("FFE07A") else CREAM
+	chips.Chip2.TextColor3 = if filled then INK else CREAM
+	if chip2Stroke then
+		chip2Stroke.Color = if filled then INK else CREAM
+		chip2Stroke.Transparency = if filled then 0 else 0.75
+	end
+	summary.Level.Visible = p.XP > 0
+	if p.XP > 0 then
+		paintLevel(summary.Level, p.XPBefore, p.XPBefore + p.XP, true)
 	end
 
 	-- the cards
@@ -1625,6 +2044,8 @@ function AlbumsController:_showSummary()
 		slot.Sell.Text = if canSell then `Sell {fmt(price :: number)}` else ""
 		slot.Kept.Visible = not canSell
 		slot.Kept.Text = if pull.Sold then `maxed · sold +{fmt(pull.Sold)}` elseif p.Sold[i] then "sold" elseif isBias then "your bias" else ""
+		slot.XP.Visible = (pull.XP or 0) > 0
+		slot.XP.Text = `+{pull.XP or 0} XP`
 		slot.Parent = box
 		slot.Sell.Activated:Connect(function()
 			self:_sellAt(i)
@@ -1647,6 +2068,18 @@ function AlbumsController:_showSummary()
 		if again then
 			setButtonRow(summary.Again, if packs > 0 then `OPEN NEXT ({packs} LEFT)` else "OPEN WITH A TICKET", nil)
 		end
+	elseif again and p.How == "OwnedPremium" then
+		local left = premiumOwned(p.Pack or "")
+		again = left > 0
+		if again then
+			setButtonRow(summary.Again, `OPEN NEXT ({left} LEFT)`, nil)
+		end
+	elseif again and p.How == "Event" then
+		local left = Currencies.Count(player, "EventPacks")
+		again = left > 0
+		if again then
+			setButtonRow(summary.Again, `OPEN NEXT ({left} LEFT)`, nil)
+		end
 	elseif again and p.How == "Owned" then
 		local left = Currencies.Count(player, "GenPacks")
 		again = left > 0
@@ -1655,7 +2088,7 @@ function AlbumsController:_showSummary()
 		end
 	elseif again then
 		local x = if p.Packs > 1 then ` ×{p.Packs}` else ""
-		setButtonRow(summary.Again, "OPEN AGAIN" .. x, fmt(packPrice(p.Kind, p.Pack) * p.Packs), Currencies.Coins.Icon)
+		setButtonRow(summary.Again, "OPEN AGAIN" .. x, fmt(packPrice(p.Kind, p.Pack or p.Group) * p.Packs), Currencies.Coins.Icon)
 	end
 	showWithShadow(summary, "Again", again)
 	summary.Done.Position = if again then UDim2.fromOffset(610, 628) else UDim2.fromOffset(720, 628)
@@ -1666,6 +2099,11 @@ function AlbumsController:_showSummary()
 		local done = Albums.Get(complete[1])
 		local bonus = tonumber(p.SetBonus) or 0
 		self:_toast(`{done and done.Name or "Album"} complete!` .. (if bonus > 0 then ` +{fmt(bonus)} coins` else ""))
+	end
+	if type(p.GroupXP) == "table" and p.GroupXP[1] then
+		task.delay(1.2, function()
+			Notify.Show("Success", `Every {p.GroupXP[1]} card!`, `+{AlbumConstants.XP_GROUP} XP for the whole set`, { Silent = true })
+		end)
 	end
 end
 
@@ -1800,6 +2238,13 @@ end
 function AlbumsController:_endPull()
 	local p = self._pull
 	self._pull = nil
+	-- a level gained from the packs: said once they're done
+	if p and p.XP > 0 then
+		local level = Levels.FromXP(p.XPBefore + p.XP)
+		if level > Levels.FromXP(p.XPBefore) then
+			Notify.Show("Success", `Level {level}!`, "Levelled up from your packs")
+		end
+	end
 	self._token += 1
 	self:_hideStage()
 	if p and p.How == "First" and self._opts.First then
@@ -1909,11 +2354,17 @@ function AlbumsController:Initialize(interface)
 		local card = shopPage.Side.Premium:FindFirstChild(pack.Key)
 		if card then
 			j:Add(card.Buy.Activated:Connect(function()
-				self:_open("Premium", self._count, pack.Key)
+				if premiumOwned(pack.Key) > 0 then
+					self:_open("OwnedPremium", 1, pack.Key)
+				else
+					self:_open("Premium", self._count, pack.Key)
+				end
 			end))
 			j:Add(card.Robux.Activated:Connect(function()
 				if pack.ProductId ~= 0 then
 					Sounds.Play("Click")
+					-- once it's granted (PremiumOwned goes up), it opens straight away: below
+					self._premiumBought = { Key = pack.Key, Had = premiumOwned(pack.Key), At = os.clock() }
 					MarketplaceService:PromptProductPurchase(player, pack.ProductId)
 				end
 			end))
@@ -1929,7 +2380,87 @@ function AlbumsController:Initialize(interface)
 			self:_open("Owned", 1)
 		end))
 	end
-	for _, field in { PlayerData.Inventory.FavGroups, PlayerData.Inventory.PremiumPity } do
+	local eventRow = shopPage.Side.Unopened:FindFirstChild("EventPacks")
+	if eventRow then
+		j:Add(eventRow.Open.Activated:Connect(function()
+			self:_open("Event", 1)
+		end))
+	end
+	j:Add(player:GetAttributeChangedSignal(Currencies.EventPacks.Attribute):Connect(function()
+		if self.State == "Active" and self._page == "Shop" and not self._pull then
+			self:_fillShop()
+		end
+	end))
+	-- the Luck potion chip (Build.LuckChip): its time left while one runs, else "Get a potion";
+	-- either way a tap opens the Shop at the potions (to start one, or add time)
+	local luckChip = (shopPage:FindFirstChild("Luck") or shopPage.Controls:FindFirstChild("Luck")) :: Frame?
+	if luckChip then
+		local nextPaint = 0
+		local wasOn: boolean? = nil
+		local hit = luckChip:FindFirstChild("Hit") :: GuiButton?
+		if hit then
+			j:Add(hit.Activated:Connect(function()
+				Sounds.Play("Click")
+				self._interface:Open("Shop", "Boosts")
+			end))
+		end
+		j:Add(game:GetService("RunService").Heartbeat:Connect(function()
+			local now = os.clock()
+			if now < nextPaint then
+				return
+			end
+			nextPaint = now + 0.5
+			local ends = player:GetAttribute("BoostLuck")
+			local secs = if type(ends) == "number" then math.max(0, ends - workspace:GetServerTimeNow()) else 0
+			local on = secs > 0
+			-- (no packs for this account: nothing to be lucky in)
+			luckChip.Visible = player:GetAttribute("RollsAllowed") == true
+			local face = luckChip:FindFirstChild("Face")
+			if wasOn ~= on then
+				if wasOn ~= nil and self.State == "Active" and self._page == "Shop" then
+					self:_fillShop() -- (the odds and anything luck-dependent)
+				end
+				wasOn = on
+				if face then
+					-- on: mint foil, dark green time; off: a plain cream sticker that sells the potion
+					face.BackgroundColor3 = if on then Color3.new(1, 1, 1) else Color3.fromHex("FBF7F0")
+					face.Foil.Enabled = on
+					face.Icon.ImageTransparency = if on then 0 else 0.15
+					face.Timer.TextColor3 = if on then Color3.fromHex("2F6B45") else Color3.fromHex("5C566B")
+					face.Title.Text = `LUCK +{math.floor(AlbumConstants.LUCK_POTION * 100)}%`
+					if not on then
+						face.Timer.Text = "Get a potion"
+					end
+				end
+			end
+			-- the glint sweeps across every few seconds (slower when off: just a nudge)
+			local glint = face and face:FindFirstChild("Glint")
+			if glint and now - (self._luckGlint or 0) > (if on then 4 else 7) then
+				self._luckGlint = now
+				glint.Position = UDim2.fromScale(-0.3, 0.5)
+				game:GetService("TweenService"):Create(glint, TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), { Position = UDim2.fromScale(1.3, 0.5) }):Play()
+			end
+			if on then
+				local s = math.ceil(secs)
+				local h, m, sec = s // 3600, (s // 60) % 60, s % 60
+				if face then
+					face.Timer.Text = (if h > 0 then string.format("%d:%02d:%02d", h, m, sec) else string.format("%d:%02d", m, sec)) .. " left"
+				end
+			end
+		end))
+	end
+
+	-- a premium pack bought with Robux: open it as soon as it lands (within a minute of the prompt)
+	j:Add(PlayerData.Inventory.PremiumOwned.Observe(function()
+		local bought = self._premiumBought
+		if bought and os.clock() - bought.At < 60 and premiumOwned(bought.Key) > bought.Had then
+			self._premiumBought = nil
+			if self.State == "Active" and not self._waiting then
+				self:_open("OwnedPremium", 1, bought.Key)
+			end
+		end
+	end))
+	for _, field in { PlayerData.Inventory.FavGroups, PlayerData.Inventory.PremiumPity, PlayerData.Inventory.PremiumOwned } do
 		j:Add(field.Observe(function()
 			if self.State == "Active" and self._page == "Shop" then
 				self:_fillShop()
@@ -2104,6 +2635,11 @@ function AlbumsController:Activate(opts: any?)
 		self:_fillShop()
 		if self._opts.First then
 			self:_startFirst()
+		elseif self._opts.OpenEvent then
+			-- the Events shop's "Open" on its pack: straight into the reveal
+			task.defer(function()
+				self:_open("Event", 1)
+			end)
 		end
 	end
 	self._frame.Visible = true

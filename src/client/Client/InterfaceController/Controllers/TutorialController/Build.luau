@@ -188,7 +188,8 @@ end
 --   • Tutorial.AllSet – board 62e: YOU'RE ALL SET!, the rewards (Coins / Ticket / XP: Amount),
 --                       three live lines (Line1–3), QuickPlay + Lobby
 --   • Frames.Coach    – boards 62c / 62d: Dim (Top / Bottom / Left / Right), Ring, BubbleShadow,
---                       Bubble (Tag, Title, Body, Next + NextShadow), Arrow, Skip (top right)
+--                       Bubble (Tag, Title, Body, Skip, Next + NextShadow), Arrow,
+--                       Skip (top right: only while no bubble is up)
 
 -- a card whose hard shadow is grown by its outline (UIStroke draws outside the frame)
 local function slab(parent: Instance, name: string, x: number, y: number, w: number, h: number, colour: Color3, r: number, drop: number, line: number): Frame
@@ -291,6 +292,9 @@ local function coach(frames: Instance)
 	new("UIPadding", { PaddingLeft = UDim.new(0, 9), PaddingRight = UDim.new(0, 9) }, stepTag)
 	text(bubble, "Title", { Position = UDim2.fromOffset(18, 44), Size = UDim2.new(1, -36, 0, 26), FontFace = HEAD, TextSize = 20, TextXAlignment = Enum.TextXAlignment.Left, Text = "Pin your best card", ZIndex = COACH_Z + 4 })
 	text(bubble, "Body", { Position = UDim2.fromOffset(18, 74), Size = UDim2.new(1, -36, 0, 58), FontFace = BODY_BOLD, TextSize = 15, TextColor3 = C("4A4458"), TextWrapped = true, RichText = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, Text = "Pinned cards earn coins every hour, even while you're away.", ZIndex = COACH_Z + 4 })
+	-- Skip tutorial inside the bubble, on the tag's line (the corner Skip is only for steps with no bubble)
+	local bubbleSkip = new("TextButton", { Name = "Skip", AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromOffset(bw - 18, 16), Size = UDim2.fromOffset(110, 22), BackgroundTransparency = 1, FontFace = BODY, TextSize = 13, TextColor3 = C("6B6480"), TextXAlignment = Enum.TextXAlignment.Right, RichText = true, Text = "<u>Skip tutorial</u>", AutoButtonColor = false, ZIndex = COACH_Z + 5 }, bubble)
+	bubbleSkip:SetAttribute("NoButtonScale", true)
 	local nb = button(bubble, "Next", bw / 2, bh - 30, bw - 36, 40, MINT, "NEXT", 16, HEAD, 4)
 	nb.ZIndex = COACH_Z + 5
 	bubble.NextShadow.ZIndex = COACH_Z + 4

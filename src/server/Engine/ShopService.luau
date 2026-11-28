@@ -24,6 +24,7 @@ local SeasonConstants = require(ReplicatedStorage.Constants.SeasonConstants)
 local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 local Levels = require(ReplicatedStorage.Modules.Levels)
 local Analytics = require(script.Parent.Analytics)
+local AlbumConstants = require(ReplicatedStorage.Constants.AlbumConstants)
 local Collection = require(script.Parent.Collection)
 local Ladders = require(ReplicatedStorage.Modules.Library.Ladders)
 local Albums = require(ReplicatedStorage.Modules.Library.Albums)
@@ -226,9 +227,11 @@ local function equipTitle(player: Player, data, packet)
 	elseif title ~= "" and not (type(title) == "string" and data.Inventory.Titles.Has(title)) then
 		return reply(player, packet, false, "You haven't unlocked that title")
 	end
+	local was = data.Inventory.Title.Get()
 	data.Inventory.Title.Set(title)
 	Analytics.Event(player, "Equip", 1, "Title", if title == "" then "Default" else title)
-	reply(player, packet, true, "Title equipped")
+	-- (Profile › Titles' TAKE OFF sends "": say so)
+	reply(player, packet, true, if title == "" and was ~= "" then (if Ladders.FromTitle(was) then "Badge taken off" else "Title taken off") else "Title equipped")
 end
 
 -- [[ Banners + photocards ]] (ShopCatalog.StyleRotation; the free three are everyone's)
@@ -406,8 +409,14 @@ end
 if (DuelConstants.SAVE_STREAK_PRODUCT_ID or 0) > 0 then
 	robuxProducts[DuelConstants.SAVE_STREAK_PRODUCT_ID] = { Key = "SaveStreak", Kind = "Streak", Sku = "SaveStreak" }
 end
-for _, b in ShopCatalog.Boosts do
+for _, b in ShopCatalog.AllBoosts do
 	robuxProducts[b.ProductId] = { Key = b.Id, Kind = "Boost", Sku = `{b.Kind}Boost` }
+end
+for _, pack in AlbumConstants.PREMIUM_PACKS do
+	robuxProducts[pack.ProductId or 0] = { Key = "Premium" .. pack.Key, Kind = "PremiumPack", Sku = "PremiumPack" }
+end
+if ShopCatalog.PinSlot then
+	robuxProducts[ShopCatalog.PinSlot.ProductId or 0] = { Key = "PinSlot", Kind = "PinSlot", Sku = "PinSlot" }
 end
 robuxProducts[0] = nil
 

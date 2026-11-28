@@ -246,7 +246,8 @@ local function cardFace(parent: Instance, name: string): Frame
 	text(c, "Member", { Position = UDim2.new(0, 14, 1, -76), Size = UDim2.new(1, -110, 0, 32), FontFace = HEAD, TextSize = 26, Text = "Jimin", TextTruncate = Enum.TextTruncate.AtEnd })
 	chip(c, "Bias", "BIAS", PINK, 10, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -14, 1, -72), Visible = false })
 	chip(c, "Level", "GOLD", INK, 10, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -60, 1, -72), TextColor3 = C("F2C94C"), Visible = false })
-	text(c, "Album", { Position = UDim2.new(0, 14, 1, -38), Size = UDim2.new(1, -120, 0, 22), TextSize = 12, Text = "BTS · Love Yourself", TextTruncate = Enum.TextTruncate.AtEnd })
+	local albumLine = text(c, "Album", { Position = UDim2.new(0, 14, 1, -38), Size = UDim2.new(1, -120, 0, 22), TextSize = 12, Text = "BTS · Love Yourself", TextTruncate = Enum.TextTruncate.AtEnd })
+	albumLine:SetAttribute("FitTextSkip", true) -- stays readable and cuts off with "…" (the controller widths it beside the rarity chip)
 	chip(c, "Rarity", "LUCKY DRAW", INK, 10, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -14, 1, -36), TextColor3 = CREAM })
 	CardDecor.Build(root, c, photo) -- the v2 rarity looks + level stars
 	return root
@@ -381,7 +382,7 @@ local function musicPanel(side: Frame)
 	stroke(lobby, 2)
 	text(lobby, "Label", { Position = UDim2.fromOffset(10, 3), Size = UDim2.fromOffset(170, 14), FontFace = BODY_BOLD, TextSize = 11, TextColor3 = MUTED, Text = "LOBBY MUSIC" })
 	text(lobby, "Song", { Position = UDim2.fromOffset(10, 17), Size = UDim2.fromOffset(170, 18), TextSize = 14, Text = "Supernova · aespa", TextTruncate = Enum.TextTruncate.AtEnd })
-	local stop = new("TextButton", { Name = "Stop", AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0), Size = UDim2.fromOffset(56, 24), BackgroundColor3 = CREAM, FontFace = BODY, TextSize = 12, TextColor3 = INK, Text = "STOP", AutoButtonColor = false }, lobby)
+	local stop = new("TextButton", { Name = "Stop", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(1, -8 - 28, 0.5, 0), Size = UDim2.fromOffset(56, 24), BackgroundColor3 = CREAM, FontFace = BODY, TextSize = 12, TextColor3 = INK, Text = "STOP", AutoButtonColor = false }, lobby)
 	corner(stop, 12)
 	stroke(stop, 2)
 	text(panel, "Help", { Position = UDim2.fromOffset(11, 108), Size = UDim2.fromOffset(250, 16), FontFace = BODY_BOLD, TextSize = 12, TextColor3 = MUTED, Text = "Master a song (3 stars) to play it here." })
@@ -429,11 +430,12 @@ local function groups(page: Frame)
 
 	local filters = new("Frame", { Name = "Filters", Position = UDim2.fromOffset(0, 230), Size = UDim2.fromOffset(270, 28), BackgroundTransparency = 1 }, side)
 	list(filters, true, 6)
-	for i, spec in { { "All", "All" }, { "Girl", "Girls" }, { "Boy", "Boys" }, { "Done", "Most done" } } do
-		local b = new("TextButton", { Name = spec[1], LayoutOrder = i, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 26), BackgroundColor3 = CREAM, BackgroundTransparency = if i == 1 then 0 else 0.9, FontFace = BODY, TextSize = 14, TextColor3 = if i == 1 then INK else CREAM, Text = spec[2], AutoButtonColor = false }, filters)
+	-- fixed widths that add up to the row (auto-sized pills ran off the side on phones)
+	for i, spec in { { "All", "All", 46 }, { "Girl", "Girls", 58 }, { "Boy", "Boys", 56 }, { "Done", "Most done", 92 } } do
+		local b = new("TextButton", { Name = spec[1], LayoutOrder = i, Size = UDim2.fromOffset(spec[3], 26), BackgroundColor3 = CREAM, BackgroundTransparency = if i == 1 then 0 else 0.9, FontFace = BODY, TextSize = 14, TextColor3 = if i == 1 then INK else CREAM, Text = spec[2], AutoButtonColor = false }, filters)
 		corner(b, 10)
 		stroke(b, 2, if i == 1 then INK else CREAM, if i == 1 then 0 else 0.75)
-		pad(b, 13)
+		pad(b, 8, 8, 5, 5)
 	end
 
 	local scroll = new("ScrollingFrame", {
@@ -457,7 +459,7 @@ local function groups(page: Frame)
 	local row = new("Frame", { Name = "Template", Size = UDim2.fromOffset(258, 52), BackgroundTransparency = 1, Visible = false }, scroll)
 	local shadow = new("Frame", { Name = "Shadow", Position = UDim2.fromOffset(4, 4), Size = UDim2.fromScale(1, 1), BackgroundColor3 = INK, Visible = false }, row)
 	corner(shadow, 12)
-	local b = new("TextButton", { Name = "Button", Size = UDim2.fromScale(1, 1), BackgroundColor3 = CREAM, BackgroundTransparency = 0.95, Text = "", AutoButtonColor = false }, row)
+	local b = new("TextButton", { Name = "Button", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(1, 1), BackgroundColor3 = CREAM, BackgroundTransparency = 0.95, Text = "", AutoButtonColor = false }, row)
 	corner(b, 12)
 	stroke(b, 2, CREAM, 0.9)
 	local icon = new("ImageLabel", { Name = "Icon", Position = UDim2.fromOffset(10, 9), Size = UDim2.fromOffset(34, 34), BackgroundColor3 = PINK, ScaleType = Enum.ScaleType.Crop, Image = "" }, b)
@@ -586,7 +588,7 @@ local function page(root: Frame)
 	chip(row, "Bias", "BIAS · 2× PULLS", PINK, 10, { Position = UDim2.fromOffset(22, 68), Visible = false })
 	new("Frame", { Name = "Divider", Position = UDim2.new(0, 20, 1, -2), Size = UDim2.new(1, -30, 0, 2), BackgroundColor3 = INK, BackgroundTransparency = 0.88, BorderSizePixel = 0 }, row)
 	for i = 1, #COLUMNS do
-		local slot = new("TextButton", { Name = "Slot" .. i, Position = UDim2.fromOffset(SLOT_X + (i - 1) * SLOT_STEP, 6), Size = UDim2.fromOffset(60, 88), BackgroundTransparency = 1, Text = "", AutoButtonColor = false }, row)
+		local slot = new("TextButton", { Name = "Slot" .. i, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(SLOT_X + (i - 1) * SLOT_STEP + 30, 6 + 44), Size = UDim2.fromOffset(60, 88), BackgroundTransparency = 1, Text = "", AutoButtonColor = false }, row)
 		-- not owned yet
 		local empty = new("Frame", { Name = "Empty", Size = UDim2.fromScale(1, 1), BackgroundColor3 = INK, BackgroundTransparency = 0.95 }, slot)
 		corner(empty, 10)
@@ -850,8 +852,10 @@ local function factRow(parent: Instance, name: string, order: number, title: str
 	return row
 end
 
-local function note(parent: Instance, name: string, order: number, body: string): TextLabel
-	return text(parent, name, { LayoutOrder = order, Size = UDim2.fromOffset(370, 0), AutomaticSize = Enum.AutomaticSize.Y, FontFace = BODY_BOLD, TextSize = 13, TextColor3 = MUTED, Text = body, TextWrapped = true })
+-- a fixed-height note (TextScaled by FitText): an auto-height one wrapped onto more lines on
+-- phones, where text draws bigger, and pushed the column down over the strip of cards
+local function note(parent: Instance, name: string, order: number, body: string, height: number): TextLabel
+	return text(parent, name, { LayoutOrder = order, Size = UDim2.fromOffset(370, height), FontFace = BODY_BOLD, TextSize = 13, TextColor3 = MUTED, Text = body, TextWrapped = true, TextYAlignment = Enum.TextYAlignment.Top })
 end
 
 local function detail(root: Frame)
@@ -914,7 +918,7 @@ local function detail(root: Frame)
 	-- Rolled: the day you first rolled it; a numbered copy also says who rolled it and its owners
 	local rolled = factRow(col, "Rolled", 9, "Rolled")
 	text(rolled.Value, "Date", { AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 38), TextSize = 15, Text = "25 Nov 2026", LayoutOrder = 1 })
-	note(col, "Owners", 10, "Rolled by you · no other owners yet")
+	note(col, "Owners", 10, "Rolled by you · no other owners yet", 17)
 
 	-- Grade (not in the game yet: shown, greyed out)
 	local grade = factRow(col, "Grade", 11, "Grade")
@@ -925,11 +929,11 @@ local function detail(root: Frame)
 	gb.Text = ""
 
 	-- Sell + Show on profile
-	new("Frame", { Name = "Gap2", LayoutOrder = 12, Size = UDim2.fromOffset(370, 14), BackgroundTransparency = 1 }, col)
-	local actions = new("Frame", { Name = "Actions", LayoutOrder = 13, Size = UDim2.fromOffset(370, 64), BackgroundTransparency = 1 }, col) -- (room for the shadows before the note)
+	new("Frame", { Name = "Gap2", LayoutOrder = 12, Size = UDim2.fromOffset(370, 6), BackgroundTransparency = 1 }, col)
+	local actions = new("Frame", { Name = "Actions", LayoutOrder = 13, Size = UDim2.fromOffset(370, 54), BackgroundTransparency = 1 }, col) -- (room for the shadows before the note)
 	button(actions, "Sell", 74, 26, 140, 44, WHITE, "SELL 1", 14, COIN, 4)
 	button(actions, "Pin", 260, 26, 196, 44, YELLOW, "PIN", 14, nil, 4) -- PIN / UNPIN / PIN · 3/3 FULL (opens the swap sheet)
-	note(col, "SellNote", 14, "Selling gives up #233, your highest number. You keep #4.")
+	note(col, "SellNote", 14, "Selling gives up #233, your highest number. You keep #4.", 30)
 	new("Frame", { Name = "Gap3", LayoutOrder = 15, Size = UDim2.fromOffset(370, 10), BackgroundTransparency = 1 }, col)
 	-- (hidden for now: the Rolled history row took its room above the strip)
 	local trade = text(col, "Trade", { LayoutOrder = 16, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 30), TextSize = 14, TextColor3 = MUTED, Text = "Trade · coming soon", Visible = false })
@@ -938,7 +942,7 @@ local function detail(root: Frame)
 	pad(trade, 12)
 
 	-- the member's cards, one per rarity
-	local strip = new("Frame", { Name = "Strip", Position = UDim2.fromOffset(40, 440), Size = UDim2.fromOffset(720, 140), BackgroundTransparency = 1 }, panel)
+	local strip = new("Frame", { Name = "Strip", Position = UDim2.fromOffset(40, 456), Size = UDim2.fromOffset(720, 140), BackgroundTransparency = 1 }, panel)
 	text(strip, "Title", { Size = UDim2.fromOffset(720, 18), TextSize = 13, TextColor3 = MUTED, Text = "JENNIE'S 7 CARDS · TAP ONE" })
 	local items = new("Frame", { Name = "Items", Position = UDim2.fromOffset(-11, 28), Size = UDim2.fromOffset(740, 100), BackgroundTransparency = 1 }, strip)
 	list(items, true, 0, { VerticalAlignment = Enum.VerticalAlignment.Top })
@@ -987,6 +991,92 @@ local function detail(root: Frame)
 end
 
 -- [[ Entry points ]]
+
+-- [[ Event sets (design boards "79e · Binder · Christmas Stage '26", "79f · … after it ends") ]]
+-- An event's card set (Modules/Library/Albums "Event sets") is shown like a group: one page,
+-- a tab per act. This adds what it needs to a built binder (safe to run again):
+--   Groups.List: EventsHead / GroupsHead (the two section labels) and EventTemplate (an event's
+--                row: the group row with an icy Tint and a Chip, LIVE or ENDED)
+--   Page.Head.Event   the LIVE · 9d left / ENDED chip (where the ladder badge sits for a group)
+--   Page.Ended        the dark "this event is over" ribbon under the header
+--   every slot's Empty.Lock (the row template's): a card that can't be got any more
+--   Build.EventBits(game.StarterGui.Interface.Frames.Binder)
+local SNOWFLAKE = "rbxassetid://119208551988683" -- assets/ui/Events/Snowflake.png
+function Build.EventBits(binder: Instance)
+	local scroll = binder.Binder.Groups.List
+	for _, n in { "EventsHead", "GroupsHead", "EventTemplate" } do
+		local old = scroll:FindFirstChild(n)
+		if old then
+			old:Destroy()
+		end
+	end
+	for i, spec in { { "EventsHead", "EVENTS", -1000 }, { "GroupsHead", "GROUPS", -1 } } do
+		text(scroll, spec[1], { LayoutOrder = spec[3], Size = UDim2.fromOffset(258, 18), TextSize = 11, TextColor3 = CREAM, TextTransparency = 0.45, Text = spec[2], Visible = false })
+	end
+	local ev = scroll.Template:Clone()
+	ev.Name = "EventTemplate"
+	ev.Visible = false
+	local b = ev.Button
+	b.BackgroundColor3 = WHITE
+	b.BackgroundTransparency = 0
+	local s = b:FindFirstChildOfClass("UIStroke")
+	s.Color, s.Transparency, s.Thickness = INK, 0, 3
+	new("UIGradient", { Name = "Ice", Color = ColorSequence.new(C("CFEFFF"), C("FFE4EF")) }, b)
+	b.Icon.Image = SNOWFLAKE
+	b.Icon.BackgroundColor3 = WHITE
+	b.Icon.ScaleType = Enum.ScaleType.Fit
+	b.Icon.Initial.Visible = false
+	b.Label.TextColor3 = INK
+	b.Label.Text = "Christmas Stage '26"
+	b.Count.Visible = false
+	b.Bar.BackgroundColor3 = INK
+	b.Bar.BackgroundTransparency = 0.85
+	b.Bar.Fill.BackgroundColor3 = C("9ED8F5")
+	local c = chip(b, "Chip", "LIVE", MINT, 10, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromOffset(246, 8) })
+	c.Size = UDim2.fromOffset(0, 16)
+	ev.Shadow.Visible = true
+	ev.Parent = scroll
+
+	local p = binder.Binder.Page
+	local head = p.Head
+	for _, n in { "Event" } do
+		local old = head:FindFirstChild(n)
+		if old then
+			old:Destroy()
+		end
+	end
+	local evChip = chip(head, "Event", "LIVE · 9d left", MINT, 13, { Position = UDim2.fromOffset(518, 18), Visible = false, ZIndex = 3 })
+	evChip.Size = UDim2.fromOffset(0, 24)
+	local oldRibbon = p:FindFirstChild("Ended")
+	if oldRibbon then
+		oldRibbon:Destroy()
+	end
+	local ribbon = new("Frame", { Name = "Ended", Position = UDim2.fromOffset(0, 120), Size = UDim2.fromOffset(PAGE_W, 28), BackgroundColor3 = INK, BorderSizePixel = 0, Visible = false, ZIndex = 3 }, p)
+	text(ribbon, "Label", { Position = UDim2.fromOffset(22, 0), Size = UDim2.fromOffset(PAGE_W - 44, 28), TextSize = 13, TextColor3 = CREAM, Text = "This event is over: these cards don't drop any more. Everything you got is yours to keep, pin and sell.", ZIndex = 4 })
+
+	-- a lock in every empty slot of the member row template (for a card that's gone)
+	for _, slot in p.Rows.Template:GetChildren() do
+		local empty = slot:IsA("TextButton") and slot:FindFirstChild("Empty")
+		if empty then
+			local old = empty:FindFirstChild("Lock")
+			if old then
+				old:Destroy()
+			end
+			local lock = new("Frame", { Name = "Lock", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.42), Size = UDim2.fromOffset(18, 22), BackgroundTransparency = 1, Visible = false }, empty)
+			local shackle = new("Frame", { Name = "Shackle", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0), Size = UDim2.fromOffset(12, 13), BackgroundTransparency = 1 }, lock)
+			corner(shackle, 6)
+			stroke(shackle, 2.5, MUTED)
+			local body = new("Frame", { Name = "Body", Position = UDim2.fromOffset(0, 9), Size = UDim2.fromOffset(18, 13), BackgroundColor3 = C("E9E2CF") }, lock)
+			corner(body, 3)
+			stroke(body, 2.5, MUTED)
+			local old2 = empty:FindFirstChild("Gone")
+			if old2 then
+				old2:Destroy()
+			end
+			text(empty, "Gone", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0.6, 0), Size = UDim2.fromOffset(56, 14), TextSize = 10, TextColor3 = MUTED, Text = "GONE", TextXAlignment = Enum.TextXAlignment.Center, Visible = false })
+		end
+	end
+end
 
 function Build.Build(frames: Instance): Frame
 	local old = frames:FindFirstChild("Binder")

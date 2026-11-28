@@ -428,6 +428,9 @@ function Inventory:Initialize(interface)
 			if key == nil then
 				return
 			end
+			if kind == "Stage" or kind == "Mic" or kind == "Title" then
+				Sounds.Play("Equip")
+			end
 			if kind == "Stage" or kind == "Mic" then
 				ShopRemote:Fire({ Action = "EquipItem", Kind = kind, Id = key })
 			elseif kind == "Title" then

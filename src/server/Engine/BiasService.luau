@@ -26,6 +26,9 @@ local BiasService = {}
 
 -- does `artist` have a pullable album (one with card art) with member `key`?
 local function exists(artist: string, key: string): boolean
+	if Albums.EventOf(artist) then
+		return false -- (an event set isn't a group)
+	end
 	for _, album in Albums.PullAlbums(artist) do
 		if Albums.Member(album, key) then
 			return true

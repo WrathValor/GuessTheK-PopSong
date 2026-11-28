@@ -9,6 +9,12 @@
 --   Merch       the merch pop-up's featured UGC item
 --   Daily       today's Daily Song number + how everyone did, and yesterday's answer
 --               (Engine/DailySongService.Today; never today's song)
+--   Showcase    the SHOWCASE slide (design board "69b"): the SHOWCASE_SHOWN best flex cards of the
+--               players here (their "FlexCard" attribute, Engine/CollectorService), Lucky Draw
+--               and up, rarest first: { { UserId, Name, Flex } }
+--   Takeover    big pulls (design board "69c"): a Signed Polaroid or One of One pulled here takes
+--               the screen over: { { Id, UserId, Name, Card, Serial?, At } }, newest last, at most
+--               TAKEOVER_KEPT; the same player at most once every TAKEOVER_GAP s
 -- Other services report moments with StreetScreens.Win / .Pull / .Comeback.
 
 local HttpService = game:GetService("HttpService")
@@ -19,6 +25,9 @@ local Constants = require(ReplicatedStorage.Constants.StreetScreens)
 local Songs = require(ReplicatedStorage.Modules.Library.Songs)
 
 local LIVE_EVERY = 2 -- seconds between live-duel checks
+local SHOWCASE_SHOWN = 4
+local TAKEOVER_KEPT = 2
+local TAKEOVER_GAP = 60
 
 local StreetScreens = {}
 
@@ -27,6 +36,9 @@ local pulls = {} -- { string } newest first
 local wins: { [number]: { Name: string, UserId: number, Wins: number } } = {}
 local newSongs = {}
 local lastJson = ""
+local takeovers = {} -- { { Id, UserId, Name, Card, Serial?, At } } oldest first
+local takeoverId = 0
+local lastTakeover: { [number]: number } = {} -- UserId → os.clock
 
 local function stageLabel(name: string): string
 	local n = name:match("(%d+)$")
@@ -128,6 +140,36 @@ local function daily()
 	return if ok2 then today else nil
 end
 
+-- the best flex cards in this server, Lucky Draw and up (rarest, then most copies, then lowest serial)
+local function showcase()
+	local Albums = require(ReplicatedStorage.Modules.Library.Albums)
+	local floor = Albums.RarityRank("luckydraw")
+	local list = {}
+	for _, player in Players:GetPlayers() do
+		local value = player:GetAttribute("FlexCard")
+		local id, copies, serial = Albums.ParseFlex(value)
+		local card = id and Albums.Card(id)
+		if card and Albums.RarityRank(card.Rarity.Key) >= floor then
+			table.insert(list, { UserId = player.UserId, Name = player.DisplayName, Flex = value, Rank = Albums.RarityRank(card.Rarity.Key), Copies = copies, Serial = serial or math.huge })
+		end
+	end
+	table.sort(list, function(a, b)
+		if a.Rank ~= b.Rank then
+			return a.Rank > b.Rank
+		end
+		if a.Copies ~= b.Copies then
+			return a.Copies > b.Copies
+		end
+		return a.Serial < b.Serial
+	end)
+	local out = {}
+	for i = 1, math.min(SHOWCASE_SHOWN, #list) do
+		local e = list[i]
+		out[i] = { UserId = e.UserId, Name = e.Name, Flex = e.Flex }
+	end
+	return out
+end
+
 local function publish()
 	if #newSongs == 0 then
 		loadNewSongs()
@@ -140,6 +182,8 @@ local function publish()
 		Pulls = pulls,
 		Merch = merch(),
 		Daily = daily(),
+		Showcase = showcase(),
+		Takeover = takeovers,
 	}
 	local json = HttpService:JSONEncode(feed)
 	if json ~= lastJson then
@@ -175,10 +219,19 @@ end
 
 -- a photocard worth shouting about (Engine/AlbumService): "Jisoo · BLACKPINK", "Fansign
 -- Benefit"; big = a Signed Polaroid or One of One, which also makes the highlights
-function StreetScreens.Pull(player: Player, cardName: string, rarityName: string, big: boolean?)
+function StreetScreens.Pull(player: Player, cardName: string, rarityName: string, big: boolean?, cardId: string?, serial: number?)
 	table.insert(pulls, 1, `{player.DisplayName} pulled a {rarityName}: {cardName}`)
 	while #pulls > Constants.PULLS do
 		table.remove(pulls)
+	end
+	-- a big pull takes the screen over (once a minute per player at most)
+	if big and cardId and os.clock() - (lastTakeover[player.UserId] or -math.huge) >= TAKEOVER_GAP then
+		lastTakeover[player.UserId] = os.clock()
+		takeoverId += 1
+		table.insert(takeovers, { Id = takeoverId, UserId = player.UserId, Name = player.DisplayName, Card = cardId, Serial = serial, At = os.time() })
+		while #takeovers > TAKEOVER_KEPT do
+			table.remove(takeovers, 1)
+		end
 	end
 	if big then
 		highlight(string.upper(rarityName), `{player.DisplayName} pulled a {rarityName}: {cardName}`)

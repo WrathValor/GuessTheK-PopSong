@@ -64,7 +64,7 @@ return {
 			Year = 2009,
 			Colour = "A9C8F5",
 			Songs = { "Sorry Sorry", "U", "Bonamana" },
-			Members = { "LEETEUK", "HEECHUL", "HANGENG", "YESUNG", "KANGIN", "SHINDONG", "SUNGMIN", "EUNHYUK", "DONGHAE", "SIWON", "RYEOWOOK", "KIBUM", "KYUHYUN" },
+			Members = { "LEETEUK", "HEECHUL", "HANGENG", "YESUNG", "SHINDONG", "SUNGMIN", "EUNHYUK", "DONGHAE", "SIWON", "RYEOWOOK", "KIBUM", "KYUHYUN" },
 		},
 	},
 }

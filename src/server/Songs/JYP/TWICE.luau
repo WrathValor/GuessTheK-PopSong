@@ -225,6 +225,7 @@ return {
 			Name = "With YOU-th",
 			Year = 2024,
 			Colour = "FFC9A8",
+			Cover = "rbxassetid://136805624717003",
 			Songs = { "ONE SPARK" },
 			Members = { "NAYEON", "JEONGYEON", "MOMO", "SANA", "JIHYO", "MINA", "DAHYUN", "CHAEYOUNG", "TZUYU" },
 			Art = {
@@ -244,6 +245,7 @@ return {
 			Name = "This Is For",
 			Year = 2025,
 			Colour = "FFC9A8",
+			Cover = "rbxassetid://89795493843015",
 			Songs = {},
 			Members = { "CHAEYOUNG", "JEONGYEON", "JIHYO", "MINA", "MOMO", "NAYEON", "SANA", "TZUYU" },
 			Art = {

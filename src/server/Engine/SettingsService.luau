@@ -31,7 +31,6 @@ local HINTS = {
 	Money = true,
 	Rewards = true,
 	Tickets = true, -- first roll ticket held
-	Upgrades = true, -- first card upgrade held
 	Favourite2 = true, -- the second favourite ask (FavouriteAskController)
 	LikeLine = true, -- the like line on your first duel win (ResultsController)
 	Starter = true, -- the starter offer card opened by itself (StarterOfferController)

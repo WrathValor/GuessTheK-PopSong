@@ -14,6 +14,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TextChatService = game:GetService("TextChatService")
 
 local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
+local Sounds = require(ReplicatedStorage.Modules.Sounds)
 
 local AlbumRemote = Bridgenet.ReferenceBridge("AlbumRemote")
 local LOCAL_PLAYER = Players.LocalPlayer
@@ -23,7 +24,7 @@ local PINK = "#FF9EC4" -- player name
 local SONG = "#FFE07A" -- song name
 local RAINBOW = { "#FFB3C7", "#FFF1A8", "#B8F0C8", "#B5DDFF", "#D8C4FF" }
 -- photocard rarities, in their Rarities-sheet colours
-local RARITY_COLOUR = { luckydraw = "#DDE6F0", fansign = "#FF9EC4", polaroid = "#F2C94C" }
+local RARITY_COLOUR = { luckydraw = "#E8C15A", fansign = "#FF9EC4", polaroid = "#F2C94C" }
 local RARITY_NAME = {
 	luckydraw = "LUCKY DRAW",
 	fansign = "FANSIGN BENEFIT",
@@ -94,6 +95,10 @@ function PullChat.Start()
 		local channel = line and systemChannel()
 		if channel then
 			channel:DisplaySystemMessage(line)
+			-- a soft chime for someone else's big pull (your own has the whole reveal)
+			if packet.UserId ~= Players.LocalPlayer.UserId then
+				Sounds.Play("PullAnnounce")
+			end
 		end
 	end)
 end

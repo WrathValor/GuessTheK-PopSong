@@ -454,6 +454,7 @@ function Gifts:Initialize(interface)
 				self:_paintShopFor()
 			end
 		elseif packet.Message == "Claimed" then
+			Sounds.Play(if packet.Ok then "GiftClaim" else "Wrong")
 			if packet.Id then
 				self._claiming[packet.Id] = nil
 			end

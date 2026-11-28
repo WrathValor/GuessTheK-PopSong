@@ -16,7 +16,9 @@
 --   Ladders.CardsRung(cards, artist) → rung, { Have, Need, Text } for the next one (nil at the top)
 --   Ladders.SongsRung(mastery, artist) → same
 --   Ladders.Key("Cards", artist) → "C:aespa"   Ladders.LEGEND_KEY(artist) → "L:aespa"
---   Ladders.Label(ladder, artist, rung) → "MY · GOLD" (the group's fandom name, Packs.FANDOMS)
+--   Ladders.Label(ladder, artist, rung) → "MY" (the group's fandom name, Packs.FANDOMS: the chip's
+--   look says the rung, board 64 · Badges · tier looks; Modules/UI/TitleChip)
+--   Ladders.LongLabel(ladder, artist, rung) → "MY · Gold · Cards" (toasts, the chip's tooltip)
 
 local Albums = require(script.Parent.Albums)
 local Packs = require(script.Parent.Packs)
@@ -42,20 +44,23 @@ Ladders.COINS = table.freeze({
 	Legend = 10000,
 })
 
--- the chips' colours (board 48): Diamond is ice blue, Legend ink with gold text
+-- each rung's colour (board 64 · Badges · tier looks): copper, silver, gold, icy cyan Platinum
+-- (Rocket League's), royal-blue Diamond, Legend ink with gold text. The chips' full looks (foils,
+-- shine, sparkles, glow, the rainbow rim) are Modules/UI/TitleChip's; these flat colours are for
+-- the small marks (binder ladder nodes, the next-rung chip).
 Ladders.COLOURS = table.freeze({
 	Bronze = C("E8B890"),
 	Silver = C("DDE3EC"),
 	Gold = C("FFE07A"),
-	Platinum = C("C9D3E3"),
-	Diamond = C("9ED8F5"),
+	Platinum = C("9BE6F2"),
+	Diamond = C("7FA0FF"),
 	Legend = C("1E1B2E"),
 })
 Ladders.DIAMOND_SHEEN = ColorSequence.new({
-	ColorSequenceKeypoint.new(0, C("7FCBF2")),
-	ColorSequenceKeypoint.new(0.45, C("E8F8FF")),
-	ColorSequenceKeypoint.new(0.6, C("9ED8F5")),
-	ColorSequenceKeypoint.new(1, C("5BB8EA")),
+	ColorSequenceKeypoint.new(0, C("5E86FF")),
+	ColorSequenceKeypoint.new(0.45, C("C9D8FF")),
+	ColorSequenceKeypoint.new(0.6, C("7FA0FF")),
+	ColorSequenceKeypoint.new(1, C("3F5FE6")),
 })
 Ladders.LEGEND_TEXT = C("FFE07A")
 
@@ -112,9 +117,15 @@ function Ladders.Fandom(artist: string): string
 	return Packs.FANDOMS[artist] or artist
 end
 
--- "MY · GOLD" / "MY · LEGEND": a badge is its fandom's name and the rung
-function Ladders.Label(ladder: string, artist: string, rung: number): string
-	return `{Ladders.Fandom(artist)} · {string.upper(Ladders.RungName(ladder, rung) or "")}`
+-- "MY": a worn badge says just its fandom's name; the chip's look says the rung
+function Ladders.Label(_ladder: string, artist: string, _rung: number): string
+	return Ladders.Fandom(artist)
+end
+
+-- "MY · Gold · Cards" / "MY · Legend": with the rung (and ladder) spelled out
+function Ladders.LongLabel(ladder: string, artist: string, rung: number): string
+	local name = Ladders.RungName(ladder, rung) or ""
+	return if ladder == "Legend" then `{Ladders.Fandom(artist)} · {name}` else `{Ladders.Fandom(artist)} · {name} · {ladder}`
 end
 
 -- [[ Cards ]]

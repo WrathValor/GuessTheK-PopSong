@@ -66,6 +66,17 @@ return {
 			Colour = "FFC4E1",
 			Songs = { "BAAM", "BBoom BBoom" },
 			Members = { "HYEBIN", "YEONWOO", "JANE", "TAEHA", "NAYUN", "DAISY", "JOOE", "AHIN", "NANCY" },
+			Art = {
+				["AHIN"] = "rbxassetid://90958220833433",
+				["DAISY"] = "rbxassetid://111695119844338",
+				["HYEBIN"] = "rbxassetid://98250327829779",
+				["JANE"] = "rbxassetid://124618331783030",
+				["JOOE"] = "rbxassetid://111017485253738",
+				["NANCY"] = "rbxassetid://134564841327886",
+				["NAYUN"] = "rbxassetid://127498382052237",
+				["TAEHA"] = "rbxassetid://127194278916316",
+				["YEONWOO"] = "rbxassetid://78787127663066",
+			},
 		},
 	},
 }

@@ -13,6 +13,7 @@ local RunService = game:GetService("RunService")
 local Scribe = require(ReplicatedStorage.Packages.scribe)
 local DuelConstants = require(ReplicatedStorage.Constants.DuelConstants)
 local ShopCatalog = require(ReplicatedStorage.Constants.ShopCatalog)
+local AlbumConstants = require(ReplicatedStorage.Constants.AlbumConstants)
 local Currencies = require(ReplicatedStorage.Constants.Currencies)
 local DataMigrations = require(script.Parent.DataMigrations)
 
@@ -144,6 +145,23 @@ for _, bundle in ShopCatalog.Bundles do
 				if (bundle.Coins or 0) > 0 then
 					data.Currencies.Won.Increment(bundle.Coins)
 				end
+				-- photocard bundles: unopened premium packs, Luck time, pin slots (ShopCatalog.Bundles)
+				for key, n in bundle.Premium or {} do
+					data.Inventory.PremiumOwned[key].Increment(n)
+				end
+				if (bundle.LuckMinutes or 0) > 0 then
+					local clock = data.Boosts.Luck
+					clock.Set(math.min(clock.Get() + bundle.LuckMinutes * 60, ShopCatalog.BOOST_MAX_SECONDS))
+				end
+				for _ = 1, bundle.PinSlots or 0 do
+					local slot = data.Inventory.ShopUpgrades.Slots
+					local level = slot.Get() or 0
+					if level < AlbumConstants.PIN_SLOTS_MAX - AlbumConstants.PIN_SLOTS then
+						slot.Set(level + 1)
+					else
+						data.Currencies.Won.Increment(ShopCatalog.PinSlot.RefundCoins)
+					end
+				end
 				if bundle.Stage and not data.Inventory.Stages.Has(bundle.Stage) then
 					data.Inventory.Stages.Add(bundle.Stage)
 				end
@@ -155,9 +173,9 @@ for _, bundle in ShopCatalog.Bundles do
 	end
 end
 
--- boost potions (ShopCatalog.Boosts): time added to the kind's clock, capped at
--- BOOST_MAX_SECONDS (Engine/BoostService runs the clock down while you play)
-for _, boost in ShopCatalog.Boosts do
+-- boost potions (ShopCatalog.AllBoosts: the shelf's and the retired XP ones): time added to the
+-- kind's clock, capped at BOOST_MAX_SECONDS (Engine/BoostService runs the clock down while you play)
+for _, boost in ShopCatalog.AllBoosts do
 	if (boost.ProductId or 0) > 0 then
 		local kind, seconds = boost.Kind, boost.Seconds
 		Products[boost.Id] = {
@@ -170,6 +188,40 @@ for _, boost in ShopCatalog.Boosts do
 			end,
 		}
 	end
+end
+
+-- premium packs bought with Robux (AlbumConstants.PREMIUM_PACKS ProductId): one unopened pack of
+-- that kind, opened on the Packs page (it opens itself right after the purchase)
+for _, pack in AlbumConstants.PREMIUM_PACKS do
+	if (pack.ProductId or 0) > 0 then
+		local key = pack.Key
+		Products["Premium" .. key] = {
+			Id = pack.ProductId,
+			Category = "PremiumPack",
+			Grant = function(data)
+				data.Inventory.PremiumOwned[key].Increment(1)
+			end,
+		}
+	end
+end
+
+-- a pin slot bought with Robux (ShopCatalog.PinSlot): the Slots upgrade's next level. Already
+-- maxed (bought twice in a row before the shop caught up): its coin price instead.
+if ShopCatalog.PinSlot and (ShopCatalog.PinSlot.ProductId or 0) > 0 then
+	Products.PinSlot = {
+		Id = ShopCatalog.PinSlot.ProductId,
+		Category = "PinSlot",
+		Grant = function(data)
+			local slot = data.Inventory.ShopUpgrades.Slots
+			local max = AlbumConstants.PIN_SLOTS_MAX - AlbumConstants.PIN_SLOTS
+			local level = slot.Get() or 0
+			if level < max then
+				slot.Set(level + 1)
+			else
+				data.Currencies.Won.Increment(ShopCatalog.PinSlot.RefundCoins)
+			end
+		end,
+	}
 end
 
 -- pass gifts (ShopCatalog.PassGifts): the pass in-game for whoever they're gifted to
@@ -296,6 +348,9 @@ local PlayerData = Scribe({
 			FavGroups = Scribe.String("", { MaxLength = 120 }),
 			-- the Shop's coin upgrades (Modules/Library/Upgrades): key → level bought
 			ShopUpgrades = Scribe.MapOf("string", Count(), { MaxKeys = 16, MaxKeyLength = 16 }),
+			-- premium packs bought with Robux and not opened yet, by pack key (AlbumConstants
+			-- PREMIUM_PACKS): the Packs page opens one straight after the purchase (Engine/AlbumService)
+			PremiumOwned = Scribe.MapOf("string", Count(), { MaxKeys = 8, MaxKeyLength = 16 }),
 			PremiumPity = Count(),
 			-- serial numbers of numbered cards (AlbumConstants rarity Serial = true), by card id:
 			-- "3,17", lowest first (Modules/Library/Albums.Serials, Engine/SerialService). Copies
@@ -306,15 +361,43 @@ local PlayerData = Scribe({
 			-- on the card ("Rolled 25 Nov 2026", a Signed Polaroid's date stamp).
 			CardDates = Scribe.MapOf("string", Count(), { MaxKeys = 2500, MaxKeyLength = 80 }),
 			SerialsPending = Scribe.MapOf("string", Count(), { MaxKeys = 200, MaxKeyLength = 80 }),
+			-- the highest copy count of each card that has paid its pack XP (AlbumConstants XP_NEW /
+			-- XP_DUPE / XP_GOLD / XP_RAINBOW), so each copy pays once, ever. By card id.
+			XPCopies = Scribe.MapOf("string", Count(), { MaxKeys = 3000, MaxKeyLength = 80 }),
 			-- the Market (Engine/MarketService): your cards on sale, and sold ones waiting to be
 			-- collected, by listing id → JSON { C, R, P, A, E, S, B? } (MarketConstants.Decode)
 			Listings = Scribe.MapOf("string", Scribe.String("", { MaxLength = 300 }), { MaxKeys = 40, MaxKeyLength = 40 }),
+			-- My listings' ACTIVITY: the last 30 Market events, oldest first, each JSON
+			-- { K = "Sold" | "Ended" | "Listed" | "Cancelled" | "Paid", C = card id?, P = price
+			-- (Paid: coins), B = buyer?, N = sales paid (Paid), T = os.time }. MarketSeen: when My
+			-- listings or the away pop-up was last looked at (ended listings after it count on the
+			-- HUD badge). MarketEarned / MarketSold: all-time coins collected and cards sold.
+			MarketLog = Scribe.ArrayOf(Scribe.String("", { MaxLength = 200 }), { MaxItems = 30, Evict = "Front" }),
+			MarketSeen = Count(),
+			MarketEarned = Count(),
+			MarketSold = Count(),
 		},
 
 		-- boost potions: seconds of play left on each clock (Engine/BoostService)
 		Boosts = {
 			Coins = Count(),
 			XP = Count(),
+			Luck = Count(), -- +50% Lucky Draw and up in packs (AlbumConstants.LUCK_POTION)
+		},
+
+		-- the live in-game event (Constants/LiveEvents, Engine/EventService). Everything here belongs
+		-- to the event Id; when another one is live (or none), what's left is paid out and it starts over.
+		Events = {
+			Id = Id(20),
+			Currency = Count(), -- Currencies.EventCurrency (the Winter Special's Snowflakes)
+			Packs = Count(), -- the event's unopened packs (Currencies.EventPacks)
+			Day = Count(), -- the UTC day the daily counters are for
+			Daily = Scribe.MapOf("string", Count(), { MaxKeys = 16, MaxKeyLength = 16 }), -- stat → count today
+			Total = Scribe.MapOf("string", Count(), { MaxKeys = 16, MaxKeyLength = 16 }), -- stat → count this event
+			DailyClaimed = Scribe.SetOf(Id(20)), -- daily mission ids claimed today
+			Claimed = Scribe.SetOf(Id(20)), -- event mission ids claimed
+			Bought = Scribe.MapOf("string", Count(), { MaxKeys = 24, MaxKeyLength = 20 }), -- shop item id → bought this event
+			BoughtToday = Scribe.MapOf("string", Count(), { MaxKeys = 24, MaxKeyLength = 20 }), -- … and today
 		},
 
 		Rewards = {
@@ -475,6 +558,7 @@ local PlayerData = Scribe({
 			StreaksSaved = Count(),
 			CorrectAnswers = Count(),
 			PerfectGames = Count(),
+			CollectionPoints = Count(), -- photocard collection points (Albums.CollectionPoints, Engine/CollectorService)
 			CoinsEarned = Count(), -- lifetime coins from duels
 			SuspectGames = Count(), -- duels flagged by Scoring.Suspect (DuelConstants.SUSPECT_*); nothing reads it but the stats command
 			-- ghost rival games (DuelService Rewards): finished, won, and today's wins for the daily
@@ -503,6 +587,7 @@ local PlayerData = Scribe({
 		PerfectGames = { Stat = "Statistics.PerfectGames", Replicate = true, Limit = 100 },
 		MostAnswers = { Stat = "Statistics.CorrectAnswers", Replicate = true, Limit = 100 }, -- all time
 		TopFans = { Stat = "Player.XP", Replicate = true, Limit = 100 }, -- shown as a level (Modules/Levels)
+		TopCollectors = { Stat = "Statistics.CollectionPoints", Replicate = true, Limit = 100 }, -- Engine/CollectorService
 	},
 	-- one-off fixes to old saves, run once per profile on load (Modules/DataMigrations)
 	Migrations = DataMigrations,

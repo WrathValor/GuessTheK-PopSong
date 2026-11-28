@@ -7,7 +7,9 @@
 --               (song id, "" = none)
 --   Wins, Duels, BestStreak, Perfect, SongsOwned
 --   CardShowcase  K-POPPED!: the photocard showcase, "<cardId>*<copies>" per slot, "|" between
---                 ("" = empty; cards you no longer own show empty)
+--                 ("" = empty; cards you no longer own show empty). The showcase is your pinned
+--                 cards (Inventory.Pins, in slot order): what you pin is what everyone sees.
+--                 (Profile.Cards, the old separate showcase, isn't shown any more.)
 --   CardsOwned    different photocards owned
 --   Sets          completed albums, "<albumId>" ("<albumId>!" = ALL-KILL), "," between, ALL-KILLs
 --                 first, at most MAX_SETS of them; SetsDone / AllKills = the full counts
@@ -63,7 +65,7 @@ end
 local function showCards(player: Player, data)
 	local owned = data.Inventory.Cards.Get() or {}
 	local out = {}
-	for i, id in Albums.Showcase(data.Profile.Cards.Get()) do
+	for i, id in Albums.Pins(data.Inventory.Pins.Get()) do
 		local copies = owned[id] or 0
 		out[i] = if id ~= "" and copies > 0 then `{id}*{copies}` else ""
 	end
@@ -176,7 +178,7 @@ local function onPlayerAdded(player: Player)
 		end)
 	end
 	data.Inventory.Cards.Observe(refreshCards)
-	data.Profile.Cards.Observe(refreshCards)
+	data.Inventory.Pins.Observe(refreshCards)
 	refreshCards()
 end
 

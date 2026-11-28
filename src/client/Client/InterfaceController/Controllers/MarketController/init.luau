@@ -5,10 +5,16 @@
 --              filters on the left (search, rarity, group, sort, "only cards I don't have",
 --              "my bias's group"). Nothing is bought from the grid: VIEW opens the card's detail
 --              (the card big, its last 5 sales, this copy's story, other copies) and BUY FOR.
---   Sell     – your Lucky Draw-and-up cards; tap one, set the price (pricing help beside it)
+--   Sell     – your cards (any rarity); tap one, set the price (pricing help beside it)
 --              and how long, LIST CARD.
---   Listings – ("My listings") your cards on sale with time left + Cancel, and sold ones to
---              COLLECT (the tab's red count, also pushed as a notification when one sells).
+--   Listings – ("My listings", board 67) a summary strip (on sale, sold this week, coins to
+--              collect, all time) + COLLECT ALL; your cards: sold ones first (who bought it,
+--              when, COLLECT), then live ones (time left bar, where your price ranks, Cancel);
+--              and ACTIVITY, the last 30 days of Inventory.MarketLog (List again on ended ones).
+-- The tab's red count and the HUD Market button's (HUDController.SetMarketBadge) are uncollected
+-- sales + listings that ended since you last looked. A sale while you're here is a
+-- notification; a listing ending while you're here is one with "List again" (Market:ListAgain).
+-- MarketAwayController shows what happened while you were offline.
 -- The server (Engine/MarketService) does the filtering and paging and every trade; the rules
 -- live in Constants/MarketConstants. MarketRemote packets are described there.
 
@@ -25,6 +31,7 @@ local Albums = require(ReplicatedStorage.Modules.Library.Albums)
 local MarketConstants = require(ReplicatedStorage.Constants.MarketConstants)
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local Photocard = require(ReplicatedStorage.Modules.UI.Photocard)
+local CardDecor = require(ReplicatedStorage.Modules.UI.CardDecor)
 local FrameTransition = require(ReplicatedStorage.Modules.UI.Animations.FrameTransition)
 local ButtonScale = require(ReplicatedStorage.Modules.UI.Animations.ButtonScale)
 local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
@@ -81,6 +88,19 @@ local function rarityColour(key: string): Color3
 	return C(MarketConstants.RARITY_COLOURS[key] or "FFFFFF")
 end
 
+-- a rarity chip or tag: its colour, and its foil (holo, glitter, rainbow) like the Odds sheet
+local function paintRarity(obj: GuiObject, key: string, on: boolean?)
+	obj.BackgroundColor3 = if on == false then WHITE else rarityColour(key)
+	local g = obj:FindFirstChild("Foil")
+	if g then
+		local foil = if on ~= false then CardDecor.FOILS[key] else nil
+		g.Enabled = foil ~= nil
+		if foil then
+			g.Color = foil
+		end
+	end
+end
+
 local function copies(cardId: string): number
 	return get(PlayerData.Inventory.Cards, {})[cardId] or 0
 end
@@ -106,6 +126,10 @@ function Market.new()
 	self._confirm = false
 	self._items = {} -- Sell list buttons, by card id
 	self._rows = {} -- My listings rows
+	self._feedItems = {} -- ACTIVITY items, and the events they show
+	self._feedEvents = {}
+	self._feedFilter = "All"
+	self._ranks = {} -- listing id → { Rank, Lowest, Count } (MarketRemote "Ranks")
 	return (self :: any) :: UITypes.Controller
 end
 
@@ -120,14 +144,9 @@ function Market:_paintTabs()
 		b:FindFirstChildOfClass("UIStroke").Enabled = on
 		b.Label.TextColor3 = if on then INK else CREAM
 	end
-	local sold = 0
-	for _, l in self:_mine() do
-		if l.S == "Sold" then
-			sold += 1
-		end
-	end
-	tabs.Listings.Badge.Visible = sold > 0
-	tabs.Listings.Badge.Text = tostring(sold)
+	local sold, ended = self:_badgeCount()
+	tabs.Listings.Badge.Visible = sold + ended > 0
+	tabs.Listings.Badge.Text = tostring(sold + ended)
 end
 
 function Market:SetTab(tab: string)
@@ -145,6 +164,8 @@ function Market:SetTab(tab: string)
 		self:_fillSell()
 	else
 		self:_fillListings()
+		MarketRemote:Fire({ Action = "Ranks" })
+		self:Seen()
 	end
 end
 
@@ -175,7 +196,7 @@ function Market:_paintFilters()
 	local f = self._frame.Pages.Browse.Filters
 	local q = self._q
 	for _, key in MarketConstants.RARITIES do
-		f.Rarities[key].BackgroundColor3 = if q.Rarities[key] then rarityColour(key) else WHITE
+		paintRarity(f.Rarities[key], key, q.Rarities[key] == true)
 	end
 	for _, key in MarketConstants.SORTS do
 		f.Sorts[key].BackgroundColor3 = if q.Sort == key then YELLOW else WHITE
@@ -255,7 +276,7 @@ function Market:_paintDetail(l, extra)
 	local serial = if (l.R or 0) > 0 then l.R else nil
 	Photocard.Paint(p.Card, l.C, 1, serial)
 	p.CardChips.Rarity.Text = card.Rarity.Name
-	p.CardChips.Rarity.BackgroundColor3 = rarityColour(card.Rarity.Key)
+	paintRarity(p.CardChips.Rarity, card.Rarity.Key)
 	p.CardChips.Serial.Visible = serial ~= nil
 	p.CardChips.Serial.Text = Albums.SerialText(l.C, serial) or ""
 	p.Title.Text = card.Member.Name
@@ -311,7 +332,7 @@ function Market:_paintDetail(l, extra)
 			end
 		end
 	elseif not serial then
-		table.insert(rows, { "Lucky Draws aren't numbered, so there's no history", "" })
+		table.insert(rows, { `{card.Rarity.Name} cards aren't numbered, so there's no history`, "" })
 	end
 	for i = 1, 3 do
 		local r = p.Copy[`Row{i}`]
@@ -371,7 +392,7 @@ function Market:_onBuy(packet)
 	if packet.Ok then
 		local card = Albums.Card(packet.Card or "")
 		self:_showDetail(false)
-		Sounds.Play("Success")
+		Sounds.Play("MarketBuy")
 		if card then
 			local serial = Albums.SerialText(packet.Card, if (packet.Serial or 0) > 0 then packet.Serial else nil)
 			Notify.Show("Success", `You got {card.Member.Name}!`, `{card.Rarity.Name}{if serial then " " .. serial else ""} is in your binder`, { Silent = true })
@@ -504,7 +525,7 @@ function Market:_paintForm()
 	b.Title.Text = card.Member.Name
 	b.Line.Text = `{card.Album.Artist} · {card.Album.Name} · {card.Rarity.Name}`
 	b.Chips.Rarity.Text = card.Rarity.Name
-	b.Chips.Rarity.BackgroundColor3 = rarityColour(card.Rarity.Key)
+	paintRarity(b.Chips.Rarity, card.Rarity.Key)
 	local serialText = Albums.SerialText(id, serial)
 	b.Chips.Serial.Visible = serialText ~= nil
 	b.Chips.Serial.Text = serialText or ""
@@ -603,7 +624,7 @@ function Market:_onList(packet)
 		return
 	end
 	local card = Albums.Card(packet.Card or "")
-	Sounds.Play("Success")
+	Sounds.Play("MarketList")
 	if card then
 		Notify.Show("Success", "Listed!", `{card.Member.Name} is on the Market for {commas(self._price)}`, { Silent = true })
 	end
@@ -615,7 +636,197 @@ function Market:_onList(packet)
 	end)
 end
 
--- [[ My listings ]]
+-- [[ My listings ]] (design board "67 · Market · My listings details")
+
+local PINK_SOFT = C("FFF3F8")
+local PINK = C("FF9EC4")
+local LILAC = C("B9A6FF")
+local GREEN_TEXT = C("2E8B57")
+local FEED_TAGS = {
+	Sold = { "SOLD", PINK },
+	Ended = { "ENDED", SAND },
+	Listed = { "LISTED", LILAC },
+	Cancelled = { "CANCELLED", SAND },
+	Paid = { "PAID", MINT },
+}
+
+local function ordinal(n: number): string
+	local last2, last = n % 100, n % 10
+	local suffix = if last2 >= 11 and last2 <= 13 then "th" elseif last == 1 then "st" elseif last == 2 then "nd" elseif last == 3 then "rd" else "th"
+	return `{n}{suffix}`
+end
+
+local function escape(s: string): string
+	return (string.gsub(string.gsub(string.gsub(s, "&", "&amp;"), "<", "&lt;"), ">", "&gt;"))
+end
+
+-- the Market log (Inventory.MarketLog), newest first
+local function events(): { { [string]: any } }
+	local out = {}
+	for _, json in get(PlayerData.Inventory.MarketLog, {}) do
+		local e = MarketConstants.Decode(json)
+		if e and type(e.T) == "number" then
+			table.insert(out, 1, e)
+		end
+	end
+	return out
+end
+
+-- uncollected sales, and listings that ended since My listings was last looked at: the HUD
+-- Market button's red count and the tab's
+function Market:_badgeCount(): (number, number)
+	local sold = 0
+	for _, l in self:_mine() do
+		if l.S == "Sold" then
+			sold += 1
+		end
+	end
+	local seen = get(PlayerData.Inventory.MarketSeen, 0)
+	local ended = 0
+	for _, e in events() do
+		if e.K == "Ended" and e.T > seen then
+			ended += 1
+		end
+	end
+	return sold, ended
+end
+
+function Market:_paintBadge()
+	local sold, ended = self:_badgeCount()
+	local hud = self._interface and self._interface:GetController("HUD") :: any
+	if hud and hud.SetMarketBadge then
+		hud:SetMarketBadge(sold + ended)
+	end
+end
+
+-- My listings (or the away pop-up) looked at: ended listings stop counting on the badges
+function Market:Seen()
+	local _, ended = self:_badgeCount()
+	if ended > 0 or get(PlayerData.Inventory.MarketSeen, 0) == 0 then
+		MarketRemote:Fire({ Action = "Seen" })
+	end
+end
+
+-- a card that came back: the Sell tab with it picked and its last price in
+function Market:ListAgain(cardId: string, price: number?)
+	if copies(cardId) < 1 then
+		Notify.Toast("That card isn't in your binder any more", { Kind = "Error" })
+		return
+	end
+	if self.State ~= "Active" and self.State ~= "Activating" then
+		if self._interface.Mode ~= "Gameplay" then
+			return -- (in a duel or another screen: just the notification)
+		end
+		self._interface:Open("Market", "Sell")
+	else
+		self:SetTab("Sell")
+	end
+	self:_select(cardId)
+	if price then
+		self:_setPrice(price)
+	end
+end
+
+function Market:_paintStats(list)
+	local stats = self._frame.Pages.Listings.Panel.Stats
+	local now = os.time()
+	local open, toCollect, waiting, nextEnd = 0, 0, 0, nil
+	for _, l in list do
+		if l.S == "Sold" then
+			waiting += 1
+			toCollect += MarketConstants.Payout(l.P)
+		else
+			open += 1
+			nextEnd = math.min(nextEnd or math.huge, l.E or 0)
+		end
+	end
+	local week = 0
+	for _, e in events() do
+		if e.K == "Sold" and e.T > now - 7 * 86400 then
+			week += 1
+		end
+	end
+	stats.OnSale.Value.Text = `{open} <font size="14" transparency="0.4">/ {self:_limit()}</font>`
+	stats.OnSale.Sub.Text = if nextEnd then `next one ends in {span(nextEnd - now)}` else "nothing on sale"
+	stats.Week.Value.Text = tostring(week)
+	stats.Week.Sub.Text = if waiting > 0 then `{waiting} waiting to collect` else "all collected"
+	stats.ToCollect.Value.Amount.Text = commas(toCollect)
+	stats.ToCollect.Sub.Text = `after the {math.floor(MarketConstants.FEE * 100 + 0.5)}% fee`
+	stats.AllTime.Value.Amount.Text = commas(get(PlayerData.Inventory.MarketEarned, 0))
+	local soldAll = get(PlayerData.Inventory.MarketSold, 0)
+	stats.AllTime.Sub.Text = `{soldAll} card{if soldAll == 1 then "" else "s"} sold`
+	stats.CollectAll.BackgroundColor3 = if waiting > 0 then MINT else SAND
+	stats.CollectAll.TextTransparency = if waiting > 0 then 0 else 0.45
+end
+
+function Market:_fillFeed()
+	local act = self._frame.Pages.Listings.Panel.Activity
+	local feed = act.Feed
+	for _, name in { "All", "Sold", "Ended" } do
+		act.Filters[name].BackgroundColor3 = if name == self._feedFilter then YELLOW else WHITE
+	end
+	local now = os.time()
+	local shown = {}
+	for _, e in events() do
+		if e.T < now - 30 * 86400 or not FEED_TAGS[e.K] then
+			continue
+		end
+		if self._feedFilter == "Sold" and e.K ~= "Sold" and e.K ~= "Paid" then
+			continue
+		elseif self._feedFilter == "Ended" and e.K ~= "Ended" and e.K ~= "Cancelled" then
+			continue
+		end
+		table.insert(shown, e)
+	end
+	act.None.Visible = #shown == 0
+	for i = #self._feedItems + 1, #shown do
+		local item = feed.Item:Clone()
+		item.Name = `Event{i}`
+		item.Parent = feed
+		self._feedItems[i] = item
+		self._janitor:Add(item.Again.Activated:Connect(function()
+			local e = self._feedEvents[i]
+			if e and e.C then
+				Sounds.Play("Click")
+				self:ListAgain(e.C, e.P)
+			end
+		end))
+	end
+	self._feedEvents = shown
+	for i, item in self._feedItems do
+		local e = shown[i]
+		item.Visible = e ~= nil
+		item.LayoutOrder = i
+		if e then
+			local card = e.C and Albums.Card(e.C)
+			local name = if card then escape(card.Member.Name) else "A card"
+			local spec = FEED_TAGS[e.K]
+			item.Tag.Text = spec[1]
+			item.Tag.BackgroundColor3 = spec[2]
+			item.Rule.Visible = i > 1
+			local amount, again = "", false
+			if e.K == "Sold" then
+				item.Text.Text = if e.B then `{name} to <b>{escape(e.B)}</b>` else `{name} sold`
+				amount = `+{commas(MarketConstants.Payout(e.P or 0))}`
+			elseif e.K == "Ended" then
+				item.Text.Text = `{name} · back in your binder`
+				again = card ~= nil and copies(e.C) > 0
+			elseif e.K == "Listed" then
+				item.Text.Text = `{name} for {commas(e.P or 0)}`
+			elseif e.K == "Cancelled" then
+				item.Text.Text = `{name} · back in your binder`
+			elseif e.K == "Paid" then
+				local n = e.N or 1
+				item.Text.Text = `Collected {n} sale{if n == 1 then "" else "s"}`
+				amount = `+{commas(e.P or 0)}`
+			end
+			item.When.Text = ago(e.T)
+			item.Amount.Text = amount
+			item.Amount.Visible = not again
+			item.Again.Visible = again
+		end
+	end
+end
 
 function Market:_fillListings()
 	local page = self._frame.Pages.Listings
@@ -626,6 +837,9 @@ function Market:_fillListings()
 		if (a.S == "Sold") ~= (b.S == "Sold") then
 			return a.S == "Sold"
 		end
+		if a.S == "Sold" then
+			return (a.T or 0) > (b.T or 0)
+		end
 		return (a.E or 0) < (b.E or 0)
 	end)
 	local open = 0
@@ -634,8 +848,9 @@ function Market:_fillListings()
 			open += 1
 		end
 	end
-	panel.TitleRow.Info.Text = `{open} of {self:_limit()} on sale`
+	panel.TitleRow.Info.Text = `{open} of {self:_limit()} on sale · sold cards wait here until you collect`
 	panel.Empty.Visible = #list == 0
+	self:_paintStats(list)
 	for i = #self._rows + 1, #list do
 		local r = scroll.Row:Clone()
 		r.Name = `Listing{i}`
@@ -651,6 +866,7 @@ function Market:_fillListings()
 			MarketRemote:Fire({ Action = if r:GetAttribute("Sold") then "Collect" else "Cancel", Id = l })
 		end))
 	end
+	local now = os.time()
 	for i, r in self._rows do
 		local l = list[i]
 		local card = l and Albums.Card(l.C)
@@ -661,18 +877,74 @@ function Market:_fillListings()
 			local sold = l.S == "Sold"
 			r:SetAttribute("Id", l.Id)
 			r:SetAttribute("Sold", sold)
+			f.BackgroundColor3 = if sold then PINK_SOFT else WHITE
 			Photocard.Paint(f.Card, l.C, 1, if (l.R or 0) > 0 then l.R else nil)
 			f.Title.Text = card.Member.Name
 			local serial = Albums.SerialText(l.C, if (l.R or 0) > 0 then l.R else nil)
 			f.Line.Text = `{card.Album.Artist} · {card.Album.Name} · {card.Rarity.Name}{if serial then " · " .. serial else ""}`
-			f.Status.Text = if sold then `Sold{if l.B then " to " .. l.B else ""}!` else `{span((l.E or 0) - os.time())} left`
-			f.Status.BackgroundColor3 = if sold then MINT else SAND
+			local chips = f.Chips
+			chips.Bar.Visible = not sold
+			chips.Rank.Visible = false
+			if sold then
+				chips.Status.Text = "SOLD"
+				chips.Status.BackgroundColor3 = PINK
+				chips.Who.Visible = true
+				local when = if l.W then "while you were away" else ago(l.T)
+				chips.Who.Text = if l.B then `to {l.B} · {when}` else when
+			else
+				local left = (l.E or 0) - now
+				chips.Status.Text = `{span(left)} left`
+				chips.Status.BackgroundColor3 = WHITE
+				chips.Who.Visible = false
+				local total = math.max(1, (l.E or 0) - (l.A or 0))
+				local gone = math.clamp(1 - left / total, 0, 1)
+				chips.Bar.Fill.Size = UDim2.fromScale(math.max(0.04, gone), 1)
+				chips.Bar.Fill.BackgroundColor3 = if left < 6 * 3600 then C("FF5A4E") elseif gone > 0.5 then YELLOW else MINT
+				local rank = self._ranks[l.Id]
+				if rank then
+					chips.Rank.Visible = true
+					local cheapest = rank.Rank == 1
+					chips.Rank.Text = if rank.Count <= 1 then "only one on sale" elseif cheapest then "cheapest!" else `{ordinal(rank.Rank)} cheapest`
+					chips.Rank.BackgroundColor3 = if cheapest then MINT else SAND
+				end
+			end
 			f.Price.Amount.Text = commas(l.P)
-			f.Get.Text = `you get {commas(MarketConstants.Payout(l.P))}`
+			local rank = not sold and self._ranks[l.Id]
+			f.Get.Text = if sold then `you get {commas(MarketConstants.Payout(l.P))}` elseif rank and rank.Count > 1 then `lowest on sale {commas(rank.Lowest)}` else `you'd get {commas(MarketConstants.Payout(l.P))}`
 			f.Action.Text = if sold then "COLLECT" else "CANCEL"
-			f.Action.BackgroundColor3 = if sold then MINT else CREAM
+			f.Action.BackgroundColor3 = if sold then YELLOW else WHITE
 		end
 	end
+	self:_fillFeed()
+end
+
+function Market:_onCollectAll(packet)
+	if packet.Ok and (packet.Coins or 0) > 0 then
+		Sounds.Play("Coins")
+		Notify.Show("Success", `+{commas(packet.Coins)} coins`, `From {packet.Count} Market sale{if packet.Count == 1 then "" else "s"}`, { Silent = true })
+	end
+end
+
+function Market:_onRanks(packet)
+	if type(packet.Ranks) == "table" then
+		self._ranks = packet.Ranks
+		if self.State == "Active" and self._tab == "Listings" then
+			self:_fillListings()
+		end
+	end
+end
+
+function Market:_onEnded(packet)
+	local card = Albums.Card(packet.Card or "")
+	if not card then
+		return
+	end
+	Notify.Show("Neutral", "Listing ended", `Nobody bought {card.Member.Name}. It's back in your binder`, {
+		Action = "List again",
+		OnAction = function()
+			self:ListAgain(packet.Card, packet.Price)
+		end,
+	})
 end
 
 function Market:_onCancel(packet)
@@ -907,6 +1179,25 @@ function Market:Initialize(interface)
 		self:_list()
 	end))
 
+	-- My listings: COLLECT ALL, the ACTIVITY filters
+	local mineP = frame.Pages.Listings.Panel
+	j:Add(mineP.Stats.CollectAll.Activated:Connect(function()
+		local sold = self:_badgeCount()
+		if sold > 0 then
+			Sounds.Play("Click")
+			MarketRemote:Fire({ Action = "CollectAll" })
+		end
+	end))
+	for _, name in Build.FEED_FILTERS do
+		j:Add(mineP.Activity.Filters[name].Activated:Connect(function()
+			if self._feedFilter ~= name then
+				Sounds.Play("Click")
+				self._feedFilter = name
+				self:_fillFeed()
+			end
+		end))
+	end
+
 	-- server replies (and sales pushed while you're here, even with the screen shut)
 	j:Add(MarketRemote:Connect(function(packet)
 		if type(packet) ~= "table" then
@@ -929,6 +1220,12 @@ function Market:Initialize(interface)
 			self:_onCollect(packet)
 		elseif m == "Sold" then
 			self:_onSold(packet)
+		elseif m == "CollectAll" then
+			self:_onCollectAll(packet)
+		elseif m == "Ranks" then
+			self:_onRanks(packet)
+		elseif m == "Ended" then
+			self:_onEnded(packet)
 		end
 	end), "Disconnect") -- BridgeNet2 connections have no Destroy
 
@@ -937,10 +1234,14 @@ function Market:Initialize(interface)
 		PlayerData.Inventory.Cards,
 		PlayerData.Inventory.Serials,
 		PlayerData.Inventory.Listings,
+		PlayerData.Inventory.MarketLog,
+		PlayerData.Inventory.MarketSeen,
+		PlayerData.Inventory.MarketEarned,
 		PlayerData.GamePasses,
 	} do
 		j:Add(path.Observe(function()
 			self:_refresh()
+			self:_paintBadge()
 		end))
 	end
 
@@ -953,6 +1254,9 @@ function Market:Initialize(interface)
 			if self.State == "Active" then
 				if self._tab == "Listings" and n % 15 == 0 then
 					self:_fillListings()
+					if n % 30 == 0 then
+						MarketRemote:Fire({ Action = "Ranks" })
+					end
 				elseif self._tab == "Browse" and n % MarketConstants.REFRESH == 0 and not frame.Detail.Visible then
 					self:_browse()
 				end

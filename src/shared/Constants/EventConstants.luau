@@ -27,7 +27,7 @@ return table.freeze({
 		["8935175166617584403"] = {
 			Name = "Christmas",
 			Icon = "rbxassetid://139354612591708", -- the tree
-			Live = { Name = "Winter '26", Opens = "Winter" },
+			Live = { Name = "Winter Special", Opens = "Events" }, -- (Constants/LiveEvents)
 			Starts = 1796083200, -- 2026-12-01 00:00 UTC
 			Ends = 1799280000, -- 2027-01-07 00:00 UTC
 		},

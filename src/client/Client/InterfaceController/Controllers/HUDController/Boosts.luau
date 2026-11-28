@@ -1,6 +1,6 @@
 --| Boosts
 -- The active boost potions on the HUD (HUD.BottomLeft.Boosts, the bottom-left corner): one potion
--- per running clock (Coins / XP) with its time left under it. The server says when each clock
+-- per running clock (Coins / XP / Luck) with its time left under it. The server says when each clock
 -- runs out as a player attribute ("BoostCoins" / "BoostXP", server time, 0 = off;
 -- Engine/BoostService) and the timer counts down from that here. The clock pauses while
 -- you're away, so the time shown is play time.
@@ -20,10 +20,11 @@ local Juice = require(ReplicatedStorage.Modules.UI.Animations.Juice)
 
 -- -------------------------------- Variables ------------------------------- --
 local LOCAL_PLAYER = Players.LocalPlayer
-local KINDS = { "Coins", "XP" }
+local KINDS = { "Coins", "XP", "Luck" }
 local EFFECT = {
 	Coins = "Coins from matches doubled",
 	XP = "XP from matches doubled",
+	Luck = "Lucky Draw and rarer cards 50% likelier in packs",
 }
 local TOOLTIP_GAP = 8 -- px between the tooltip and the potion row
 local TAP_HIDE = 3 -- seconds a tapped tooltip stays up

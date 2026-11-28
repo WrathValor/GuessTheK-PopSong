@@ -37,7 +37,17 @@
 --     Members  { "RM", "Jin", … }  one photocard per member (card key = the name, lowercased,
 --              letters and digits only), in the order the binder shows them
 --     Art      optional { ["RM"] = "rbxassetid://…" } member photo for this era
+--     Versions optional, soloists: photocards per era (e.g. 5). Members = { "IU" } then gives
+--              "IU" (key "iu"), "IU 2" ("iu2") … each needing its own Art entry ["IU 2"]; a
+--              version only goes live once it has art. Cards read "IU · Ver. 2" when there's >1
+--     Keys     optional { ["HONGJOONG"] = "hoongjoong" }: a member's card key when it isn't their
+--              name's (a typo fixed after the album went live; the key is in saved card ids)
+--     Cover    optional "rbxassetid://…" the album's own cover, shown on its binder page (without
+--              one the page shows the group's PackArt). The card bot sets it: /packart … album:
 --     Draft = true    keeps an album out of the game (art not ready yet)
+--     Event    optional "winter26": the album is in that event's set (Constants/LiveEvents), not its
+--              group's: only the event's pack rolls it, and the binder shows it under Events
+--              (Modules/Library/Albums "Event sets"). A group can be in the game with only these.
 -- New group: add a module to its company folder (make the folder for a new company).
 -- Song Tuner (plugins/SongTuner) edits PlaybackSpeed/TimePosition/ChorusPosition/Volume in
 -- these modules for you.

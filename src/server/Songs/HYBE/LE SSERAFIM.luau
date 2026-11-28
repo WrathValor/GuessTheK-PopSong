@@ -117,6 +117,7 @@ return {
             Name = "PUREFLOW",
             Year = 2026,
             Colour = "BFE3F2",
+            Cover = "rbxassetid://90891673775062",
             Songs = {}, -- (none of PUREFLOW pt.1's songs are in the game yet)
             Members = { "CHAEWON", "SAKURA", "YUNJIN", "KAZUHA", "EUNCHAE" },
             Art = { -- assets/Photocards/LE SSERAFIM/PUREFLOW/<member>
@@ -132,6 +133,7 @@ return {
             Name = "Spaghetti",
             Year = 2025,
             Colour = "A9C8F0",
+            Cover = "rbxassetid://115618579057770",
             Songs = {},
             Members = { "CHAEWON", "EUNCHAE", "KAZUHA", "SAKURA", "YUNJIN" },
             Art = {

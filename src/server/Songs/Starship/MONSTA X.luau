@@ -108,6 +108,15 @@ return {
 			Colour = "B3C2E8",
 			Songs = { "Jealousy", "Shoot Out", "Beautiful", "DRAMARAMA" },
 			Members = { "SHOWNU", "WONHO", "MINHYUK", "KIHYUN", "HYUNGWON", "JOOHEON", "I.M" },
+			Art = {
+				["HYUNGWON"] = "rbxassetid://86390288405642",
+				["I.M"] = "rbxassetid://139812151930262",
+				["JOOHEON"] = "rbxassetid://112341348475944",
+				["KIHYUN"] = "rbxassetid://112157276991940",
+				["MINHYUK"] = "rbxassetid://88398523635990",
+				["SHOWNU"] = "rbxassetid://90063494209421",
+				["WONHO"] = "rbxassetid://127006868974209",
+			},
 		},
 	},
 }

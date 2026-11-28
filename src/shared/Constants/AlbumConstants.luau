@@ -11,14 +11,23 @@
 --   Gen pack    PACK_SIZE cards, each from any group in that gen. The MIXES are gen packs over
 --               other pools: girl groups, boy groups, every group.
 --   Group pack  PACK_SIZE cards from the group you pick; the only pack your bias is
---               BIAS_PULL_WEIGHT× as likely in. Group packs rotate: ROTATION_SIZE groups at a
---               time, new ones every ROTATION_SECONDS (Albums.Rotation, the same for everyone).
---               Your bias's group is always there too, and up to FAVOURITES_MAX groups you star.
+--               BIAS_PULL_WEIGHT× as likely in. Every group with card art is always on sale
+--               (design board "65 · Packs · every group on sale"). Today's picks: ROTATION_SIZE
+--               groups at a time, new ones every ROTATION_SECONDS (Albums.Rotation, the same
+--               for everyone), are TODAY_DISCOUNT off. Your bias and up to FAVOURITES_MAX groups
+--               you star are pinned first ("Your groups").
 --   Premium     PACK_SIZE cards from any group with a rarity floor: every card is CardMin or
 --               better and the last is LastMin or better. Coins (or Robux once ProductId is set).
 --               Go PREMIUM_GUARANTEE - 1 premium packs without a GUARANTEE_RARITY card and the
 --               next one ends with one.
 -- A pack's cards are shown worst to best, so the best one is always last.
+
+-- Robux products made only in the development place so far (universe 10769393267): the live game
+-- gets 0 (no Robux button) until its own product is made and its id put in place of the 0 here
+local LIVE = game.GameId == 10774118391
+local function DEV_ONLY(devId: number): number
+	return if LIVE then 0 else devId
+end
 
 return table.freeze({
 	PACK_SIZE = 5,
@@ -31,23 +40,45 @@ return table.freeze({
 		table.freeze({ Key = "Boy", Name = "Boy groups" }),
 		table.freeze({ Key = "All", Name = "Full Shuffle" }),
 	}),
-	FAVOURITES_MAX = 2, -- starred groups (Inventory.FavGroups), always on sale like your bias's
+	FAVOURITES_MAX = 5, -- starred groups (Inventory.FavGroups), pinned under "Your groups" with your bias's
 	-- premium packs (design board "26 · Packs v3", K-pop names for SHUFFLED's Gold / Prism /
 	-- Obsidian). CardMin / LastMin are rarity keys. ProductId 0 = no Robux button yet.
 	PREMIUM_PACKS = table.freeze({
-		table.freeze({ Key = "photobook", Name = "Photobook Pack", Short = "PHOTOBOOK", Cost = 2500, CardMin = "standard", LastMin = "store", Colour = "FFE07A", ProductId = 0, Robux = 24 }),
-		table.freeze({ Key = "limited", Name = "Limited Edition", Short = "LIMITED", Cost = 10000, CardMin = "selca", LastMin = "luckydraw", Colour = "DCD3FF", ProductId = 0, Robux = 80 }),
+		table.freeze({ Key = "photobook", Name = "Photobook Pack", Short = "PHOTOBOOK", Cost = 2500, CardMin = "standard", LastMin = "store", Colour = "FFE07A", ProductId = DEV_ONLY(3737139532), Robux = 24 }),
+		table.freeze({ Key = "limited", Name = "Limited Edition", Short = "LIMITED", Cost = 10000, CardMin = "selca", LastMin = "luckydraw", Colour = "DCD3FF", ProductId = DEV_ONLY(3737139555), Robux = 80 }),
 		table.freeze({ Key = "fansign", Name = "Fansign Event", Short = "FANSIGN", Cost = 250000, CardMin = "store", LastMin = "fansign", Colour = "FBF7F0", ProductId = 0 }),
 	}),
 	PREMIUM_GUARANTEE = 100,
 	GUARANTEE_RARITY = "polaroid",
-	ROTATION_SIZE = 6, -- group packs on sale at a time (plus your bias's group)
+	ROTATION_SIZE = 6, -- Today's picks: group packs on a deal at a time
+	TODAY_DISCOUNT = 0.2, -- Today's picks cost this much less (Albums.GroupPackCost)
 	ROTATION_SECONDS = 24 * 3600, -- they change at midnight UTC
 	FREE_PACK_SECONDS = 2 * 3600, -- one free pack refills this often (the Refill upgrade: −5 min a level)
 	FREE_PACK_CAP = 3, -- free packs bank up to this many: 6 h of refills (the clock stops while full; the Stash upgrade: +1 a level, to 9). Was 6; the daily pack can go one over
 	FREE_PACK_START = 3, -- a new player's first free packs
 	FREE_OPEN_MAX = 10, -- "Open all" opens up to this many free packs at once
 	FIRST_ALBUM_KEY = "FirstAlbum", -- Rewards.Claimed key: the free group pack after the bias pick is used
+
+	-- XP from packs (design boards "68 · Packs · XP on the card reveal", "68b"): the first copy of
+	-- a card you've ever had pays XP_NEW (Inventory.CardDates still 0, so a card you sold, or
+	-- bought on the Market, doesn't pay it again), by rarity. A duplicate that takes the card
+	-- towards its stars (copies 2 to RAINBOW_COPIES) pays XP_DUPE, plus XP_GOLD on the copy that
+	-- earns the second star (GOLD_COPIES) and XP_RAINBOW on the one that earns all three. Each
+	-- copy count pays once per card, ever (Inventory.XPCopies), so selling copies and pulling
+	-- them again pays nothing. Copies past Rainbow (sold straight away) pay nothing. An album's page filling
+	-- for the first time pays XP_ALBUM (with its coin set bonus, Rewards.Claimed SetKey); a
+	-- group's every card (every member at every rarity, One of One aside) pays XP_GROUP once
+	-- (Rewards.Claimed "GroupSet:<artist>"). Not doubled by the 2× XP potion: that's for duels.
+	XP_NEW = table.freeze({ standard = 2, selca = 3, store = 5, luckydraw = 10, fansign = 20, polaroid = 40, oneofone = 100 }),
+	XP_DUPE = table.freeze({ standard = 1, selca = 2, store = 3, luckydraw = 5, fansign = 10, polaroid = 20, oneofone = 0 }),
+	XP_GOLD = 5,
+	XP_RAINBOW = 20,
+	XP_ALBUM = 50,
+	-- collection points (the Top Collectors leaderboard, design board "69"): each card owned scores
+	-- by rarity, and each star past the first adds half again (Normal ×1, Gold ×1.5, Rainbow ×2)
+	POINTS = table.freeze({ standard = 1, selca = 2, store = 3, luckydraw = 10, fansign = 25, polaroid = 75, oneofone = 300 }),
+	XP_GROUP = 250,
+	GROUP_SET_KEY = "GroupSet:",
 
 	-- Rarities, worst to best. Key is saved in card ids (album:member:rarity), so never rename one.
 	--   Odds   chance per pull (they add up to 1 across the live rarities)
@@ -126,4 +157,15 @@ return table.freeze({
 	SET_KEY = "Set:",
 	-- the profile showcase: this many photocards everyone sees (Profile.Cards)
 	SHOWCASE_SLOTS = 5, -- Rewards.Claimed key prefix for a paid set bonus ("Set:<album id>")
+	-- members taken out of the game for good, "<album id>:<member key>": their cards are wiped from
+	-- saves on join (Engine/AlbumService). Only these: a Draft album's cards must survive.
+	-- a running Luck potion (ShopCatalog.Boosts, Kind "Luck"): +50% on Lucky Draw and up, added to
+	-- the Luck upgrade's bonus. Not One of One (Albums.RarityOdds).
+	LUCK_POTION = 0.5,
+	REMOVED_MEMBERS = {
+		["bigbang-alive:seungri"] = true,
+		["bigbang-alive:top"] = true,
+		["tvxq-mirotic:yoochun"] = true,
+		["superjunior-sorry-sorry:kangin"] = true,
+	},
 })

@@ -4,7 +4,8 @@
 -- (InterfaceController/Controllers/SettingsMenuController) changes them through
 -- SettingsRemote (server: Engine/SettingsService); the client copy of PlayerData is read-only.
 --
--- Settings.LowEffects tells CardDecor to keep card tiles still.
+-- Settings.LowEffects tells CardDecor to keep card tiles still, and TierShine the badge chips'
+-- moving pieces (their colours and glow stay).
 --
 -- Preview(key, value) applies a volume straight away while a slider is dragged, before the
 -- server has saved it.
@@ -19,6 +20,7 @@ local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Client
 local Sounds = require(ReplicatedStorage.Modules.Sounds)
 local CardDecor = require(ReplicatedStorage.Modules.UI.CardDecor)
+local TierShine = require(ReplicatedStorage.Modules.UI.TierShine)
 
 local SettingsRemote = Bridgenet.ReferenceBridge("SettingsRemote")
 local BLOCK_TRIES = 30 -- the core scripts can take a while to answer GetCore at join
@@ -47,6 +49,7 @@ function SettingsController.Start()
 	end)
 	PlayerData.Settings.LowEffects.Observe(function(on: boolean)
 		CardDecor.SetLowEffects(on == true)
+		TierShine.SetLowEffects(on == true)
 	end)
 	task.spawn(function()
 		for _ = 1, BLOCK_TRIES do

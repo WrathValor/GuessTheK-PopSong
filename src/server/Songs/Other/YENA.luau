@@ -30,8 +30,12 @@ return {
 			Colour = "FFD08A",
 			Songs = { "Catch Catch" },
 			Members = { "YENA" },
+			Versions = 5, -- photocards this era: add art as ["YENA 2"] … ["YENA 5"] (Songs/init.luau)
 			Art = {
 				["YENA"] = "rbxassetid://89450797877706",
+				["YENA 2"] = "rbxassetid://124011326555504",
+				["YENA 3"] = "rbxassetid://112468664213254",
+				["YENA 4"] = "rbxassetid://82622466369816",
 			},
 		},
 	},

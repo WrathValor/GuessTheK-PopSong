@@ -156,6 +156,10 @@ function Flow.new(tutorial: any, interface: any, frames: Frame)
 		Sounds.Play("Click")
 		self:Skip()
 	end))
+	table.insert(self._connections, bubble.Skip.Activated:Connect(function()
+		Sounds.Play("Click")
+		self:Skip()
+	end))
 	-- the coach follows its part every frame (screens slide in, scroll and resize)
 	table.insert(self._connections, RunService.RenderStepped:Connect(function()
 		if self._coach.Visible then
@@ -212,6 +216,8 @@ function Flow:_place()
 	local showBubble = spec ~= nil and spec.Title ~= nil and not spec.Hidden
 	bubble.Visible, shadow.Visible = showBubble, showBubble
 	arrow.Visible = showBubble and lit
+	-- Skip tutorial sits in the bubble; the corner button only shows when there's no bubble
+	coach.Skip.Visible, coach.SkipShadow.Visible = not showBubble, not showBubble
 	if not showBubble then
 		return
 	end

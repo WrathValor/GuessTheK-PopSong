@@ -21,15 +21,17 @@
 -- Levels: three chunky stars on the top edge. Normal 1 cream, Gold 2 gold, Rainbow pink,
 -- yellow, blue; an unearned star is a faded cream one.
 -- Tiles: a root with CardFx = "Tile" (set in Studio on grid and slot cards: binder, All
--- cards, profile showcase, pack tray) is built without the costly pieces (sweep, prism,
--- sparkles, dust, hearts) and only keeps the cheap motion: the Fansign's drifting holo and
--- glinting glitter, the One of One's turning rim and gold name. With Settings.LowEffects on
--- (CardDecor.SetLowEffects) tiles keep still; full cards (pull, card detail) always move.
+-- cards, profile showcase, pack tray) get every effect a full card has (sweep, prism,
+-- sparkles, dust, hearts, the bobbing note). With Settings.LowEffects on
+-- (CardDecor.SetLowEffects) tiles keep still and hide those moving pieces (the sweep, prism,
+-- sparkles, dust, hearts); full cards (pull, card detail) always move. The small binder slots
+-- keep the Store sticker's and Fansign ribbon's words, at a size they can still be read.
 -- Not carried over from the canvas: the One of One's 3D tilt and the Polaroid's -2° lean (a
 -- rotated card stops clipping its photo in Roblox).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local TextService = game:GetService("TextService")
 
 local Albums = require(ReplicatedStorage.Modules.Library.Albums)
 
@@ -110,6 +112,10 @@ local POLAROID_PHOTO = 150 / 216 -- the polaroid's photo height, of the card's
 
 local CardDecor = {}
 
+-- each foiled rarity's own colours, for its dots and chips (Odds sheet, Binder, Market): the gold
+-- Lucky Draw, the drifting Fansign holo, the One of One rainbow
+CardDecor.FOILS = table.freeze({ luckydraw = GOLD_FRAME, fansign = DRIFT, oneofone = RAINBOW })
+
 -- [[ Build (Studio) ]]
 
 local function new(className: string, props: { [string]: any }, parent: Instance?): any
@@ -135,6 +141,24 @@ local function label(parent: Instance, name: string, props: { [string]: any }): 
 		base[k] = v
 	end
 	return new("TextLabel", base, parent)
+end
+-- Auto-sized sticker text spills out of its box on phones (at a few on-screen px the glyphs
+-- draw bigger than the box that was sized for them), so these boxes are measured once at design
+-- size and the text drawn TextScaled inside: it fills the box on PC and can't spill out on mobile.
+-- `legacy` is the closest Enum.Font, for measuring; TextSize stays the design size.
+local function fitBox(l: TextLabel, legacy: Enum.Font, keepHeight: boolean?)
+	local ok, b = pcall(function()
+		return TextService:GetTextSize(l.Text, l.TextSize, legacy, Vector2.new(4000, 4000))
+	end)
+	if not ok then
+		return
+	end
+	local pad = l:FindFirstChildOfClass("UIPadding")
+	local px = if pad then pad.PaddingLeft.Offset + pad.PaddingRight.Offset else 0
+	local py = if pad then pad.PaddingTop.Offset + pad.PaddingBottom.Offset else 0
+	l.AutomaticSize = Enum.AutomaticSize.None
+	l.TextScaled = true
+	l.Size = UDim2.fromOffset(math.ceil(b.X) + px + 1, if keepHeight then l.Size.Y.Offset else math.ceil(b.Y) + py)
 end
 -- Gotham's "#" and tabular digits carry extra space on their left, so "#12" sits off to the
 -- right of a centred chip; trade some left padding for right padding to centre it by eye
@@ -222,15 +246,15 @@ function CardDecor.Build(root: Frame, face: Frame, photo: Frame)
 	end
 	-- One of One: gold dust rising from the bottom (canvas .dust: 4px, glow 6px, 230px, 3.2s)
 	local dust = new("Frame", { Name = "Dust", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ZIndex = 6, Visible = false }, outer)
-	for i, x in if tile then {} else { 16, 54, 96, 128 } do
+	for i, x in { 16, 54, 96, 128 } do
 		local mote = new("ImageLabel", { Name = "Mote" .. i, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(x / 150, 0, 1, -n(6)), Size = UDim2.fromOffset(n(16), n(16)), BackgroundTransparency = 1, Image = RADIAL, ImageColor3 = C("FFD36B"), ZIndex = 6 }, dust)
 		mote:SetAttribute("Delay", ({ 0, 0.9, 1.7, 2.4 })[i])
 		local dot = new("Frame", { Name = "Dot", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(math.max(2, n(4)), math.max(2, n(4))), BackgroundColor3 = C("FFE7A0"), BorderSizePixel = 0, ZIndex = 6 }, mote)
 		round(dot)
 	end
 	-- Fansign (canvas 43 B): pink hearts drifting up past the card, and pink-glow sparkles
-	-- twinkling on its edges. Not on the small binder slots or tiles.
-	if not small and not tile then
+	-- twinkling on its edges
+	do
 		local hearts = new("Frame", { Name = "Hearts", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ZIndex = 6, Visible = false }, outer)
 		for i, spec in { { 14, 13, 0, 6 }, { 52, 10, 0.9, -8 }, { 92, 13, 1.8, 6 }, { 124, 11, 2.6, -5 } } do
 			local heart = label(hearts, "Heart" .. i, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(spec[1] / 150, 0, 1, 0), Size = UDim2.fromOffset(n(spec[2] * 2.4), n(spec[2] * 2.4)), FontFace = HEAD, TextSize = n(spec[2] * 1.7), TextColor3 = C("FF9EC4"), Text = "♥", TextTransparency = 1, ZIndex = 6, Visible = true })
@@ -283,12 +307,17 @@ function CardDecor.Build(root: Frame, face: Frame, photo: Frame)
 		local tile = new("ImageLabel", { Name = "Dots" .. i, Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Image = DOT_SMALL, ScaleType = Enum.ScaleType.Tile, TileSize = UDim2.fromOffset(math.max(6, n(spec[1])), math.max(6, n(spec[1]))), ImageColor3 = spec[2], ImageTransparency = spec[3], ZIndex = 0 }, sky)
 		corner(tile, radius)
 	end
-	-- Fansign: the foil ribbon over the left edge (left -8, top 14, -8°, 2px hard shadow)
-	if not small then
-		local ribbon = new("Frame", { Name = "Ribbon", Position = UDim2.fromOffset(-n(8), n(14)), Size = UDim2.fromOffset(n(76), n(17)), Rotation = -8, BackgroundTransparency = 1, ZIndex = 5, Visible = false }, mid)
+	-- Fansign: the foil ribbon over the left edge (left -8, top 14, -8°, 2px hard shadow); on
+	-- the small binder slots no smaller than its words can be read
+	do
+		local rw, rh, rt = n(76), n(17), n(9)
+		if small then
+			rw, rh, rt = math.max(rw, 40), math.max(rh, 11), math.max(rt, 6.5)
+		end
+		local ribbon = new("Frame", { Name = "Ribbon", Position = UDim2.fromOffset(-n(8), n(14)), Size = UDim2.fromOffset(rw, rh), Rotation = -8, BackgroundTransparency = 1, ZIndex = 5, Visible = false }, mid)
 		local ribbonShadow = new("Frame", { Name = "Shadow", Position = UDim2.fromOffset(n(2), n(2)), Size = UDim2.fromScale(1, 1), BackgroundColor3 = INK, ZIndex = 5 }, ribbon)
 		corner(ribbonShadow, n(4))
-		local band = label(ribbon, "Band", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 0, BackgroundColor3 = WHITE, FontFace = HEAD, TextSize = n(9), Text = "♡ FANSIGN", ZIndex = 5, Visible = true })
+		local band = label(ribbon, "Band", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 0, BackgroundColor3 = WHITE, FontFace = HEAD, TextSize = rt, Text = "♡ FANSIGN", ZIndex = 5, Visible = true })
 		corner(band, n(4))
 		stroke(band, math.max(1.5, n(2)))
 		new("UIGradient", { Name = "Foil", Color = RIBBON, Rotation = 0 }, band)
@@ -322,7 +351,7 @@ function CardDecor.Build(root: Frame, face: Frame, photo: Frame)
 
 	-- [ on the photo (clipped to it) ]
 	local top = new("Folder", { Name = "Decor" }, photo)
-	if not tile then -- (tiles skip these: Paint and the loop cope with them missing)
+	do -- (with Low effects on, Paint hides these on tiles)
 		-- One of One: the colour-cycling prism and the light sweep
 		local prism = new("Frame", { Name = "Prism", Size = UDim2.fromScale(1, 1), BackgroundColor3 = WHITE, BackgroundTransparency = 0.75, BorderSizePixel = 0, ZIndex = 3, Visible = false }, top)
 		new("UIGradient", { Name = "Hue", Color = RAINBOW, Rotation = 120 }, prism)
@@ -354,8 +383,14 @@ function CardDecor.Build(root: Frame, face: Frame, photo: Frame)
 	stroke(tag, math.max(1, n(1.5)))
 	new("UIPadding", { PaddingLeft = UDim.new(0, n(5)), PaddingRight = UDim.new(0, n(5)) }, tag)
 	new("UIGradient", { Color = GOLD_TAG, Rotation = 45 }, tag)
+	fitBox(tag, Enum.Font.GothamBlack, true)
 	-- Store: the round STORE BENEFIT sticker (44px, bottom-right, -10°)
-	label(top, "Seal", { AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -n(6), 1, -n(6)), Size = UDim2.fromOffset(n(44), n(44)), BackgroundTransparency = 0, BackgroundColor3 = CREAM, FontFace = BODY, TextSize = n(7.5), TextWrapped = true, LineHeight = 1, Text = if small then "" else "STORE\nBENEFIT", Rotation = -10, ZIndex = 4 })
+	-- (the small binder slots: a bigger sticker, so its words can still be read)
+	local sealSize, sealText = n(44), n(7.5)
+	if small then
+		sealSize, sealText = math.max(sealSize, 26), math.max(sealText, 5.5)
+	end
+	label(top, "Seal", { AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -n(4), 1, -n(4)), Size = UDim2.fromOffset(sealSize, sealSize), BackgroundTransparency = 0, BackgroundColor3 = CREAM, FontFace = BODY, TextSize = sealText, TextWrapped = true, LineHeight = 1, Text = "STORE\nBENEFIT", Rotation = -10, ZIndex = 4 })
 	round(top.Seal)
 	stroke(top.Seal, math.max(1.5, n(2)))
 	-- Polaroid: silver marker signature across the photo, and the orange date stamp
@@ -599,6 +634,14 @@ end
 -- Settings.LowEffects (Client/SettingsController): on, the tiles stop moving
 function CardDecor.SetLowEffects(on: boolean)
 	lowEffects = on
+	-- the tiles on show put their moving pieces away (or back)
+	for _, entry in active do
+		if entry.Tile and entry.Parts.Costly then
+			for piece, shown in entry.Parts.Costly do
+				piece.Visible = shown and not on
+			end
+		end
+	end
 end
 
 -- how many cards are registered to animate, how many animated on the last frame, and the
@@ -702,9 +745,21 @@ function CardDecor.Paint(root: Instance, face: Instance, cardId: string?, copies
 	mid.Washi.Visible = isPolaroid
 	if mid:FindFirstChild("Ribbon") then
 		mid.Ribbon.Visible = key == "fansign"
+		-- the band's words drawn TextScaled inside it (padded so they stay at design size), so on a
+		-- phone they can't run past the band's end
+		local band = mid.Ribbon:FindFirstChild("Band")
+		if band and not band.TextScaled then
+			local h = mid.Ribbon.Size.Y.Offset
+			local v = math.max(0, math.floor((h - band.TextSize * 1.15) / 2))
+			local padding = band:FindFirstChildOfClass("UIPadding") or Instance.new("UIPadding")
+			padding.PaddingTop, padding.PaddingBottom = UDim.new(0, v), UDim.new(0, v)
+			padding.PaddingLeft, padding.PaddingRight = UDim.new(0, math.ceil(h * 0.25)), UDim.new(0, math.ceil(h * 0.25))
+			padding.Parent = band
+			band.TextScaled = true
+		end
 	end
 	mid.Caption.Visible = isPolaroid
-	mid.Caption.Text = `{string.lower(member.Name)} ♡ {string.lower(album.Artist or "")}`
+	mid.Caption.Text = `{string.lower(member.Person or member.Name)} ♡ {string.lower(album.Artist or "")}`
 	mid.FootSerial.Visible = isPolaroid and serialText ~= nil
 	mid.FootSerial.Text = serialText or ""
 	local name = face:FindFirstChild("Member")
@@ -715,6 +770,11 @@ function CardDecor.Paint(root: Instance, face: Instance, cardId: string?, copies
 		if gold then
 			gold.Enabled = isOne
 		end
+	end
+	-- the BIAS chip sits beside the name, so it goes with it (it hid behind the foot serial)
+	local biasChip = face:FindFirstChild("Bias")
+	if isPolaroid and biasChip and biasChip:IsA("GuiObject") then
+		biasChip.Visible = false
 	end
 	local albumLabel = face:FindFirstChild("Album")
 	if albumLabel and albumLabel:IsA("TextLabel") then
@@ -753,10 +813,26 @@ function CardDecor.Paint(root: Instance, face: Instance, cardId: string?, copies
 		sparks.Visible = isPolaroid
 	end
 	top.Tag.Visible = key == "luckydraw"
+	if top.Tag.Visible and top.Tag.AutomaticSize ~= Enum.AutomaticSize.None then
+		fitBox(top.Tag, Enum.Font.GothamBlack, true) -- cards built before the tag was boxed
+	end
 	top.Seal.Visible = key == "store"
+	-- a smaller sticker that just says STORE, drawn TextScaled inside its circle (the two-line
+	-- STORE BENEFIT wrapped into "STOR / E" on phones)
+	if top.Seal.Visible and not top.Seal:GetAttribute("Short") then
+		local seal = top.Seal
+		seal:SetAttribute("Short", true)
+		local s = math.floor(seal.Size.X.Offset * 0.72 + 0.5)
+		seal.Size = UDim2.fromOffset(s, s)
+		seal.Text = "STORE"
+		seal.TextWrapped = false
+		seal.TextScaled = true
+		local inset = math.max(2, math.floor(s * 0.16))
+		new("UIPadding", { PaddingLeft = UDim.new(0, inset), PaddingRight = UDim.new(0, inset), PaddingTop = UDim.new(0, inset), PaddingBottom = UDim.new(0, inset) }, seal)
+	end
 	top.Sig.Visible = isPolaroid
-	top.Sig.Shadow.Text = member.Name
-	top.Sig.Text.Text = member.Name
+	top.Sig.Shadow.Text = member.Person or member.Name -- (a signature is the person, never "Ver. 2")
+	top.Sig.Text.Text = member.Person or member.Name
 	local date = options.Date
 	top.Date.Visible = isPolaroid and date ~= nil
 	top.Date.Text = if date then os.date("'%y %m %d", date) else ""
@@ -765,7 +841,8 @@ function CardDecor.Paint(root: Instance, face: Instance, cardId: string?, copies
 	end
 	if top:FindFirstChild("Note") then
 		top.Note.Visible = key == "fansign"
-		top.Note.Text = `to. you ♡\nthank u for\ncoming!! - {string.lower(member.Name)}`
+		top.Note.Text = `to. you ♡\nthank u for\ncoming!! - {string.lower(member.Person or member.Name)}`
+		fitBox(top.Note, Enum.Font.Kalam)
 	end
 	for _, old in { "Shine", "Stamp", "Signature" } do
 		local inst = photo:FindFirstChild(old)
@@ -816,10 +893,20 @@ function CardDecor.Paint(root: Instance, face: Instance, cardId: string?, copies
 		end
 	end
 
-	-- moving parts (tiles: only the Fansign's holo and the One of One's rim and name move)
-	if tile and (key == "luckydraw" or isPolaroid) then
-		animate(face, nil)
-	elseif key == "luckydraw" or key == "fansign" then
+	-- the moving pieces: on a tile with Low effects on they're put away (SetLowEffects puts
+	-- them back when it's turned off)
+	local costly = {}
+	for _, piece in { prism, shine, sparks, goldSparks, outer.Dust, outer:FindFirstChild("Hearts"), outer:FindFirstChild("Twinkles") } do
+		if piece then
+			costly[piece] = piece.Visible
+			if tile and lowEffects then
+				piece.Visible = false
+			end
+		end
+	end
+
+	-- moving parts
+	if key == "luckydraw" or key == "fansign" then
 		local note = top:FindFirstChild("Note")
 		local ribbon = mid:FindFirstChild("Ribbon")
 		local hearts, twinkles, glint = outer:FindFirstChild("Hearts"), outer:FindFirstChild("Twinkles"), mid:FindFirstChild("Glint")
@@ -831,13 +918,14 @@ function CardDecor.Paint(root: Instance, face: Instance, cardId: string?, copies
 			Sparks = if twinkles then twinkles:GetChildren() else {},
 			Sweep = shine and shine.Sweep,
 			Photo = photo,
-			Note = if key == "fansign" and not tile then note else nil,
+			Note = if key == "fansign" then note else nil,
+			Costly = costly,
 			NoteHome = note and (note:GetAttribute("Home") or note.Position),
 			Bob = 3 * widthOf(face) / 150,
 			PhotoHeight = math.max(1, heightOf(photo)),
 		}, tile)
 	elseif isPolaroid then
-		animate(face, key, { Sparks = if sparks then sparks:GetChildren() else {} })
+		animate(face, key, { Sparks = if sparks then sparks:GetChildren() else {}, Costly = costly }, tile)
 	elseif isOne then
 		local k = widthOf(face) / 150
 		animate(face, key, {
@@ -853,6 +941,7 @@ function CardDecor.Paint(root: Instance, face: Instance, cardId: string?, copies
 			Dust = outer.Dust:GetChildren(),
 			Lift = 230 * k,
 			Base = 6 * k,
+			Costly = costly,
 		}, tile)
 	else
 		animate(face, nil)

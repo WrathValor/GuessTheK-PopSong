@@ -55,7 +55,7 @@ return {
 			Year = 2008,
 			Colour = "FFB3B3",
 			Songs = { "Mirotic", "Rising Sun" },
-			Members = { "YUNHO", "CHANGMIN", "JAEJOONG", "YOOCHUN", "JUNSU" },
+			Members = { "YUNHO", "CHANGMIN", "JAEJOONG", "JUNSU" },
 		},
 	},
 }

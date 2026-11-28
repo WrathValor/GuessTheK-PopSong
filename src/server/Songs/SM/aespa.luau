@@ -91,6 +91,7 @@ return {
 			Name = "LEMONADE",
 			Year = 2026,
 			Colour = "D6DCE8",
+			Cover = "rbxassetid://87731621916655",
 			Songs = { "LEMONADE" },
 			Members = { "KARINA", "GISELLE", "WINTER", "NINGNING" },
 			Art = {
@@ -105,6 +106,7 @@ return {
 			Name = "Armageddon",
 			Year = 2024,
 			Colour = "B8C4FF",
+			Cover = "rbxassetid://85665704443656",
 			Songs = {},
 			Members = { "GISELLE", "KARINA", "NINGNING", "WINTER" },
 			Art = {

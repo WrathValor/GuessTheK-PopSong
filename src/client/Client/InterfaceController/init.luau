@@ -23,7 +23,8 @@ for _, screen in require(ReplicatedStorage.Constants.AnalyticsEvents).Custom.Scr
 	SCREEN_EVENTS[screen] = true
 end
 -- frames that open without the "Open" sound (the HUD, the round screen and the victory shot have their own)
-local SILENT_OPEN = { HUD = true, Game = true, Victory = true, RivalUp = true }
+local SILENT_OPEN = { HUD = true, Game = true, Victory = true, RivalUp = true, ShortOffer = true, StarterOffer = true } -- (the offers play OfferPop)
+local SILENT_CLOSE = { HUD = true, Game = true, Victory = true, RivalUp = true }
 -- Controller: when a menu opens (or a controller is picked up while one is open) its first
 -- button is selected, so A works straight away; a controller can name a better one with
 -- :PadFocus(). B closes menus that have a Close button, like Escape. These screens get no
@@ -265,6 +266,9 @@ function Interface.Close(self: Self, name: string?)
 	Transitioning = true
 	clearPadFocus(controller)
 	ScreenGuide.Closed(controller.Name)
+	if not SILENT_CLOSE[controller.Name] then
+		Sounds.Play("Close")
+	end
 
 	-- bring the HUD back while the menu closes
 	if self.ActiveController == controller then

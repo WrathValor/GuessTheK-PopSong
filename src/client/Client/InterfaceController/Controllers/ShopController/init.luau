@@ -14,7 +14,7 @@
 -- shows a 4th BONUS card (the extra roll tickets), "Bonus ends in …", and Buy sells the bonus
 -- product at the same price. Coin bundles past the first wear "+n% MORE" (Money 5): how many
 -- more coins per Robux than the smallest bundle, from the live prices.
--- Boost potions (ShopCatalog.Boosts) sit under the passes: 2× Coins / 2× XP, 30 min or 2 h; with
+-- Boost potions (ShopCatalog.Boosts) sit under the passes: 2× Coins / +50% Luck (2× XP retired), 30 min or 2 h; with
 -- the 2× Coins pass the coin ones read "3× Coins" (they stack to 3×).
 -- Gift mode ("Gifting 1–2"): "Send a gift" at the foot of the sidebar opens Shop.GiftPick
 -- (players in this server), then the whole page buys for them: the header and buttons go pink,
@@ -81,7 +81,7 @@ local PASS_CARDS = { VIP = "VIP", DoubleCoins = "DoubleCoins" } -- card name →
 -- The Rolls section's card (instance name) → the currency its bundles sell. Card upgrades went
 -- with the song Index. The "Tickets" card sells gen packs since 26 Nov 2026 (a whole gen pack
 -- each, ShopCatalog.RollBundles); the section is still hidden in Studio (Visible = false).
-local ROLL_CARDS = { Tickets = "GenPacks" }
+local ROLL_CARDS = { Tickets = "GenPacks" } -- (one card the whole row: ×1 ×5 ×12 ×25 ×50)
 
 local fmt = ShopCatalog.Format
 
@@ -312,7 +312,7 @@ local TABS = {
 -- the line under "Shop" for each tab
 local TAB_LINES = {
 	Featured = "Packs, bundles and pack tickets",
-	Upgrades = "Upgrades last for good · paid with coins",
+	Upgrades = "Upgrades last for good · Slots can be bought with Robux too",
 	Stage = "Stage sets, stages and mics in the rotation",
 	Profile = "Banners and photocards",
 	Boosts = "VIP, 2× Coins and potions",
@@ -514,6 +514,26 @@ function Shop:_fillUpgrades()
 			if shadow then
 				shadow.Visible = price ~= nil
 			end
+			-- Slots also sells for Robux (ShopCatalog.PinSlot): Buy halves, the Robux button beside it
+			local robux = card:FindFirstChild("Robux") :: GuiButton?
+			if robux then
+				local onSale = price ~= nil and gift == nil and (ShopCatalog.PinSlot and ShopCatalog.PinSlot.ProductId or 0) > 0
+				robux.Visible = onSale
+				if onSale then
+					setRobuxButton(robux, "Product", ShopCatalog.PinSlot.ProductId)
+				end
+				local robuxShadow = card:FindFirstChild("RobuxShadow")
+				if robuxShadow then
+					robuxShadow.Visible = onSale and robux.Active
+				end
+				local w = card.Size.X.Offset
+				buy.Size = UDim2.fromOffset(if onSale then 150 else w - 28, 40)
+				buy.Position = UDim2.fromOffset(if onSale then 14 + 75 else w / 2, 154)
+				if shadow then
+					shadow.Size = buy.Size + UDim2.fromOffset(6, 6)
+					shadow.Position = buy.Position + UDim2.fromOffset(3, 3)
+				end
+			end
 			-- a level just bought: the card hops
 			local before = self._upLevels[up.Key]
 			if before and level > before then
@@ -685,8 +705,8 @@ function Shop:_order()
 end
 
 -- [[ Bundles ]] one banner from a ShopCatalog.Bundles entry (Build.AddBundles made them)
-local BUNDLE_KIND = { GenPacks = "Gen packs", Tickets = "Pack tickets", Upgrades = "Card upgrades", Coins = "Coins" }
-local BUNDLE_ART = { GenPacks = "FFF3B8", Tickets = "DCD3FF", Upgrades = "9ED8F5", Coins = "FFE07A", Stage = "D8F6F2", Mic = "D8F6F2" } -- (the Spotlight set's teal)
+local BUNDLE_KIND = { GenPacks = "Gen packs", Tickets = "Pack tickets", Coins = "Coins" }
+local BUNDLE_ART = { GenPacks = "FFF3B8", Tickets = "DCD3FF", Coins = "FFE07A", Stage = "D8F6F2", Mic = "D8F6F2" } -- (the Spotlight set's teal)
 
 -- the shop's coin pile that fits an amount
 local function pileFor(amount: number): string
@@ -707,6 +727,8 @@ local function bundleBought(id: string): number
 	local ok, all = pcall(PlayerData.Rewards.Bundles.Get)
 	return if ok and type(all) == "table" then all[id] or 0 else 0
 end
+
+local PACK_ART = { photobook = "PackPhotobook", limited = "PackLimited" } -- (Build.BundlePackArt)
 
 local function fillBundle(holder: Instance?, bundle)
 	if not holder then
@@ -753,6 +775,12 @@ local function fillBundle(holder: Instance?, bundle)
 		if entry then
 			local tile = slot.Card
 			local art = tile.Art
+			for _, name in PACK_ART do
+				local packArt = art:FindFirstChild(name)
+				if packArt then
+					packArt.Visible = false
+				end
+			end
 			art.BackgroundColor3 = C(BUNDLE_ART[entry.Kind] or "FFFFFF")
 			local isItem = entry.Kind == "Stage" or entry.Kind == "Mic"
 			slot.Only.Visible = isItem
@@ -773,6 +801,21 @@ local function fillBundle(holder: Instance?, bundle)
 						night.Enabled = false
 					end
 				end
+			elseif ShopCatalog.ContentLook(entry) then
+				-- premium packs, Luck time, pin slots (photocard bundles)
+				local look = ShopCatalog.ContentLook(entry) :: any
+				art.BackgroundColor3 = C(look.Colour)
+				tile.Label.Text = look.Label
+				tile.Sub.Text = look.Sub
+				-- a premium pack: the Packs page's own pack art (Build.BundlePackArt), else the icon
+				local packArt = if entry.Kind == "Premium" then art:FindFirstChild(PACK_ART[entry.Id] or "") else nil
+				if packArt then
+					packArt.Visible = true
+				end
+				art.Pic.Visible = packArt == nil
+				art.Pic.Image = look.Image
+				art.Pic.AnchorPoint = Vector2.new(0.5, 0.5)
+				art.Pic.Size = UDim2.fromScale(0.85, 0.85)
 			else
 				local coins = entry.Kind == "Coins"
 				tile.Label.Text = if coins then fmt(entry.Amount) else `×{entry.Amount}`
@@ -811,7 +854,7 @@ function Shop:_fillBundles()
 	fillBundle(scroll:FindFirstChild("Headliner"), big)
 	local list = scroll:FindFirstChild("Bundles")
 	if list then
-		for i = 1, 3 do
+		for i = 1, 3 do -- (Build.AddBundles: three short banners, five items each)
 			fillBundle(list:FindFirstChild("Bundle" .. i), small[i])
 		end
 	end
@@ -1053,7 +1096,7 @@ function Shop:_fillRolls()
 		if face then
 			face.Have.Text = `You have {fmt(Currencies.Count(LOCAL_PLAYER, id))}`
 			local bundles = ShopCatalog.RollBundlesFor(id)
-			for i = 1, 3 do
+			for i = 1, 5 do -- (×1 ×5 ×12 ×25 ×50: Build.AddRolls)
 				local tile = face:FindFirstChild("Bundle" .. i)
 				local bundle = bundles[i]
 				if tile then
@@ -1625,7 +1668,7 @@ function Shop:Initialize(interface)
 				-- no prompt opened, so the next purchase is your own again (PurchasedController)
 				LOCAL_PLAYER:SetAttribute("GiftPrompt", nil)
 			end
-			Sounds.Play(if packet.Ok then "Success" else "Wrong")
+			Sounds.Play(if not packet.Ok then "Wrong" elseif packet.Action == "Upgrade" then "Upgrade" else "Success")
 			self:_toast(packet.Text or "")
 		elseif packet.Message == "Sent" then
 			self:_toast(`Gift sent to {packet.To}!`)
@@ -1671,6 +1714,14 @@ function Shop:Initialize(interface)
 				j:Add(card.Buy.Activated:Connect(function()
 					self:_buyUpgrade(up.Key)
 				end))
+				local robux = card:FindFirstChild("Robux") :: GuiButton?
+				if robux and ShopCatalog.PinSlot then
+					j:Add(robux.Activated:Connect(function()
+						if robux.Active and not gift then
+							promptProduct(ShopCatalog.PinSlot.ProductId)
+						end
+					end))
+				end
 			end
 		end
 	end

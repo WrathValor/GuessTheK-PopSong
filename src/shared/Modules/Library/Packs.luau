@@ -31,6 +31,7 @@ Packs.FANDOMS = {
 	["LE SSERAFIM"] = "FEARNOT",
 	BIGBANG = "VIP",
 	iKON = "iKONIC",
+	WINNER = "Inner Circle",
 	["Super Junior"] = "E.L.F.",
 	["Stray Kids"] = "STAY",
 	SEVENTEEN = "CARAT",

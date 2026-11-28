@@ -6,10 +6,12 @@
 --   Pages.Browse   – Filters (search, rarity chips, group dropdown + GroupList, sort chips,
 --                    two toggles) and Grid (ON SALE + info, ‹ page ›, Tile1–8: the card, its
 --                    name + NEW TO YOU, group · album · seller, price, VIEW)
---   Pages.Sell     – Cards (your Lucky Draw-and-up cards: List grid, an Item template) and
+--   Pages.Sell     – Cards (your cards, any rarity: List grid, an Item template) and
 --                    Form (the card, pricing help, − price +, fee, LISTED FOR chips, LIST CARD)
---   Pages.Listings – Panel (MY LISTINGS + count, List of Row templates: the card, time left /
---                    Sold!, price, Cancel / COLLECT)
+--   Pages.Listings – Panel (board 67: MY LISTINGS + count; Stats: OnSale, Week, ToCollect,
+--                    AllTime + COLLECT ALL; List of Row templates: the card, chips (Status, Who,
+--                    time Bar, Rank), price, Cancel / COLLECT; Activity: All · Sold · Ended
+--                    Filters and the Feed's Item template). Build.MyListings rebuilds just this.
 --   Detail         – the card detail over everything (dim, the big card, last 5 sales, this
 --                    copy's story, other copies, PRICE and BUY FOR)
 -- Photocards are Modules/UI/Photocard builds (MarketController paints them). Run once in Edit
@@ -21,8 +23,17 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Currencies = require(ReplicatedStorage.Constants.Currencies)
 local MarketConstants = require(ReplicatedStorage.Constants.MarketConstants)
 local Photocard = require(ReplicatedStorage.Modules.UI.Photocard)
+local CardDecor = require(ReplicatedStorage.Modules.UI.CardDecor)
 
 local C = Color3.fromHex
+
+-- a grid or list card: a tile (CardDecor CardFx "Tile"), so it keeps still with Low effects on;
+-- the decor is built again now it knows. (The Detail's big card always moves, as the binder's.)
+local function asTile(pc: Frame): Frame
+	pc:SetAttribute("CardFx", "Tile")
+	CardDecor.Build(pc, pc.Face, pc.Face.Photo)
+	return pc
+end
 local INK = C("1E1B2E")
 local CREAM = C("FBF7F0")
 local WHITE = C("FFFFFF")
@@ -45,10 +56,11 @@ local COIN = Currencies.Coins.Icon
 local Build = {}
 Build.TABS = { "Browse", "Sell", "Listings" }
 Build.TAB_NAMES = { Browse = "Browse", Sell = "Sell", Listings = "My listings" }
-Build.RARITY_NAMES = { luckydraw = "Lucky Draw", fansign = "Fansign", polaroid = "Signed Polaroid", oneofone = "One of One" }
+Build.RARITY_NAMES = { standard = "Standard", selca = "Selca", store = "Store", luckydraw = "Lucky Draw", fansign = "Fansign", polaroid = "Signed Polaroid", oneofone = "One of One" }
 Build.SORT_NAMES = { Price = "Lowest price", Newest = "Newest", Rarest = "Rarest", Serial = "Low serial" }
 Build.HOUR_NAMES = { [24] = "24 h", [48] = "48 h", [168] = "7 days" }
 Build.BARS = 5
+Build.FEED_FILTERS = { "All", "Sold", "Ended" }
 
 -- [[ Helpers ]]
 
@@ -156,6 +168,12 @@ local function chip(parent: Instance, name: string, x: number, y: number, w: num
 		local d = new("Frame", { Name = "Dot", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 10, 0.5, 0), Size = UDim2.fromOffset(10, 10), BackgroundColor3 = dot }, b)
 		corner(d, UDim.new(0.5, 0))
 		stroke(d, 2)
+		local foil = CardDecor.FOILS[name]
+		if foil then
+			-- the rarity's foil, like the Odds sheet's dots: always on the dot, on the chip while picked
+			new("UIGradient", { Name = "Foil", Rotation = 45, Color = foil }, d)
+			new("UIGradient", { Name = "Foil", Rotation = 45, Color = foil, Enabled = false }, b)
+		end
 	end
 	text(b, "Label", { Position = UDim2.fromOffset(if dot then 26 else 0, 0), Size = UDim2.new(1, if dot then -30 else 0, 1, 0), TextSize = 13, TextXAlignment = if dot then Enum.TextXAlignment.Left else Enum.TextXAlignment.Center, Text = label })
 	return b
@@ -177,6 +195,9 @@ local function tag(parent: Instance, name: string, order: number, colour: Color3
 	corner(t, 9)
 	stroke(t, 2.5)
 	pad(t, 10)
+	if name == "Rarity" then
+		new("UIGradient", { Name = "Foil", Rotation = 45, Enabled = false }, t) -- (the rarity's foil, set when shown)
+	end
 	return t
 end
 
@@ -280,6 +301,68 @@ end
 
 -- [[ Browse ]]
 
+-- the RARITY filter's chips: every rarity (the Market takes them all), three rows
+local RARITY_SPOTS = {
+	standard = { 0, 0, 94 }, selca = { 100, 0, 66 }, store = { 172, 0, 64 },
+	luckydraw = { 0, 36, 112 }, fansign = { 120, 36, 92 },
+	polaroid = { 0, 72, 138 }, oneofone = { 146, 72, 90 },
+}
+function Build.RarityChips(f: Instance)
+	local old = f:FindFirstChild("Rarities")
+	if old then
+		old:Destroy()
+	end
+	local rar = new("Frame", { Name = "Rarities", Position = UDim2.fromOffset(16, 92), Size = UDim2.fromOffset(236, 100), BackgroundTransparency = 1 }, f)
+	for _, key in MarketConstants.RARITIES do
+		local s = RARITY_SPOTS[key]
+		chip(rar, key, s[1], s[2], s[3], Build.RARITY_NAMES[key], C(MarketConstants.RARITY_COLOURS[key]))
+	end
+	return rar
+end
+
+-- a built Market (only Lucky Draw and up) given every rarity: the chips, and what sits under
+-- them moved down a row. Run once in Edit:
+--   require(<this module>).AllRarities(game.StarterGui.Interface.Frames)
+function Build.AllRarities(frames: Instance)
+	local market = frames.Market
+	local f = market.Pages.Browse.Filters
+	local rar = Build.RarityChips(f)
+	-- (centre-anchored, like every other built button: ButtonScale grows them from the middle)
+	require(ReplicatedStorage.Modules.UI.CenterButtons).Apply(rar)
+	if not f:GetAttribute("AllRarities") then
+		f:SetAttribute("AllRarities", true)
+		for _, name in { "GroupLab", "Group", "SortLab", "Sorts", "ShowLab", "NotOwned", "Bias", "GroupList" } do
+			local g = f:FindFirstChild(name) :: GuiObject?
+			if g then
+				g.Position += UDim2.fromOffset(0, 36)
+			end
+		end
+	end
+	for _, d in market:GetDescendants() do
+		if d:IsA("TextLabel") and d.Text == "Lucky Draw and up · tap one to list it" then
+			d.Text = "Any card · tap one to list it"
+		elseif d:IsA("TextLabel") and d.Text == "No Lucky Draw-and-up cards yet. Open packs to find some!" then
+			d.Text = "No cards to sell yet. Open packs to find some!"
+		end
+	end
+end
+
+-- a built Market given the rarity foils (the chips are rebuilt, the Rarity tags get a Foil). Run once in Edit:
+--   require(<this module>).RarityFoils(game.StarterGui.Interface.Frames)
+function Build.RarityFoils(frames: Instance)
+	local market = frames.Market
+	local f = market.Pages.Browse.Filters
+	local old = f.Rarities
+	local rar = Build.RarityChips(f)
+	rar.Position, rar.Size = old.Position, old.Size
+	require(ReplicatedStorage.Modules.UI.CenterButtons).Apply(rar)
+	for _, d in market:GetDescendants() do
+		if d.Name == "Rarity" and d:IsA("TextLabel") and not d:FindFirstChild("Foil") then
+			new("UIGradient", { Name = "Foil", Rotation = 45, Enabled = false }, d)
+		end
+	end
+end
+
 local function filters(page: Instance)
 	local f = card(page, "Filters", 40, 128, 268, 552, CREAM, 22, 8, 4)
 
@@ -303,34 +386,29 @@ local function filters(page: Instance)
 	}, search)
 
 	lab(f, "RarityLab", 16, 72, "RARITY")
-	local rar = new("Frame", { Name = "Rarities", Position = UDim2.fromOffset(16, 92), Size = UDim2.fromOffset(236, 64), BackgroundTransparency = 1 }, f)
-	local spots = { luckydraw = { 0, 0, 112 }, fansign = { 120, 0, 92 }, polaroid = { 0, 36, 138 }, oneofone = { 146, 36, 90 } }
-	for _, key in MarketConstants.RARITIES do
-		local s = spots[key]
-		chip(rar, key, s[1], s[2], s[3], Build.RARITY_NAMES[key], C(MarketConstants.RARITY_COLOURS[key]))
-	end
+	Build.RarityChips(f)
 
-	lab(f, "GroupLab", 16, 172, "GROUP")
-	local group = new("TextButton", { Name = "Group", Position = UDim2.fromOffset(16, 192), Size = UDim2.fromOffset(236, 42), BackgroundColor3 = WHITE, AutoButtonColor = false, Text = "" }, f)
+	lab(f, "GroupLab", 16, 208, "GROUP")
+	local group = new("TextButton", { Name = "Group", Position = UDim2.fromOffset(16, 228), Size = UDim2.fromOffset(236, 42), BackgroundColor3 = WHITE, AutoButtonColor = false, Text = "" }, f)
 	corner(group, 12)
 	stroke(group, 3)
 	text(group, "Label", { Position = UDim2.fromOffset(14, 0), Size = UDim2.fromOffset(190, 42), TextSize = 15, Text = "All groups" })
 	text(group, "Arrow", { Position = UDim2.fromOffset(206, 11), Size = UDim2.fromOffset(20, 20), FontFace = HEAD, TextSize = 18, TextXAlignment = Enum.TextXAlignment.Center, Rotation = 90, Text = "›" })
 
-	lab(f, "SortLab", 16, 250, "SORT")
-	local sorts = new("Frame", { Name = "Sorts", Position = UDim2.fromOffset(16, 270), Size = UDim2.fromOffset(236, 64), BackgroundTransparency = 1 }, f)
+	lab(f, "SortLab", 16, 286, "SORT")
+	local sorts = new("Frame", { Name = "Sorts", Position = UDim2.fromOffset(16, 306), Size = UDim2.fromOffset(236, 64), BackgroundTransparency = 1 }, f)
 	local sortSpots = { Price = { 0, 0, 112 }, Newest = { 120, 0, 80 }, Rarest = { 0, 36, 76 }, Serial = { 84, 36, 96 } }
 	for _, key in MarketConstants.SORTS do
 		local s = sortSpots[key]
 		chip(sorts, key, s[1], s[2], s[3], Build.SORT_NAMES[key])
 	end
 
-	lab(f, "ShowLab", 16, 350, "SHOW")
-	toggle(f, "NotOwned", 16, 370, "Only cards I don't have")
-	toggle(f, "Bias", 16, 404, "My bias's group")
+	lab(f, "ShowLab", 16, 386, "SHOW")
+	toggle(f, "NotOwned", 16, 406, "Only cards I don't have")
+	toggle(f, "Bias", 16, 440, "My bias's group")
 
 	-- the group dropdown's list, over everything under it
-	local list = new("Frame", { Name = "GroupList", Position = UDim2.fromOffset(16, 240), Size = UDim2.fromOffset(236, 290), BackgroundColor3 = WHITE, Visible = false, ZIndex = 10 }, f)
+	local list = new("Frame", { Name = "GroupList", Position = UDim2.fromOffset(16, 276), Size = UDim2.fromOffset(236, 290), BackgroundColor3 = WHITE, Visible = false, ZIndex = 10 }, f)
 	corner(list, 12)
 	stroke(list, 3)
 	local scroll = new("ScrollingFrame", {
@@ -356,7 +434,7 @@ local function tile(grid: Instance, i: number)
 	local col, r = (i - 1) % 4, (i - 1) // 4
 	local holder = new("Frame", { Name = `Tile{i}`, Position = UDim2.fromOffset(20 + col * 222, 58 + r * 238), Size = UDim2.fromOffset(206, 226), BackgroundTransparency = 1 }, grid)
 	local face = card(holder, "Face", 0, 0, 206, 226, WHITE, 16, 5, 3)
-	local pc = Photocard.Build(face, "Card", 96, 128)
+	local pc = asTile(Photocard.Build(face, "Card", 96, 128))
 	pc.Position = UDim2.fromOffset(55, 12)
 	local nameRow = new("Frame", { Name = "NameRow", Position = UDim2.fromOffset(14, 148), Size = UDim2.fromOffset(180, 20), BackgroundTransparency = 1 }, face)
 	row(nameRow, 6)
@@ -390,7 +468,7 @@ end
 
 local function sellCards(page: Instance)
 	local p = card(page, "Cards", 40, 128, 600, 552, CREAM, 22, 8, 4)
-	titleRow(p, 24, 14, "YOUR CARDS", "Lucky Draw and up · tap one to list it")
+	titleRow(p, 24, 14, "YOUR CARDS", "Any card · tap one to list it")
 	local scroll = new("ScrollingFrame", {
 		Name = "List",
 		Position = UDim2.fromOffset(4, 52),
@@ -409,11 +487,11 @@ local function sellCards(page: Instance)
 	local ring = new("Frame", { Name = "Ring", Position = UDim2.fromOffset(-1, -1), Size = UDim2.fromOffset(122, 160), BackgroundTransparency = 1, Visible = false }, item)
 	corner(ring, 14)
 	stroke(ring, 4, RED)
-	local pc = Photocard.Build(item, "Card", 112, 150)
+	local pc = asTile(Photocard.Build(item, "Card", 112, 150))
 	pc.Position = UDim2.fromOffset(4, 4)
 	text(item, "Title", { Position = UDim2.fromOffset(0, 166), Size = UDim2.fromOffset(120, 18), FontFace = HEAD, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Center, Text = "Member" })
 	text(item, "Line", { Position = UDim2.fromOffset(0, 184), Size = UDim2.fromOffset(120, 14), FontFace = BODY_BOLD, TextSize = 11, TextColor3 = MUTED, TextXAlignment = Enum.TextXAlignment.Center, Text = "Lucky Draw · ×2" })
-	text(p, "Empty", { Position = UDim2.fromOffset(40, 220), Size = UDim2.fromOffset(520, 80), FontFace = HEAD, TextSize = 17, TextColor3 = MUTED, TextXAlignment = Enum.TextXAlignment.Center, TextWrapped = true, Text = "No Lucky Draw-and-up cards yet. Open packs to find some!", Visible = false })
+	text(p, "Empty", { Position = UDim2.fromOffset(40, 220), Size = UDim2.fromOffset(520, 80), FontFace = HEAD, TextSize = 17, TextColor3 = MUTED, TextXAlignment = Enum.TextXAlignment.Center, TextWrapped = true, Text = "No cards to sell yet. Open packs to find some!", Visible = false })
 end
 
 local function helpRow(box: Instance, name: string, y: number, label: string)
@@ -428,7 +506,7 @@ local function sellForm(page: Instance)
 	text(p, "Pick", { Position = UDim2.fromOffset(40, 220), Size = UDim2.fromOffset(496, 80), FontFace = HEAD, TextSize = 17, TextColor3 = MUTED, TextXAlignment = Enum.TextXAlignment.Center, TextWrapped = true, Text = "Pick a card on the left to list it" })
 
 	local body = new("Frame", { Name = "Body", Size = UDim2.fromOffset(576, 552), BackgroundTransparency = 1, Visible = false }, p)
-	local pc = Photocard.Build(body, "Card", 150, 200)
+	local pc = asTile(Photocard.Build(body, "Card", 150, 200))
 	pc.Position = UDim2.fromOffset(24, 58)
 	text(body, "Title", { Position = UDim2.fromOffset(194, 56), Size = UDim2.fromOffset(358, 26), FontFace = HEAD, TextSize = 20, Text = "Member" })
 	text(body, "Line", { Position = UDim2.fromOffset(194, 82), Size = UDim2.fromOffset(358, 18), FontFace = BODY_BOLD, TextSize = 13, TextColor3 = MUTED, Text = "Group · Album · Rarity" })
@@ -485,42 +563,119 @@ local function sellForm(page: Instance)
 	text(body, "Note", { Position = UDim2.fromOffset(24, 500), Size = UDim2.fromOffset(528, 34), FontFace = BODY_BOLD, TextSize = 12, TextColor3 = MUTED, TextXAlignment = Enum.TextXAlignment.Center, TextWrapped = true, Text = "It leaves your binder (and your pins) while it's listed. Cancel any time, or it comes back when the time's up." })
 end
 
--- [[ My listings ]]
+-- [[ My listings ]] (design board "67 · Market · My listings details")
+
+-- a summary card: its Label, Value (a coin + Amount when `coin`) and Sub line
+local function stat(parent: Instance, name: string, x: number, w: number, colour: Color3, label: string, coin: boolean)
+	local f = card(parent, name, x, 56, w, 76, colour, 14, 3, 3)
+	text(f, "Label", { Position = UDim2.fromOffset(14, 8), Size = UDim2.fromOffset(w - 28, 14), TextSize = 11, TextColor3 = MUTED, Text = label })
+	if coin then
+		local v = price(f, "Value", 0, 22, 22)
+		v.Position = UDim2.fromOffset(14, 26)
+	else
+		text(f, "Value", { Position = UDim2.fromOffset(14, 24), Size = UDim2.fromOffset(w - 28, 28), FontFace = HEAD, TextSize = 24, RichText = true, Text = "0" })
+	end
+	text(f, "Sub", { Position = UDim2.fromOffset(14, 54), Size = UDim2.fromOffset(w - 28, 14), FontFace = BODY_BOLD, TextSize = 11, TextColor3 = MUTED, Text = "" })
+	return f
+end
 
 local function listings(page: Instance)
 	local p = card(page, "Panel", 40, 128, 1200, 552, CREAM, 22, 8, 4)
 	titleRow(p, 24, 14, "MY LISTINGS", "0 of 10 on sale")
+
+	-- the summary strip + COLLECT ALL
+	local stats = new("Frame", { Name = "Stats", Size = UDim2.fromOffset(1200, 140), BackgroundTransparency = 1 }, p)
+	local sw = 228
+	stat(stats, "OnSale", 24, sw, WHITE, "ON SALE", false)
+	stat(stats, "Week", 24 + (sw + 12), sw, C("FFD2E5"), "SOLD THIS WEEK", false)
+	stat(stats, "ToCollect", 24 + (sw + 12) * 2, sw, YELLOW, "TO COLLECT", true)
+	stat(stats, "AllTime", 24 + (sw + 12) * 3, sw, C("D6EEFB"), "ALL TIME", true)
+	button(stats, "CollectAll", 24 + (sw + 12) * 4, 56, 1176 - (24 + (sw + 12) * 4), 76, MINT, "COLLECT ALL", 18)
+
+	-- your listings: sold first, then live ones
 	local scroll = new("ScrollingFrame", {
 		Name = "List",
-		Position = UDim2.fromOffset(4, 54),
-		Size = UDim2.fromOffset(1192, 494),
+		Position = UDim2.fromOffset(4, 146),
+		Size = UDim2.fromOffset(776, 400),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
 		ScrollingDirection = Enum.ScrollingDirection.Y,
-		ScrollBarThickness = 8,
+		ScrollBarThickness = 6,
 		ScrollBarImageColor3 = INK,
 	}, p)
-	new("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8) }, scroll)
-	new("UIPadding", { PaddingLeft = UDim.new(0, 20), PaddingTop = UDim.new(0, 8), PaddingBottom = UDim.new(0, 12) }, scroll)
+	new("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4) }, scroll)
+	new("UIPadding", { PaddingLeft = UDim.new(0, 20), PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 12) }, scroll)
 
-	local holder = new("Frame", { Name = "Row", Size = UDim2.fromOffset(1140, 108), BackgroundTransparency = 1, Visible = false }, scroll)
-	local face = card(holder, "Face", 0, 0, 1132, 100, WHITE, 16, 5, 3)
-	local pc = Photocard.Build(face, "Card", 66, 88)
-	pc.Position = UDim2.fromOffset(16, 6)
-	text(face, "Title", { Position = UDim2.fromOffset(102, 16), Size = UDim2.fromOffset(520, 24), FontFace = HEAD, TextSize = 18, Text = "Member" })
-	text(face, "Line", { Position = UDim2.fromOffset(102, 42), Size = UDim2.fromOffset(520, 18), FontFace = BODY_BOLD, TextSize = 13, TextColor3 = MUTED, Text = "Group · Album · Rarity" })
-	local status = text(face, "Status", { Position = UDim2.fromOffset(102, 66), AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 22), BackgroundTransparency = 0, BackgroundColor3 = SAND, TextSize = 12, TextTruncate = Enum.TextTruncate.None, Text = "45 h left" })
-	corner(status, 8)
-	stroke(status, 2)
-	pad(status, 8)
-	local p1 = price(face, "Price", 0, 24, 20)
-	p1.Position = UDim2.fromOffset(680, 24)
-	text(face, "Get", { Position = UDim2.fromOffset(680, 56), Size = UDim2.fromOffset(260, 18), FontFace = BODY_BOLD, TextSize = 13, TextColor3 = MUTED, Text = "you get 6,120" })
-	button(face, "Action", 976, 28, 132, 44, CREAM, "CANCEL", 15, 3)
+	local holder = new("Frame", { Name = "Row", Size = UDim2.fromOffset(748, 98), BackgroundTransparency = 1, Visible = false }, scroll)
+	local face = card(holder, "Face", 0, 0, 740, 92, WHITE, 14, 3, 3)
+	local pc = asTile(Photocard.Build(face, "Card", 58, 76))
+	pc.Position = UDim2.fromOffset(12, 8)
+	text(face, "Title", { Position = UDim2.fromOffset(84, 9), Size = UDim2.fromOffset(300, 22), FontFace = HEAD, TextSize = 16, Text = "Member" })
+	text(face, "Line", { Position = UDim2.fromOffset(84, 31), Size = UDim2.fromOffset(300, 16), FontFace = BODY_BOLD, TextSize = 12, TextColor3 = MUTED, Text = "Group · Album · Rarity" })
+	local chips = new("Frame", { Name = "Chips", Position = UDim2.fromOffset(84, 55), Size = UDim2.fromOffset(500, 24), BackgroundTransparency = 1 }, face)
+	row(chips, 6)
+	tag(chips, "Status", 1, C("FF9EC4"), "SOLD", 24)
+	tag(chips, "Who", 2, WHITE, "to someone · 2 h ago", 24)
+	local bar = new("Frame", { Name = "Bar", LayoutOrder = 3, Size = UDim2.fromOffset(110, 10), BackgroundColor3 = SAND }, chips)
+	corner(bar, 5)
+	stroke(bar, 2)
+	local fill = new("Frame", { Name = "Fill", Size = UDim2.fromScale(0.5, 1), BackgroundColor3 = MINT, BorderSizePixel = 0 }, bar)
+	corner(fill, 5)
+	tag(chips, "Rank", 4, SAND, "3rd cheapest", 24)
+	local p1 = price(face, "Price", 0, 20, 18)
+	p1.Position = UDim2.fromOffset(410, 18)
+	text(face, "Get", { Position = UDim2.fromOffset(410, 44), Size = UDim2.fromOffset(170, 16), FontFace = BODY_BOLD, TextSize = 12, TextColor3 = MUTED, Text = "you get 6,120" })
+	button(face, "Action", 594, 25, 130, 42, CREAM, "CANCEL", 14, 3)
 
-	text(p, "Empty", { Position = UDim2.fromOffset(100, 220), Size = UDim2.fromOffset(1000, 80), FontFace = HEAD, TextSize = 18, TextColor3 = MUTED, TextXAlignment = Enum.TextXAlignment.Center, TextWrapped = true, Text = "Nothing on sale yet. List a card from the Sell tab.", Visible = false })
+	text(p, "Empty", { Position = UDim2.fromOffset(40, 300), Size = UDim2.fromOffset(700, 80), FontFace = HEAD, TextSize = 17, TextColor3 = MUTED, TextXAlignment = Enum.TextXAlignment.Center, TextWrapped = true, Text = "Nothing on sale yet. List a card from the Sell tab.", Visible = false })
+
+	-- ACTIVITY: the last 30 days, newest first
+	local act = card(p, "Activity", 792, 152, 384, 384, WHITE, 14, 3, 3)
+	text(act, "Label", { Position = UDim2.fromOffset(14, 10), Size = UDim2.fromOffset(200, 16), TextSize = 12, TextColor3 = MUTED, Text = "ACTIVITY · LAST 30 DAYS" })
+	local filt = new("Frame", { Name = "Filters", AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromOffset(370, 7), Size = UDim2.fromOffset(150, 22), BackgroundTransparency = 1 }, act)
+	row(filt, 4, Enum.HorizontalAlignment.Right)
+	for i, name in Build.FEED_FILTERS do
+		local fb = new("TextButton", { Name = name, LayoutOrder = i, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 22), BackgroundColor3 = if i == 1 then YELLOW else WHITE, AutoButtonColor = false, FontFace = BODY, TextSize = 12, TextColor3 = INK, Text = name }, filt)
+		corner(fb, 7)
+		stroke(fb, 2)
+		pad(fb, 8)
+	end
+	local feed = new("ScrollingFrame", {
+		Name = "Feed",
+		Position = UDim2.fromOffset(6, 34),
+		Size = UDim2.fromOffset(372, 344),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		CanvasSize = UDim2.new(),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+		ScrollBarThickness = 5,
+		ScrollBarImageColor3 = INK,
+	}, act)
+	new("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder }, feed)
+	local item = new("Frame", { Name = "Item", Size = UDim2.fromOffset(358, 46), BackgroundTransparency = 1, Visible = false }, feed)
+	new("Frame", { Name = "Rule", Position = UDim2.fromOffset(8, 0), Size = UDim2.new(1, -8, 0, 2), BackgroundColor3 = TRACK, BorderSizePixel = 0 }, item)
+	local t = text(item, "Tag", { AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 8, 0.5, 0), Size = UDim2.fromOffset(78, 20), BackgroundTransparency = 0, BackgroundColor3 = C("FF9EC4"), TextSize = 10, TextXAlignment = Enum.TextXAlignment.Center, Text = "SOLD" })
+	corner(t, 6)
+	stroke(t, 2)
+	text(item, "Text", { Position = UDim2.fromOffset(94, 7), Size = UDim2.fromOffset(186, 17), FontFace = BODY_BOLD, TextSize = 13, RichText = true, Text = "Hanni to <b>someone</b>" })
+	text(item, "When", { Position = UDim2.fromOffset(94, 25), Size = UDim2.fromOffset(186, 14), FontFace = BODY_BOLD, TextSize = 11, TextColor3 = MUTED, Text = "2 h ago" })
+	text(item, "Amount", { Position = UDim2.fromOffset(282, 0), Size = UDim2.fromOffset(72, 46), TextSize = 13, TextColor3 = C("2E8B57"), TextXAlignment = Enum.TextXAlignment.Right, Text = "+5,850" })
+	local again = new("TextButton", { Name = "Again", Position = UDim2.fromOffset(282, 0), Size = UDim2.fromOffset(72, 46), BackgroundTransparency = 1, AutoButtonColor = false, FontFace = BODY, TextSize = 12, TextColor3 = INK, TextXAlignment = Enum.TextXAlignment.Right, Text = "<u>List again</u>", RichText = true, Visible = false }, item)
+	text(act, "None", { Position = UDim2.fromOffset(20, 150), Size = UDim2.fromOffset(344, 60), FontFace = BODY_BOLD, TextSize = 13, TextColor3 = MUTED, TextXAlignment = Enum.TextXAlignment.Center, TextWrapped = true, Text = "Nothing yet. Sales, listings and cards coming back show up here.", Visible = false })
+end
+
+-- rebuilds just Pages.Listings (the rest of the Market stays as it is)
+function Build.MyListings(frames: Instance)
+	local mineP = frames.Market.Pages.Listings
+	for _, ch in mineP:GetChildren() do
+		ch:Destroy()
+	end
+	listings(mineP)
+	require(ReplicatedStorage.Modules.UI.CenterButtons).Apply(mineP)
+	return mineP
 end
 
 -- [[ Card detail ]]

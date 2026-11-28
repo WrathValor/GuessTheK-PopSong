@@ -8,6 +8,9 @@
 -- stage towards the mic, mic towards the player). Without a model the drawn shapes stay.
 --   CosmeticView.Show(art, "Stage" | "Mic", id)
 --   CosmeticView.Show(art, "Set", setId)   – its stage, the avatar on it, its mic in front
+--   CosmeticView.Show(art, "Spot", "<stageId>|<micId>")
+--                                         – any stage + any mic, laid out like a set: your duel
+--                                           spot as you'd wear it (the Style screen's preview)
 --   CosmeticView.Show(art, "Dance" | "Accessory", assetId)
 --                                         – a group UGC item (Engine/UGCService loads them into
 --                                           Assets.UGC): the avatar doing the dance / wearing it
@@ -31,7 +34,7 @@ local FOV = 30
 local MARGIN = 0.86 -- < 1 zooms in past the box's outline (its corners are empty air)
 local AUTO_SPIN = 0.45 -- radians a second the camera circles a stage / mic / set
 local SPIN_RESUME = 1.5 -- seconds after a drag before the auto turn picks up again
-local SPINS = { Stage = true, Mic = true, Set = true }
+local SPINS = { Stage = true, Mic = true, Set = true, Spot = true }
 local SPIN_DELAY = 0.8 -- seconds a fresh model holds still while its meshes / avatar load in
 local MAX_STEP = 1 / 30 -- a hitch never makes the model jump further than one 30fps frame
 local CARD = Color3.fromHex("FFFFFF") -- tinted by the gradient below
@@ -409,8 +412,12 @@ local function build(world: WorldModel, kind: string, id: string): Vector3?
 		shadow(world, 1.6)
 		return if kind == "Dance" then Vector3.new(0.3, 0.12, -1).Unit else Vector3.new(0.55, 0.1, -1).Unit
 	end
-	if kind == "Set" then
-		local stage, mic = template("Stage", id .. "Stage"), template("Mic", id .. "Mic")
+	if kind == "Set" or kind == "Spot" then
+		local stageId, micId = id .. "Stage", id .. "Mic"
+		if kind == "Spot" then
+			stageId, micId = string.match(id, "^(.-)|(.*)$")
+		end
+		local stage, mic = template("Stage", stageId or ""), template("Mic", micId or "")
 		if not (stage and mic) then
 			return nil
 		end

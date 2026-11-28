@@ -90,8 +90,37 @@ Currencies.Upgrades = table.freeze({
 -- the K-POPPED! conversion (Modules/KPoppedMigration) turns the ones players hold into coins.
 Currencies.UPGRADE_COINS = 150
 
+-- The live event's currency and its unopened packs (Constants/LiveEvents, Engine/EventService):
+-- one counter shared by every event, so its name and look come from the event that's live (the
+-- Winter Special's Snowflakes). Whatever's left when an event ends is paid out (coins, gen packs).
+Currencies.EventCurrency = table.freeze({
+	Id = "EventCurrency",
+	Name = "Snowflake",
+	Plural = "Snowflakes",
+	Label = "SNOWFLAKES",
+	Icon = "rbxassetid://119208551988683", -- the Winter Special's snowflake (assets/ui/Events/Snowflake.png)
+	Colour = C("9ED8F5"),
+	Attribute = "EventCurrency",
+	Path = table.freeze({ "Events", "Currency" }),
+	Wallet = false,
+	Robux = false,
+} :: Currency)
+
+Currencies.EventPacks = table.freeze({
+	Id = "EventPacks",
+	Name = "Winter pack",
+	Plural = "Winter packs",
+	Label = "WINTER PACKS",
+	Icon = "rbxassetid://108740710970654", -- assets/ui/Events/WinterPack.png
+	Colour = C("CFEFFF"),
+	Attribute = "EventPacks",
+	Path = table.freeze({ "Events", "Packs" }),
+	Wallet = false,
+	Robux = false,
+} :: Currency)
+
 -- display order
-local ORDER = { "Coins", "Tickets", "GenPacks", "Upgrades" }
+local ORDER = { "Coins", "Tickets", "GenPacks", "Upgrades", "EventCurrency", "EventPacks" }
 
 local all, wallet = {}, {}
 for _, id in ORDER do

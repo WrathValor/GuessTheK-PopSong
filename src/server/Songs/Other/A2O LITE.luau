@@ -30,6 +30,17 @@ return {
 			Colour = "C2F5A8",
 			Songs = { "NEON" },
 			Members = { "YOUNG", "HIMEKI", "VORA", "XILI", "RADA", "MERCI", "AYUNE", "OA", "AIJING" },
+			Art = {
+				["AIJING"] = "rbxassetid://93906085984034",
+				["AYUNE"] = "rbxassetid://77754236208989",
+				["HIMEKI"] = "rbxassetid://79336913861908",
+				["MERCI"] = "rbxassetid://120665433861307",
+				["OA"] = "rbxassetid://92844393748255",
+				["RADA"] = "rbxassetid://118052952987036",
+				["VORA"] = "rbxassetid://140729497022004",
+				["XILI"] = "rbxassetid://90398305928451",
+				["YOUNG"] = "rbxassetid://100318328301961",
+			},
 		},
 	},
 }

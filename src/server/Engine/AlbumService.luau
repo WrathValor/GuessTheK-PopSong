@@ -5,7 +5,7 @@
 --           banked free pack (Inventory.FreePacks: they refill on a clock, Albums.FreePacks, plus
 --           one a day), or a roll ticket when none are banked.
 --   Gen     PACK_SIZE cards, each from a random group of that gen. GEN_PACK_COST coins.
---   Group   PACK_SIZE cards from the group you pick. GROUP_PACK_COST coins. The only pack your
+--   Group   PACK_SIZE cards from the group you pick. GROUP_PACK_COST coins (Today's picks: TODAY_DISCOUNT off). The only pack your
 --           bias is BIAS_PULL_WEIGHT× as likely in. Only today's groups are on sale
 --           (Albums.Rotation), plus your bias's group and your starred ones (Inventory.FavGroups).
 --   Gen     also the MIXES: Gen = "Girl" | "Boy" | "All".
@@ -46,12 +46,22 @@
 --                      { Action = "Open", Kind = "Free", Ticket = true } (Unopened: use a ticket)
 --                      { Action = "Open", Kind = "Gen", Gen?, Owned = true } (Unopened: a gen pack
 --                        bought with Robux, Currencies.GenPacks; no Gen = the Full Shuffle)
+--                      { Action = "Open", Kind = "Event" } (an unopened pack of the live event,
+--                        Currencies.EventPacks: PACK_SIZE - 1 cards from every group, then one
+--                        from the event's set, Pack.CardMin or rarer: Christmas Stage '26 for the
+--                        Winter Special. Engine/EventService, Constants/LiveEvents)
 --                      { Action = "Star", Group } → { Message = "Starred", Ok, Text?, Favourites }
 --                      { Action = "First", Group = artist }
 -- Reply:               { Message = "Opened", Ok, Text?, Kind, Group?, Gen?, How, Packs, Size, Short?,
 --                        Pulls = { { Card, Album, Artist, Member, Rarity, New, Copies, Level, LevelUp, Sold, Serial? } },
 --                        Sold (coins for copies past Rainbow), Complete? = { album ids whose page just filled },
---                        SetBonus? = coins paid for them (Engine/BinderService.ClaimSets) }
+--                        SetBonus? = coins paid for them (Engine/BinderService.ClaimSets),
+--                        XP, XPBefore (pack XP and the total before it: AlbumConstants XP_NEW /
+--                        XP_ALBUM / XP_GROUP), AlbumXP? = { album ids that paid XP_ALBUM },
+--                        GroupXP? = { artists whose every card is now owned } }
+--   Each pull also carries XP? (a copy paying XP_NEW / XP_DUPE, with the star bonus), Star? (2 or
+--   3: the copy earned the card's second / third star) and Completes? (the album id whose page
+--   this card filled, when that paid XP_ALBUM).
 --   How = "Coins" | "Free" | "Ticket" | "Owned" | "First". Pulls run pack after pack, Size cards each.
 --   Short = { Kind = "Coins" | "Tickets", Need, Name } when you can't pay (ShortOfferController).
 
@@ -63,6 +73,7 @@ local Bridgenet = require(ReplicatedStorage.Packages.bridgenet2)
 local PlayerData = require(ReplicatedStorage.Modules.PlayerData).Server
 local Albums = require(ReplicatedStorage.Modules.Library.Albums)
 local Upgrades = require(ReplicatedStorage.Modules.Library.Upgrades)
+local BoostService = require(script.Parent.BoostService)
 local AlbumConstants = require(ReplicatedStorage.Constants.AlbumConstants)
 local Currencies = require(ReplicatedStorage.Constants.Currencies)
 local AnalyticsEvents = require(ReplicatedStorage.Constants.AnalyticsEvents)
@@ -71,6 +82,7 @@ local BinderService = require(script.Parent.BinderService)
 local SerialService = require(script.Parent.SerialService)
 local RewardsService = require(script.Parent.RewardsService)
 local StreetScreens = require(script.Parent.StreetScreens)
+local EventService = require(script.Parent.EventService)
 
 local AlbumRemote = Bridgenet.ReferenceBridge("AlbumRemote")
 
@@ -123,7 +135,7 @@ local function announce(player: Player, pulls)
 	AlbumRemote:Fire(Bridgenet.AllPlayers(), packet)
 	-- the gacha machine's ticker on the street (Engine/StreetScreens)
 	local rarity = Albums.Rarity(best.Rarity)
-	StreetScreens.Pull(player, `{best.Member} · {best.Artist}`, rarity and rarity.Name or best.Rarity, AlbumConstants.GLOBAL_RARITIES[best.Rarity] == true)
+	StreetScreens.Pull(player, `{best.Member} · {best.Artist}`, rarity and rarity.Name or best.Rarity, AlbumConstants.GLOBAL_RARITIES[best.Rarity] == true, best.Card, best.Serial)
 	-- a Signed Polaroid or a One of One is news in every server
 	for _, pull in pulls do
 		if pull.New and AlbumConstants.GLOBAL_RARITIES[pull.Rarity] then
@@ -192,16 +204,28 @@ local function validGen(gen: any): boolean
 	return false
 end
 
-local function open(player: Player, kind: string, packet, how: "Coins" | "Free" | "Ticket" | "Owned" | "First")
+local function open(player: Player, kind: string, packet, how: "Coins" | "Free" | "Ticket" | "Owned" | "OwnedPremium" | "First" | "Event")
 	local artist = if kind == "Group" then packet.Group else nil
 	local gen = if (kind == "Gen" or kind == "Free") and validGen(packet.Gen) then packet.Gen else nil
+	-- the live event's pack: every group, its last card from the event's set
+	local event = nil
+	if kind == "Event" then
+		EventService.Settle(player) -- (an event that just ended pays its packs out first)
+		event = EventService.LiveSet()
+		gen = "All"
+	end
 	if kind == "Gen" and packet.Owned == true then
 		how = "Owned" -- a gen pack bought with Robux: free, any gen (no pick = the Full Shuffle)
 		gen = gen or "All"
 	end
 	local premium = if kind == "Premium" then Albums.Premium(packet.Pack) else nil
+	if premium and packet.Owned == true then
+		how = "OwnedPremium" -- a premium pack bought with Robux (Inventory.PremiumOwned)
+	end
 	local extra: { [string]: any } = { Kind = kind, Group = artist, Gen = gen, Pack = premium and premium.Key, How = how }
-	if kind == "Premium" and not premium then
+	if kind == "Event" and not event then
+		return reply(player, false, "The event is over", extra)
+	elseif kind == "Premium" and not premium then
 		return reply(player, false, "That pack isn't out yet", extra)
 	elseif kind == "Group" and (type(artist) ~= "string" or not Albums.Pullable(artist)) then
 		return reply(player, false, "That group isn't out yet", extra)
@@ -248,12 +272,21 @@ local function open(player: Player, kind: string, packet, how: "Coins" | "Free" 
 		if Currencies.Data(data, "GenPacks").Get() < 1 then
 			return reply(player, false, "You don't have a gen pack", extra)
 		end
+	elseif how == "OwnedPremium" then
+		if ((data.Inventory.PremiumOwned.Get() or {})[premium.Key] or 0) < 1 then
+			return reply(player, false, `You don't have a {premium.Name}`, extra)
+		end
+	elseif how == "Event" then
+		if Currencies.Data(data, "EventPacks").Get() < 1 then
+			return reply(player, false, "You don't have one of these packs", extra)
+		end
 	else
-		if kind == "Group" and not Albums.InRotation(artist, bias, now, data.Inventory.FavGroups.Get()) then
-			return reply(player, false, "That group's pack has rotated out: check today's groups", extra)
+		-- (every group with card art is on sale; Today's picks are TODAY_DISCOUNT off)
+		if kind == "Group" and not Albums.Pullable(artist) then
+			return reply(player, false, "That group has no cards yet", extra)
 		end
 		packs = if table.find(AlbumConstants.PACK_COUNTS, packet.Count) then packet.Count else 1
-		price = packs * (if premium then premium.Cost elseif kind == "Gen" then AlbumConstants.GEN_PACK_COST else AlbumConstants.GROUP_PACK_COST)
+		price = packs * (if premium then premium.Cost elseif kind == "Gen" then AlbumConstants.GEN_PACK_COST else Albums.GroupPackCost(artist, now))
 		if Currencies.Data(data, "Coins").Get() < price then
 			extra.Short = { Kind = "Coins", Need = price, Name = if packs == 1 then "a pack" else `{packs} packs` }
 			return reply(player, false, "Not enough coins", extra)
@@ -263,12 +296,16 @@ local function open(player: Player, kind: string, packet, how: "Coins" | "Free" 
 	-- work every card out first, then save them in one batch
 	local cards = table.clone(data.Inventory.Cards.Get() or {})
 	local before = table.clone(cards)
+	local dates = data.Inventory.CardDates.Get() or {}
+	local xpCopies = table.clone(data.Inventory.XPCopies.Get() or {}) -- the copy each card has paid XP up to
+	local xpChanged = {}
 	local hit = {}
 	local changed = {}
 	local pulls, sold = {}, 0
 	local premiumPity = data.Inventory.PremiumPity.Get()
 	local guaranteeRank = Albums.RarityRank(AlbumConstants.GUARANTEE_RARITY)
-	local luck = Upgrades.Luck(Upgrades.Levels(data))
+	-- the Luck upgrade, plus a running Luck potion's +50% (not on One of One: Albums.RarityOdds)
+	local luck = Albums.Luck(Upgrades.Luck(Upgrades.Levels(data)), BoostService.Active(data, "Luck"))
 	for _ = 1, packs do
 		local pack = {}
 		local guaranteed = premium ~= nil and premiumPity >= AlbumConstants.PREMIUM_GUARANTEE - 1
@@ -279,7 +316,12 @@ local function open(player: Player, kind: string, packet, how: "Coins" | "Free" 
 				minKey = if slot < size then premium.CardMin elseif guaranteed then AlbumConstants.GUARANTEE_RARITY else premium.LastMin
 			end
 			local album, memberKey, rarityKey
-			if kind == "Group" then
+			if event and slot == size then
+				album, memberKey, rarityKey = Albums.RollEvent(event.Id, bias, rng, event.Pack.CardMin, luck)
+			end
+			if album then
+				-- (the event's set card)
+			elseif kind == "Group" then
 				album, memberKey, rarityKey = Albums.RollGroup(artist, bias, rng, nil, nil, nil, luck)
 			else
 				album, memberKey, rarityKey = Albums.RollGen(gen, rng, nil, nil, minKey, luck)
@@ -303,6 +345,29 @@ local function open(player: Player, kind: string, packet, how: "Coins" | "Free" 
 			end
 			sold += extraSold
 			local new = had == 0
+			-- XP: each copy up to Rainbow pays once, ever: the first (a card you've never had),
+			-- then the duplicates towards its stars, with a bonus for the second and third star
+			local xp, star = nil, nil
+			local paidTo = math.max(xpCopies[id] or 0, if (dates[id] or 0) > 0 or had > 0 then 1 else 0)
+			if extraSold == 0 and after > paidTo then
+				if after == 1 then
+					xp = AlbumConstants.XP_NEW[rarityKey] or 0
+				else
+					xp = AlbumConstants.XP_DUPE[rarityKey] or 0
+					if after == AlbumConstants.GOLD_COPIES then
+						xp += AlbumConstants.XP_GOLD
+						star = 2
+					elseif after == AlbumConstants.RAINBOW_COPIES then
+						xp += AlbumConstants.XP_RAINBOW
+						star = 3
+					end
+				end
+				xpCopies[id] = after
+				xpChanged[id] = true
+				if xp <= 0 then
+					xp = nil
+				end
+			end
 			local member = Albums.Member(album, memberKey)
 			local level = Albums.Level(after)
 			table.insert(pack, {
@@ -316,6 +381,8 @@ local function open(player: Player, kind: string, packet, how: "Coins" | "Free" 
 				Level = level,
 				LevelUp = not new and level ~= Albums.Level(had),
 				Sold = if extraSold > 0 then extraSold else nil,
+				XP = xp,
+				Star = star,
 				Order = #pack,
 			})
 		end
@@ -363,6 +430,10 @@ local function open(player: Player, kind: string, packet, how: "Coins" | "Free" 
 			Currencies.Data(data, "Tickets").Increment(-1)
 		elseif how == "Owned" then
 			Currencies.Data(data, "GenPacks").Increment(-1)
+		elseif how == "OwnedPremium" then
+			data.Inventory.PremiumOwned[premium.Key].Increment(-1)
+		elseif how == "Event" then
+			Currencies.Data(data, "EventPacks").Increment(-1)
 		elseif how == "Free" then
 			local banked = settleFree(data, now)
 			local left = math.max(0, banked - packs)
@@ -383,6 +454,9 @@ local function open(player: Player, kind: string, packet, how: "Coins" | "Free" 
 		end
 		for id, value in serials do
 			data.Inventory.Serials[id].Set(value)
+		end
+		for id in xpChanged do
+			data.Inventory.XPCopies[id].Set(xpCopies[id])
 		end
 		for id, count in pending do
 			data.Inventory.SerialsPending[id].Set((data.Inventory.SerialsPending[id].Get() or 0) + count)
@@ -411,7 +485,7 @@ local function open(player: Player, kind: string, packet, how: "Coins" | "Free" 
 		Analytics.Economy(player, "Sink", "Tickets", 1, Currencies.Data(data, "Tickets").Get(), AnalyticsEvents.Transactions.Album, "Ticket")
 	elseif how == "Owned" then
 		Analytics.Economy(player, "Sink", "GenPacks", 1, Currencies.Data(data, "GenPacks").Get(), AnalyticsEvents.Transactions.Album, "GenPack")
-	end
+	end -- (an OwnedPremium pack shows in AlbumOpened below, How = "OwnedPremium")
 	if sold > 0 then
 		Analytics.Economy(player, "Source", "Coins", sold, balance, AnalyticsEvents.Transactions.CardSell, "PastRainbow")
 	end
@@ -443,22 +517,102 @@ local function open(player: Player, kind: string, packet, how: "Coins" | "Free" 
 		end
 	end
 	RewardsService.RecordStats(player, { Packs = packs, NewSongs = fresh, Lucky = lucky, Gold = gold, Albums = #complete })
+	if event then
+		local setCards = 0
+		for _, pull in pulls do
+			local album = Albums.Get(pull.Album)
+			if album and album.Event == event.Id then
+				setCards += 1
+				pull.Event = event.Id -- (the reveal marks it)
+			end
+		end
+		EventService.Record(player, { SetCards = setCards })
+	end
 
 	extra.Packs = packs
 	extra.Size = size
 	extra.Pulls = pulls
 	extra.Sold = sold
 	extra.Complete = if #complete > 0 then complete else nil
+	local paidAlbums = {}
 	if #complete > 0 then
 		-- every member of these albums owned now: their one-time set bonus (Engine/BinderService)
-		extra.SetBonus = BinderService.ClaimSets(player, data, complete)
+		extra.SetBonus, paidAlbums = BinderService.ClaimSets(player, data, complete)
+	end
+
+	-- XP: first copies, albums filled for the first time, whole groups
+	local xp = 0
+	for _, pull in pulls do
+		xp += pull.XP or 0
+	end
+	if #paidAlbums > 0 then
+		xp += AlbumConstants.XP_ALBUM * #paidAlbums
+		-- the card that filled each page carries it (the reveal shows it there)
+		local running = table.clone(before)
+		local open = {}
+		for _, id in paidAlbums do
+			open[id] = Albums.Get(id)
+		end
+		for _, pull in pulls do
+			running[pull.Card] = math.max(running[pull.Card] or 0, 1)
+			local album = open[pull.Album]
+			if album and Albums.Complete(running, album) then
+				pull.Completes = pull.Album
+				open[pull.Album] = nil
+			end
+		end
+		extra.AlbumXP = paidAlbums
+	end
+	local groups = {}
+	for id in hit do
+		local album = Albums.Get(id)
+		local artist = album and album.Artist
+		if artist and not groups[artist] and not data.Rewards.Claimed.Has(AlbumConstants.GROUP_SET_KEY .. artist) then
+			groups[artist] = true
+		end
+	end
+	local fullGroups = {}
+	for artist in groups do
+		local all = true
+		for _, album in Albums.ForArtist(artist) do
+			for _, member in album.Members do
+				for _, rarity in AlbumConstants.RARITIES do
+					if rarity.Key ~= "oneofone" and rarity.Live and (cards[Albums.CardId(album.Id, member.Key, rarity.Key)] or 0) == 0 then
+						all = false
+						break
+					end
+				end
+				if not all then
+					break
+				end
+			end
+			if not all then
+				break
+			end
+		end
+		if all then
+			table.insert(fullGroups, artist)
+		end
+	end
+	xp += AlbumConstants.XP_GROUP * #fullGroups
+	extra.GroupXP = if #fullGroups > 0 then fullGroups else nil
+	extra.XPBefore = data.Player.XP.Get() or 0
+	extra.XP = xp
+	if xp > 0 then
+		PlayerData.Batch(player, function()
+			data.Player.XP.Increment(xp)
+			for _, artist in fullGroups do
+				data.Rewards.Claimed.Add(AlbumConstants.GROUP_SET_KEY .. artist)
+			end
+		end)
+		Analytics.Economy(player, "Source", "XP", xp, data.Player.XP.Get(), AnalyticsEvents.Transactions.Album, sku)
 	end
 	reply(player, true, nil, extra)
 end
 
 -- [[ Starring groups ]]
 
--- star / unstar a group: starred groups' packs are always on sale (FAVOURITES_MAX of them)
+-- star / unstar a group: starred groups are pinned under "Your groups" (FAVOURITES_MAX of them)
 local function star(player: Player, artist: any)
 	local function answer(ok: boolean, text: string?, favourites: { string }?)
 		AlbumRemote:Fire(player, { Message = "Starred", Ok = ok, Text = text, Favourites = favourites })
@@ -494,6 +648,59 @@ local function checkPolicy(player: Player)
 	end
 end
 
+-- cards of members taken out of the game for good (AlbumConstants.REMOVED_MEMBERS) are cleared
+-- out of the save: copies, serials, dates, XP record, pins, and a bias on that member. (Not every
+-- card Albums.Card doesn't know: a Draft album's cards are hidden, not gone.)
+local function isRemoved(id: string): boolean
+	local album, member = string.match(id, "^([^:]+):([^:]+)")
+	return album ~= nil and AlbumConstants.REMOVED_MEMBERS[`{album}:{member}`] == true
+end
+
+local function purgeRemoved(data)
+	local inv = data.Inventory
+	for id in inv.Cards.Get() or {} do
+		if isRemoved(id) then
+			inv.Cards.Remove(id)
+			for _, map in { inv.Serials, inv.CardDates, inv.SerialsPending, inv.XPCopies } do
+				if map and (map.Get() or {})[id] ~= nil then
+					map.Remove(id)
+				end
+			end
+		end
+	end
+	local pins = Albums.Pins(inv.Pins.Get())
+	local kept = {}
+	for _, id in pins do
+		if not isRemoved(id) then
+			table.insert(kept, id)
+		end
+	end
+	if #kept ~= #pins then
+		inv.Pins.Set(Albums.PinValue(kept))
+	end
+	local bias = inv.Bias.Get() or ""
+	local artist, key = string.match(bias, "^(.*)|(.*)$")
+	local removedKey = false
+	for entry in AlbumConstants.REMOVED_MEMBERS do
+		if string.match(entry, ":(.+)$") == key then
+			removedKey = true
+		end
+	end
+	if artist and artist ~= "" and removedKey then
+		local found = false
+		for _, album in Albums.ForArtist(artist) or {} do
+			for _, member in album.Members do
+				if member.Key == key then
+					found = true
+				end
+			end
+		end
+		if not found then
+			inv.Bias.Set("")
+		end
+	end
+end
+
 local function onPlayerAdded(player: Player)
 	task.spawn(checkPolicy, player)
 	local data = PlayerData.WaitForData(player)
@@ -501,6 +708,7 @@ local function onPlayerAdded(player: Player)
 		return
 	end
 	PlayerData.Batch(player, function()
+		pcall(purgeRemoved, data)
 		settleFree(data, os.time())
 	end)
 	BinderService.ClaimSets(player, data) -- (albums completed before set bonuses existed)
@@ -543,6 +751,8 @@ function AlbumService.Start()
 			return
 		elseif packet.Action == "First" then
 			kind, how = "Group", "First"
+		elseif packet.Action == "Open" and packet.Kind == "Event" then
+			kind, how = "Event", "Event"
 		elseif packet.Action == "Open" and (packet.Kind == "Free" or packet.Kind == "Gen" or packet.Kind == "Group" or packet.Kind == "Premium") then
 			kind, how = packet.Kind, if packet.Kind == "Free" then "Free" else "Coins"
 		else

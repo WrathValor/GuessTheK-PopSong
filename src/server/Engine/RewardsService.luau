@@ -38,6 +38,7 @@ local Levels = require(ReplicatedStorage.Modules.Levels)
 local Analytics = require(script.Parent.Analytics)
 local SeasonService = require(script.Parent.SeasonService)
 local RemoteCodes = require(script.Parent.RemoteCodes)
+local EventService = require(script.Parent.EventService)
 
 local RewardsRemote = Bridgenet.ReferenceBridge("RewardsRemote")
 
@@ -521,6 +522,14 @@ end
 -- { Packs = 5, Lucky = 1 } from AlbumService, { Collects = 1, BinderCoins = 420 } from
 -- BinderService. Zeros and unknown stats are skipped. Call it outside any other Batch.
 function RewardsService.RecordStats(player: Player, stats: { [string]: number })
+	-- the live event's missions count the same things (Engine/EventService)
+	EventService.Record(player, {
+		Packs = stats.Packs or 0,
+		Lucky = stats.Lucky or 0,
+		NewCards = stats.NewSongs or 0,
+		Collects = stats.Collects or 0,
+		Pins = stats.Pins or 0,
+	})
 	local data = PlayerData.Get(player)
 	if not data then
 		return
@@ -584,6 +593,12 @@ local function bump(q, facts)
 end
 
 function RewardsService.Record(player: Player, facts)
+	EventService.Record(player, {
+		Correct = facts.Correct or 0,
+		Wins = if facts.Win and not facts.Solo then 1 else 0,
+		Duels = if facts.Solo then 0 else 1,
+		Perfect = if facts.Perfect and not facts.Solo then 1 else 0,
+	})
 	local data = PlayerData.Get(player)
 	if not data then
 		return

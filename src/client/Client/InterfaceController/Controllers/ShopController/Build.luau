@@ -925,13 +925,14 @@ function Build.Build(frames: Instance)
 	return shop
 end
 
--- [[ Rolls + upgrades ]]
--- The scrolling shop's "Rolls + upgrades" section (design board "Shop v3 · roll tickets + card
--- upgrades"): RollsTitle + Rolls, between Banners + photocards and Coins. Two cards side by
--- side, Tickets (pink) and Upgrades (lilac): the currency's icon, name, a line on what it
--- does, a "You have n" chip and three bundles (Count, Unit, a Robux Buy button cloned from
--- the coin bundles, a POPULAR / BEST VALUE Tag). ShopController fills them from
--- ShopCatalog.RollBundles. Run once in Studio, Edit mode (safe to run again):
+-- [[ Gen packs ]]
+-- The scrolling shop's gen packs section: RollsTitle + Rolls, between Banners + photocards and
+-- Coins. One card the whole row wide, Tickets (pink; the name is from when it sold pack
+-- tickets): the gen pack icon, name, a line on what it does, a "You have n" chip and five
+-- bundles (×1 ×5 ×12 ×25 ×50: Count, Unit, a Robux Buy button cloned from the coin bundles, a
+-- POPULAR / BEST VALUE Tag). The card upgrades card beside it went with the song Index.
+-- ShopController fills them from ShopCatalog.RollBundles. Run once in Studio, Edit mode (safe
+-- to run again):
 --   require(<this module>).AddRolls(game.StarterGui.Interface.Frames)
 function Build.AddRolls(frames: Instance)
 	local Currencies = require(game:GetService("ReplicatedStorage").Constants.Currencies)
@@ -956,12 +957,12 @@ function Build.AddRolls(frames: Instance)
 	local title = scroll.SetsTitle:Clone()
 	title.Name = "RollsTitle"
 	title.LayoutOrder = after + 1
-	title.Title.Text = "Rolls + upgrades"
+	title.Title.Text = "Gen packs"
 	local hint = title.Chip
 	hint.Name = "Hint"
 	hint.BackgroundTransparency = 1
 	hint.TextColor3 = MUTED
-	hint.Text = "Never expire · stack with the ones from codes"
+	hint.Text = "Never expire · each opens a 5-card pack"
 	for _, d in hint:GetChildren() do
 		if d:IsA("UIStroke") then
 			d:Destroy()
@@ -973,15 +974,15 @@ function Build.AddRolls(frames: Instance)
 	local buyTemplate, buyShadowTemplate = coinFace.Bundle1.Buy, coinFace.Bundle1.BuyShadow
 	local tagTemplate = coinFace:FindFirstChild("Tag", true)
 
-	local W, GAP, CH = 941, 18, 236
-	local CW = math.floor((W - GAP) / 2)
+	local W, CH = 941, 236
+	local CW = W
+	local AMOUNTS = { 1, 5, 12, 25, 50 }
 	local section = new("Frame", { Name = "Rolls", LayoutOrder = after + 2, Size = UDim2.new(1, 0, 0, CH + 5), BackgroundTransparency = 1 }, scroll)
 	for i, spec in {
 		-- (named "Tickets", but it sells gen packs since 26 Nov 2026: ShopController ROLL_CARDS)
 		{ Id = "Tickets", Currency = "GenPacks", Colour = C("FFE4EF"), Title = "Gen packs", Body = "A whole 5-card gen pack each: pick any gen when you open it", Unit = "packs" },
-		{ Id = "Upgrades", Colour = C("EFEAFF"), Title = "Card upgrades", Body = "+1 copy on any song you own. Gold at 3, Rainbow at 5", Unit = "upgrades" },
 	} do
-		local x = (i - 1) * (CW + GAP)
+		local x = (i - 1) * CW
 		local face = card(section, spec.Id, UDim2.fromOffset(x, 0), UDim2.fromOffset(CW, CH), spec.Colour, 16, 5, 3)
 		-- head: icon tile, name + line, "You have n"
 		local tile = new("Frame", { Name = "IconTile", Position = UDim2.fromOffset(16, 16), Size = UDim2.fromOffset(78, 78), BackgroundColor3 = WHITE }, face)
@@ -994,14 +995,14 @@ function Build.AddRolls(frames: Instance)
 		corner(have, 8)
 		stroke(have, 2)
 		pad(have, 8)
-		-- three bundles
-		local bw = math.floor((CW - 32 - 2 * 10) / 3)
-		for b = 1, 3 do
-			local bx = 16 + (b - 1) * (bw + 10)
+		-- five bundles across the card
+		local bw = math.floor((CW - 32 - (#AMOUNTS - 1) * 12) / #AMOUNTS)
+		for b = 1, #AMOUNTS do
+			local bx = 16 + (b - 1) * (bw + 12)
 			local holder = new("Frame", { Name = "Bundle" .. b, Position = UDim2.fromOffset(bx, 110), Size = UDim2.fromOffset(bw, 108), BackgroundColor3 = WHITE }, face)
 			corner(holder, 12)
 			stroke(holder, 2)
-			text(holder, "Count", { Position = UDim2.fromOffset(0, 8), Size = UDim2.new(1, 0, 0, 30), FontFace = HEAD, TextSize = 26, TextXAlignment = Enum.TextXAlignment.Center, Text = `×{({ 1, 5, 12 })[b]}` })
+			text(holder, "Count", { Position = UDim2.fromOffset(0, 8), Size = UDim2.new(1, 0, 0, 30), FontFace = HEAD, TextSize = 26, TextXAlignment = Enum.TextXAlignment.Center, Text = `×{AMOUNTS[b]}` })
 			text(holder, "Unit", { Position = UDim2.fromOffset(0, 38), Size = UDim2.new(1, 0, 0, 14), TextSize = 11, TextColor3 = C("4A4460"), TextXAlignment = Enum.TextXAlignment.Center, Text = spec.Unit })
 			local bwBtn, bh, by = bw - 18, 40, 58
 			local sh = buyShadowTemplate:Clone()
@@ -1020,9 +1021,9 @@ function Build.AddRolls(frames: Instance)
 				tag.Name = "Tag"
 				tag.AnchorPoint = Vector2.new(1, 0)
 				tag.Position = UDim2.new(1, 6, 0, -10)
-				tag.Visible = b > 1
-				tag.Text = if b == 3 then "BEST VALUE" else "POPULAR"
-				tag.BackgroundColor3 = if b == 3 then RED else C("FF9EC4")
+				tag.Visible = b == 2 or b == #AMOUNTS
+				tag.Text = if b == #AMOUNTS then "BEST VALUE" else "POPULAR"
+				tag.BackgroundColor3 = if b == #AMOUNTS then RED else C("FF9EC4")
 				tag.ZIndex = 3
 				tag.Parent = holder
 			end
@@ -1259,7 +1260,7 @@ function Build.AddBundles(frames: Instance)
 	local list = new("Frame", { Name = "Bundles", LayoutOrder = f + 4, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1 }, scroll)
 	new("UIListLayout", { FillDirection = Enum.FillDirection.Vertical, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, list)
 	for i = 1, 3 do
-		bundleBanner(list, "Bundle" .. i, i, false, 3)
+		bundleBanner(list, "Bundle" .. i, i, false, 5) -- (Lucky Draw Event has five things)
 	end
 
 	-- everything else keeps its order, after these five
@@ -1286,6 +1287,58 @@ function Build.AddBundles(frames: Instance)
 		end
 	end
 	return list
+end
+
+-- The premium packs' own art in the bundle banners and the YOU GOT! cards: a copy of the Packs page's Photobook and
+-- Limited Edition packs (Albums.Shop.Side.Premium.<key>.Pack) in every banner item's Art, as
+-- PackPhotobook / PackLimited (hidden; ShopController shows the one a bundle's entry is). Run
+-- in Edit after Build.AddBundles and the Packs page are built (safe to run again):
+--   require(<this module>).BundlePackArt(game.StarterGui.Interface.Frames)
+local PACK_ART = { photobook = "PackPhotobook", limited = "PackLimited" }
+function Build.BundlePackArt(frames: Instance)
+	local premium = frames.Albums.Shop.Side.Premium
+	local scroll = frames.Shop.Panel.Scroll
+	-- (also the YOU GOT! card template, so a bundle's reveal shows the same packs)
+	local reveal = frames.Purchased.Items.CardTemplate.Inner.Face.Art
+	for key, name in PACK_ART do
+		local old = reveal:FindFirstChild(name)
+		if old then
+			old:Destroy()
+		end
+		local pack = premium[key].Pack:Clone()
+		pack.Name = name
+		pack.AnchorPoint = Vector2.new(0.5, 0.5)
+		pack.Position = UDim2.new(0.5, 0, 0.5, 4)
+		pack.Visible = false
+		local w, h = reveal.Size.X.Offset, reveal.Size.Y.Offset
+		new("UIScale", { Name = "Fit", Scale = math.min(w * 0.72 / pack.Size.X.Offset, h * 0.72 / (pack.Size.Y.Offset + 6)) }, pack)
+		pack.Parent = reveal
+	end
+	local faces = { scroll.Headliner.Face }
+	for i = 1, 3 do
+		table.insert(faces, scroll.Bundles["Bundle" .. i].Face)
+	end
+	for _, face in faces do
+		for _, item in face.Items:GetChildren() do
+			local art = item:FindFirstChild("Card") and item.Card:FindFirstChild("Art")
+			if art then
+				for key, name in PACK_ART do
+					local old = art:FindFirstChild(name)
+					if old then
+						old:Destroy()
+					end
+					local pack = premium[key].Pack:Clone()
+					pack.Name = name
+					pack.AnchorPoint = Vector2.new(0.5, 0.5)
+					pack.Position = UDim2.new(0.5, 0, 0.5, 3) -- (a touch low: the Photobook's photo peeks out the top)
+					pack.Visible = false
+					local w, h = art.Size.X.Offset, art.Size.Y.Offset
+					new("UIScale", { Name = "Fit", Scale = math.min((w - 8) / pack.Size.X.Offset, (h - 6) / (pack.Size.Y.Offset + 6)) }, pack)
+					pack.Parent = art
+				end
+			end
+		end
+	end
 end
 
 -- ------------------------------- Full screen ------------------------------ --
@@ -1355,7 +1408,8 @@ local function sidebarTabs(sidebar: Instance)
 		local name, label, dot = t[1], t[2], t[3]
 		local tab = new("TextButton", {
 			Name = name,
-			Position = UDim2.fromOffset(0, (i - 1) * 50),
+			AnchorPoint = Vector2.new(0.5, 0.5), -- (centred so ButtonScale grows it from the middle)
+			Position = UDim2.fromOffset(SIDE_W / 2, (i - 1) * 50 + 21),
 			Size = UDim2.fromOffset(SIDE_W, 42),
 			BackgroundColor3 = CREAM,
 			BackgroundTransparency = 1,
@@ -1448,6 +1502,33 @@ local function upgradeCard(page: Instance, key: string, colour: string, x: numbe
 	return card
 end
 
+-- the Slots card's Robux button (ShopCatalog.PinSlot), right of its coin Buy: the controller
+-- shows it and halves Buy while the product is on sale. Run in Edit on a built Upgrades page:
+--   Build.SlotsRobux(game.StarterGui.Interface.Frames.Shop.Panel.Upgrades)
+function Build.SlotsRobux(page: Instance)
+	local card = page:FindFirstChild("Slots") :: Frame
+	assert(card, "build the Upgrades page first")
+	for _, old in { "Robux", "RobuxShadow" } do
+		local inst = card:FindFirstChild(old)
+		if inst then
+			inst:Destroy()
+		end
+	end
+	-- (Buy's full width is 282 at x 14; the controller narrows it to 150 when this shows)
+	local b = priceButton(card, "Robux", UDim2.fromOffset(14 + 150 + 10, 134), UDim2.fromOffset(122, 40), ICONS.Robux, 16, MINT, 3, 3)
+	b.ZIndex = 5
+	for _, d in b:GetDescendants() do
+		if d:IsA("GuiObject") then
+			d.ZIndex = 6
+		end
+	end
+	local shadow = card:FindFirstChild("RobuxShadow") :: Frame
+	shadow.ZIndex = 4
+	b.Visible = false
+	shadow.Visible = false
+	return b
+end
+
 local function upgradesPage(panel: Instance)
 	local old = panel:FindFirstChild("Upgrades")
 	if old then
@@ -1475,6 +1556,7 @@ local function upgradesPage(panel: Instance)
 		local col, r = (i - 1) % 3, (i - 1) // 3
 		upgradeCard(page, u[1], u[2], 24 + col * 328, 56 + r * 212)
 	end
+	Build.SlotsRobux(page)
 	local strip = new("Frame", { Name = "Summary", Position = UDim2.fromOffset(24, 484), Size = UDim2.fromOffset(966, 46), BackgroundColor3 = INK, ZIndex = 3 }, page)
 	corner(strip, 14)
 	pad(strip, 18, 18)
@@ -1482,6 +1564,50 @@ local function upgradesPage(panel: Instance)
 	text(strip, "Head", { Size = UDim2.fromOffset(0, 24), AutomaticSize = Enum.AutomaticSize.X, FontFace = HEAD, TextSize = 14, TextColor3 = YELLOW, Text = "YOUR BINDER NOW", LayoutOrder = 1, ZIndex = 4, TextTruncate = Enum.TextTruncate.None })
 	text(strip, "Text", { Size = UDim2.fromOffset(0, 24), AutomaticSize = Enum.AutomaticSize.X, FontFace = BODY, TextSize = 14, TextColor3 = CREAM, RichText = true, Text = "4 pins · <b>+14%</b> · <b>760</b>/hr", LayoutOrder = 2, ZIndex = 4, TextTruncate = Enum.TextTruncate.None })
 	return page
+end
+
+-- the coin balance, top right: the same see-through pill as the Packs page's
+-- (AlbumsController/Build: Shop.Balance.Coins). Run on its own to restyle an older one:
+--   Build.Balance(game.StarterGui.Interface.Frames.Shop.Panel.Header.Balance)
+function Build.Balance(balance: Frame)
+	balance.Size = UDim2.fromOffset(0, 38)
+	balance.AutomaticSize = Enum.AutomaticSize.X
+	balance.BackgroundColor3 = CREAM
+	balance.BackgroundTransparency = 0.9
+	for _, old in { "UISizeConstraint" } do
+		local inst = balance:FindFirstChildOfClass(old)
+		if inst then
+			inst:Destroy()
+		end
+	end
+	local c = balance:FindFirstChildOfClass("UICorner") or new("UICorner", {}, balance)
+	c.CornerRadius = UDim.new(0, 12)
+	local s = balance:FindFirstChildOfClass("UIStroke") or new("UIStroke", {}, balance)
+	s.Color = CREAM
+	s.Transparency = 0.75
+	s.Thickness = 2
+	s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	local p = balance:FindFirstChildOfClass("UIPadding") or new("UIPadding", {}, balance)
+	p.PaddingLeft, p.PaddingRight = UDim.new(0, 10), UDim.new(0, 14)
+	p.PaddingTop, p.PaddingBottom = UDim.new(0, 0), UDim.new(0, 0)
+	local l = balance:FindFirstChildOfClass("UIListLayout")
+	if l then
+		l.Padding = UDim.new(0, 6)
+		l.VerticalAlignment = Enum.VerticalAlignment.Center
+	end
+	balance.Icon.Size = UDim2.fromOffset(22, 22)
+	local amount = balance.Amount
+	amount.AutomaticSize = Enum.AutomaticSize.X
+	amount.Size = UDim2.fromOffset(0, 38)
+	amount.FontFace = BODY
+	amount.TextSize = 16
+	amount.TextColor3 = CREAM
+	amount.TextXAlignment = Enum.TextXAlignment.Left
+	amount.TextTruncate = Enum.TextTruncate.None
+	amount:SetAttribute("FitTextSkip", true) -- (it grows with the number instead)
+	if balance:FindFirstChild("Plus") then
+		balance.Plus.Visible = false -- (the Coins tab is right there)
+	end
 end
 
 function Build.FullScreen(frames: Instance)
@@ -1541,23 +1667,11 @@ function Build.FullScreen(frames: Instance)
 	end
 	-- (what the open tab is: ShopController TAB_LINES)
 	text(header, "Sub", { Position = UDim2.fromOffset(40, 90), Size = UDim2.fromOffset(400, 18), FontFace = BODY_BOLD, TextSize = 14, TextColor3 = CREAM, TextTransparency = 0.4, Text = "Upgrades last for good · paid with coins" })
-	local balance = header.Balance
-	balance.BackgroundColor3 = CREAM
-	balance.BackgroundTransparency = 0.9
-	local bstroke = balance:FindFirstChildOfClass("UIStroke")
-	if bstroke then
-		bstroke.Color = CREAM
-		bstroke.Transparency = 0.8
-		bstroke.Thickness = 2
-	end
-	balance.Amount.TextColor3 = CREAM
-	if balance:FindFirstChild("Plus") then
-		balance.Plus.Visible = false -- (the Coins tab is right there)
-	end
+	Build.Balance(header.Balance)
 	header.Close.Position = UDim2.fromOffset(1219, 81)
 	header.CloseShadow.Position = UDim2.fromOffset(1219 - 21, 81 - 21)
 	header.CloseShadow.Size = UDim2.fromOffset(48, 48)
-	header.Balance.Position = UDim2.fromOffset(1219 - 21 - 16, 81)
+	header.Balance.Position = UDim2.fromOffset(1219 - 21 - 22, 81) -- (22 clear of the ✕, as on Packs)
 	if header:FindFirstChild("GiftTag") then
 		header.GiftTag.Position = UDim2.fromOffset(640, 81)
 		local tagShadow = header:FindFirstChild("GiftTagShadow")
@@ -1607,7 +1721,8 @@ function Build.FullScreen(frames: Instance)
 	new("Frame", { Name = "GiftDivider", Position = UDim2.fromOffset(12, giftY + 6), Size = UDim2.fromOffset(SIDE_W - 24, 2), BackgroundColor3 = CREAM, BackgroundTransparency = 0.82, BorderSizePixel = 0, ZIndex = 3 }, sidebar)
 	local gift = new("TextButton", {
 		Name = "GiftButton",
-		Position = UDim2.fromOffset(0, giftY + 18),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromOffset(SIDE_W / 2, giftY + 18 + 21),
 		Size = UDim2.fromOffset(SIDE_W, 42),
 		BackgroundTransparency = 1,
 		AutoButtonColor = false,

@@ -1,6 +1,6 @@
 --| MarketService
 -- The Market (design boards "60 · Market · Browse", "60b · Sell a card", "60c · Card detail +
--- buy"): players buy and sell their Lucky Draw-and-up photocards with each other, for coins
+-- buy"): players buy and sell their photocards (any rarity) with each other, for coins
 -- only. Every server sees every listing. The rules live in Constants/MarketConstants.
 --   • Listings live in a MemoryStore SortedMap (MarketConstants.MAP, sorted by price) that
 --     drops each one when its time is up. Each server keeps a copy of the whole map (read every
@@ -20,18 +20,26 @@
 --     the Sell form's pricing help). A numbered copy's owners go into its history
 --     (SerialService.Transfer); a One of One's owner record moves to the buyer.
 -- In Inventory.Listings (id → JSON): { C = card id, R = serial (0 = none), P = price,
---   A = listed at, E = ends at, S = "On" | "Sold", B = buyer's name? }
+--   A = listed at, E = ends at, S = "On" | "Sold", B = buyer's name?, T = sold at?,
+--   W = sold before they joined (the away pop-up's "while you were away")? }
+-- Every sale, listing, ending, cancel and collect is also logged in Inventory.MarketLog (the
+-- last 30, My listings' ACTIVITY and the "While you were away" pop-up), with all-time totals in
+-- MarketEarned / MarketSold (design boards "67 · Market · My listings details", "67b").
 -- In the map (and Browse items): { Id, C, R, P, A, E, U = seller's UserId, N = seller's name }
 -- MarketRemote, client → server:
 --   { Action = "Browse", Page, Search?, Rarities? = { key }, Group?, Sort?, NotOwned?, Bias?, Card? }
 --   { Action = "Detail", Id }   { Action = "Buy", Id, Price }
 --   { Action = "Help", Card }   { Action = "List", Card, Price, Hours, Confirm? }
---   { Action = "Cancel", Id }   { Action = "Collect", Id }
+--   { Action = "Cancel", Id }   { Action = "Collect", Id }   { Action = "CollectAll" }
+--   { Action = "Seen" } (My listings / the away pop-up looked at)   { Action = "Ranks" }
 -- MarketRemote, server → client: { Message = <the Action>, Ok, Text?, … }:
 --   Browse { Items, Page, Pages, Total }   Detail { Listing, Sales, History?, Others }
 --   Buy { Card?, Serial?, Next? (cheapest other copy's id, when it was just sold) , Coins? (short) }
 --   Help { Card, Lowest?, Sales }   List { Card, Confirm? }   Cancel / Collect { Id, Coins? }
--- and { Message = "Sold", Id, Card, Price } when one of your listings sells while you're here.
+--   CollectAll { Coins, Count }   Ranks { Ranks = { [id] = { Rank, Lowest, Count } } } (where
+--   each of your open listings' price sits among that card's copies on sale)
+-- and { Message = "Sold", Id, Card, Price } when one of your listings sells while you're here,
+-- { Message = "Ended", Id, Card, Price } when one runs out unsold while you're here.
 
 local DataStoreService = game:GetService("DataStoreService")
 local MemoryStoreService = game:GetService("MemoryStoreService")
@@ -64,6 +72,7 @@ local listings: { [string]: { [string]: any } } = {} -- this server's copy of th
 local gone: { [string]: number } = {} -- ids taken off here lately (os.clock)
 local sales: { [string]: { List: { any }, At: number } } = {}
 local busy: { [Player]: boolean } = {}
+local joinedAt: { [Player]: number } = {}
 
 -- [[ Helpers ]]
 
@@ -102,6 +111,14 @@ end
 
 local function save(data, id: string, l: { [string]: any })
 	data.Inventory.Listings[id].Set(HttpService:JSONEncode(l))
+end
+
+-- adds an event to My listings' ACTIVITY (call inside a PlayerData.Batch)
+local function log(data, kind: string, fields: { [string]: any })
+	local e = table.clone(fields)
+	e.K = kind
+	e.T = os.time()
+	data.Inventory.MarketLog.Insert(HttpService:JSONEncode(e))
 end
 
 local function limit(data): number
@@ -416,15 +433,19 @@ end
 
 -- [[ Selling ]]
 
-local function sold(player: Player, data, id: string, buyer: string?)
+local function sold(player: Player, data, id: string, buyer: string?, at: number?)
 	local l = mine(data)[id]
 	if not l or l.S ~= "On" then
 		return
 	end
 	l.S = "Sold"
 	l.B = if type(buyer) == "string" then string.sub(buyer, 1, 20) else nil
+	l.T = if type(at) == "number" then math.floor(at) else os.time()
+	l.W = if l.T < (joinedAt[player] or 0) then true else nil
 	PlayerData.Batch(player, function()
 		save(data, id, l)
+		log(data, "Sold", { C = l.C, P = l.P, B = l.B })
+		data.Inventory.MarketSold.Increment(1)
 	end)
 	reply(player, "Sold", true, nil, { Id = id, Card = l.C, Price = l.P })
 end
@@ -475,6 +496,7 @@ local function list(player: Player, data, packet)
 		serial = takeCopy(data, cardId)
 		entry = { C = cardId, R = serial, P = price, A = now, E = now + hours * 3600, S = "On" }
 		save(data, id, entry)
+		log(data, "Listed", { C = cardId, P = price })
 	end)
 	local value = { C = cardId, R = serial, P = price, A = now, E = entry.E, U = player.UserId, N = player.Name }
 	local m = map()
@@ -495,8 +517,9 @@ local function list(player: Player, data, packet)
 	reply(player, "List", true, nil, { Card = cardId, Id = id })
 end
 
--- takes a listing back (Cancel, or its time ran out): the card comes home, unless it sold first
-local function takeBack(player: Player, data, id: string): (boolean, string?)
+-- takes a listing back (Cancel, or its time ran out: why = "Cancelled" | "Ended"): the card
+-- comes home, unless it sold first
+local function takeBack(player: Player, data, id: string, why: string): (boolean, string?)
 	local l = mine(data)[id]
 	if not l or l.S ~= "On" then
 		return false, "That listing's gone"
@@ -507,7 +530,7 @@ local function takeBack(player: Player, data, id: string): (boolean, string?)
 	end
 	if not won then
 		if type(record) == "table" and record.B then
-			sold(player, data, id, record.N)
+			sold(player, data, id, record.N, record.T)
 			return false, "It just sold!"
 		end
 		-- (already taken back, by another server: tidy up)
@@ -516,6 +539,7 @@ local function takeBack(player: Player, data, id: string): (boolean, string?)
 		data.Inventory.Listings.Remove(id)
 		if won then
 			addCopy(data, l.C, l.R)
+			log(data, why, { C = l.C, P = l.P })
 		end
 	end)
 	unlist(id)
@@ -526,7 +550,7 @@ local function cancel(player: Player, data, id: any)
 	if type(id) ~= "string" then
 		return
 	end
-	local ok, text = takeBack(player, data, id)
+	local ok, text = takeBack(player, data, id, "Cancelled")
 	reply(player, "Cancel", ok, text, { Id = id })
 end
 
@@ -539,9 +563,57 @@ local function collect(player: Player, data, id: any)
 	PlayerData.Batch(player, function()
 		data.Inventory.Listings.Remove(id)
 		Currencies.Data(data, "Coins").Increment(pay)
+		data.Inventory.MarketEarned.Increment(pay)
+		log(data, "Paid", { P = pay, N = 1 })
 	end)
 	Analytics.Economy(player, "Source", "Coins", pay, coins(data), AnalyticsEvents.Transactions.MarketSale, Albums.Card(l.C) and (Albums.Card(l.C) :: any).Rarity.Key)
 	reply(player, "Collect", true, nil, { Id = id, Coins = pay })
+end
+
+-- every sold listing at once (COLLECT ALL)
+local function collectAll(player: Player, data)
+	local ids, pay = {}, 0
+	for id, l in mine(data) do
+		if l.S == "Sold" then
+			table.insert(ids, id)
+			pay += MarketConstants.Payout(l.P)
+		end
+	end
+	if #ids == 0 then
+		return reply(player, "CollectAll", false, nil, { Coins = 0, Count = 0 })
+	end
+	PlayerData.Batch(player, function()
+		for _, id in ids do
+			data.Inventory.Listings.Remove(id)
+		end
+		Currencies.Data(data, "Coins").Increment(pay)
+		data.Inventory.MarketEarned.Increment(pay)
+		log(data, "Paid", { P = pay, N = #ids })
+	end)
+	Analytics.Economy(player, "Source", "Coins", pay, coins(data), AnalyticsEvents.Transactions.MarketSale, "all")
+	reply(player, "CollectAll", true, nil, { Coins = pay, Count = #ids })
+end
+
+-- where each open listing's price sits among that card's copies on sale (this server's copy)
+local function ranks(player: Player, data)
+	local out = {}
+	for id, l in mine(data) do
+		if l.S ~= "On" then
+			continue
+		end
+		local rank, lowest, count = 1, l.P, 1
+		for otherId, o in listings do
+			if otherId ~= id and o.C == l.C and live(o) then
+				count += 1
+				lowest = math.min(lowest, o.P)
+				if o.P < l.P then
+					rank += 1
+				end
+			end
+		end
+		out[id] = { Rank = rank, Lowest = lowest, Count = count }
+	end
+	reply(player, "Ranks", true, nil, { Ranks = out })
 end
 
 -- [[ Buying ]]
@@ -550,10 +622,10 @@ local function tellSeller(l, buyerName: string)
 	local seller = Players:GetPlayerByUserId(l.U)
 	local data = seller and PlayerData.Get(seller)
 	if seller and data then
-		sold(seller, data, l.Id, buyerName)
+		sold(seller, data, l.Id, buyerName, os.time())
 		return
 	end
-	local ok, err = pcall(PlayerData.SendMessage, l.U, { Market = { Id = l.Id, B = buyerName } })
+	local ok, err = pcall(PlayerData.SendMessage, l.U, { Market = { Id = l.Id, B = buyerName, T = os.time() } })
 	if not ok then
 		warn(`[MarketService] couldn't tell {l.U} their listing sold: {err}`)
 	end
@@ -626,11 +698,14 @@ local function check(player: Player, data, joining: boolean)
 			continue
 		end
 		if (l.E or 0) <= now then
-			takeBack(player, data, id)
+			-- (on joining, the away pop-up tells them instead of a notification)
+			if takeBack(player, data, id, "Ended") and not joining then
+				reply(player, "Ended", true, nil, { Id = id, Card = l.C, Price = l.P })
+			end
 		elseif claims then
 			local ok, record = pcall(claims.GetAsync, claims, id)
 			if ok and type(record) == "table" and record.B then
-				sold(player, data, id, record.N)
+				sold(player, data, id, record.N, record.T)
 			end
 		end
 	end
@@ -645,7 +720,7 @@ function MarketService.Start()
 		end
 		local data = PlayerData.Get(player)
 		if data then
-			sold(player, data, m.Id, m.B)
+			sold(player, data, m.Id, m.B, m.T)
 		end
 	end)
 
@@ -656,13 +731,16 @@ function MarketService.Start()
 		end
 	end
 	Players.PlayerAdded:Connect(function(player)
+		joinedAt[player] = os.time()
 		task.spawn(joined, player)
 	end)
 	for _, player in Players:GetPlayers() do
+		joinedAt[player] = joinedAt[player] or os.time()
 		task.spawn(joined, player)
 	end
 	Players.PlayerRemoving:Connect(function(player)
 		busy[player] = nil
+		joinedAt[player] = nil
 	end)
 
 	task.spawn(function()
@@ -694,7 +772,7 @@ function MarketService.Start()
 			return
 		end
 		local action = packet.Action
-		local guarded = action == "Buy" or action == "List" or action == "Cancel" or action == "Collect"
+		local guarded = action == "Buy" or action == "List" or action == "Cancel" or action == "Collect" or action == "CollectAll"
 		if guarded then
 			if busy[player] then
 				return
@@ -716,6 +794,14 @@ function MarketService.Start()
 				cancel(player, data, packet.Id)
 			elseif action == "Collect" then
 				collect(player, data, packet.Id)
+			elseif action == "CollectAll" then
+				collectAll(player, data)
+			elseif action == "Ranks" then
+				ranks(player, data)
+			elseif action == "Seen" then
+				PlayerData.Batch(player, function()
+					data.Inventory.MarketSeen.Set(os.time())
+				end)
 			end
 		end)
 		if guarded then

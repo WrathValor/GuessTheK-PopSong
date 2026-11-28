@@ -87,7 +87,7 @@ local function onPlayerAdded(Player: Player)
         task.defer(Collection.Check, data)
     end)
     -- the equipped title + its tier ("Normal" / "Gold" / "Rainbow"), for name tags and the HUD.
-    -- A worn group badge (Modules/Library/Ladders, "Badge:C:aespa") shows as "MY · GOLD" (fandom name) with
+    -- A worn group badge (Modules/Library/Ladders, "Badge:C:aespa") shows as "MY" (fandom name; the chip's look says the rung) with
     -- TitleTier "Rung:Gold" and TitleIcon "Cards" / "Songs" (Modules/UI/TitleChip paints it)
     local function showTitle()
         local title = data.Inventory.Title.Get()

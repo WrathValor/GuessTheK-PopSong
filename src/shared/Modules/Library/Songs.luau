@@ -27,7 +27,7 @@ local Songs = {}
 --| Catalog
 -- JSON, one entry per group: { C = company, A = artist, T = group type, G = generation,
 -- S = status, K = colour, R = gradient { { time, hex }, … }, L = { { name, year }, … },
--- B = albums { { Id, Name, Year, Colour, Songs, Members, Art, Generation, PackArt }, … } (only groups
+-- B = albums { { Id, Name, Year, Colour, Songs, Members, Keys, Versions, Art, Cover, Generation, PackArt }, … } (only groups
 -- with albums; a group whose songs are all drafts still comes through for its albums) }
 
 local function encodeGradient(gradient: ColorSequence?)
@@ -52,7 +52,7 @@ local function decodeGradient(keys): ColorSequence?
 	return ColorSequence.new(points)
 end
 
-local ALBUM_FIELDS = { "Id", "Name", "Year", "Colour", "Songs", "Members", "Art", "Generation", "GroupType", "PackArt" }
+local ALBUM_FIELDS = { "Id", "Name", "Year", "Colour", "Songs", "Members", "Keys", "Versions", "Art", "Cover", "Generation", "GroupType", "PackArt", "Event" }
 
 local function publish(entries, albums)
 	local groups, order = {}, {}
@@ -80,7 +80,7 @@ local function publish(entries, albums)
 		local group = groups[key]
 		if not group then
 			-- (no live songs yet, but its photocards are live)
-			group = { C = album.Company, A = album.Artist, G = album.Generation, K = album.Colour, L = {} }
+			group = { C = album.Company, A = album.Artist, T = album.GroupType, G = album.Generation, K = album.Colour, L = {} }
 			groups[key] = group
 			table.insert(order, group)
 		end

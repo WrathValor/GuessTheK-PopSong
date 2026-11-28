@@ -80,6 +80,23 @@ local LIBRARY = {
 	NotifyNeutral = { Id = 94314107915255, Volume = 2.2 }, -- soft single tick
 	NotifyError = { Id = 70795520957999, Volume = 1.6 }, -- gentle descending "nope"
 
+	-- UI moments that only had a generic Click / Success / Coins before. Made for K-POPPED with
+	-- Creative Claw (ElevenLabs SFX v2) and uploaded to group 430052409; the files are in
+	-- assets/Audio/UI. Volumes are levelled by measured loudness (quiet files turned up).
+	Close = { Id = 127572027395284, Volume = 0.2 }, -- a menu closes (Interface:Close): just the swoosh (assets/Audio/UI/Close_Full.mp3 is the uncut take)
+	LevelUp = { Id = 137133785670607, Volume = 0.35 }, -- player level up on the results: rising bells into a chord
+	CardLevelUp = { Id = 70690301138318, Volume = 0.5 }, -- a duplicate makes a card Gold / Rainbow: holo shimmer + ping
+	Pin = { Id = 83687590827591, Volume = 0.75 }, -- a card pinned to earn: pushpin click + rising chime
+	Unpin = { Id = 114344173145175, Volume = 0.8 }, -- a card unpinned: soft pluck + falling blip
+	AlbumComplete = { Id = 105438224865320, Volume = 0.55 }, -- every member of an album (set bonus): fanfare, coins, confetti
+	GiftClaim = { Id = 103677829076518, Volume = 1.5 }, -- a gift claimed from the inbox: ribbon, lid pop, sparkle
+	Equip = { Id = 127768877110492, Volume = 1.2 }, -- a title, badge or cosmetic equipped: enamel pin clink + twinkle
+	MarketBuy = { Id = 84795762506103, Volume = 0.9 }, -- bought a card on the Market: register drawer, ding, coins
+	MarketList = { Id = 99461887771748, Volume = 1.3 }, -- listed a card on the Market: card slide + price-tag stamp
+	OfferPop = { Id = 75452195688319, Volume = 0.45 }, -- a limited / starter offer pops up: swoosh, bubble pop, twinkle
+	PullAnnounce = { Id = 112400282726831, Volume = 0.3 }, -- someone else in the server pulled a rare card: 3 soft bells
+	Upgrade = { Id = 79534811259250, Volume = 0.2 }, -- a coin upgrade bought (Shop › Upgrades): power-up zip + ding
+
 }
 
 -- Looping background music. Id = 0 means "not picked yet" and is skipped quietly.

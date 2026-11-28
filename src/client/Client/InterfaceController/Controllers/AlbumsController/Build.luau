@@ -33,6 +33,7 @@ local BODY = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWei
 local BODY_BOLD = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.Bold)
 local Currencies = require(game:GetService("ReplicatedStorage").Constants.Currencies)
 local CardDecor = require(game:GetService("ReplicatedStorage").Modules.UI.CardDecor)
+local Photocard = require(game:GetService("ReplicatedStorage").Modules.UI.Photocard)
 local COIN = Currencies.Coins.Icon
 local TICKET = Currencies.Tickets.Icon
 
@@ -228,6 +229,417 @@ function Build.UnopenedRows(unopened: Instance)
 	end
 end
 
+-- A third Unopened row for the live event's packs (Constants/LiveEvents: the Winter pack), shown
+-- only while you have one (AlbumsController). Grows the box (and the sidebar's canvas) to fit.
+-- Safe to run again:
+--   Build.EventPackRow(game.StarterGui.Interface.Frames.Albums.Shop.Side.Unopened)
+function Build.EventPackRow(unopened: Instance)
+	local old = unopened:FindFirstChild("EventPacks")
+	if old then
+		old:Destroy()
+	end
+	local r = new("Frame", { Name = "EventPacks", Position = UDim2.fromOffset(12, 196), Size = UDim2.fromOffset(292, 56), BackgroundColor3 = CREAM, BackgroundTransparency = 0.94, Visible = false }, unopened)
+	corner(r, 14)
+	stroke(r, 2, CREAM, 0.86)
+	text(r, "Label", { Position = UDim2.fromOffset(14, 0), Size = UDim2.fromOffset(180, 56), TextSize = 14, TextColor3 = CREAM, Text = "Winter packs ×2" })
+	button(r, "Open", 236, 28, 88, 34, C("9ED8F5"), "OPEN", 13, nil, 3)
+	local u = unopened :: Frame
+	u.Size = UDim2.fromOffset(316, 268)
+	local side = u.Parent :: ScrollingFrame
+	if side:IsA("ScrollingFrame") then
+		side.CanvasSize = UDim2.fromOffset(0, math.max(side.CanvasSize.Y.Offset, u.Position.Y.Offset + 268 + 12))
+	end
+end
+
+-- [[ Pack looks (board 63 · Packs · sleeve polish) ]]
+-- Every sleeve is a foil card pack: straight edges, a ridged heat-seal strip top (Tear: what rips
+-- off when it opens) and bottom (Crimp), and no ×N sticker (Sticker stays, hidden: the pull
+-- stage shows it only for several packs at once). A gen or mix sleeve also has a Look
+-- (AlbumsController:_dressSleeve shows it): the gen's two-tone foil (the Sleeve's Tone
+-- gradient), a dot shimmer, foil shine bands, a sweeping Sheen, the gen's number (Mark: Num +
+-- Suffix, then Gen) or a mix's Word, the years on a chip (Years) and an era mark (Motif: Disc,
+-- Stick, Heart, Spark, Star, Mic, Dice). Sizes are the sleeve's own 250 px.
+-- The premium packs' art is its own (premiumArt): a Photobook, a Limited Edition box and a
+-- Fansign Event envelope, on cards in their own pastel. Run on its own to restyle a built screen:
+--   Build.PackLooks(game.StarterGui.Interface.Frames)
+local DOT = "rbxassetid://133556938627126" -- one dot in a 64px tile (assets/UI/Cards/Dot.png)
+local STAR = "rbxassetid://139700917749751" -- white star, ink outline (assets/UI/Cards/Star.png)
+local SPARKLE = "rbxassetid://112483120350596" -- 4-point ✦ (assets/UI/Cards/Sparkle.png)
+
+local function kp(t: number, v: number): NumberSequenceKeypoint
+	return NumberSequenceKeypoint.new(t, v)
+end
+
+local function clear(parent: Instance, names: { string })
+	for _, n in names do
+		local old = parent:FindFirstChild(n)
+		if old then
+			old:Destroy()
+		end
+	end
+end
+
+-- a ridged heat-seal strip across the pack (h px tall, the seam line on the inner edge)
+local function sealStrip(sleeve: Frame, name: string, top: boolean)
+	local h = 26
+	local strip = new("Frame", { Name = name, Position = if top then UDim2.new() else UDim2.new(0, 0, 1, -h), Size = UDim2.new(1, 0, 0, h), BackgroundColor3 = WHITE, BackgroundTransparency = 0.72, BorderSizePixel = 0, ZIndex = 6 }, sleeve)
+	-- (corners matching the sleeve's at the outer edge, square at the seam)
+	corner(strip, 6)
+	new("Frame", { Name = "Square", Position = if top then UDim2.new(0, 0, 1, -8) else UDim2.new(), Size = UDim2.new(1, 0, 0, 8), BackgroundColor3 = WHITE, BackgroundTransparency = 0.72, BorderSizePixel = 0, ZIndex = 2 }, strip)
+	local ridges = new("Frame", { Name = "Ridges", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ZIndex = 2 }, strip)
+	for x = 7, 243, 9 do
+		new("Frame", { Name = "Ridge", Position = UDim2.fromOffset(x, 3), Size = UDim2.new(0, 3, 1, -6), BackgroundColor3 = INK, BackgroundTransparency = 0.7, BorderSizePixel = 0, ZIndex = 2 }, ridges)
+	end
+	new("Frame", { Name = "Seam", Position = if top then UDim2.new(0, 0, 1, -2) else UDim2.new(0, 0, 0, -2), Size = UDim2.new(1, 0, 0, 4), BackgroundColor3 = INK, BackgroundTransparency = 0.45, BorderSizePixel = 0, ZIndex = 2 }, strip)
+	return strip
+end
+
+-- an outlined word with a hard ink shadow: a holder with Shadow under Face (Text on both)
+local function boldWord(parent: Instance, name: string, x: number, y: number, w: number, h: number, size: number, scaled: boolean?)
+	local holder = new("Frame", { Name = name, Position = UDim2.fromOffset(x, y), Size = UDim2.fromOffset(w, h), BackgroundTransparency = 1, ZIndex = 3 }, parent)
+	for i, spec in { { "Shadow", INK, 7 }, { "Face", CREAM, 0 } } do
+		local l = text(holder, spec[1], { Position = UDim2.fromOffset(spec[3], spec[3]), Size = UDim2.fromScale(1, 1), FontFace = HEAD, TextSize = size, TextColor3 = spec[2], TextScaled = scaled == true, Text = "2", ZIndex = 3 + i })
+		new("UIStroke", { Color = INK, Thickness = 6, LineJoinMode = Enum.LineJoinMode.Round }, l)
+		if scaled then
+			new("UITextSizeConstraint", { MaxTextSize = size }, l)
+		end
+	end
+	return holder
+end
+
+local function circle(parent: Instance, name: string, cx: number, cy: number, d: number, colour: Color3, line: number?): Frame
+	local f = new("Frame", { Name = name, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(cx, cy), Size = UDim2.fromOffset(d, d), BackgroundColor3 = colour, ZIndex = 3 }, parent)
+	corner(f, math.ceil(d / 2))
+	if line then
+		stroke(f, line)
+	end
+	return f
+end
+
+-- the era marks, each in an 84 px box (Motif), one shown at a time
+local function motifs(look: Frame)
+	local m = new("Frame", { Name = "Motif", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(198, 78), Size = UDim2.fromOffset(84, 84), BackgroundTransparency = 1, ZIndex = 3 }, look)
+	new("UIScale", { Scale = 0.82 }, m) -- (clear of the number and its suffix)
+	-- 2nd gen: a CD
+	local disc = new("Frame", { Name = "Disc", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Visible = false, ZIndex = 3 }, m)
+	local cd = circle(disc, "CD", 42, 42, 78, WHITE, 6) -- (white under a gradient: a gradient tints what's under it)
+	new("UIGradient", { Color = ColorSequence.new({ ColorSequenceKeypoint.new(0, C("F6F4FC")), ColorSequenceKeypoint.new(0.5, C("C9C2E6")), ColorSequenceKeypoint.new(1, C("F6F4FC")) }), Rotation = 45 }, cd)
+	circle(disc, "Ring", 42, 42, 46, C("1E1B2E"))
+	circle(disc, "Label", 42, 42, 38, YELLOW)
+	circle(disc, "Hole", 42, 42, 12, INK)
+	-- 3rd gen: a lightstick
+	local stick = new("Frame", { Name = "Stick", Size = UDim2.fromScale(1, 1), Rotation = 14, BackgroundTransparency = 1, Visible = false, ZIndex = 3 }, m)
+	local handle = new("Frame", { Name = "Handle", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromOffset(42, 52), Size = UDim2.fromOffset(18, 44), BackgroundColor3 = INK, ZIndex = 3 }, stick)
+	corner(handle, 6)
+	circle(stick, "Bulb", 42, 32, 62, C("FFF6D6"), 6)
+	-- 4th gen: a heart; Girls: a heart too, pinker
+	local heart = text(m, "Heart", { Size = UDim2.fromScale(1, 1), FontFace = HEAD, TextSize = 82, TextColor3 = C("FF5A9E"), TextXAlignment = Enum.TextXAlignment.Center, Text = "♥", Rotation = 12, Visible = false, ZIndex = 3 })
+	new("UIStroke", { Color = INK, Thickness = 6, LineJoinMode = Enum.LineJoinMode.Round }, heart)
+	-- 5th gen: a star (the cards' star image, tinted)
+	new("ImageLabel", { Name = "Star", Size = UDim2.fromScale(1, 1), Rotation = -10, BackgroundTransparency = 1, Image = STAR, ImageColor3 = YELLOW, Visible = false, ZIndex = 3 }, m)
+	-- (spare) a sparkle
+	new("ImageLabel", { Name = "Spark", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Image = SPARKLE, ImageColor3 = WHITE, Visible = false, ZIndex = 3 }, m)
+	-- Boys: a mic
+	local mic = new("Frame", { Name = "Mic", Size = UDim2.fromScale(1, 1), Rotation = -12, BackgroundTransparency = 1, Visible = false, ZIndex = 3 }, m)
+	local mh = new("Frame", { Name = "Handle", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromOffset(42, 44), Size = UDim2.fromOffset(16, 52), BackgroundColor3 = INK, ZIndex = 3 }, mic)
+	corner(mh, 6)
+	local head = circle(mic, "Head", 42, 28, 50, C("C9D3E3"), 6)
+	circle(head, "Grill", 25, 25, 12, WHITE)
+	-- Shuffle: a die
+	local die = new("Frame", { Name = "Dice", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(70, 70), Rotation = 12, BackgroundColor3 = WHITE, Visible = false, ZIndex = 3 }, m)
+	corner(die, 16)
+	stroke(die, 6)
+	for i, at in { { 18, 18 }, { 35, 35 }, { 52, 52 } } do
+		circle(die, "Pip" .. i, at[1], at[2], 13, INK)
+	end
+end
+
+-- the gen / mix look over a sleeve (hidden until _dressSleeve shows it)
+local function packLook(sleeve: Frame)
+	clear(sleeve, { "Look", "Tone", "Crimp" })
+	new("UIGradient", { Name = "Tone", Rotation = 110, Enabled = false }, sleeve)
+	local look = new("Frame", { Name = "Look", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Visible = false, ZIndex = 2 }, sleeve)
+	local dots = new("ImageLabel", { Name = "Dots", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Image = DOT, ScaleType = Enum.ScaleType.Tile, TileSize = UDim2.fromOffset(24, 24), ImageColor3 = WHITE, ImageTransparency = 0.45, ZIndex = 2 }, look)
+	corner(dots, 6)
+	-- foil: two soft light bands across, like the shine on a real pack
+	local foil = new("Frame", { Name = "Foil", Size = UDim2.fromScale(1, 1), BackgroundColor3 = WHITE, BorderSizePixel = 0, ZIndex = 2 }, look)
+	corner(foil, 6)
+	new("UIGradient", { Rotation = 90, Transparency = NumberSequence.new({ kp(0, 1), kp(0.2, 1), kp(0.26, 0.62), kp(0.32, 1), kp(0.6, 1), kp(0.66, 0.7), kp(0.72, 1), kp(1, 1) }) }, foil)
+	-- the sheen: a light band the controller sweeps across (Band.Offset; still with Low effects on)
+	local sheen = new("Frame", { Name = "Sheen", Size = UDim2.fromScale(1, 1), BackgroundColor3 = WHITE, BorderSizePixel = 0, ZIndex = 2 }, look)
+	corner(sheen, 6)
+	new("UIGradient", { Name = "Band", Rotation = 28, Offset = Vector2.new(-1, 0), Transparency = NumberSequence.new({ kp(0, 1), kp(0.42, 1), kp(0.5, 0.35), kp(0.58, 1), kp(1, 1) }) }, sheen)
+	-- a gen: the number and its suffix, then GEN
+	local mark = new("Frame", { Name = "Mark", Position = UDim2.fromOffset(18, 36), Size = UDim2.fromOffset(150, 100), BackgroundTransparency = 1, ZIndex = 3 }, look)
+	boldWord(mark, "Num", 0, 0, 76, 100, 96)
+	text(mark, "Suffix", { Position = UDim2.fromOffset(80, 4), Size = UDim2.fromOffset(70, 40), FontFace = HEAD, TextSize = 38, Text = "ND", ZIndex = 5 })
+	text(look, "Gen", { Position = UDim2.fromOffset(22, 132), Size = UDim2.fromOffset(140, 42), FontFace = HEAD, TextSize = 42, Text = "GEN", ZIndex = 5 })
+	-- a mix: its word
+	boldWord(look, "Word", 14, 118, 214, 56, 54, true)
+	-- the years (a gen) or what's in it (a mix)
+	local years = text(look, "Years", { Position = UDim2.fromOffset(18, 178), AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 42), BackgroundTransparency = 0, BackgroundColor3 = INK, TextColor3 = CREAM, TextSize = 32, Text = "'03–'11", ZIndex = 5 })
+	corner(years, 12)
+	pad(years, 12)
+	motifs(look)
+	-- the bottom heat seal (the top one is Tear)
+	sealStrip(sleeve, "Crimp", false)
+	for _, d in look:GetDescendants() do
+		if d:IsA("TextLabel") then
+			d:SetAttribute("FitTextSkip", true) -- (drawn to scale with the sleeve)
+		end
+	end
+end
+
+-- a sleeve made a foil pack: squarer corners, straight seal strips, no sticker, the Look
+local function packSleeve(root: Frame)
+	local sleeve = root:FindFirstChild("Sleeve") :: Frame
+	for _, f in { sleeve, root:FindFirstChild("SleeveShadow") } do
+		local c = f and f:FindFirstChildOfClass("UICorner")
+		if c then
+			c.CornerRadius = UDim.new(0, 6)
+		end
+	end
+	for _, name in { "Stripes", "Photo" } do
+		local f = sleeve:FindFirstChild(name)
+		local c = f and f:FindFirstChildOfClass("UICorner")
+		if c then
+			c.CornerRadius = UDim.new(0, 4)
+		end
+	end
+	clear(sleeve, { "Tear" })
+	sealStrip(sleeve, "Tear", true)
+	sleeve.Sticker.Visible = false
+	packLook(sleeve)
+end
+
+-- [ premium packs ]
+
+local function shadowed(parent: Instance, name: string, x: number, y: number, w: number, h: number, colour: Color3, r: number, drop: number): Frame
+	local s = new("Frame", { Name = name .. "Shadow", Position = UDim2.fromOffset(x + drop - 3, y + drop - 3), Size = UDim2.fromOffset(w + 6, h + 6), BackgroundColor3 = INK }, parent)
+	corner(s, r + 3)
+	local f = new("Frame", { Name = name, Position = UDim2.fromOffset(x, y), Size = UDim2.fromOffset(w, h), BackgroundColor3 = colour }, parent)
+	corner(f, r)
+	stroke(f, 3)
+	return f
+end
+
+-- a photocard poking out of the pack
+local function peek(parent: Instance, x: number, y: number, rot: number, a: Color3, b: Color3): Frame
+	local c = new("Frame", { Name = "Peek", Position = UDim2.fromOffset(x, y), Size = UDim2.fromOffset(30, 40), Rotation = rot, BackgroundColor3 = WHITE }, parent)
+	corner(c, 5)
+	stroke(c, 2.5)
+	local ph = new("Frame", { Name = "Photo", Position = UDim2.fromOffset(3, 3), Size = UDim2.new(1, -6, 1, -12), BackgroundColor3 = WHITE }, c)
+	corner(ph, 3)
+	stroke(ph, 1.5)
+	new("UIGradient", { Color = ColorSequence.new(a, b), Rotation = 70 }, ph)
+	return c
+end
+
+local function sparkleAt(parent: Instance, x: number, y: number, s: number)
+	new("ImageLabel", { Name = "Sparkle", Position = UDim2.fromOffset(x, y), Size = UDim2.fromOffset(s, s), BackgroundTransparency = 1, Image = SPARKLE, ImageColor3 = WHITE, ZIndex = 3 }, parent)
+end
+
+local PREMIUM_LOOK = {
+	photobook = { Tint = { "FFF6D6", "FFE59A" } },
+	limited = { Tint = { "EFE9FF", "D3C6FF" }, Tag = "NUMBERED", TagColour = PURPLE },
+	fansign = { Tint = { "FFEAF3", "FFC4DC" }, Tag = "BEST ODDS", TagColour = RED },
+}
+
+-- the art in a 76×96 box (Pack) at the card's top left
+local function premiumArt(card: Frame, key: string)
+	clear(card, { "Pack" })
+	-- (low in the card, just above the buttons: the peeking photocards stay inside its top edge)
+	local art = new("Frame", { Name = "Pack", Position = UDim2.fromOffset(12, 18), Size = UDim2.fromOffset(76, 96), BackgroundTransparency = 1 }, card)
+	if key == "photobook" then
+		-- a hardcover photobook: spine, a title plate, VOL.1, a ribbon, a card poking out
+		peek(art, 38, -6, 12, C("FFD2E5"), PURPLE)
+		local cover = shadowed(art, "Cover", 0, 12, 64, 78, WHITE, 8, 5)
+		new("UIGradient", { Color = ColorSequence.new(C("FFEDB0"), C("FFCB3D")), Rotation = 70 }, cover)
+		local gloss = new("Frame", { Name = "Gloss", Size = UDim2.fromScale(1, 1), BackgroundColor3 = WHITE, BorderSizePixel = 0, ZIndex = 2 }, cover)
+		corner(gloss, 8)
+		new("UIGradient", { Rotation = 35, Transparency = NumberSequence.new({ kp(0, 1), kp(0.5, 1), kp(0.58, 0.3), kp(0.64, 1), kp(0.72, 0.55), kp(0.76, 1), kp(1, 1) }) }, gloss)
+		local spine = new("Frame", { Name = "Spine", Size = UDim2.new(0, 12, 1, 0), BackgroundColor3 = C("F2B92B"), BorderSizePixel = 0 }, cover)
+		corner(spine, 8)
+		new("Frame", { Name = "Square", Position = UDim2.fromOffset(6, 0), Size = UDim2.new(0, 6, 1, 0), BackgroundColor3 = C("F2B92B"), BorderSizePixel = 0 }, spine)
+		new("Frame", { Name = "Edge", Position = UDim2.fromOffset(11, 0), Size = UDim2.new(0, 3, 1, 0), BackgroundColor3 = INK, BorderSizePixel = 0 }, cover)
+		local plate = new("Frame", { Name = "Plate", Position = UDim2.fromOffset(19, 8), Size = UDim2.fromOffset(39, 32), BackgroundColor3 = C("FFF5D1") }, cover)
+		corner(plate, 5)
+		stroke(plate, 2)
+		text(plate, "Title", { Size = UDim2.fromScale(1, 1), FontFace = HEAD, TextSize = 8, LineHeight = 0.95, TextXAlignment = Enum.TextXAlignment.Center, Text = "PHOTO\nBOOK" })
+		local vol = text(cover, "Vol", { Position = UDim2.fromOffset(19, 52), AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 14), BackgroundTransparency = 0, BackgroundColor3 = INK, TextColor3 = YELLOW, TextSize = 9, Text = "VOL.1" })
+		corner(vol, 4)
+		pad(vol, 5)
+		sparkleAt(cover, 44, 48, 10)
+		local ribbon = new("Frame", { Name = "Ribbon", Position = UDim2.fromOffset(44, 86), Size = UDim2.fromOffset(9, 14), BackgroundColor3 = RED }, art)
+		stroke(ribbon, 2)
+	elseif key == "limited" then
+		-- a holo-foil box: LIMITED EDITION, a gold seal, its serial strip
+		local box = shadowed(art, "Box", 2, 4, 66, 86, WHITE, 10, 5)
+		new("UIGradient", { Color = ColorSequence.new({ ColorSequenceKeypoint.new(0, C("D8CBFF")), ColorSequenceKeypoint.new(0.3, C("9F86FF")), ColorSequenceKeypoint.new(0.52, C("B8E6FF")), ColorSequenceKeypoint.new(0.72, C("A48CFF")), ColorSequenceKeypoint.new(1, C("F1C6FF")) }), Rotation = 45 }, box)
+		-- holo stripes and a bright shine band over the foil
+		local stripes = new("Frame", { Name = "Stripes", Size = UDim2.fromScale(1, 1), BackgroundColor3 = WHITE, BorderSizePixel = 0 }, box)
+		corner(stripes, 10)
+		local keys = { kp(0, 0.62) }
+		for k = 1, 8 do -- (a NumberSequence holds 20 points at most)
+			table.insert(keys, kp(k / 9 - 0.001, if k % 2 == 1 then 0.62 else 1))
+			table.insert(keys, kp(k / 9, if k % 2 == 1 then 1 else 0.62))
+		end
+		table.insert(keys, kp(1, 0.62))
+		new("UIGradient", { Rotation = 45, Transparency = NumberSequence.new(keys) }, stripes)
+		local shine = new("Frame", { Name = "Shine", Size = UDim2.fromScale(1, 1), BackgroundColor3 = WHITE, BorderSizePixel = 0 }, box)
+		corner(shine, 10)
+		new("UIGradient", { Rotation = 30, Transparency = NumberSequence.new({ kp(0, 1), kp(0.36, 1), kp(0.46, 0.1), kp(0.56, 1), kp(1, 1) }) }, shine)
+		text(box, "Title", { Position = UDim2.fromOffset(0, 6), Size = UDim2.new(1, 0, 0, 12), FontFace = HEAD, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Center, Text = "LIMITED" })
+		text(box, "Edition", { Position = UDim2.fromOffset(0, 17), Size = UDim2.new(1, 0, 0, 10), TextSize = 7, TextTransparency = 0.3, TextXAlignment = Enum.TextXAlignment.Center, Text = "EDITION" })
+		local strip = new("Frame", { Name = "Serial", AnchorPoint = Vector2.new(0, 1), Position = UDim2.fromScale(0, 1), Size = UDim2.new(1, 0, 0, 17), BackgroundColor3 = INK, BorderSizePixel = 0 }, box)
+		corner(strip, 8)
+		new("Frame", { Name = "Square", Size = UDim2.new(1, 0, 0, 8), BackgroundColor3 = INK, BorderSizePixel = 0 }, strip)
+		text(strip, "Number", { Size = UDim2.fromScale(1, 1), FontFace = Font.new("rbxasset://fonts/families/RobotoMono.json", Enum.FontWeight.Bold), TextSize = 9, TextColor3 = YELLOW, TextXAlignment = Enum.TextXAlignment.Center, Text = "No. 0482", ZIndex = 2 })
+		local seal = circle(art, "Seal", 35, 50, 32, WHITE, 3)
+		new("UIGradient", { Color = ColorSequence.new({ ColorSequenceKeypoint.new(0, C("FFE27A")), ColorSequenceKeypoint.new(0.4, C("F2B92B")), ColorSequenceKeypoint.new(0.6, C("FFF1B0")), ColorSequenceKeypoint.new(1, C("D99A1E")) }), Rotation = 45 }, seal)
+		new("ImageLabel", { Name = "Star", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(18, 18), BackgroundTransparency = 1, Image = STAR, ImageColor3 = YELLOW, ZIndex = 3 }, seal)
+		sparkleAt(art, 62, -4, 14)
+		sparkleAt(art, -4, 72, 10)
+	else
+		-- a fansign envelope: ADMIT ONE, a heart seal on the flap, a signed card peeking out
+		local card2 = peek(art, 22, -4, -10, C("FFD2E5"), PINK)
+		text(card2, "Sign", { Position = UDim2.fromOffset(3, 12), Size = UDim2.fromOffset(26, 12), FontFace = Font.new("rbxasset://fonts/families/PermanentMarker.json"), TextSize = 9, TextColor3 = WHITE, Rotation = -14, Text = "xoxo", ZIndex = 2 })
+		local env = shadowed(art, "Envelope", 2, 30, 68, 58, WHITE, 8, 5)
+		env.ClipsDescendants = true
+		new("UIGradient", { Color = ColorSequence.new(C("FFE4F0"), C("FF9EC4")), Rotation = 90 }, env)
+		local flap = new("Frame", { Name = "Flap", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(34, -4), Size = UDim2.fromOffset(44, 44), Rotation = 45, BackgroundColor3 = C("FFB3D2") }, env)
+		stroke(flap, 3)
+		text(env, "Admit", { AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 0, 1, -3), Size = UDim2.new(1, 0, 0, 12), FontFace = HEAD, TextSize = 7, TextXAlignment = Enum.TextXAlignment.Center, Text = "ADMIT ONE" })
+		local wax = circle(art, "Seal", 36, 56, 22, C("E5392E"), 3)
+		text(wax, "Heart", { Size = UDim2.fromScale(1, 1), FontFace = HEAD, TextSize = 11, TextColor3 = WHITE, TextXAlignment = Enum.TextXAlignment.Center, Text = "♥", ZIndex = 3 })
+		sparkleAt(art, 62, 14, 13)
+	end
+	for _, d in art:GetDescendants() do
+		if d:IsA("TextLabel") then
+			d:SetAttribute("FitTextSkip", true)
+		end
+	end
+end
+
+-- a premium card in its pack's pastel, with the outline, a hard shadow and (two of them) a tag
+local PREMIUM_ORDER = { photobook = 1, limited = 2, fansign = 3 }
+local PREM_H, PREM_GAP = 172, 14 -- each premium card: room for its art above the buttons
+
+-- the premium column: taller cards (the buttons on each card's bottom edge), then the guarantee,
+-- then Unopened under it, and the sidebar's scroll to fit
+local function premiumLayout(prem: Frame)
+	for key, i in PREMIUM_ORDER do
+		local card = prem:FindFirstChild(key)
+		if card then
+			card.Size = UDim2.fromOffset(292, PREM_H)
+			card.Position = UDim2.fromOffset(12, 68 + (i - 1) * (PREM_H + PREM_GAP))
+			-- Odds: lined up under the title, just above the buttons
+			local odds = card:FindFirstChild("Odds")
+			if odds then
+				odds.AnchorPoint = Vector2.new(0, 0)
+				odds.Position = UDim2.fromOffset(card.Title.Position.X.Offset, PREM_H - 32 - 19 - 30)
+			end
+			for _, name in { "Buy", "Robux" } do
+				local b, s = card:FindFirstChild(name), card:FindFirstChild(name .. "Shadow")
+				if b then
+					b.Position = UDim2.fromOffset(b.Position.X.Offset, PREM_H - 32)
+				end
+				if s then
+					s.Position = UDim2.fromOffset(s.Position.X.Offset, PREM_H - 32 + 4)
+				end
+			end
+		end
+	end
+	local y = 68 + 3 * (PREM_H + PREM_GAP) + 6
+	prem.Guarantee.Position = UDim2.fromOffset(16, y)
+	prem.GuaranteeCount.Position = UDim2.fromOffset(300, y)
+	prem.GuaranteeTrack.Position = UDim2.fromOffset(16, y + 24)
+	prem.GuaranteeNote.Position = UDim2.fromOffset(16, y + 38)
+	prem.Size = UDim2.fromOffset(316, y + 38 + 56)
+	local side = prem.Parent :: ScrollingFrame
+	local unopened = side:FindFirstChild("Unopened")
+	if unopened then
+		unopened.Position = UDim2.fromOffset(4, prem.Position.Y.Offset + prem.Size.Y.Offset + 16)
+		side.CanvasSize = UDim2.fromOffset(0, unopened.Position.Y.Offset + unopened.Size.Y.Offset + 14)
+	end
+end
+
+local function premiumCard(card: Frame, key: string)
+	local look = PREMIUM_LOOK[key]
+	if not look then
+		return
+	end
+	local prem = card.Parent :: Frame
+	clear(prem, { key .. "Shadow" })
+	clear(card, { "Tint", "Tag" })
+	-- (each card a layer above the one before, so its corner tag sits over that card)
+	local layer = (PREMIUM_ORDER[key] or 1) * 2
+	local s = new("Frame", { Name = key .. "Shadow", Position = card.Position + UDim2.fromOffset(5 - 3, 5 - 3), Size = card.Size + UDim2.fromOffset(6, 6), BackgroundColor3 = INK, ZIndex = layer - 1 }, prem)
+	corner(s, 19)
+	card.ZIndex = layer
+	card.BackgroundColor3 = WHITE
+	card.BackgroundTransparency = 0
+	new("UIGradient", { Name = "Tint", Color = ColorSequence.new(C(look.Tint[1]), C(look.Tint[2])), Rotation = 35 }, card)
+	local st = card:FindFirstChildOfClass("UIStroke")
+	if st then
+		st.Color, st.Transparency, st.Thickness = INK, 0, 3
+	end
+	card.Title.TextColor3 = INK
+	card.Line.TextColor3 = C("4A4458")
+	if card:FindFirstChild("Odds") then
+		card.Odds.TextColor3 = INK
+		card.Odds.Underline.BackgroundColor3 = INK
+	end
+	if look.Tag then
+		chip(card, "Tag", look.Tag, look.TagColour, 11, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 8, 0, -12), FontFace = HEAD, TextColor3 = CREAM, Rotation = 4, ZIndex = 4 })
+	end
+	premiumArt(card, key)
+end
+
+-- the pull stage's Strip: a copy of a pack's top seal strip that the controller lays exactly
+-- over the real one (Sleeve.Tear) and flings off. A CanvasGroup, so it clips its pack colour /
+-- group photo while it spins: Back (the pack's colour, Tone its gen foil), Photo (the group
+-- photo, sized to the whole sleeve so its top slice lines up), the ridges and seam, an outline.
+-- Run on its own to replace an older plain strip:
+--   Build.TearStrip(game.StarterGui.Interface.Frames.Albums.Pull)
+function Build.TearStrip(page: Instance)
+	clear(page, { "Strip" })
+	local strip = new("CanvasGroup", { Name = "Strip", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(640, 178), Size = UDim2.fromOffset(300, 32), BackgroundTransparency = 1, Visible = false }, page)
+	corner(strip, 6)
+	stroke(strip, 4)
+	local back = new("Frame", { Name = "Back", Size = UDim2.fromScale(1, 1), BackgroundColor3 = PINK, BorderSizePixel = 0 }, strip)
+	new("UIGradient", { Name = "Tone", Rotation = 110, Enabled = false }, back)
+	new("ImageLabel", { Name = "Photo", Size = UDim2.fromOffset(300, 300), BackgroundTransparency = 1, ScaleType = Enum.ScaleType.Crop, Image = "", Visible = false }, strip)
+	new("Frame", { Name = "Glaze", Size = UDim2.fromScale(1, 1), BackgroundColor3 = WHITE, BackgroundTransparency = 0.72, BorderSizePixel = 0 }, strip)
+	for k = 0, 26 do
+		new("Frame", { Name = "Ridge", Position = UDim2.new((7 + k * 9) / 250, 0, 0.12, 0), Size = UDim2.new(3 / 250, 0, 0.76, 0), BackgroundColor3 = INK, BackgroundTransparency = 0.7, BorderSizePixel = 0 }, strip)
+	end
+	new("Frame", { Name = "Seam", AnchorPoint = Vector2.new(0, 1), Position = UDim2.fromScale(0, 1), Size = UDim2.new(1, 0, 0.15, 0), BackgroundColor3 = INK, BackgroundTransparency = 0.45, BorderSizePixel = 0 }, strip)
+	return strip
+end
+
+function Build.PackLooks(frames: Instance)
+	local albums = frames:FindFirstChild("Albums")
+	if not albums then
+		return
+	end
+	-- every sleeve: gen and group tiles, the free stack, the pull stage, the premium cards' old ones
+	for _, d in albums:GetDescendants() do
+		if d:IsA("Frame") and d.Name == "Sleeve" and d:FindFirstChild("Band") and d.Parent:FindFirstChild("SleeveShadow") then
+			packSleeve(d.Parent)
+		end
+	end
+	Build.TearStrip(albums.Pull)
+	local prem = albums.Shop.Side.Premium
+	premiumLayout(prem)
+	for key in PREMIUM_LOOK do
+		local card = prem:FindFirstChild(key)
+		if card then
+			premiumCard(card, key)
+		end
+	end
+end
+
 -- [[ Shared art: the sleeve, the card face, the card back ]]
 
 -- A pack's record sleeve, 250×250 (scale it with the UIScale named Scale). The controller sets
@@ -288,6 +700,7 @@ local function sleeveArt(parent: Instance, name: string): Frame
 	-- (just "×5": big enough to read when the sleeve is drawn small, scaled to stay inside the circle)
 	local count = text(sticker, "Count", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(0.8, 0.56), FontFace = HEAD, TextSize = 30, TextScaled = true, TextColor3 = CREAM, TextXAlignment = Enum.TextXAlignment.Center, TextWrapped = true, Text = "×1" })
 	new("UITextSizeConstraint", { MaxTextSize = 30 }, count)
+	packSleeve(root) -- the foil pack: seal strips, no sticker, the gen / mix Look
 	return root
 end
 
@@ -462,7 +875,7 @@ local function bias(root: Frame)
 	local row = new("Frame", { Name = "Template", Size = UDim2.fromOffset(288, 52), BackgroundTransparency = 1, Visible = false }, groups)
 	local rowShadow = new("Frame", { Name = "Shadow", Position = UDim2.fromOffset(4, 4), Size = UDim2.fromScale(1, 1), BackgroundColor3 = INK, Visible = false }, row)
 	corner(rowShadow, 12)
-	local g = new("TextButton", { Name = "Button", Size = UDim2.fromScale(1, 1), BackgroundColor3 = CREAM, BackgroundTransparency = 0.95, Text = "", AutoButtonColor = false }, row)
+	local g = new("TextButton", { Name = "Button", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(1, 1), BackgroundColor3 = CREAM, BackgroundTransparency = 0.95, Text = "", AutoButtonColor = false }, row)
 	corner(g, 12)
 	stroke(g, 2, CREAM, 0.9)
 	local icon = new("ImageLabel", { Name = "Icon", Position = UDim2.fromOffset(10, 9), Size = UDim2.fromOffset(34, 34), BackgroundColor3 = PINK, ScaleType = Enum.ScaleType.Crop, Image = "" }, g)
@@ -496,7 +909,8 @@ local function bias(root: Frame)
 	corner(photo, 8)
 	stroke(photo, 3)
 	silhouette(photo, 0.42, 1)
-	new("ImageLabel", { Name = "Art", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ScaleType = Enum.ScaleType.Crop, Image = "" }, photo)
+	local memberArt = new("ImageLabel", { Name = "Art", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ScaleType = Enum.ScaleType.Crop, Image = "" }, photo)
+	corner(memberArt, 8) -- (ClipsDescendants clips square: the photo needs its own corners)
 	text(m, "Label", { AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 6, 1, -6), Size = UDim2.new(1, -12, 0, 22), FontFace = HEAD, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Center, TextTruncate = Enum.TextTruncate.AtEnd })
 	chip(m, "MyBias", "MY BIAS", RED, 11, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, -18), TextColor3 = CREAM, Visible = false, ZIndex = 3 })
 
@@ -561,6 +975,7 @@ local function shop(root: Frame)
 	end
 	ghost(cluster, "Odds", "Rarities", 14, { LayoutOrder = -1, Size = UDim2.fromOffset(0, 38) })
 	biasButton(cluster)
+	Build.LuckChip(page.Parent)
 
 	-- the main column scrolls (design board "26 · Packs v3"); the premium sidebar beside it
 	local main = new("ScrollingFrame", {
@@ -661,7 +1076,7 @@ local function shop(root: Frame)
 		tile.Label.FontFace = HEAD
 		tile.Label.TextScaled = true
 		new("UITextSizeConstraint", { MaxTextSize = 14, MinTextSize = 8 }, tile.Label)
-		local pin = new("TextButton", { Name = "Pin", AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromOffset(w - 14, 16), Size = UDim2.fromOffset(46, 22), BackgroundColor3 = INK, FontFace = BODY, TextSize = 11, TextColor3 = CREAM, Text = "+ PIN", AutoButtonColor = false, ZIndex = 3 }, tile)
+		local pin = new("TextButton", { Name = "Pin", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(w - 14 - 23, 16 + 11), Size = UDim2.fromOffset(46, 22), BackgroundColor3 = INK, FontFace = BODY, TextSize = 11, TextColor3 = CREAM, Text = "+ PIN", AutoButtonColor = false, ZIndex = 3 }, tile)
 		corner(pin, 8)
 		stroke(pin, 2, CREAM, 0.6)
 		chip(tile, "Bias", "YOUR BIAS", PINK, 10, { Position = UDim2.fromOffset(-6, -12), Rotation = -4, Visible = false, ZIndex = 3 })
@@ -732,6 +1147,11 @@ local function shop(root: Frame)
 	text(unopened, "Title", { Position = UDim2.fromOffset(16, 14), Size = UDim2.fromOffset(280, 26), FontFace = HEAD, TextSize = 19, TextColor3 = CREAM, Text = "Unopened" })
 	soft(unopened, "Line", { Position = UDim2.fromOffset(16, 40), Size = UDim2.fromOffset(280, 18), TextSize = 12, Text = "Tickets open 1 card · gen packs open 5" })
 	Build.UnopenedRows(unopened)
+	-- the premium cards: room for their art, then each its own art in its own pastel
+	premiumLayout(prem)
+	for key in PREMIUM_LOOK do
+		premiumCard(prem[key], key)
+	end
 
 	-- one pack's odds, shown by hovering (or tapping) its Odds link: each card, and the last one
 	local pop = new("Frame", { Name = "Popover", Size = UDim2.fromOffset(330, 326), BackgroundColor3 = INK, Visible = false, ZIndex = 20 }, page)
@@ -788,12 +1208,7 @@ local function shop(root: Frame)
 	corner(row, 14)
 	stroke(row, 3)
 	pad(row, 92, 14, 12, 12)
-	-- the card's look, as a little card frame with its rank
-	local swatch = new("Frame", { Name = "Swatch", Position = UDim2.new(0, -78, 0, 0), Size = UDim2.fromOffset(60, 84), BackgroundColor3 = WHITE }, row)
-	corner(swatch, 10)
-	stroke(swatch, 4)
-	new("UIGradient", { Name = "Foil", Enabled = false, Rotation = 45 }, swatch)
-	text(swatch, "Rank", { Size = UDim2.fromScale(1, 1), FontFace = HEAD, TextSize = 20, TextXAlignment = Enum.TextXAlignment.Center, Text = "#1" })
+	Build.OddsCard(row)
 	local body = new("Frame", { Name = "Body", Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1 }, row)
 	new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, body)
 	text(body, "Heading", { Size = UDim2.new(1, 0, 0, 22), FontFace = HEAD, TextSize = 18, Text = "Signed Polaroid", LayoutOrder = 1 })
@@ -996,10 +1411,8 @@ local function pull(root: Frame)
 	pack.Position = UDim2.fromOffset(640, 320)
 	pack.Scale.Scale = 1.2
 	pack.Visible = false
-	-- the strip that tears off
-	local strip = new("Frame", { Name = "Strip", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(640, 178), Size = UDim2.fromOffset(300, 24), BackgroundColor3 = PINK, Visible = false }, page)
-	corner(strip, 6)
-	stroke(strip, 4)
+	-- the strip that tears off: the pack's own top seal (AlbumsController sizes it onto it)
+	Build.TearStrip(page)
 
 	-- 17 · the fan of backs (five: one pack)
 	local fan = new("Frame", { Name = "Fan", Size = UDim2.fromOffset(1280, 720), BackgroundTransparency = 1, Visible = false }, page)
@@ -1082,7 +1495,7 @@ local function pull(root: Frame)
 	ghost(slot, "Sell", "Sell 25", 13, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 236) })
 	soft(slot, "Kept", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 240), Size = UDim2.fromOffset(150, 20), TextSize = 12, TextXAlignment = Enum.TextXAlignment.Center, Text = "your bias · kept", Visible = false })
 	soft(summary, "SellAll", { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.fromOffset(500, 628), Size = UDim2.fromOffset(300, 30), FontFace = BODY, TextXAlignment = Enum.TextXAlignment.Right, Text = "" })
-	local sellAll = new("TextButton", { Name = "SellAllButton", AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.fromOffset(500, 628), Size = UDim2.fromOffset(300, 30), BackgroundTransparency = 1, Text = "", AutoButtonColor = false }, summary)
+	local sellAll = new("TextButton", { Name = "SellAllButton", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(500 - 150, 628), Size = UDim2.fromOffset(300, 30), BackgroundTransparency = 1, Text = "", AutoButtonColor = false }, summary)
 	sellAll.ZIndex = 6
 	button(summary, "Done", 610, 628, 150, 56, MINT, "DONE", 18)
 	button(summary, "Again", 830, 628, 260, 56, YELLOW, "OPEN AGAIN", 17, COIN)
@@ -1100,6 +1513,80 @@ local function pull(root: Frame)
 	Build.RevealFx(page)
 end
 
+-- a level bar: the LV badge, a track (Fill = where you were, Gain = what this pack added) and
+-- its Label
+local function levelBar(parent: Instance, name: string, x: number, y: number, w: number, big: boolean): Frame
+	local h = if big then 28 else 22
+	local bar = new("Frame", { Name = name, Position = UDim2.fromOffset(x, y), Size = UDim2.fromOffset(w, h), BackgroundTransparency = 1, Visible = false }, parent)
+	local badge = text(bar, "Badge", { Size = UDim2.fromOffset(if big then 64 else 52, h), BackgroundTransparency = 0, BackgroundColor3 = PURPLE, FontFace = HEAD, TextSize = if big then 15 else 12, TextXAlignment = Enum.TextXAlignment.Center, Text = "LV 17" })
+	corner(badge, 8)
+	stroke(badge, 2.5)
+	local bx = (if big then 64 else 52) + 10
+	local lw = if big then 190 else 130
+	local track = new("Frame", { Name = "Track", Position = UDim2.fromOffset(bx, (h - (if big then 14 else 10)) / 2), Size = UDim2.fromOffset(w - bx - lw - 10, if big then 14 else 10), BackgroundColor3 = CREAM, BackgroundTransparency = 0.8, BorderSizePixel = 0, ClipsDescendants = true }, bar)
+	corner(track, 6)
+	stroke(track, 2.5)
+	local fill = new("Frame", { Name = "Fill", Size = UDim2.fromScale(0.5, 1), BackgroundColor3 = CREAM, BorderSizePixel = 0 }, track)
+	corner(fill, 6)
+	local gain = new("Frame", { Name = "Gain", Position = UDim2.fromScale(0.5, 0), Size = UDim2.fromScale(0.05, 1), BackgroundColor3 = PURPLE, BorderSizePixel = 0 }, track)
+	corner(gain, 6)
+	text(bar, "Label", { Position = UDim2.fromOffset(w - lw, 0), Size = UDim2.fromOffset(lw, h), TextSize = if big then 14 else 12, TextColor3 = CREAM, Text = "1,348 / 2,500 XP" })
+	return bar
+end
+
+-- XP from packs (design boards "68 · Packs · XP on the card reveal", "68b · … pack summary"):
+--   Pull.Level      the small LV bar under the pack's name, filling card by card
+--   Pull.XP         the lilac "+2 XP · NEW CARD" sticker under a new card
+--   Pull.AlbumDone  the yellow "ALBUM COMPLETE! +50 XP" sticker under the binder-page tag
+--   Summary.Chips.ChipXP (lilac), Summary.Level (the big bar over DONE), Summary.Cards.Template.XP
+-- Run once in Edit (again = replaced), then save:
+--   local m = game.StarterPlayer.StarterPlayerScripts:FindFirstChild("AlbumsController", true).Build
+--   local c = m:Clone(); c.Parent = m.Parent; require(c).PackXP(game.StarterGui.Interface.Frames); c:Destroy()
+function Build.PackXP(frames: Instance)
+	local page = frames.Albums.Pull
+	local summary = page.Summary
+	for _, pair in { { page, "Level" }, { page, "XP" }, { page, "AlbumDone" }, { summary, "Level" }, { summary.Chips, "ChipXP" }, { summary.Cards.Template, "XP" } } do
+		local old = pair[1]:FindFirstChild(pair[2])
+		if old then
+			old:Destroy()
+		end
+	end
+	levelBar(page, "Level", 40, 122, 330, false)
+	local xp = text(page, "XP", {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.fromOffset(640, 506),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, 36),
+		BackgroundTransparency = 0,
+		BackgroundColor3 = PURPLE,
+		FontFace = HEAD,
+		TextSize = 18,
+		RichText = true,
+		Text = "+2 XP  <font size=\"12\">NEW CARD</font>",
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Rotation = -2,
+		Visible = false,
+		ZIndex = 4,
+	})
+	corner(xp, 12)
+	stroke(xp, 3)
+	pad(xp, 14)
+	local done = new("Frame", { Name = "AlbumDone", Position = UDim2.fromOffset(1000, 226), Size = UDim2.fromOffset(250, 52), BackgroundColor3 = YELLOW, Visible = false, ZIndex = 4 }, page)
+	corner(done, 12)
+	stroke(done, 3)
+	text(done, "Title", { Position = UDim2.fromOffset(0, 6), Size = UDim2.new(1, 0, 0, 20), FontFace = HEAD, TextSize = 15, TextXAlignment = Enum.TextXAlignment.Center, Text = "ALBUM COMPLETE!", ZIndex = 4 })
+	text(done, "Line", { Position = UDim2.fromOffset(8, 27), Size = UDim2.new(1, -16, 0, 18), FontFace = BODY, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Center, TextTruncate = Enum.TextTruncate.AtEnd, Text = "+50 XP · every member of Looks Can Kill", ZIndex = 4 })
+
+	local chip = text(summary.Chips, "ChipXP", { AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 30), BackgroundTransparency = 0, BackgroundColor3 = PURPLE, FontFace = HEAD, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Center, Text = "+114 XP", LayoutOrder = 3, Visible = false, ZIndex = 5 })
+	corner(chip, 10)
+	stroke(chip, 2.5)
+	pad(chip, 12)
+	summary.Chips.Chip3.LayoutOrder = 4
+	local bar = levelBar(summary, "Level", 400, 548, 480, true)
+	setZ(bar, 5)
+	text(summary.Cards.Template, "XP", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 276), Size = UDim2.fromOffset(150, 16), FontFace = BODY, TextSize = 13, TextColor3 = PURPLE, TextXAlignment = Enum.TextXAlignment.Center, Text = "+2 XP", Visible = false })
+end
+
 -- Adds just the Bias button to an Albums frame built before it existed (Edit mode, then save):
 --   require(<this>).BiasButton(game.StarterGui.Interface.Frames)
 function Build.BiasButton(frames: Instance)
@@ -1110,6 +1597,68 @@ function Build.BiasButton(frames: Instance)
 	end
 	cluster.Size = UDim2.fromOffset(480, 38)
 	return biasButton(cluster)
+end
+
+-- the Rarities sheet row's card: a real photocard in that rarity's look (CardDecor), painted
+-- at runtime with your bias (AlbumsController:_fillOdds), and its rank on a chip. Run on its own
+-- to swap an older row's plain swatch for it:
+--   Build.OddsCard(game.StarterGui.Interface.Frames.Albums.Shop.OddsSheet.Panel.List.Template)
+function Build.OddsCard(row: Instance)
+	for _, old in { "Swatch", "Card", "Rank" } do
+		local inst = row:FindFirstChild(old)
+		if inst then
+			inst:Destroy()
+		end
+	end
+	local card = Photocard.Build(row, "Card", 62, 86)
+	card.Position = UDim2.new(0, -80, 0, 2)
+	-- a tile (keeps still with Low effects on): the decor is built again now it knows
+	card:SetAttribute("CardFx", "Tile")
+	CardDecor.Build(card, card.Face, card.Face.Photo)
+	chip(row, "Rank", "#1", INK, 11, { Position = UDim2.new(0, -86, 0, 74), TextColor3 = YELLOW, FontFace = HEAD, Rotation = -6, ZIndex = 4 })
+	return card
+end
+
+-- the Luck potion chip in the Packs page's top controls: while a Luck potion runs, mint with the
+-- time left (the odds are boosted: the Odds sheet shows the boosted numbers); otherwise a cream
+-- "Get a potion" sticker that opens the Shop's potions (Hit, the whole chip, is the button).
+-- Run in Edit on a built Packs page:  Build.LuckChip(game.StarterGui.Interface.Frames.Albums)
+function Build.LuckChip(frames: Instance)
+	local albums = frames:FindFirstChild("Albums") or frames
+	local shop = albums.Shop
+	local cluster = shop.Controls
+	for _, parent in { cluster, shop } do
+		local old = parent:FindFirstChild("Luck")
+		if old then
+			old:Destroy()
+		end
+	end
+	-- the chip ends the controls row, after Rarities; the row ends where the free pack's panel
+	-- ends (Main x 30 + Free x 10 + 836 = 876), right-aligned
+	cluster.Size = UDim2.fromOffset(680, 38)
+	cluster.AnchorPoint = Vector2.new(1, 0)
+	cluster.Position = UDim2.fromOffset(876, 60)
+	cluster:FindFirstChildOfClass("UIListLayout").HorizontalAlignment = Enum.HorizontalAlignment.Right
+	-- a photocard-style sticker: the clover potion, LUCK +50% over the time left, mint foil with a
+	-- glint that sweeps across it (the controller moves Face.Glint), hard ink shadow
+	local chip = new("Frame", { Name = "Luck", LayoutOrder = 5, Size = UDim2.fromOffset(140, 38), BackgroundTransparency = 1 }, cluster)
+	local shadow = new("Frame", { Name = "Shadow", Position = UDim2.fromOffset(3, 3), Size = UDim2.fromScale(1, 1), BackgroundColor3 = INK }, chip)
+	corner(shadow, 12)
+	local face = new("Frame", { Name = "Face", Size = UDim2.fromScale(1, 1), BackgroundColor3 = WHITE, ClipsDescendants = true }, chip)
+	corner(face, 12)
+	stroke(face, 3)
+	new("UIGradient", { Name = "Foil", Rotation = 20, Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, C("C9F5D4")),
+		ColorSequenceKeypoint.new(0.5, C("A7E9B8")),
+		ColorSequenceKeypoint.new(1, C("D9F7E2")),
+	}) }, face)
+	local glint = new("Frame", { Name = "Glint", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(-0.3, 0.5), Size = UDim2.new(0, 22, 2, 0), Rotation = 20, BackgroundColor3 = WHITE, BackgroundTransparency = 0.45, BorderSizePixel = 0 }, face)
+	glint.ZIndex = 2
+	new("ImageLabel", { Name = "Icon", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 1, 0.5, 0), Size = UDim2.fromOffset(38, 38), BackgroundTransparency = 1, Image = "rbxassetid://136253068957955", ScaleType = Enum.ScaleType.Fit, ZIndex = 3 }, face)
+	text(face, "Title", { Position = UDim2.fromOffset(40, 3), Size = UDim2.fromOffset(94, 17), FontFace = HEAD, TextSize = 14, TextColor3 = INK, Text = "LUCK +50%", ZIndex = 3 })
+	text(face, "Timer", { Position = UDim2.fromOffset(40, 19), Size = UDim2.fromOffset(94, 14), FontFace = BODY, TextSize = 12, TextColor3 = C("2F6B45"), Text = "26:39 left", ZIndex = 3 })
+	new("TextButton", { Name = "Hit", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Text = "", AutoButtonColor = false, ZIndex = 4 }, chip)
+	return chip
 end
 
 function Build.Build(frames: Instance): Frame
@@ -1127,7 +1676,110 @@ function Build.Build(frames: Instance): Frame
 	pad(toast, 16)
 	stroke(toast, 2, CREAM, 0.6)
 	root.Parent = frames
+	Build.PackXP(frames)
 	return root
+end
+
+-- [[ Every group on sale (design board "65 · Packs · every group on sale") ]]
+-- The order down the page: Free, Today's picks (TODAY_DISCOUNT off, on a yellow band), Your
+-- groups (bias + starred), Gens & mixes, All groups (search, gen / type chips, sort, a grid of
+-- every group). Each group tile gets a Deal tag and a Was price. Run once in Edit on a built page:
+--   local m = <this module>; local c = m:Clone(); c.Parent = m.Parent
+--   require(c).AllGroups(game.StarterGui.Interface.Frames); c:Destroy()
+local ALL_Y = 1072 -- the All groups head; the grid's height (and the canvas) is set when it's filled
+function Build.AllGroups(frames: Instance)
+	local main = frames.Albums.Shop.Main
+	local function place(obj: GuiObject, y: number)
+		obj.Position = UDim2.fromOffset(obj.Position.X.Offset, y)
+	end
+	-- Today's picks first, on a band
+	local th = main.TodayHead
+	th.Title.Text = "Today's picks"
+	th.Line.Text = "6 groups a day, 20% off every pack"
+	th.Line.Position = UDim2.fromOffset(168, 0)
+	place(th, 186)
+	local band = main:FindFirstChild("TodayBand") or new("Frame", { Name = "TodayBand" }, main)
+	band.Position = UDim2.fromOffset(2, 178)
+	band.Size = UDim2.fromOffset(852, 292)
+	band.BackgroundColor3 = YELLOW
+	band.BackgroundTransparency = 0.9
+	band.ZIndex = 0
+	if not band:FindFirstChildOfClass("UICorner") then
+		corner(band, 20)
+		stroke(band, 2, YELLOW, 0.45)
+	end
+	place(main.Today, 224)
+	-- your groups
+	local fh = main.FavHead
+	fh.Title.Text = "Your groups"
+	fh.Line.Text = "Your bias and up to 5 starred groups, always first"
+	fh.Line.Position = UDim2.fromOffset(150, 0)
+	place(fh, 492)
+	place(main.Favs, 530)
+	main.Favs.Empty.Hint.Text = "Pin any group below to keep its pack here"
+	-- gens & mixes
+	place(main.MixHead, 804)
+	place(main.GenPacks, 840)
+
+	-- all groups
+	local ah = main:FindFirstChild("AllHead") or main.MixHead:Clone()
+	ah.Name = "AllHead"
+	ah.Parent = main
+	place(ah, ALL_Y)
+	ah.Title.Text = "All groups"
+	ah.Line.Text = "Every group. Pin any to keep it under Your groups"
+	ah.Line.Position = UDim2.fromOffset(140, 0)
+
+	local old = main:FindFirstChild("AllFilters")
+	if old then
+		old:Destroy()
+	end
+	local bar = new("Frame", { Name = "AllFilters", Position = UDim2.fromOffset(10, ALL_Y + 38), Size = UDim2.fromOffset(836, 34), BackgroundTransparency = 1 }, main)
+	local search = new("Frame", { Name = "Search", Size = UDim2.fromOffset(200, 34), BackgroundColor3 = CREAM }, bar)
+	corner(search, 11)
+	stroke(search, 3)
+	new("TextBox", {
+		Name = "Box", Position = UDim2.fromOffset(12, 0), Size = UDim2.new(1, -20, 1, 0), BackgroundTransparency = 1,
+		FontFace = BODY, TextSize = 14, TextColor3 = INK, PlaceholderText = "Find a group", PlaceholderColor3 = C("9E97AE"),
+		Text = "", ClearTextOnFocus = false, TextXAlignment = Enum.TextXAlignment.Left,
+	}, search)
+	local chips = new("Frame", { Name = "Chips", Position = UDim2.fromOffset(212, 0), Size = UDim2.fromOffset(520, 34), BackgroundTransparency = 1 }, bar)
+	new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, chips)
+	for i, key in { "All", "2nd", "3rd", "4th", "5th", "|", "Girl", "Boy", "Solo" } do
+		if key == "|" then
+			new("Frame", { Name = "Divider", Size = UDim2.fromOffset(2, 22), BackgroundColor3 = CREAM, BackgroundTransparency = 0.7, BorderSizePixel = 0, LayoutOrder = i }, chips)
+		else
+			local b = new("TextButton", { Name = key, Size = UDim2.fromOffset(if #key > 3 then 52 else 44, 30), BackgroundColor3 = if key == "All" then YELLOW else CREAM, FontFace = BODY, TextSize = 13, TextColor3 = INK, Text = key, AutoButtonColor = false, LayoutOrder = i }, chips)
+			corner(b, 9)
+			stroke(b, 2.5)
+		end
+	end
+	local sort = new("TextButton", { Name = "Sort", AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromOffset(836, 2), Size = UDim2.fromOffset(110, 30), BackgroundColor3 = CREAM, BackgroundTransparency = 0.9, FontFace = BODY, TextSize = 13, TextColor3 = CREAM, Text = "Sort: A–Z", AutoButtonColor = false }, bar)
+	corner(sort, 9)
+	stroke(sort, 2, CREAM, 0.7)
+
+	local grid = main:FindFirstChild("AllGroups")
+	if grid then
+		grid:Destroy()
+	end
+	grid = new("Frame", { Name = "AllGroups", Position = UDim2.fromOffset(10, ALL_Y + 88), Size = UDim2.fromOffset(836, 250), BackgroundTransparency = 1 }, main)
+	new("UIGridLayout", { CellSize = UDim2.fromOffset(134, 236), CellPadding = UDim2.fromOffset(6, 16), SortOrder = Enum.SortOrder.LayoutOrder, FillDirectionMaxCells = 6 }, grid)
+	local template = main.Today.Template:Clone()
+	template.Parent = grid
+	soft(grid, "None", { Size = UDim2.fromOffset(836, 60), TextSize = 15, TextXAlignment = Enum.TextXAlignment.Center, Text = "No groups match that", Visible = false, LayoutOrder = 999 })
+
+	-- every group tile: a Deal tag (Today's picks) and the old price, struck through
+	for _, row in { main.Favs, main.Today, grid } do
+		local t = row.Template
+		local w = t.Size.X.Offset
+		local deal = t:FindFirstChild("Deal") or chip(t, "Deal", "-20%", RED, 10, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromOffset(w + 6, -12), Rotation = 4, Visible = false, ZIndex = 3, TextColor3 = CREAM })
+		deal.Text = "-20%"
+		if not t.Price:FindFirstChild("Was") then
+			text(t.Price, "Was", { AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 20), TextSize = 12, TextColor3 = CREAM, TextTransparency = 0.45, RichText = true, Text = "<s>1,000</s>", LayoutOrder = 3, Visible = false })
+		end
+	end
+	main.CanvasSize = UDim2.fromOffset(0, ALL_Y + 88 + 260)
+	require(game:GetService("ReplicatedStorage").Modules.UI.CenterButtons).Apply(bar)
 end
 
 return Build

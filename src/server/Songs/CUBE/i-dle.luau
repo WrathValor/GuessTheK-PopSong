@@ -82,6 +82,7 @@ return {
 			Name = "I feel",
 			Year = 2023,
 			Colour = "E8B3F5",
+			Cover = "rbxassetid://111089863849587",
 			Songs = { "Queencard" },
 			Members = { "MIYEON", "MINNIE", "SOYEON", "YUQI", "SHUHUA" },
 			Art = { -- assets/Photocards/i-dle/I feel/<member>
@@ -97,6 +98,7 @@ return {
 			Name = "2",
 			Year = 2024,
 			Colour = "F7A8C8",
+			Cover = "rbxassetid://132770210515208",
 			Songs = {},
 			Members = { "MINNIE", "MIYEON", "SHUHUA", "SOYEON", "YUQI" },
 			Art = {

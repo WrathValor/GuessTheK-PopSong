@@ -9,6 +9,7 @@
 -- and only fills in names, values, ranks, the tabs and the Join button.
 --   require(StarterPlayer.StarterPlayerScripts.Client.Client.Leaderboards.Build).Build(game.StarterGui)
 --   (…Build).BuildLike(game.StarterGui)   -- the like goal sign alone
+--   (…Build).Collectors(game.StarterGui)  -- adds the Top Collectors tab to a built big board
 -- The big board's Sign frame ("Sign", not "Face": a SurfaceGui has a Face property): Header
 -- (Title, Sub), Tabs (one TextButton per board, by its Name, + <Name>Shadow), Podium (Place1–3:
 -- Card (Photo.Avatar, PlayerName, Value) on a Step), List (Row4–Row10: Rank, PlayerName, Value)
@@ -54,6 +55,7 @@ Build.TABS = {
 	{ Name = "TopStreaks", Label = "Top Streaks" },
 	{ Name = "PerfectGames", Label = "Perfect Games" },
 	{ Name = "TopFans", Label = "Top Fans" },
+	{ Name = "TopCollectors", Label = "Top Collectors" },
 }
 Build.MAIN_SIGN = { Board = "Board1", Frame = "Frame1", Name = "Main" }
 Build.JOIN_SIGN = { Board = "Board2", Frame = "Frame2", Name = "JoinTheGroup" }
@@ -154,7 +156,7 @@ local function mainSign(parent: Instance)
 
 	-- tabs: the open one is coloured, lifted and has its shadow (painted by the client)
 	local tabs = new("Frame", { Name = "Tabs", Position = UDim2.fromOffset(0, HEADER), Size = UDim2.fromOffset(BW, TABS_H), BackgroundTransparency = 1 }, face)
-	local pad, gap = 22, 14
+	local pad, gap = 22, if #Build.TABS > 5 then 10 else 14
 	local tw = math.floor((BW - pad * 2 - gap * (#Build.TABS - 1) - 4) / #Build.TABS)
 	for i, t in Build.TABS do
 		local x = pad + (i - 1) * (tw + gap)
@@ -167,7 +169,7 @@ local function mainSign(parent: Instance)
 			BackgroundColor3 = if i == 1 then BLUE else WHITE,
 			AutoButtonColor = false,
 			FontFace = HEAD,
-			TextSize = 19,
+			TextSize = if #Build.TABS > 5 then 17 else 19,
 			TextColor3 = INK,
 			Text = t.Label,
 		}, tabs)
@@ -235,6 +237,87 @@ local function mainSign(parent: Instance)
 	label(you, "PlayerName", { Position = UDim2.fromOffset(184, 0), Size = UDim2.new(1, -184 - 180, 1, 0), TextSize = 20, TextXAlignment = Enum.TextXAlignment.Left, Text = "You" })
 	label(you, "Value", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -18, 0, 0), Size = UDim2.new(0, 160, 1, 0), FontFace = HEAD, TextSize = 20, TextXAlignment = Enum.TextXAlignment.Right, Text = "" })
 	return gui
+end
+
+-- The Top Collectors tab (design board "69 · Leaderboard · Top Collectors") on a big board that's
+-- already built: the sixth tab (the row is laid out again for six), and on each podium card a
+-- Flex photocard over the avatar with the player's headshot (FlexHead) on its corner, and on each
+-- row a Rarity chip (the best card's rarity). Client/Leaderboards shows them on that tab only.
+function Build.Collectors(starterGui: Instance)
+	local Photocard = require(game:GetService("ReplicatedStorage").Modules.UI.Photocard)
+	local gui = starterGui:FindFirstChild("Leaderboard_" .. Build.MAIN_SIGN.Name)
+	local sign = gui.Sign
+	local tabs = sign.Tabs
+	if not tabs:FindFirstChild("TopCollectors") then
+		-- (the shadow first: the button draws over it)
+		local sh = tabs.TopFansShadow:Clone()
+		sh.Name = "TopCollectorsShadow"
+		sh.Visible = false
+		sh.Parent = tabs
+		local b = tabs.TopFans:Clone()
+		b.Name = "TopCollectors"
+		b.Text = "Top Collectors"
+		b.Parent = tabs
+	end
+	local pad, gap = 22, 10
+	local tw = math.floor((BW - pad * 2 - gap * (#Build.TABS - 1) - 4) / #Build.TABS)
+	for i, t in Build.TABS do
+		local x = pad + (i - 1) * (tw + gap)
+		local b, sh = tabs[t.Name], tabs[t.Name .. "Shadow"]
+		b.Position = UDim2.fromOffset(x, 16)
+		b.Size = UDim2.fromOffset(tw, 58)
+		b.TextSize = 17
+		sh.Position = UDim2.fromOffset(x + 4, 20)
+		sh.Size = UDim2.fromOffset(tw, 58)
+	end
+
+	for place = 1, 3 do
+		local face = sign.Podium["Place" .. place].Card.Face
+		for _, n in { "Flex", "FlexHead" } do
+			local old = face:FindFirstChild(n)
+			if old then
+				old:Destroy()
+			end
+		end
+		local photo = face.Photo
+		local ph = photo.Size.Y.Offset
+		local w = math.floor(ph * 0.75)
+		local pc = Photocard.Build(face, "Flex", w - 6, ph - 6)
+		pc.Position = UDim2.fromOffset(photo.Position.X.Offset + (photo.Size.X.Offset - w) / 2 + 3, photo.Position.Y.Offset + 3)
+		pc.Visible = false
+		for _, d in pc:GetDescendants() do
+			if d:IsA("GuiObject") then
+				d.ZIndex += 2
+			end
+		end
+		pc.ZIndex += 2
+		local head = new("ImageLabel", { Name = "FlexHead", Position = UDim2.fromOffset(-10, -10), Size = UDim2.fromOffset(48, 48), BackgroundColor3 = C("DCD3FF"), Image = "", Visible = false, ZIndex = 6 }, face)
+		corner(head, 24)
+		stroke(head, 3)
+	end
+
+	for i = 4, 10 do
+		local r = sign.List["Row" .. i]
+		local old = r:FindFirstChild("Rarity")
+		if old then
+			old:Destroy()
+		end
+		local chip = label(r, "Rarity", {
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -144, 0.5, 0),
+			AutomaticSize = Enum.AutomaticSize.X,
+			Size = UDim2.fromOffset(0, 26),
+			BackgroundTransparency = 0,
+			BackgroundColor3 = YELLOW,
+			FontFace = BODY,
+			TextSize = 14,
+			Text = "FANSIGN",
+			Visible = false,
+		})
+		corner(chip, 7)
+		stroke(chip, 2)
+		new("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8) }, chip)
+	end
 end
 
 -- ------------------------------ Join the Group ----------------------------- --
@@ -410,6 +493,7 @@ function Build.Build(starterGui: Instance)
 	legacy.Parent = storage
 
 	mainSign(starterGui)
+	Build.Collectors(starterGui)
 	joinSign(starterGui, RewardsCatalog.GROUP.Coins, RewardsCatalog.GROUP.Title)
 	likeSign(starterGui)
 end

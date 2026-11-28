@@ -91,12 +91,16 @@ end
 local function place(notify: Frame)
 	local stack = notify.Stack :: Frame
 	local view = notify.AbsoluteSize
-	local scale = math.clamp(math.min(view.X / 1280, view.Y / 720), 0.7, 1)
+	local scale = math.clamp(math.min(view.X / 1280, view.Y / 720), 0.45, 1) -- (was a 0.7 floor: far too big on phones)
 	local bar = GuiService.TopbarInset.Max.Y
 	if bar <= 0 then
 		bar = 58
 	end
-	stack.Position = UDim2.new(0.5, 0, 0, bar + GAP - notify.AbsolutePosition.Y)
+	-- (measured from the ScreenGui's own top: an IgnoreGuiInset gui reports AbsolutePosition
+	-- 58px up some moments and 0 at others, which dropped the stack a whole bar too low)
+	local gui = notify:FindFirstAncestorOfClass("ScreenGui")
+	local top = notify.AbsolutePosition.Y - (if gui then gui.AbsolutePosition.Y else 0)
+	stack.Position = UDim2.new(0.5, 0, 0, bar + GAP - top)
 	local uiScale = stack:FindFirstChild("Scale") :: UIScale
 	uiScale.Scale = scale
 end
@@ -211,7 +215,7 @@ function Notify.Show(kind: Kind, title: string, body: string?, opts: Opts?): ()
 		local label = face:FindFirstChild("Text") :: TextLabel
 		label.Text = title
 		local w = width(title, face)
-		slot.Size = UDim2.fromOffset(w + 7, slot.Size.Y.Offset)
+		slot.Size = UDim2.fromOffset(w + 10, slot.Size.Y.Offset) -- (the face + its outline and shadow: Notify/Build PAD)
 	end
 
 	local entry: Entry = {

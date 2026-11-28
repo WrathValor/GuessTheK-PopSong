@@ -108,6 +108,7 @@ return {
 			Name = "REBOOT",
 			Year = 2023,
 			Colour = "A8E0F5",
+			Cover = "rbxassetid://81179081984886",
 			Songs = { "BONA BONA", "MOVE" },
 			Members = { "HYUNSUK", "JIHOON", "YOSHI", "JUNKYU", "JAEHYUK", "ASAHI", "DOYOUNG", "HARUTO", "JEONGWOO", "JUNGHWAN" },
 			Art = {
@@ -128,6 +129,7 @@ return {
 			Name = "LOVE PULSE",
 			Year = 2025,
 			Colour = "FFB8D9",
+			Cover = "rbxassetid://93576941363596",
 			Songs = {},
 			Members = { "HYUNSUK", "JIHOON", "YOSHI", "JUNKYU", "JAEHYUK", "ASAHI", "DOYOUNG", "HARUTO", "JEONGWOO", "JUNGHWAN" },
 			Art = {

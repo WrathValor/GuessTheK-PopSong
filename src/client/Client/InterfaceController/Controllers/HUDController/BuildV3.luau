@@ -12,7 +12,7 @@
 --   Buttons   Invite · News (Updates) · Settings as small icon-only squares top right; Profile
 --             and Gifts tiles down the right side
 --   Menu      the coins on a dark band that fades out at both ends, Quick Play, the level bar
---   BottomLeft hidden (the boost potions are off the HUD)
+--   BottomLeft the running boost potions (Coins / XP / Luck) with their time left
 -- HUDController fills and wires all of it.
 
 local ServerStorage = game:GetService("ServerStorage")
@@ -158,10 +158,12 @@ local function count(parent: Instance, x: number?)
 	new("UIPadding", { PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4) }, b)
 	return b
 end
+-- (pos is the top-left corner; the button is anchored at its centre so ButtonScale grows it from the middle)
 local function button(parent: Instance, name: string, pos: Vector2, size: Vector2, r: number): TextButton
 	local b = new("TextButton", {
 		Name = name,
-		Position = UDim2.fromOffset(pos.X, pos.Y),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromOffset(pos.X + size.X / 2, pos.Y + size.Y / 2),
 		Size = UDim2.fromOffset(size.X, size.Y),
 		BackgroundColor3 = WHITE,
 		AutoButtonColor = false,
@@ -191,8 +193,7 @@ local function tile(parent: Instance, name: string, label: string, x: number, y:
 end
 -- a small cream square, icon only (top right)
 local function square(parent: Instance, name: string, centreX: number): TextButton
-	local b = button(parent, name, Vector2.new(centreX, 40), Vector2.new(44, 44), 12)
-	b.AnchorPoint = Vector2.new(0.5, 0.5) -- (centred like News / Settings)
+	local b = button(parent, name, Vector2.new(centreX - 22, 40 - 22), Vector2.new(44, 44), 12) -- (centred on centreX, 40 like News / Settings)
 	b.BackgroundColor3 = CREAM
 	new("ImageLabel", {
 		Name = "Icon",
@@ -267,12 +268,13 @@ function Build.Apply(hud: Instance)
 	clear(menu, "Coins")
 	local bottomLeft = hud:FindFirstChild("BottomLeft")
 	if bottomLeft then
-		bottomLeft.Visible = false
+		bottomLeft.Visible = true -- (the running potions: HUDController/Boosts)
 	end
 
 	-- [[ TopLeft: Shop banner, 2 × 2 grid, Daily Rewards ]]
 	local shop = button(topLeft, "Shop", Vector2.new(LEFT_X, LEFT_Y), Vector2.new(TILE * 2 + 10, 60), 14)
 	gradient(shop, "Shop")
+	count(shop) -- coin upgrades you can afford (SetShopBadge)
 	new("ImageLabel", {
 		Name = "Icon",
 		AnchorPoint = Vector2.new(0, 0.5),
@@ -301,6 +303,7 @@ function Build.Apply(hud: Instance)
 	count(packs)
 	local market = tile(topLeft, "Market", "Market", LEFT_X, row2)
 	chip(market, "New", "NEW", MINT)
+	count(market) -- sales to collect + ended listings (SetMarketBadge)
 	local quests = tile(topLeft, "Quests", "Quests", LEFT_X + TILE + 10, row2)
 	count(quests)
 

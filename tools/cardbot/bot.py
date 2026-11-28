@@ -12,6 +12,8 @@ Slash commands (only the user ids in ALLOWED_USERS can use them):
       shift          move crops down (or up, negative) by that % of the photo: "Haruto 8, Yoshi -5"
   /albums group                    the group's albums and who's missing art
   /addmember group album name      add a member to an album that already exists
+  /packart group photo [album]     a group's cover art (square): its pack sleeve and binder header;
+                                   with album, that album's own cover (its binder page) instead
 
 /cards crops each photo to 720x900 and posts a preview with Upload / Cancel. Upload sends them
 to Roblox (group GROUP_ID) three at a time, waits for moderation, keeps the crops in
@@ -21,6 +23,10 @@ the group's Songs file (src/server/Songs/...). Rojo syncs that straight into Stu
 A new album is added to the Songs file with the members you uploaded and no songs. A name that
 isn't in an album that already exists is refused (it would make a new card id): rename the
 file, use names, or /addmember first.
+
+A soloist (GroupType = "Solo") gets several cards per era (Versions, cards.SOLO_VERSIONS for a
+new album): photos named after them fill the versions with no art yet, in order; "IU 3.jpg"
+picks (or replaces) one.
 
 Set up: see README.md next to this file.
 """
@@ -194,8 +200,9 @@ async def cards_command(
 
 
 def unzip(data: bytes) -> list[tuple[str, bytes]]:
-    """The photos in a zip, in name order. A photo inside a folder named after a member
-    (Haruto/IMG_123.jpg) takes the folder's name; the zip's own top folder is ignored."""
+    """The photos in a zip, in name order, each named "<folder>/<file>" (or just "<file>"):
+    photo_name picks the folder when it's a member (Haruto/IMG_123.jpg), else the file name
+    (an album folder like Ubermansch/G-Dragon 2.jpg). The zip's own top folder is ignored."""
     out = []
     with zipfile.ZipFile(io.BytesIO(data)) as z:
         files = [i for i in z.infolist() if not i.is_dir() and i.filename.lower().endswith(IMAGE_TYPES)]
@@ -206,9 +213,20 @@ def unzip(data: bytes) -> list[tuple[str, bytes]]:
             parts = list(PurePosixPath(info.filename).parts)
             if single_top:
                 parts = parts[1:]  # "TREASURE REBOOT/Haruto.jpg" -> "Haruto.jpg"
-            name = parts[-2] if len(parts) > 1 else parts[-1]  # "Haruto/IMG_1.jpg" -> "Haruto"
+            name = "/".join(parts[-2:])  # "Haruto/IMG_1.jpg" (photo_name decides which part counts)
             out.append((name, z.read(info)))
     return out
+
+
+def photo_name(name: str, members: list[str]) -> str:
+    """A zipped photo's member name: its folder when the folder is a member (or the album is
+    new and has no members yet), otherwise its file name."""
+    if "/" not in name:
+        return name
+    folder, file = name.rsplit("/", 1)
+    if not members or cards.match_member(members, folder):
+        return folder
+    return file
 
 
 async def read_photos(attachments: list[discord.Attachment]) -> list[tuple[str, bytes]]:
@@ -241,7 +259,26 @@ async def run_cards(interaction: discord.Interaction, group: str, album_name: st
     # who's who
     picks: list[tuple[str, bytes]] = []
     unknown = []
-    for name, (_, photo) in zip(name_list or [n for n, _ in photos], photos):
+    solo_new = album is None and cards.is_solo(text)
+    known = album["members"] if album else ([group] if solo_new else [])
+    photo_names = name_list or [photo_name(n, known) for n, _ in photos]
+    versioned = album if album and album.get("versions", 1) > 1 else None
+    if solo_new:
+        # a soloist's new era: their versions, all empty yet
+        versioned = {"name": album_name, "members": [group], "versions": cards.SOLO_VERSIONS, "slots": cards.version_slots([group], cards.SOLO_VERSIONS)}
+    if versioned:
+        block = text[album["start"]:album["end"]] if album else ""
+        slots, err = cards.assign_photos(versioned, photo_names, block)
+        if err:
+            raise ValueError(err)
+        for name, slot, (_, photo) in zip(photo_names, slots, photos):
+            if slot:
+                picks.append((slot, photo))
+            else:
+                unknown.append(name)
+        if unknown:
+            raise ValueError(f"Not {', '.join(versioned['members'])}: {', '.join(unknown)}. Name the photos after them (or \"{versioned['members'][0]} 2\" …).")
+    for name, (_, photo) in zip([] if versioned else photo_names, photos):
         if album:
             member = cards.match_member(album["members"], name)
             if not member:
@@ -288,7 +325,10 @@ async def upload_batch(channel, ref, path: Path, group: str, album_name: str, al
     # (plain channel messages, not interaction follow-ups: those stop working after 15 minutes)
     text = path.read_text(encoding="utf-8")
     if not album:
-        text, album_id = cards.add_album(text, album_name, year or dt.date.today().year, [m for m, _ in crops])
+        if cards.is_solo(text):  # a soloist's era: one person, several versions
+            text, album_id = cards.add_album(text, album_name, year or dt.date.today().year, [group], cards.SOLO_VERSIONS)
+        else:
+            text, album_id = cards.add_album(text, album_name, year or dt.date.today().year, [m for m, _ in crops])
         write(path, text)
         album = cards.find_album(text, album_id)
     album_id, album_title = album["id"], album["name"]
@@ -352,6 +392,74 @@ async def upload_batch(channel, ref, path: Path, group: str, album_name: str, al
     await status.reply("\n".join(lines))
 
 
+# [[ /packart ]]
+
+@tree.command(name="packart", description="Set a group's cover art (its pack sleeve and binder header)")
+@app_commands.describe(group="The group (from the Songs files)", photo="An album cover or group photo (cropped to a square)",
+                       album="Optional: this album's own cover (its binder page). Leave it out for the group's art")
+@app_commands.autocomplete(group=group_autocomplete, album=album_autocomplete)
+async def packart_command(interaction: discord.Interaction, group: str, photo: discord.Attachment, album: str | None = None):
+    if not await allowed(interaction):
+        return
+    await interaction.response.defer(thinking=True)
+    try:
+        path = songs_file(group)
+        group = cards.group_name(path.read_text(encoding="utf-8"))
+        art = await asyncio.to_thread(cards.square_art, await photo.read())
+        text = path.read_text(encoding="utf-8")
+        target = cards.find_album(text, album) if album else None
+        if album and not target:
+            raise ValueError(f"{group} has no album called {album}. Pick one from the list.")
+        if target:
+            had = re.search(r'Cover\s*=\s*"rbxassetid', text[target["start"]:target["end"]]) is not None
+        else:
+            had = re.search(r'PackArt\s*=\s*"rbxassetid', text) is not None
+        what = f"**{group} · {target['name']}** album cover" if target else f"**{group}** cover art"
+        view = Confirm(interaction.user.id)
+        preview = await interaction.followup.send(
+            what + (" (replaces the current one)" if had else "") + ". Upload?",
+            file=discord.File(io.BytesIO(art), "cover.jpg"), view=view, wait=True)
+        await view.done.wait()
+        if not view.choice:
+            await interaction.channel.send("Cancelled. Nothing was uploaded.", reference=preview)
+            return
+        async with busy:
+            out = cards.cover_path(REPO, group, target["name"]) if target else cards.pack_art_path(REPO, group)
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_bytes(art)
+            op = await asyncio.to_thread(cards.upload_image, API_KEY, GROUP_ID, art)
+            waited, state, asset = 0, "Pending", None
+            while waited <= POLL_LIMIT:
+                await asyncio.sleep(POLL_EVERY)
+                waited += POLL_EVERY
+                state, asset = await asyncio.to_thread(cards.poll_operation, API_KEY, op)
+                if state in ("Approved", "Rejected"):
+                    break
+            if state == "Approved" and asset and target:
+                write(path, cards.set_album_cover(path.read_text(encoding="utf-8"), target["id"], asset))
+                await interaction.channel.send(f"✅ {what} is in (`rbxassetid://{asset}`).", reference=preview)
+            elif state == "Approved" and asset:
+                write(path, cards.set_pack_art(path.read_text(encoding="utf-8"), asset))
+                ids = REPO / "assets/Photocards/Groups/packart_ids.json"
+                try:
+                    import json
+                    table = json.loads(ids.read_text(encoding="utf-8")) if ids.exists() else {}
+                    table[group] = str(asset)
+                    ids.write_text(json.dumps(table, ensure_ascii=False), encoding="utf-8")
+                except Exception:
+                    pass
+                await interaction.channel.send(f"✅ **{group}** cover art is in (`rbxassetid://{asset}`).", reference=preview)
+            elif state == "Rejected":
+                await interaction.channel.send(f"❌ Moderation rejected **{group}**'s cover. Try another image.", reference=preview)
+            else:
+                await interaction.channel.send(f"⚠️ Still in review after {POLL_LIMIT}s (operation {op}). Run it again later.", reference=preview)
+    except ValueError as e:
+        await interaction.followup.send(str(e))
+    except Exception as e:
+        await interaction.followup.send(f"Something broke: `{type(e).__name__}: {e}`")
+        raise
+
+
 # [[ /albums, /addmember ]]
 
 @tree.command(name="albums", description="A group's albums and which members are missing art")
@@ -371,9 +479,9 @@ async def albums_command(interaction: discord.Interaction, group: str):
         out.append("No albums yet.")
     for a in albums:
         block = text[a["start"]:a["end"]]
-        have = [m for m in a["members"] if cards.has_art(block, m)]
-        missing = [m for m in a["members"] if m not in have]
-        out.append(f"• **{a['name']}** `{a['id']}`: {len(have)}/{len(a['members'])} with art" + (f" (missing: {', '.join(missing)})" if missing else ""))
+        have = [m for m in a["slots"] if cards.has_art(block, m)]  # (a soloist's versions count one by one)
+        missing = [m for m in a["slots"] if m not in have]
+        out.append(f"• **{a['name']}** `{a['id']}`: {len(have)}/{len(a['slots'])} with art" + (f" (missing: {', '.join(missing)})" if missing else ""))
     await interaction.response.send_message("\n".join(out))
 
 

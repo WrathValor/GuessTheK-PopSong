@@ -107,6 +107,7 @@ return {
 			Name = "EX'ACT",
 			Year = 2016,
 			Colour = "BFE7D9",
+			Cover = "rbxassetid://138913652123717",
 			Songs = { "Monster" },
 			Members = { "XIUMIN", "SUHO", "LAY", "BAEKHYUN", "CHEN", "CHANYEOL", "D.O.", "KAI", "SEHUN" },
 			Art = {
@@ -126,6 +127,7 @@ return {
 			Name = "Obsession",
 			Year = 2019,
 			Colour = "CFD5E6",
+			Cover = "rbxassetid://92499028013907",
 			Songs = {},
 			Members = { "BAEKHYUN", "CHANYEOL", "CHEN", "KAI", "SEHUN", "SUHO" },
 			Art = {

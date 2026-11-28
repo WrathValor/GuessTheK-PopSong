@@ -6,11 +6,9 @@
 --   • tabs: Showcase (below), Stats (every stat, with a rank tag while you're on that board's
 --     kept top 100) and Titles (the titles you own; Equip through ShopRemote, like the
 --     Inventory). TITLE opens the Titles tab; STYLE → banners
---   • the SHOWCASE: 5 photocards everyone sees (Profile.Cards, Modules/UI/Photocard)
---   • Edit: each slot shows SLOT n. Tap a slot → the Picker
---     (your cards, best first) fills it; ✕ empties it; DONE (the Edit button) finishes. Every
---     change is saved through ProfileRemote (Engine/ProfileService checks it) and shows
---     straight away while the save comes back through PlayerData.
+--   • the SHOWCASE: your pinned cards, which everyone sees (Inventory.Pins, Modules/UI/Photocard;
+--     the slots you haven't unlocked yet show empty). The Edit button says PINS and opens the
+--     Binder, where you pin. (The old separate showcase and its Picker aren't used any more.)
 --   • someone else's profile: Open("Profile", { Player = player }) (PlayerCardController opens
 --     it when you click / tap a player in the lobby). The same screen, read-only, from their
 --     attributes (DataService, BiasService, Engine/ProfileService): their card, title, bias and
@@ -84,7 +82,7 @@ local RARITY_COLOURS = {
 	standard = "FFFFFF",
 	selca = "FFD2E5",
 	store = "A7E9B8",
-	luckydraw = "B9A6FF",
+	luckydraw = "E8C15A", -- (gold, like the card)
 	fansign = "FF9EC4",
 	polaroid = "FBF7F0",
 	oneofone = "FFE07A",
@@ -409,17 +407,13 @@ end
 
 -- the showcase as saved, or the pick you just made while its save is on the way
 function Profile:_ids(): { string }
-	local saved = Albums.Showcase(get(PlayerData.Profile.Cards, ""))
-	local pending = self._pending
-	if pending and os.clock() < pending.Until then
-		for i = 1, SLOTS do
-			if saved[i] ~= (pending.Ids[i] or "") then
-				return pending.Ids
-			end
-		end
+	-- the showcase is your pins, in slot order
+	local pins = Albums.Pins(get(PlayerData.Inventory.Pins, ""))
+	local out = {}
+	for i = 1, SLOTS do
+		out[i] = pins[i] or ""
 	end
-	self._pending = nil
-	return saved
+	return out
 end
 
 function Profile:_paintShowcase()
@@ -459,19 +453,19 @@ function Profile:_paintShowcase()
 		count += if id ~= "" and (owned[id] or 0) > 0 then 1 else 0
 	end
 	panel.ShowcaseSub.Text = if viewing
-		then (if count == 0 then "nothing on show yet" else `{count} of {SLOTS} · their best pulls`)
-		elseif editing then "tap a slot to choose its card"
-		else `{count} of {SLOTS} · your best pulls, for everyone to see`
+		then (if count == 0 then "nothing pinned yet" else `{count} pinned · their best pulls`)
+		elseif count == 0 then "pin cards in your binder to show them here"
+		else `your {count} pinned card{if count == 1 then "" else "s"}, for everyone to see`
 	panel.Edit.Visible = not viewing
 	panel.EditShadow.Visible = not viewing
 	self:_paintCommon()
 	local edit = panel.Edit
-	edit.Label.Text = if editing then "DONE" else "EDIT"
-	edit.Icon.Visible = not editing
-	edit.Label.Position = UDim2.fromOffset(if editing then 0 else 40, 0)
-	edit.Label.Size = UDim2.new(1, if editing then 0 else -48, 1, 0)
-	edit.Label.TextXAlignment = if editing then Enum.TextXAlignment.Center else Enum.TextXAlignment.Left
-	edit.BackgroundColor3 = if editing then MINT else WHITE
+	edit.Label.Text = "PINS"
+	edit.Icon.Visible = false
+	edit.Label.Position = UDim2.fromOffset(0, 0)
+	edit.Label.Size = UDim2.new(1, 0, 1, 0)
+	edit.Label.TextXAlignment = Enum.TextXAlignment.Center
+	edit.BackgroundColor3 = WHITE
 end
 
 -- someone else's profile: what you have in common (the same bias's group, else a group on both
@@ -754,7 +748,15 @@ for _, name in Packs.FANDOMS do
 end
 
 -- a chip that isn't a badge yet: cream, muted text, no icon
+-- a badge chip hugs its fandom name (board 64); an empty slot fills its column
+local function hug(chip: TextLabel, fill: boolean)
+	chip.AutomaticSize = if fill then Enum.AutomaticSize.None else Enum.AutomaticSize.X
+	chip.Size = if fill then UDim2.new(1, -8, 0, 26) else UDim2.fromOffset(0, 26)
+	chip.TextXAlignment = if fill then Enum.TextXAlignment.Left else Enum.TextXAlignment.Center
+end
+
 local function paintEmpty(chip: TextLabel, label: string)
+	hug(chip, true)
 	TitleChip.Paint(chip, label, "Normal")
 	chip.BackgroundColor3 = NOT_STARTED_BG
 	chip.TextColor3 = NOT_STARTED_TEXT
@@ -852,6 +854,52 @@ local function nextLine(artist: string, cardsRung: number, songsRung: number): s
 	return `Next {which}: {pick.Text} · {pick.Have}/{pick.Need}`
 end
 
+-- take off the badge or title you're wearing: back to the default (ShopService EquipTitle "")
+function Profile:_takeOff()
+	if get(PlayerData.Inventory.Title, "") == "" then
+		return
+	end
+	Sounds.Play("Click")
+	ShopRemote:Fire({ Action = "EquipTitle", Id = "" })
+end
+
+-- a badge's full name over it while hovered ("EXO-L · Silver · Cards"): the chip itself only
+-- says the fandom (board 64). text() gives the line, nil = no tip.
+function Profile:_hookTip(target: GuiObject, textOf: () -> string?)
+	local page = self._frame.Panel.TitlesPage
+	local tip = page:FindFirstChild("Tip") :: TextLabel?
+	if not tip then
+		return
+	end
+	self._janitor:Add(target.MouseEnter:Connect(function()
+		local line = textOf()
+		if not line then
+			return
+		end
+		local k = math.max(page.AbsoluteSize.X / math.max(page.Size.X.Offset, 1), 0.01)
+		if page.Size.X.Scale > 0 then
+			-- (the page fills the panel: measure the scale from the Frames canvas instead)
+			local frames = self._frame.Parent :: GuiObject
+			k = math.max(frames.AbsoluteSize.X / 1280, 0.01)
+		end
+		local at = (target.AbsolutePosition - page.AbsolutePosition) / k
+		local size = target.AbsoluteSize / k
+		tip.Text = line
+		tip.Position = UDim2.fromOffset(at.X + size.X / 2, at.Y - 8)
+		tip.Visible = true
+	end))
+	self._janitor:Add(target.MouseLeave:Connect(function()
+		tip.Visible = false
+	end))
+end
+
+local function tipLine(ladder: string, artist: string, rung: number): string
+	local name = Ladders.RungName(ladder, rung) or ""
+	local fandom = Ladders.Fandom(artist)
+	return if ladder == "Legend" then `{fandom} · <font color="#FFE07A">{name}</font>`
+		else `{fandom} · <font color="#FFE07A">{name}</font> · {ladder}`
+end
+
 function Profile:_paintTitles()
 	local page = self._frame.Panel.TitlesPage
 	local mode = self._wearMode or "Titles"
@@ -868,6 +916,16 @@ function Profile:_paintTitles()
 		b.TextColor3 = if on then Color3.fromHex("FBF7F0") else Color3.fromHex("1E1B2E")
 	end
 	TitleChip.Paint(page.Wearing.Chip, LOCAL_PLAYER:GetAttribute("Title") or HUDConstants.DEFAULT_TITLE, LOCAL_PLAYER:GetAttribute("TitleTier") or "Normal", LOCAL_PLAYER:GetAttribute("TitleIcon"))
+	local wornLadder, wornArtist = Ladders.FromTitle(current)
+	self._wearingTip = nil
+	if wornLadder and wornArtist then
+		local key = if wornLadder == "Legend" then Ladders.LegendKey(wornArtist) else Ladders.Key(wornLadder, wornArtist)
+		self._wearingTip = tipLine(wornLadder, wornArtist, get(PlayerData.Inventory.Ladders, {})[key] or 0)
+	end
+	local headerOff = page.Wearing:FindFirstChild("TakeOff")
+	if headerOff then
+		headerOff.Visible = current ~= ""
+	end
 	page.Titles.Visible = mode == "Titles"
 	page.Badges.Visible = mode == "Badges"
 
@@ -887,7 +945,7 @@ function Profile:_paintTitles()
 			row.Activated:Connect(function()
 				local pick = self._titles and self._titles[index]
 				if pick and not pick.Equipped then
-					Sounds.Play("Click")
+					Sounds.Play("Equip")
 					ShopRemote:Fire({ Action = "EquipTitle", Id = pick.Title })
 				end
 			end)
@@ -922,12 +980,22 @@ function Profile:_paintTitles()
 			row.Parent = blist
 			self._badgeRows[i] = row
 			for _, ladder in { "Cards", "Songs" } do
-				row.Face[ladder].Activated:Connect(function()
-					local id = row.Face[ladder]:GetAttribute("Wear")
+				local slot = row.Face[ladder]
+				slot.Activated:Connect(function()
+					local id = slot:GetAttribute("Wear")
 					if id and id ~= get(PlayerData.Inventory.Title, "") then
-						Sounds.Play("Click")
+						Sounds.Play("Equip")
 						ShopRemote:Fire({ Action = "EquipTitle", Id = id })
 					end
+				end)
+				local off = slot:FindFirstChild("TakeOff")
+				if off then
+					off.Activated:Connect(function()
+						self:_takeOff()
+					end)
+				end
+				self:_hookTip(slot.Chip, function()
+					return slot:GetAttribute("Tip")
 				end)
 			end
 		end
@@ -941,28 +1009,49 @@ function Profile:_paintTitles()
 			face.GroupName.Text = if Ladders.Fandom(g.Artist) ~= g.Artist then `{g.Artist} · {Ladders.Fandom(g.Artist)}` else g.Artist
 			face.Sub.Text = nextLine(g.Artist, g.Cards, g.Songs)
 			-- cards
+			-- (each chip just says the fandom; its look is the rung: board 64)
+			local fandom = Ladders.Fandom(g.Artist)
 			local cardsId = Ladders.TitleId("Cards", g.Artist)
 			if g.Cards > 0 then
-				TitleChip.Paint(face.Cards.Chip, string.upper(Ladders.RUNGS[g.Cards]), `Rung:{Ladders.RUNGS[g.Cards]}`, "Cards")
+				hug(face.Cards.Chip, false)
+				TitleChip.Paint(face.Cards.Chip, fandom, `Rung:{Ladders.RUNGS[g.Cards]}`, "Cards")
 				face.Cards:SetAttribute("Wear", cardsId)
+				face.Cards:SetAttribute("Tip", tipLine("Cards", g.Artist, g.Cards))
 			else
 				paintEmpty(face.Cards.Chip, "not started")
 				face.Cards:SetAttribute("Wear", nil)
+				face.Cards:SetAttribute("Tip", nil)
 			end
-			face.Cards.Ring.Visible = current == cardsId
 			-- songs (or Legend)
 			local songsId = Ladders.TitleId(if g.Legend then "Legend" else "Songs", g.Artist)
 			if g.Legend then
-				TitleChip.Paint(face.Songs.Chip, "LEGEND", "Rung:Legend")
+				hug(face.Songs.Chip, false)
+				TitleChip.Paint(face.Songs.Chip, fandom, "Rung:Legend")
 				face.Songs:SetAttribute("Wear", songsId)
+				face.Songs:SetAttribute("Tip", tipLine("Legend", g.Artist, 1))
 			elseif g.Songs > 0 then
-				TitleChip.Paint(face.Songs.Chip, string.upper(Ladders.RUNGS[g.Songs]), `Rung:{Ladders.RUNGS[g.Songs]}`, "Songs")
+				hug(face.Songs.Chip, false)
+				TitleChip.Paint(face.Songs.Chip, fandom, `Rung:{Ladders.RUNGS[g.Songs]}`, "Songs")
 				face.Songs:SetAttribute("Wear", songsId)
+				face.Songs:SetAttribute("Tip", tipLine("Songs", g.Artist, g.Songs))
 			else
 				paintEmpty(face.Songs.Chip, if Ladders.HasSongs(g.Artist) then "not started" else "no songs yet")
 				face.Songs:SetAttribute("Wear", nil)
+				face.Songs:SetAttribute("Tip", nil)
 			end
-			face.Songs.Ring.Visible = current == songsId or (current == Ladders.TitleId("Songs", g.Artist))
+			-- the one you're wearing: its ring and ✕ TAKE OFF; the others: Wear
+			for _, ladder in { "Cards", "Songs" } do
+				local slot = face[ladder]
+				local id = slot:GetAttribute("Wear")
+				local worn = id ~= nil and (current == id or (ladder == "Songs" and current == Ladders.TitleId("Songs", g.Artist)))
+				slot.Ring.Visible = worn
+				if slot:FindFirstChild("TakeOff") then
+					slot.TakeOff.Visible = worn
+				end
+				if slot:FindFirstChild("Wear") then
+					slot.Wear.Visible = id ~= nil and not worn
+				end
+			end
 			row.Visible = true
 		elseif row then
 			row.Visible = false
@@ -1027,6 +1116,16 @@ function Profile:Initialize(interface)
 	end))
 	-- the Titles tab's Titles / Badges switch and the badge sorts (board 49)
 	local titlesPage = f.Panel.TitlesPage
+	-- take off what you're wearing (board 64): back to no title
+	local headerOff = titlesPage.Wearing:FindFirstChild("TakeOff")
+	if headerOff then
+		j:Add(headerOff.Activated:Connect(function()
+			self:_takeOff()
+		end))
+	end
+	self:_hookTip(titlesPage.Wearing.Chip, function()
+		return self._wearingTip
+	end)
 	for _, name in { "Titles", "Badges" } do
 		j:Add(titlesPage.Mode[name].Activated:Connect(function()
 			if self._wearMode ~= name then
@@ -1049,13 +1148,10 @@ function Profile:Initialize(interface)
 		end
 	end
 	-- Edit / Done
+	-- PINS: the showcase is your pins, so this opens the Binder to change them
 	j:Add(panel.Edit.Activated:Connect(function()
-		self._editing = not self._editing
-		self:_paintShowcase()
-		if self._editing then
-			local showcase = panel.Showcase
-			Juice.Stagger({ showcase.Card1, showcase.Card2, showcase.Card3, showcase.Card4, showcase.Card5 }, 0.04)
-		end
+		Sounds.Play("Click")
+		self._interface:Open("Binder")
 	end))
 	for i = 1, SLOTS do
 		local holder = panel.Showcase["Card" .. i]

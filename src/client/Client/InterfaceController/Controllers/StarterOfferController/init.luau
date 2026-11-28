@@ -346,6 +346,7 @@ function StarterOffer:Activate()
 		return Promise.resolve()
 	end
 	self.State = "Activating"
+	Sounds.Play("OfferPop")
 	self:_tick()
 	Juice.Pop(panel.Bonus, 0.25)
 	Sounds.Play("Success")

@@ -821,6 +821,9 @@ function Results:_reveal(packet, rivalKey: string?, mine)
 		if mine.Perfect then
 			task.delay(1.5, Sounds.Play, "Perfect")
 		end
+		if mine.LevelUp then
+			task.delay(if mine.Perfect then 2.6 else 2.0, Sounds.Play, "LevelUp")
+		end
 		-- the Rematch button pops in with its own sound, after the coins / perfect beats
 		task.delay(if mine.Perfect then 2.1 else 1.5, function()
 			if self.State ~= "Inactive" and w.Rematch.Visible then

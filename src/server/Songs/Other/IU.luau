@@ -110,6 +110,7 @@ return {
 			Colour = "D9C9FF",
 			Songs = { "Palette", "Through the Night", "Can't Love You Anymore" },
 			Members = { "IU" },
+			Versions = 5, -- photocards this era: add art as ["IU 2"] … ["IU 5"] (Songs/init.luau)
 			Art = {
 				["IU"] = "rbxassetid://129966933081833",
 			},

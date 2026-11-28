@@ -1447,4 +1447,90 @@ function Build.BuildAll(interface: Instance)
 	return "built"
 end
 
+-- --------------------------- Stages + Mics tabs ---------------------------- --
+-- Design board "66 · Style · Stages + Mics": the Inventory's stage and mic pickers move into
+-- Style. Two more tabs (Header.Tabs.Stages / .Mics), a grid each with a Template tile (Art: the
+-- real 3D model through CosmeticView, like the old Inventory cards; its drawn spot, the stage skin
+-- + platform or a mic head, shows only while a model is missing),
+-- and Preview.Spot: the real 3D duel spot (Modules/UI/CosmeticView "Spot": stage + mic + your
+-- avatar), shown in place of the inspect card on these tabs. Run once in Edit on a built page:
+--   local m = <this module>; local c = m:Clone(); c.Parent = m.Parent
+--   require(c).StyleCosmetics(game.StarterGui.Interface.Frames); c:Destroy()
+function Build.StyleCosmetics(frames: Instance)
+	local panel = frames.Banners.Panel
+	local tabs = panel.Header.Tabs
+	for i, name in { "Stages", "Mics" } do
+		clear(tabs, name)
+		local t = tabs.Banners:Clone()
+		t.Name = name
+		t.Text = name
+		t.LayoutOrder = tabs.Cards.LayoutOrder + i
+		t.Parent = tabs
+	end
+	local sub = panel.Header:FindFirstChild("Sub")
+	if sub then
+		sub.Text = "Your banner, photocard, stage and mic"
+	end
+
+	local base = panel.Grid.Template
+	for _, kind in { "Stages", "Mics" } do
+		clear(panel, kind)
+		local grid = new("Frame", { Name = kind, Position = panel.Grid.Position, Size = panel.Grid.Size, BackgroundTransparency = 1, Visible = false }, panel)
+		local b = base:Clone()
+		b.Name = "Template"
+		b.Visible = false
+		for _, child in b:GetChildren() do
+			if child.Name == "Banner" or child.Name == "Lock" then
+				child:Destroy()
+			end
+		end
+		b.BannerName.Name = "ItemName"
+		b.ItemName.Text = if kind == "Stages" then "Starlight" else "Heart Mic"
+		b.ItemName.Position = UDim2.fromOffset(10, 104) -- (a taller Art for the 3D models)
+		b.Source.Position = UDim2.fromOffset(26, 126)
+		b.Source.Size = UDim2.new(1, -36, 0, 18)
+		b.Source.Text = "Epic"
+		local dot = new("Frame", { Name = "Dot", Position = UDim2.fromOffset(10, 130), Size = UDim2.fromOffset(11, 11), BackgroundColor3 = LILAC }, b)
+		corner(dot, 6)
+		stroke(dot, 2)
+		-- the drawn spot (Bg = the backdrop; colours from ShopCatalog, painted per item)
+		local art = new("Frame", { Name = "Art", Position = UDim2.fromOffset(9, 9), Size = UDim2.new(1, -18, 0, 90), BackgroundColor3 = C("2B2346"), ClipsDescendants = true }, b)
+		corner(art, 10)
+		stroke(art, 3)
+		if kind == "Stages" then
+			local skin = new("Frame", { Name = "Skin", Position = UDim2.new(0.08, 0, 0, 7), Size = UDim2.new(0.84, 0, 0, 38), BackgroundColor3 = LILAC }, art)
+			corner(skin, 8)
+			stroke(skin, 2.5)
+			local plat = new("Frame", { Name = "Platform", Position = UDim2.new(0.04, 0, 0, 44), Size = UDim2.new(0.92, 0, 0, 24), BackgroundColor3 = YELLOW }, art)
+			corner(plat, 12)
+			stroke(plat, 2.5)
+		else
+			new("Frame", { Name = "Pole", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 30), Size = UDim2.fromOffset(6, 38), BackgroundColor3 = INK, BorderSizePixel = 0 }, art)
+			local headF = new("Frame", { Name = "Head", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 8), Size = UDim2.fromOffset(28, 28), BackgroundColor3 = PINK }, art)
+			corner(headF, 14)
+			stroke(headF, 2.5)
+		end
+		-- (on the tile, not in Art: CosmeticView hides Art's own pieces when the 3D model shows)
+		local eq = chip(b, "Equipped", UDim2.new(1, -15, 0, 15), 18, INK, "EQUIPPED", 10, Vector2.new(1, 0))
+		eq.TextColor3 = MINT
+		eq.ZIndex = 12
+		eq.Visible = false
+		b.Parent = grid
+	end
+
+	-- the preview: your duel spot (CosmeticView draws the 3D model into Spot.Art)
+	local preview = panel.Preview
+	clear(preview, "SpotShadow")
+	clear(preview, "Spot")
+	local cs, cf = preview.CardShadow, preview.Card
+	local shadow = new("Frame", { Name = "SpotShadow", Position = cs.Position, Size = UDim2.fromOffset(cs.Size.X.Offset, 206), BackgroundColor3 = INK, Visible = false }, preview)
+	corner(shadow, 18)
+	local spot = new("Frame", { Name = "Spot", Position = cf.Position, Size = UDim2.fromOffset(cf.Size.X.Offset, 206), BackgroundColor3 = C("2B2346"), Visible = false }, preview)
+	corner(spot, 18)
+	stroke(spot, 4)
+	local art = new("Frame", { Name = "Art", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ClipsDescendants = true }, spot)
+	corner(art, 16)
+	new("TextButton", { Name = "Spin", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Text = "", AutoButtonColor = false, ZIndex = 8 }, art)
+end
+
 return Build

@@ -5,12 +5,15 @@
 --   * Every fixed-size label/button becomes TextScaled, capped by a "FitCap"
 --     UITextSizeConstraint at its design TextSize. It never grows past the design, and it
 --     shrinks only when the text wouldn't fit. The cap is in screen pixels (UIScale doesn't
---     apply to it), so it's design size × the canvas UIScale, kept in step when that changes.
+--     apply to it), so it's design size × every UIScale above the label (the canvas's, and any
+--     panel's own, like FitPanel's phone grow), kept in step when any of them changes (the
+--     label's AbsoluteSize moves with them). Before, only the canvas's counted, so on phones
+--     capped text in a grown panel came out smaller than the uncapped text beside it.
 --     Code that sets TextSize later still works: the cap follows it.
 --   * Auto-sized labels can't be TextScaled (their box comes from their text), so rows of
 --     auto-sized chips (a horizontal UIListLayout that doesn't wrap) shrink their chips
 --     together, through a "FitRow" UIScale on each chip, until the row fits its frame.
--- FitText.Watch(root) applies both to everything under root, including UI built later.
+-- FitText.Watch(root) applies all of it to everything under root, including UI built later.
 -- A label with the FitTextSkip attribute is left alone.
 
 local FitText = {}
@@ -20,6 +23,21 @@ local MIN_ROW_SCALE = 0.6 -- chip rows never shrink below 60%
 local ROW_SLACK = 4 -- px of free room before a shrunk row grows back (stops flicker)
 
 local watched: { [Instance]: boolean } = setmetatable({}, { __mode = "k" }) :: any
+
+-- every UIScale between the label and its ScreenGui / SurfaceGui, multiplied
+local function totalScale(gui: Instance): number
+	local s = 1
+	local node: Instance? = gui
+	while node and not node:IsA("LayerCollector") do
+		for _, c in node:GetChildren() do
+			if c:IsA("UIScale") then
+				s *= c.Scale
+			end
+		end
+		node = node.Parent
+	end
+	return if s > 0 then s else 1
+end
 
 -- the design-canvas UIScale above `gui` (Frames.Scale / HUD.Scale), if any
 local function canvasScaleOf(gui: Instance): UIScale?
@@ -55,10 +73,15 @@ function FitText.Label(label: TextLabel | TextButton)
 	label:SetAttribute("FitBaseSize", base)
 
 	local function update()
-		local s = if canvas then canvas.Scale else 1
+		local s = totalScale(label)
 		local max = math.clamp(math.floor(base * s + 0.5), 1, 100)
-		cap.MaxTextSize = max
-		cap.MinTextSize = math.clamp(math.floor(base * MIN_RATIO * s), 1, max)
+		if cap.MaxTextSize ~= max then
+			cap.MaxTextSize = max
+		end
+		local min = math.clamp(math.floor(base * MIN_RATIO * s), 1, max)
+		if cap.MinTextSize ~= min then
+			cap.MinTextSize = min
+		end
 	end
 	update()
 	label.TextScaled = true
@@ -71,6 +94,8 @@ function FitText.Label(label: TextLabel | TextButton)
 	if canvas then
 		canvas:GetPropertyChangedSignal("Scale"):Connect(update)
 	end
+	-- any UIScale above it changing (a panel growing on a phone, a pop) moves its AbsoluteSize
+	label:GetPropertyChangedSignal("AbsoluteSize"):Connect(update)
 end
 
 -- [[ Chip rows ]] --
@@ -96,13 +121,20 @@ local function fitRow(row: GuiObject, layout: UIListLayout)
 		return
 	end
 	local k = row:GetAttribute("FitRowScale") or 1
+	-- the biggest scale known to fit: on phones text doesn't shrink in proportion to its scale
+	-- (small text draws bigger than asked), so growing back by the measured ratio overshot, the
+	-- row overflowed again and the chips flickered between two sizes. Never grow back past a
+	-- scale that overflowed (forgotten when the row itself changes width).
+	local ceiling = row:GetAttribute("FitRowCeil") or 1
 	local target = k
 	if content > avail + 0.5 then
+		ceiling = math.min(ceiling, k - 0.01)
+		row:SetAttribute("FitRowCeil", ceiling)
 		target = k * avail / content
-	elseif k < 1 and content < avail - ROW_SLACK then
-		target = math.min(1, k * (avail - ROW_SLACK) / content)
+	elseif k < ceiling and content < avail - ROW_SLACK then
+		target = math.min(ceiling, k * (avail - ROW_SLACK) / content)
 	end
-	target = math.clamp(target, MIN_ROW_SCALE, 1)
+	target = math.clamp(target, MIN_ROW_SCALE, math.max(MIN_ROW_SCALE, ceiling))
 	if math.abs(target - k) < 0.005 then
 		return
 	end
@@ -153,7 +185,14 @@ function FitText.Row(row: GuiObject)
 		end
 	end
 	layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(refit)
-	row:GetPropertyChangedSignal("AbsoluteSize"):Connect(refit)
+	local lastW = row.AbsoluteSize.X
+	row:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+		if math.abs(row.AbsoluteSize.X - lastW) > 1 then
+			lastW = row.AbsoluteSize.X
+			row:SetAttribute("FitRowCeil", nil) -- new width: anything may fit again
+		end
+		refit()
+	end)
 	refit()
 end
 

@@ -38,6 +38,9 @@ ShopCatalog.Sets = {
 	{ Id = "FanMeet", Name = "Fan-meet Booth", Rarity = "Legendary", Price = 6000, Bg = "FFF6D6", Stage = "FFE07A", Platform = "FF5A4E", Mic = "FF5A4E" },
 	{ Id = "Encore", Name = "Encore Stage Set", Rarity = "Legendary", Price = 6000, Bg = "3B2F63", Stage = "FF5A4E", Platform = "FFE07A", Mic = "FFE07A",
 		Blurb = "Legendary stage skin, gold spotlight platform + mic" },
+	-- event sets (Event = a Constants/LiveEvents id): only from that event's shop, never in the rotation
+	{ Id = "FirstSnow", Name = "First Snow Set", Rarity = "Legendary", Price = 0, Bg = "E6F6FF", Stage = "CFEFFF", Platform = "FFFFFF", Mic = "9ED8F5", Event = "winter26",
+		Blurb = "Winter Special · icy stage, snow-white platform + mic" },
 }
 
 ShopCatalog.SET_ROTATION_SECONDS = 6 * 60 * 60 -- a new lineup every 6 hours (sets, items, banners)
@@ -152,7 +155,12 @@ ShopCatalog.RollBundles = {
 	-- (15 / 59 / 129, 25 Nov 2026) to test before the live ones (19 / 79 / 169) change in Creator Hub
 	{ Id = "Tickets1", Currency = "GenPacks", Amount = 1, ProductId = pick(3730112610, 3736256022) },
 	{ Id = "Tickets5", Currency = "GenPacks", Amount = 5, ProductId = pick(3730112632, 3736256078), Tag = "POPULAR" },
-	{ Id = "Tickets12", Currency = "GenPacks", Amount = 12, ProductId = pick(3730112656, 3736256092), Tag = "BEST VALUE" },
+	{ Id = "Tickets12", Currency = "GenPacks", Amount = 12, ProductId = pick(3730112656, 3736256092) },
+	-- the bigger stacks (28 Nov 2026; dev 249 / 449: live ids 0 show "Soon" until they're made)
+	{ Id = "Tickets25", Currency = "GenPacks", Amount = 25, ProductId = pick(0, 3737145825) },
+	{ Id = "Tickets50", Currency = "GenPacks", Amount = 50, ProductId = pick(0, 3737145831), Tag = "BEST VALUE" },
+	-- card upgrades went with the song Index (25 Nov 2026): off the shop, a purchase still in
+	-- flight pays Currencies.UPGRADE_COINS each
 	{ Id = "Upgrades1", Currency = "Upgrades", Amount = 1, ProductId = 3730112680, Hidden = true },
 	{ Id = "Upgrades5", Currency = "Upgrades", Amount = 5, ProductId = 3730112697, Tag = "POPULAR", Hidden = true },
 	{ Id = "Upgrades12", Currency = "Upgrades", Amount = 12, ProductId = 3730112726, Tag = "BEST VALUE", Hidden = true },
@@ -199,17 +207,43 @@ ShopCatalog.DebutPack = {
 -- many times one player can buy it (Rewards.Bundles counts them; the banner shows "n/Limit
 -- left"). Hidden behind "Soon" while ProductId is 0. Gradient = the banner's two colours.
 -- Hidden = off the shop (still grants, so a purchase already in flight pays out).
+-- Photocard bundles (28 Nov 2026, design board "78 · Shop · Photocard bundles"): World Tour (the
+-- featured one), Fan Meeting and Lucky Draw Event took the Headliner's, Warm-up's and Practice's
+-- places. Besides GenPacks / Coins they give Premium = { [pack key] = n } (unopened premium packs,
+-- Inventory.PremiumOwned: "Open yours" on the Packs page), LuckMinutes (added to the Luck potion
+-- clock, up to BOOST_MAX_SECONDS) and PinSlots (Slots upgrade levels; past the max, PinSlot's
+-- RefundCoins each). The old three stay off the shop once the new ones have product ids here.
+local NEW_BUNDLES = {
+	{ Id = "WorldTour", Name = "World Tour", Sub = "Limited Editions, 4 hours of Luck and a pin slot", ProductId = pick(0, 3737145843), Big = true, Limit = 1,
+		Tag = "FEATURED", TagColour = "FF5A4E", Gradient = { "DCD3FF", "D9F7E2" },
+		GenPacks = 15, Premium = { limited = 3 }, LuckMinutes = 240, PinSlots = 1, Coins = 7500 },
+	{ Id = "FanMeeting", Name = "Fan Meeting", Sub = "A first taste of the good packs", ProductId = pick(0, 3737145858), Limit = 2,
+		Gradient = { "FFE4EF", "FFF6F3" }, GenPacks = 3, Premium = { photobook = 1 }, LuckMinutes = 30 },
+	{ Id = "LuckyDrawEvent", Name = "Lucky Draw Event", Sub = "Premium packs with Luck running", ProductId = pick(0, 3737145849), Limit = 2,
+		Tag = "POPULAR", TagColour = "FFE07A", Gradient = { "FFF3B8", "FFFBEA" },
+		GenPacks = 6, Premium = { photobook = 2, limited = 1 }, LuckMinutes = 120, Coins = 2000 },
+}
+local newBundlesReady = true
+for _, b in NEW_BUNDLES do
+	if b.ProductId <= 0 then
+		newBundlesReady = false
+	end
+end
 ShopCatalog.Bundles = {
-	{ Id = "Headliner", Name = "Headliner", Sub = "Spotlight Stage + Mic, only here", ProductId = 3730244515, Big = true, Limit = 1,
+	{ Id = "Headliner", Name = "Headliner", Sub = "Spotlight Stage + Mic, only here", ProductId = 3730244515, Big = true, Limit = 1, Hidden = newBundlesReady,
 		Tag = "FEATURED", TagColour = "FF5A4E", Gradient = { "D8F6F2", "FFE3DE" }, -- the Spotlight set's teal → coral
 		Stage = "SpotlightStage", Mic = "SpotlightMic", GenPacks = 15, Coins = 7500 },
-	{ Id = "WarmUp", Name = "Warm-up", Sub = "A few packs to get going", ProductId = 3730244340, Limit = 2,
+	{ Id = "WarmUp", Name = "Warm-up", Sub = "A few packs to get going", ProductId = 3730244340, Limit = 2, Hidden = newBundlesReady,
 		Gradient = { "F1ECFF", "FFFFFF" }, GenPacks = 3, Coins = 650 },
-	{ Id = "Practice", Name = "Practice", Sub = "Packs + coins for your binder", ProductId = 3730244371, Limit = 2,
+	{ Id = "Practice", Name = "Practice", Sub = "Packs + coins for your binder", ProductId = 3730244371, Limit = 2, Hidden = newBundlesReady,
 		Tag = "POPULAR", TagColour = "FFE07A", Gradient = { "FFE4EF", "FFF6F3" }, GenPacks = 6, Coins = 1950 },
 	{ Id = "Comeback", Name = "Comeback", Sub = "Back in the game, fully stocked", ProductId = 3730244488, Limit = 2, Hidden = true,
 		Gradient = { "E3F3FC", "F4FBFF" }, GenPacks = 10, Coins = 4900 },
 }
+for _, b in NEW_BUNDLES do
+	b.Hidden = not newBundlesReady -- (the live game keeps the old three until these have ids)
+	table.insert(ShopCatalog.Bundles, b)
+end
 -- the Headliner's set: only in that bundle, never in the shop rotation
 -- (a concert runway: teal LED strips, a coral centre line, a tile video wall, fan lightsticks)
 table.insert(ShopCatalog.Stages, { Id = "SpotlightStage", Name = "Spotlight Stage", Rarity = "Legendary", Bg = "E3FBF8", Stage = "2EC4B6", Platform = "FF6F59", Reward = "Headliner" })
@@ -224,8 +258,31 @@ function ShopCatalog.GetBundle(id: string)
 	return nil
 end
 
--- What a bundle's banner shows, in order: its stage + mic, then gen packs, tickets, upgrades, coins.
--- { Kind = "Stage" | "Mic" | "GenPacks" | "Tickets" | "Upgrades" | "Coins", Id?, Amount? }
+-- What a bundle's banner shows, in order: its stage + mic, gen packs, tickets, premium packs
+-- (Photobook before Limited Edition), Luck time, pin slots, coins.
+-- { Kind = "Stage" | "Mic" | "GenPacks" | "Tickets" | "Premium" | "Luck" | "PinSlot" | "Coins",
+--   Id? (item / pack key), Amount? (Luck: minutes) }
+local PREMIUM_ORDER = { "photobook", "limited", "fansign" }
+
+-- how a bundle's Premium / Luck / PinSlot entry is drawn (banners, the "YOU GOT!" cards):
+-- { Label = "×2", Sub = "Photobook", Image, Colour (art tile) }
+local PREMIUM_LOOK = {
+	photobook = { Sub = "Photobook", Image = "rbxassetid://76102402433080", Colour = "FFE07A" },
+	limited = { Sub = "Limited Ed.", Image = "rbxassetid://120509227699976", Colour = "DCD3FF" },
+	fansign = { Sub = "Fansign", Image = "rbxassetid://76102402433080", Colour = "FFD2E5" },
+}
+function ShopCatalog.ContentLook(entry): { Label: string, Sub: string, Image: string, Colour: string }?
+	if entry.Kind == "Premium" then
+		local look = PREMIUM_LOOK[entry.Id] or PREMIUM_LOOK.photobook
+		return { Label = `×{entry.Amount}`, Sub = look.Sub, Image = look.Image, Colour = look.Colour }
+	elseif entry.Kind == "Luck" then
+		local m = entry.Amount
+		return { Label = if m >= 60 and m % 60 == 0 then `{m // 60} h` else `{m} min`, Sub = "+50% Luck", Image = "rbxassetid://136253068957955", Colour = "D9F7E2" }
+	elseif entry.Kind == "PinSlot" then
+		return { Label = `+{entry.Amount}`, Sub = if entry.Amount == 1 then "Pin slot" else "Pin slots", Image = "rbxassetid://108689827818959", Colour = "FFF6D6" }
+	end
+	return nil
+end
 function ShopCatalog.BundleContents(bundle): { any }
 	local out = {}
 	if bundle.Stage then
@@ -234,10 +291,25 @@ function ShopCatalog.BundleContents(bundle): { any }
 	if bundle.Mic then
 		table.insert(out, { Kind = "Mic", Id = bundle.Mic })
 	end
-	for _, kind in { "GenPacks", "Tickets", "Upgrades", "Coins" } do
+	for _, kind in { "GenPacks", "Tickets" } do
 		if (bundle[kind] or 0) > 0 then
 			table.insert(out, { Kind = kind, Amount = bundle[kind] })
 		end
+	end
+	for _, key in PREMIUM_ORDER do
+		local n = bundle.Premium and bundle.Premium[key] or 0
+		if n > 0 then
+			table.insert(out, { Kind = "Premium", Id = key, Amount = n })
+		end
+	end
+	if (bundle.LuckMinutes or 0) > 0 then
+		table.insert(out, { Kind = "Luck", Amount = bundle.LuckMinutes })
+	end
+	if (bundle.PinSlots or 0) > 0 then
+		table.insert(out, { Kind = "PinSlot", Amount = bundle.PinSlots })
+	end
+	if (bundle.Coins or 0) > 0 then
+		table.insert(out, { Kind = "Coins", Amount = bundle.Coins })
 	end
 	return out
 end
@@ -257,6 +329,11 @@ ShopCatalog.Passes = {
 		} },
 }
 
+-- [[ Pin slot: the Slots upgrade's next level for Robux ]]
+-- (the Upgrades tab's Slots card shows it beside the coin price; PlayerData grants it. Bought
+-- once already maxed: RefundCoins instead. Live id 0 until the live product is made.)
+ShopCatalog.PinSlot = { Id = "PinSlot", ProductId = pick(0, 3737139565), RefundCoins = 25000 }
+
 -- [[ Boost potions: 2× coins or 2× XP for a while ]]
 -- Robux products ("Boosts 1" board). The clock only runs while you're in the game
 -- (Engine/BoostService) and drinking more adds time up to BOOST_MAX_SECONDS. A coin potion
@@ -272,16 +349,32 @@ function ShopCatalog.CoinMultiplier(pass: boolean, potion: boolean): number
 	end
 	return 1
 end
-ShopCatalog.Boosts = {
-	{ Id = "CoinsSmall", Kind = "Coins", Seconds = 30 * 60, ProductId = pick(3733529669, 3733232797), Image = "rbxassetid://120664233001275" },
-	{ Id = "CoinsBig", Kind = "Coins", Seconds = 2 * 60 * 60, ProductId = pick(3733529934, 3733232856), Image = "rbxassetid://90605715561632", Best = true },
+-- The shop's potions: 2× Coins and Luck (+50% Lucky Draw and up in packs, AlbumConstants.LUCK_POTION,
+-- added to the Luck upgrade; not One of One). Luck took the 2× XP potions' place (28 Nov 2026).
+local COINS_SMALL = { Id = "CoinsSmall", Kind = "Coins", Seconds = 30 * 60, ProductId = pick(3733529669, 3733232797), Image = "rbxassetid://120664233001275" }
+local COINS_BIG = { Id = "CoinsBig", Kind = "Coins", Seconds = 2 * 60 * 60, ProductId = pick(3733529934, 3733232856), Image = "rbxassetid://90605715561632", Best = true }
+local LUCK = {
+	{ Id = "LuckSmall", Kind = "Luck", Seconds = 30 * 60, ProductId = pick(0, 3737141318), Image = "rbxassetid://136253068957955" },
+	{ Id = "LuckBig", Kind = "Luck", Seconds = 2 * 60 * 60, ProductId = pick(0, 3737141327), Image = "rbxassetid://85347957795481", Best = true },
+}
+-- the XP potions: off the shelf, but still granted (a purchase in flight, a gift, a live game that
+-- has no Luck products yet: it keeps selling these until LUCK has its live ids)
+local XP = {
 	{ Id = "XPSmall", Kind = "XP", Seconds = 30 * 60, ProductId = pick(3733529678, 3733232866), Image = "rbxassetid://93064684252304" },
 	{ Id = "XPBig", Kind = "XP", Seconds = 2 * 60 * 60, ProductId = pick(3733529688, 3733232874), Image = "rbxassetid://86807835649616", Best = true },
 }
-ShopCatalog.BOOST_KINDS = { Coins = { Name = "2× Coins", Colour = "FFD23F" }, XP = { Name = "2× XP", Colour = "B9A6FF" } }
+local luckReady = LUCK[1].ProductId > 0 and LUCK[2].ProductId > 0
+ShopCatalog.Boosts = { COINS_SMALL, COINS_BIG, if luckReady then LUCK[1] else XP[1], if luckReady then LUCK[2] else XP[2] }
+-- every potion product that can still be granted (the shelf, plus the ones it no longer shows)
+ShopCatalog.AllBoosts = { COINS_SMALL, COINS_BIG, LUCK[1], LUCK[2], XP[1], XP[2] }
+ShopCatalog.BOOST_KINDS = {
+	Coins = { Name = "2× Coins", Colour = "FFD23F" },
+	XP = { Name = "2× XP", Colour = "B9A6FF" },
+	Luck = { Name = "+50% Luck", Colour = "A7E9B8" },
+}
 
 function ShopCatalog.GetBoost(id: string)
-	for _, boost in ShopCatalog.Boosts do
+	for _, boost in ShopCatalog.AllBoosts do
 		if boost.Id == id then
 			return boost
 		end
@@ -323,7 +416,14 @@ ShopCatalog.GiftProducts = {
 	CoinsBig = pick(3733530269, 3733547053),
 	XPSmall = pick(3733530284, 3733547062),
 	XPBig = pick(3733530300, 3733547076),
+	LuckSmall = pick(0, 3737141335),
+	LuckBig = pick(0, 3737141343),
 }
+for id, product in table.clone(ShopCatalog.GiftProducts) do
+	if product == 0 then
+		ShopCatalog.GiftProducts[id] = nil -- (no gift twin made in this game yet)
+	end
+end
 
 -- the product name to gift an item with: its twin when there is one
 function ShopCatalog.GiftProduct(id: string): string
@@ -371,7 +471,7 @@ function ShopCatalog.GiftName(product: string): string?
 	if ShopCatalog.DebutPack and ShopCatalog.DebutPack.Id == product then
 		return "Debut Pack"
 	end
-	for _, b in ShopCatalog.Boosts do
+	for _, b in ShopCatalog.AllBoosts do
 		if b.Id == product then
 			local kind = ShopCatalog.BOOST_KINDS[b.Kind]
 			local length = if b.Seconds >= 3600 then `{b.Seconds // 3600} h` else `{b.Seconds // 60} min`
@@ -443,7 +543,7 @@ function ShopCatalog.Rotation(time: number?): { any }
 	local featured = ShopCatalog.Featured(time)
 	local pool = {}
 	for _, set in ShopCatalog.Sets do
-		if not featured or set.Id ~= featured.Id then
+		if (not featured or set.Id ~= featured.Id) and not set.Event then
 			table.insert(pool, set)
 		end
 	end

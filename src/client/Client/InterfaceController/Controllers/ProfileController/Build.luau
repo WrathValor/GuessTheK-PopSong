@@ -694,13 +694,70 @@ local function fsTitles(outer: Frame)
 	text(face, "GroupName", { Position = UDim2.fromOffset(58, 7), Size = UDim2.fromOffset(cardsX - 22 - 70, 22), FontFace = BODY, TextSize = 16, Text = "aespa", TextTruncate = Enum.TextTruncate.AtEnd })
 	text(face, "Sub", { Position = UDim2.fromOffset(58, 28), Size = UDim2.fromOffset(cardsX - 22 - 70, 16), FontFace = BODY_BOLD, TextSize = 12, TextColor3 = MUTED, Text = "Next cards: every member Store+ · 2/4", TextTruncate = Enum.TextTruncate.AtEnd })
 	local c = wearChip(face, "Cards", nil, COL_W)
-	c.AnchorPoint = Vector2.new(1, 0.5)
-	c.Position = UDim2.new(1, -(ROW_PAD + COL_W + GAP), 0.5, 0)
+	c.AnchorPoint = Vector2.new(0.5, 0.5) -- (centred so ButtonScale grows it from the middle)
+	c.Position = UDim2.new(1, -(ROW_PAD + COL_W + GAP) - COL_W / 2, 0.5, 0)
 	local sg = wearChip(face, "Songs", nil, COL_W)
-	sg.AnchorPoint = Vector2.new(1, 0.5)
-	sg.Position = UDim2.new(1, -ROW_PAD, 0.5, 0)
+	sg.AnchorPoint = Vector2.new(0.5, 0.5)
+	sg.Position = UDim2.new(1, -ROW_PAD - COL_W / 2, 0.5, 0)
 	text(list, "Empty", { LayoutOrder = 9999, Size = UDim2.fromOffset(600, 40), FontFace = BODY_BOLD, TextSize = 14, TextColor3 = MUTED, Text = "Collect a group's photocards or master its songs for your first badge", Visible = false })
+	Build.WearExtras(page)
 	return page
+end
+
+-- board 64 · Badges · tier looks: the badge chips hug their fandom name (the look is the rung),
+-- each slot gets "Wear" (tap to put it on) and a red ✕ TAKE OFF (the one you're wearing), the
+-- header a ✕ TAKE OFF beside what you're wearing, and the page a Tip ("EXO-L · Silver · Cards")
+-- shown over a hovered badge. Safe to run again on a built Titles tab:
+--   require(<this module>).WearExtras(game.StarterGui.Interface.Frames.Profile.Panel.TitlesPage)
+local function takeOff(parent: Instance, props: { [string]: any }): TextButton
+	local old = parent:FindFirstChild("TakeOff")
+	if old then
+		old:Destroy()
+	end
+	local base = { Name = "TakeOff", AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 22), BackgroundColor3 = C("FF5A4E"), FontFace = HEAD, TextSize = 10, TextColor3 = CREAM, Text = "× TAKE OFF", AutoButtonColor = false, Visible = false, ZIndex = 3 }
+	for k, v in props do
+		base[k] = v
+	end
+	local b = new("TextButton", base, parent)
+	corner(b, 7)
+	stroke(b, 2)
+	new("UIPadding", { PaddingLeft = UDim.new(0, 7), PaddingRight = UDim.new(0, 7) }, b)
+	return b
+end
+
+function Build.WearExtras(page: Instance)
+	local wearing = page:FindFirstChild("Wearing")
+	if wearing then
+		takeOff(wearing, { LayoutOrder = 3, Size = UDim2.fromOffset(0, 24) })
+	end
+	local row = page.Badges.List:FindFirstChild("Template")
+	if row then
+		for _, name in { "Cards", "Songs" } do
+			local slot = row.Face:FindFirstChild(name)
+			if slot then
+				local chip = slot.Chip
+				chip.AutomaticSize = Enum.AutomaticSize.X
+				chip.Size = UDim2.fromOffset(0, 26)
+				chip.TextXAlignment = Enum.TextXAlignment.Center
+				chip.TextTruncate = Enum.TextTruncate.None
+				takeOff(slot, { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -4, 0.5, 0) })
+				local old = slot:FindFirstChild("Wear")
+				if old then
+					old:Destroy()
+				end
+				text(slot, "Wear", { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -6, 0.5, 0), AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 18), FontFace = BODY, TextSize = 12, TextColor3 = MUTED, RichText = true, Text = "<u>Wear</u>", Visible = false, ZIndex = 2 })
+			end
+		end
+	end
+	local old = page:FindFirstChild("Tip")
+	if old then
+		old:Destroy()
+	end
+	local tip = text(page, "Tip", { AnchorPoint = Vector2.new(0.5, 1), AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 26), BackgroundTransparency = 0, BackgroundColor3 = INK, FontFace = BODY, TextSize = 12, TextColor3 = CREAM, RichText = true, Text = "EXO-L · <font color=\"#FFE07A\">Silver</font> · Cards", Visible = false, ZIndex = 20 })
+	corner(tip, 8)
+	new("UIPadding", { PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10) }, tip)
+	local arrow = new("Frame", { Name = "Arrow", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 1, 0), Size = UDim2.fromOffset(10, 10), Rotation = 45, BackgroundColor3 = INK, BorderSizePixel = 0, ZIndex = 19 }, tip)
+	arrow:SetAttribute("FitTextSkip", true)
 end
 
 -- Rebuilds just the Titles tab (board 49) on an existing Profile frame, in Edit mode:

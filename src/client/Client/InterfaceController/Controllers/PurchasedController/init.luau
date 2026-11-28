@@ -140,7 +140,7 @@ end
 local function boostCard(kind: string, minutes: number)
 	local k = ShopCatalog.BOOST_KINDS[kind]
 	local image = nil
-	for _, b in ShopCatalog.Boosts do
+	for _, b in ShopCatalog.AllBoosts do
 		if b.Kind == kind and not image then
 			image = b.Image
 		end
@@ -224,7 +224,7 @@ local function giftCards(packet): { any }
 				found = true
 			end
 		end
-		for _, b in ShopCatalog.Boosts do
+		for _, b in ShopCatalog.AllBoosts do
 			if b.Id == product then
 				local k = ShopCatalog.BOOST_KINDS[b.Kind]
 				table.insert(cards, { Name = k and k.Name or b.Kind, Kind = "Boost potion", Colour = k and k.Colour or "FFE07A", Image = b.Image, Tag = "POTION", TagColour = "B9A6FF" })
@@ -262,8 +262,11 @@ local function giftCards(packet): { any }
 				end
 			elseif bundle then
 				for _, entry in ShopCatalog.BundleContents(bundle) do
+					local look = ShopCatalog.ContentLook(entry)
 					if entry.Kind == "Stage" or entry.Kind == "Mic" then
 						table.insert(cards, itemCard(entry.Kind, entry.Id))
+					elseif look then
+						table.insert(cards, { Name = look.Label, Kind = look.Sub, Colour = look.Colour, Image = look.Image, Pack = if entry.Kind == "Premium" then entry.Id else nil, Tag = string.upper(look.Sub), TagColour = "FFFFFF" })
 					elseif entry.Kind and entry.Amount then
 						table.insert(cards, currencyCard(entry.Kind, entry.Amount))
 					end
@@ -745,7 +748,7 @@ function Purchased:Initialize(interface)
 			return
 		end
 		-- boost potions: "BOOST ACTIVE!" once the clock is running (BoostService's attribute)
-		for _, boost in ShopCatalog.Boosts do
+		for _, boost in ShopCatalog.AllBoosts do
 			if boost.ProductId == productId then
 				local attr = "Boost" .. boost.Kind
 				local before = LOCAL_PLAYER:GetAttribute(attr) or 0
@@ -896,8 +899,11 @@ end
 function Purchased:_showBundle(bundle)
 	local cards = {}
 	for _, entry in ShopCatalog.BundleContents(bundle) do
+		local look = ShopCatalog.ContentLook(entry) -- premium packs, Luck time, pin slots
 		if entry.Kind == "Stage" or entry.Kind == "Mic" then
 			table.insert(cards, itemCard(entry.Kind, entry.Id))
+		elseif look then
+			table.insert(cards, { Name = look.Label, Kind = look.Sub, Colour = look.Colour, Image = look.Image, Pack = if entry.Kind == "Premium" then entry.Id else nil, Tag = string.upper(look.Sub), TagColour = "FFFFFF" })
 		else
 			table.insert(cards, currencyCard(entry.Kind, entry.Amount))
 		end
@@ -920,7 +926,8 @@ function Purchased:_showBundle(bundle)
 end
 
 -- info = { Banner, Sub, Cards = { card? }, Where, EquipText?, Equip? }
--- card = { Name, Kind, Colour, Tag, TagColour, Model = { kind, id }? | Image? | Big? | Title? }
+-- card = { Name, Kind, Colour, Tag, TagColour, Model = { kind, id }? | Image? | Pack? | Big? | Title? }
+local PACK_ART = { photobook = "PackPhotobook", limited = "PackLimited" }
 function Purchased:Show(info)
 	-- drop missing cards (an id the catalog doesn't know), keep the order
 	local cards = {}
@@ -994,8 +1001,19 @@ function Purchased:Show(info)
 		face.ItemKind.Text = card.Kind
 		face.Tag.Text = card.Tag or "NEW"
 		face.Tag.BackgroundColor3 = C(card.TagColour or "B9A6FF")
+		-- a premium pack: the Packs page's own pack art (ShopController Build.BundlePackArt)
+		local packArt = nil
+		for key, name in PACK_ART do
+			local a = art:FindFirstChild(name)
+			if a then
+				a.Visible = card.Pack == key
+				if card.Pack == key then
+					packArt = a
+				end
+			end
+		end
 		art.Pic.Image = card.Image or ""
-		art.Pic.Visible = card.Image ~= nil
+		art.Pic.Visible = card.Image ~= nil and packArt == nil
 		-- the coin pile art sits low in its square image: a touch bigger, nudged up onto the
 		-- coins (like the shop's cards); everything else fills 82% of the art
 		local coins = card.Kind == "Coins"
